@@ -1,0 +1,38 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors
+.vscode/
+.idea/
+.DS_Store
+
+# test
+coverage/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# docker volumes (if mounted locally)
+infra/data/

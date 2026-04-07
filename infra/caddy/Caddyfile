@@ -1,0 +1,25 @@
+# Dev Caddyfile — reverse proxy for local development.
+# Prod Caddyfile (with auto-HTTPS) lives in infra/caddy/Caddyfile.prod.
+
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	# API under /api
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# AI worker under /ai
+	handle /ai/* {
+		uri strip_prefix /ai
+		reverse_proxy ai-worker:8000
+	}
+
+	# Everything else → frontend
+	handle {
+		reverse_proxy web:80
+	}
+}

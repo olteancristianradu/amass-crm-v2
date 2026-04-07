@@ -1,0 +1,13 @@
+// AMASS-CRM v2 — Prisma schema
+// Sprint 0: empty placeholder. Models added in Sprint 1+.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
