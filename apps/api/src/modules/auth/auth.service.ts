@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'node:crypto';
 import { loadEnv } from '../../config/env';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { LoginDto, RefreshDto, RegisterDto } from './dto';
 
 export interface JwtPayload {
@@ -27,6 +28,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly audit: AuditService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ user: SafeUser; tokens: AuthTokens }> {
@@ -56,6 +58,13 @@ export class AuthService {
     });
 
     const tokens = await this.issueTokens(user);
+    await this.audit.log({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      action: 'auth.register',
+      subjectType: 'user',
+      subjectId: user.id,
+    });
     return { user: toSafeUser(user), tokens };
   }
 
@@ -74,6 +83,15 @@ export class AuthService {
     if (!ok) throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
 
     const tokens = await this.issueTokens(user, meta);
+    await this.audit.log({
+      tenantId: user.tenantId,
+      actorId: user.id,
+      action: 'auth.login',
+      subjectType: 'user',
+      subjectId: user.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
     return { user: toSafeUser(user), tokens };
   }
 

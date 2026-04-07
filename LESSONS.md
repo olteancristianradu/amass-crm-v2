@@ -34,6 +34,19 @@
 
 ## Entries
 
+### 2026-04-08 — Sprint 2 — RLS doesn't work for superusers (even with FORCE)
+- **Sprint / area:** S2 / multi-tenant isolation
+- **Symptom:** RLS policies + `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` were all in place. `SET LOCAL app.tenant_id = 'X'` was being applied (verified via `current_setting`). But cross-tenant `SELECT` still returned all rows. Inserts with wrong tenantId via `WITH CHECK` policy still succeeded.
+- **Root cause:** Postgres **superusers and roles with `BYPASSRLS` always bypass RLS**, even when the table has `FORCE ROW LEVEL SECURITY` enabled. The default `postgres` user in the `pgvector/pgvector` image is a superuser. So all our policies were no-ops for the connection user.
+- **Fix:**
+  1. Created a non-superuser role `app_user` (`NOLOGIN NOSUPERUSER NOBYPASSRLS`) via migration `20260407211000_app_role`. Granted it CRUD on all tables + default privileges for future tables.
+  2. Inside `PrismaService.runWithTenant`, added `SET LOCAL ROLE app_user` immediately after `SET LOCAL app.tenant_id`. This drops privileges for the rest of the transaction; reverted automatically at COMMIT/ROLLBACK. Migrations still run as `postgres` (need owner privileges for DDL), but data-plane queries run as `app_user` and obey RLS.
+- **Lesson:** RLS in Postgres has THREE prerequisites and missing any one makes it silently a no-op:
+  1. `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+  2. `ALTER TABLE ... FORCE ROW LEVEL SECURITY` (otherwise the table owner bypasses it)
+  3. **The connection user must NOT be SUPERUSER and must NOT have BYPASSRLS**
+  Always verify with: `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;` If either is `t`, RLS is a lie.
+
 ### 2026-04-07 — Sprint 1 — decorator metadata trap (vitest + tsx)
 - **Sprint / area:** S1 / NestJS bootstrap, tests
 - **Symptom:** All NestJS controllers crashed with `TypeError: Cannot read properties of undefined (reading 'register')` — service was undefined inside controller. Same crash in vitest e2e and when running `tsx src/main.ts`.

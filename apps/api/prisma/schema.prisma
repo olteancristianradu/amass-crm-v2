@@ -53,6 +53,24 @@ model User {
   @@map("users")
 }
 
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actorId     String?
+  action      String   // e.g. "user.create", "auth.login", "company.delete"
+  subjectType String?  // e.g. "user", "company"
+  subjectId   String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, action])
+  @@index([tenantId, subjectType, subjectId])
+  @@map("audit_logs")
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String
