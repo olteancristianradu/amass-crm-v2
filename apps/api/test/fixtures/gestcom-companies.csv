@@ -1,0 +1,6 @@
+Denumire,CUI,Nr Reg Com,Domeniu,Email,Telefon,Website,Adresa,Oras,Judet,Tara
+Acme SRL,RO12345678,J40/1234/2020,IT,office@acme.ro,0212345678,https://acme.ro,Str. Tehnologiei 1,Bucuresti,Bucuresti,RO
+Beta Industries SRL,RO23456789,J40/5678/2019,Productie,contact@beta.ro,0264111222,https://beta.ro,Bd. Industriei 5,Cluj-Napoca,Cluj,RO
+Gamma Consulting SRL,RO34567890,J12/9876/2021,Consultanta,info@gamma.ro,,https://gamma.ro,Str. Eroilor 12,Brasov,Brasov,RO
+Delta Logistics SRL,,J22/3344/2018,Transport,office@delta.ro,0231445566,,Bd. Garii 8,Iasi,Iasi,RO
+Acme SRL,RO12345678,J40/1234/2020,IT,duplicate@acme.ro,,,,Bucuresti,Bucuresti,RO

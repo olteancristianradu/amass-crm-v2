@@ -1,0 +1,7 @@
+Nume,Prenume,Email,Telefon,Mobil,Adresa,Oras,Judet,Cod Postal,Tara
+Popescu,Ion,ion.popescu@example.ro,0212345678,0712345678,Str. Florilor 1,Bucuresti,Bucuresti,010101,RO
+Ionescu,Maria,maria.ionescu@example.ro,,0723456789,Str. Lalelelor 2,Cluj-Napoca,Cluj,400001,RO
+Georgescu,Andrei,andrei.g@example.ro,0264111222,,Bd. Eroilor 5,Brasov,Brasov,500001,RO
+Vasilescu,Elena,,0744555666,0744555666,Str. Garii 12,Iasi,Iasi,700001,RO
+Stan,Cristian,cristian.stan@example.ro,,0755123456,Str. Pacii 7,Constanta,Constanta,900001,RO
+Popescu,Ion,duplicate@example.ro,0212345678,0712345678,Different addr,Bucuresti,Bucuresti,010101,RO

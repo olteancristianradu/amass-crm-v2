@@ -34,6 +34,41 @@
 
 ## Entries
 
+### 2026-04-08 — Sprint 4 — supertest EPIPE on guard-rejected multipart upload
+- **Sprint / area:** S4 / importer / e2e tests
+- **Symptom:** An e2e test that uploads a file with `.attach('file', path)` AND expects a 403 from `RolesGuard` failed with `Error: write EPIPE`. The other 32 tests passed; this one was the only one that combined a multipart body with a guard-level rejection.
+- **Root cause:** NestJS execution order is **guards → interceptors → pipes → handler**. With `@UseGuards(RolesGuard)` plus `@UseInterceptors(FileInterceptor(...))`, the guard rejects the request and Nest writes the 403 response **before** multer (the FileInterceptor) starts reading the multipart body. The server then closes the socket while supertest is still streaming the file → broken pipe.
+- **Fix:** Drop the `.attach()` from the test. Since the role check fires before the body is parsed, the test only needs to send the auth header and hit the route — no file required. Test asserts `expect(403)` and the 403 path is exactly what we want to cover.
+- **Lesson:** Don't pair `.attach()` (or any large body) with assertions that rely on a guard-level rejection. Either:
+  1. Verify the guard with a body-less request, OR
+  2. Use a tiny in-memory buffer (`.attach('file', Buffer.from('a,b\n1,2\n'), 'tiny.csv')`) so the entire body fits in the TCP send buffer before the server closes.
+  Knowing the Nest pipeline order (guards → interceptors → pipes → handler → response interceptors → exception filters) prevents this whole class of "why did supertest die" bugs.
+
+### 2026-04-08 — Sprint 4 — BullMQ workers REQUIRE maxRetriesPerRequest: null
+- **Sprint / area:** S4 / queue infra
+- **Symptom:** Would have crashed at worker startup with: `Error: BullMQ: Your redis options maxRetriesPerRequest must be null.`
+- **Root cause:** BullMQ v5 workers use blocking Redis commands (`BRPOPLPUSH`, etc). ioredis defaults `maxRetriesPerRequest: 20`, which means a blocked command in flight gets aborted after 20 retries — incompatible with workers that intentionally block forever waiting for jobs.
+- **Fix:** Construct the connection explicitly in `QueueModule`:
+  ```ts
+  connection: new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null })
+  ```
+  Share that one connection across all queues via `BullModule.forRootAsync`. Don't let `@nestjs/bullmq` auto-create per-queue connections without that flag.
+- **Lesson:** The `maxRetriesPerRequest: null` constraint is BullMQ-specific and not obvious from the @nestjs/bullmq docs. Always construct the ioredis client yourself for BullMQ — don't pass a URL string and hope the defaults work.
+
+### 2026-04-08 — Sprint 4 — TypeScript 6 deprecation: moduleResolution=node
+- **Sprint / area:** S4 / tooling
+- **Symptom:** `error TS5102: Option 'moduleResolution=node10' is deprecated and will stop functioning in TypeScript 7.0.` After upgrading to TS 6.0.2 the build wouldn't pass.
+- **Failed attempts (don't repeat these):**
+  1. `moduleResolution: "node16"` — requires explicit `.js` extensions in every relative import, would force a refactor of every `import { x } from './y'` in the codebase.
+  2. `moduleResolution: "bundler"` — incompatible with `module: "commonjs"` (NestJS requires CJS at runtime).
+  3. `ignoreDeprecations: "6.0"` while still on TS 5.9.3 → `error TS5103: Invalid value for '--ignoreDeprecations'` (5.9 only accepts `"5.0"`).
+- **Fix:**
+  1. Bumped `typescript` to `^6.0.2` in **both** `apps/api/package.json` AND `packages/shared/package.json` (workspace root must match per-package version or pnpm warns).
+  2. Added `"ignoreDeprecations": "6.0"` to `apps/api/tsconfig.json` and `packages/shared/tsconfig.json`.
+  3. TS 6 also tightened `tsconfig.build.json`: it now requires explicit `rootDir: "src"` (was previously inferred) — re-added it.
+  4. Re-ran `pnpm --filter @amass/api prisma:generate` so the generated client matches the new TS version's stricter typings.
+- **Lesson:** When fixing a deprecation warning, **upgrade the compiler before adding the silencer flag** — older TS versions don't recognise newer values for `ignoreDeprecations`. And when bumping a workspace tool like TypeScript, bump it in EVERY package.json that lists it as a devDep, not just the root.
+
 ### 2026-04-08 — Sprint 3 — workspace package must be built, not main:src/index.ts
 - **Sprint / area:** S3 / monorepo / @amass/shared
 - **Symptom:** Tests passed (vitest transpiles via SWC on the fly), but the production build crashed at runtime: `Cannot find module '/packages/shared/src/schemas/common'`. Node tried to load the raw `.ts` file imported from `index.ts`.

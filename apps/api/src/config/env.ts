@@ -15,7 +15,7 @@ const envSchema = z.object({
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
 
-  REDIS_URL: z.string().url().optional(),
+  REDIS_URL: z.string().url(),
 });
 
 export type Env = z.infer<typeof envSchema>;

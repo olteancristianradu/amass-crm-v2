@@ -53,6 +53,43 @@ model User {
   @@map("users")
 }
 
+enum ImportType {
+  CLIENTS
+  COMPANIES
+  CONTACTS
+}
+
+enum ImportStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model ImportJob {
+  id           String       @id @default(cuid())
+  tenantId     String
+  type         ImportType
+  status       ImportStatus @default(PENDING)
+  fileName     String
+  filePath     String       // local path now; MinIO key after S6
+  totalRows    Int          @default(0)
+  processed    Int          @default(0)
+  succeeded    Int          @default(0)
+  failed       Int          @default(0)
+  skipped      Int          @default(0)
+  errors       Json?        // array of {row, message}
+  createdById  String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@map("import_jobs")
+}
+
 enum CompanySize {
   MICRO   // 1-9
   SMALL   // 10-49
