@@ -53,6 +53,92 @@ model User {
   @@map("users")
 }
 
+enum CompanySize {
+  MICRO   // 1-9
+  SMALL   // 10-49
+  MEDIUM  // 50-249
+  LARGE   // 250+
+}
+
+model Company {
+  id          String       @id @default(cuid())
+  tenantId    String
+  name        String
+  vatNumber   String?      // CUI for Romanian companies
+  registrationNumber String? // J-number
+  industry    String?
+  size        CompanySize?
+  website     String?
+  email       String?
+  phone       String?
+  addressLine String?
+  city        String?
+  county      String?
+  postalCode  String?
+  country     String?      @default("RO")
+  notes       String?
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  contacts Contact[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, name])
+  @@index([tenantId, vatNumber])
+  @@map("companies")
+}
+
+model Contact {
+  id          String    @id @default(cuid())
+  tenantId    String
+  companyId   String?
+  firstName   String
+  lastName    String
+  jobTitle    String?
+  email       String?
+  phone       String?
+  mobile      String?
+  notes       String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, companyId])
+  @@index([tenantId, lastName, firstName])
+  @@map("contacts")
+}
+
+model Client {
+  id          String    @id @default(cuid())
+  tenantId    String
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  mobile      String?
+  addressLine String?
+  city        String?
+  county      String?
+  postalCode  String?
+  country     String?   @default("RO")
+  notes       String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, lastName, firstName])
+  @@index([tenantId, email])
+  @@map("clients")
+}
+
 model AuditLog {
   id          String   @id @default(cuid())
   tenantId    String

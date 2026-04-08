@@ -1,2 +1,4 @@
-// Shared Zod schemas, types, constants — populated starting Sprint 1.
-export const SPRINT = 0 as const;
+export * from './schemas/common';
+export * from './schemas/company';
+export * from './schemas/contact';
+export * from './schemas/client';

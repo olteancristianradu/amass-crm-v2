@@ -34,6 +34,13 @@
 
 ## Entries
 
+### 2026-04-08 — Sprint 3 — workspace package must be built, not main:src/index.ts
+- **Sprint / area:** S3 / monorepo / @amass/shared
+- **Symptom:** Tests passed (vitest transpiles via SWC on the fly), but the production build crashed at runtime: `Cannot find module '/packages/shared/src/schemas/common'`. Node tried to load the raw `.ts` file imported from `index.ts`.
+- **Root cause:** `packages/shared/package.json` had `"main": "src/index.ts"`. Vitest+SWC didn't care, but compiled NestJS code in `dist/` does — Node loads the JS, sees the import from `@amass/shared`, and follows the `main` field. Pointing main at a `.ts` file means Node has nothing to execute.
+- **Fix:** Added `tsconfig.json` to `packages/shared`, `build` script (`tsc -p tsconfig.json`), set `"main": "dist/index.js"` and `"types": "dist/index.d.ts"`. Build the shared package before building the API (turbo `^build` already orders this correctly).
+- **Lesson:** Workspace packages used by built apps must compile to JS. `main: src/*.ts` only works when the consumer is also a TS-aware runtime (vitest, ts-node). The moment a `dist/` build runs the consumer, Node sees raw TS and dies.
+
 ### 2026-04-08 — Sprint 2 — RLS doesn't work for superusers (even with FORCE)
 - **Sprint / area:** S2 / multi-tenant isolation
 - **Symptom:** RLS policies + `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` were all in place. `SET LOCAL app.tenant_id = 'X'` was being applied (verified via `current_setting`). But cross-tenant `SELECT` still returned all rows. Inserts with wrong tenantId via `WITH CHECK` policy still succeeded.

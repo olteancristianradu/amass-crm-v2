@@ -7,7 +7,14 @@ import { getTenantContext } from './tenant-context';
  * NOTE: keep this in sync with schema.prisma — every tenant-scoped model goes here.
  * `tenants` itself is NOT in this list (lookups by slug happen pre-auth).
  */
-const TENANT_SCOPED_MODELS = new Set<string>(['User', 'Session', 'AuditLog']);
+const TENANT_SCOPED_MODELS = new Set<string>([
+  'User',
+  'Session',
+  'AuditLog',
+  'Company',
+  'Contact',
+  'Client',
+]);
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
