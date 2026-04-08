@@ -34,6 +34,24 @@
 
 ## Entries
 
+### 2026-04-08 — Sprint 6 — `pnpm start` runs stale `dist/`, not source
+- **Sprint / area:** S6 / curl verification
+- **Symptom:** Brand new attachment routes were mapped in tests (vitest passes), but the curl verification against the running API got `404 NOT_FOUND: Cannot POST /api/v1/COMPANY/.../attachments/presign`. Stack trace pointed to `apps/api/dist/common/middleware/tenant-context.middleware.js`.
+- **Root cause:** `apps/api/package.json` has `"start": "node dist/main.js"` (production-style). Vitest transpiles from `src/` on the fly, so tests reflect the latest code, but `pnpm start` boots whatever was last `nest build`'d into `dist/`. After adding new modules I forgot to rebuild.
+- **Fix:** `pnpm build` before `pnpm start` (or use `pnpm dev` which is `nest start --watch` and reads `src/`).
+- **Lesson:** For curl verification of fresh code, either (a) `pnpm build && pnpm start`, or (b) use `pnpm dev`. The fact that vitest was green proved nothing about the running API. Treat `pnpm start` as a deploy-mode command, not a dev-loop command.
+
+### 2026-04-08 — Sprint 6 — Edit fails on files you haven't Read, even ones you just created via migrate
+- **Sprint / area:** S6 / migrations + tooling
+- **Symptom:** Tried to add RLS policies to a freshly-generated `prisma migrate dev` migration.sql file via Edit. Edit refused: "must Read first." Meanwhile `prisma migrate dev` had ALREADY applied the migration to the live DB without the RLS appended, leaving the new `attachments` table with RLS disabled in the running database.
+- **Root cause:** Two compounding issues. (1) `prisma migrate dev` applies the migration immediately as it's generated, before I get a chance to inspect it. (2) The Edit tool requires a prior Read of any file in the session, even files Claude just observed appearing on disk via another command.
+- **Fix:** (1) Read+Edit the file to add RLS for future fresh-installs / `migrate reset` runs. (2) Manually apply the missing RLS to the running database via `docker exec -i amass-postgres psql -U postgres -d amass_crm <<SQL ... SQL` so the live state matches what the migration file now says.
+- **Lesson:** When using `prisma migrate dev` on a model that needs RLS, the RLS DDL must be inserted BEFORE the migration applies. Workflow:
+  1. `prisma migrate dev --create-only` (generates the file but does NOT apply)
+  2. Read + Edit the migration to append `ALTER TABLE … ENABLE/FORCE RLS`, `CREATE POLICY`, and `GRANT … TO app_user`
+  3. `prisma migrate dev` (now applies the complete, RLS-aware migration)
+  Without `--create-only` you'll always be playing catch-up against the live DB.
+
 ### 2026-04-08 — Sprint 4 — supertest EPIPE on guard-rejected multipart upload
 - **Sprint / area:** S4 / importer / e2e tests
 - **Symptom:** An e2e test that uploads a file with `.attach('file', path)` AND expects a 403 from `RolesGuard` failed with `Error: write EPIPE`. The other 32 tests passed; this one was the only one that combined a multipart body with a guard-level rejection.

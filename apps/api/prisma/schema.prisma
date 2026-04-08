@@ -203,6 +203,24 @@ enum SubjectType {
   CLIENT
 }
 
+model Attachment {
+  id           String      @id @default(cuid())
+  tenantId     String
+  subjectType  SubjectType
+  subjectId    String
+  storageKey   String      @unique // path inside the MinIO bucket
+  fileName     String
+  mimeType     String
+  size         Int
+  uploadedById String?
+  createdAt    DateTime    @default(now())
+  deletedAt    DateTime?
+
+  @@index([tenantId, subjectType, subjectId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("attachments")
+}
+
 model Note {
   id          String      @id @default(cuid())
   tenantId    String
