@@ -95,7 +95,14 @@ export class AuthService {
     return { user: toSafeUser(user), tokens };
   }
 
-  async refresh(dto: RefreshDto, meta: SessionMeta = {}): Promise<AuthTokens> {
+  /**
+   * Rotate the refresh token. Returns the SAME `{ tokens }` shape as
+   * register/login so all auth endpoints share one client-side parser.
+   * The `user` field is intentionally omitted on refresh — the client
+   * already has it from the original login and a refresh shouldn't
+   * trigger an unrelated user re-fetch.
+   */
+  async refresh(dto: RefreshDto, meta: SessionMeta = {}): Promise<{ tokens: AuthTokens }> {
     const hash = hashToken(dto.refreshToken);
     const session = await this.prisma.session.findUnique({ where: { refreshTokenHash: hash } });
     if (!session || session.revokedAt || session.expiresAt < new Date()) {
@@ -112,7 +119,8 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    return this.issueTokens(user, meta);
+    const tokens = await this.issueTokens(user, meta);
+    return { tokens };
   }
 
   async logout(refreshToken: string): Promise<void> {

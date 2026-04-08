@@ -72,7 +72,7 @@ model ImportJob {
   type         ImportType
   status       ImportStatus @default(PENDING)
   fileName     String
-  filePath     String       // local path now; MinIO key after S6
+  storageKey   String       // MinIO object key — `<tenantId>/imports/<uuid>-<fileName>`
   totalRows    Int          @default(0)
   processed    Int          @default(0)
   succeeded    Int          @default(0)

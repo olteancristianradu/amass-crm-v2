@@ -3,8 +3,8 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { ImportType, Prisma } from '@prisma/client';
 import Papa from 'papaparse';
-import { readFileSync } from 'node:fs';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { StorageService } from '../../infra/storage/storage.service';
 import { QUEUE_IMPORT } from '../../infra/queue/queue.constants';
 import {
   mapClientRow,
@@ -37,13 +37,16 @@ interface RowError {
 export class ImportProcessor extends WorkerHost {
   private readonly logger = new Logger(ImportProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {
     super();
   }
 
   async process(job: Job<ImportJobPayload>): Promise<void> {
-    const { jobId, tenantId, userId, type, filePath } = job.data;
-    this.logger.log(`Processing import jobId=${jobId} type=${type} file=${filePath}`);
+    const { jobId, tenantId, userId, type, storageKey } = job.data;
+    this.logger.log(`Processing import jobId=${jobId} type=${type} key=${storageKey}`);
 
     // Mark RUNNING.
     await this.prisma.runWithTenant(tenantId, (tx) =>
@@ -55,7 +58,9 @@ export class ImportProcessor extends WorkerHost {
 
     let rows: RawRow[] = [];
     try {
-      const csv = readFileSync(filePath, 'utf-8');
+      // Fetch the file from MinIO. Workers may run on a different host
+      // than the API, so we cannot rely on a local filesystem path.
+      const csv = await this.storage.getObjectAsString(storageKey);
       const parsed = Papa.parse<RawRow>(csv, {
         header: true,
         skipEmptyLines: 'greedy',

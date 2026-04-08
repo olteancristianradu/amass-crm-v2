@@ -89,4 +89,32 @@ export class StorageService implements OnModuleInit {
       this.logger.warn(`Failed to remove ${storageKey}: ${(err as Error).message}`);
     }
   }
+
+  /**
+   * Server-side upload of an in-memory buffer. Used by the importer
+   * (admin-only, small files) which doesn't need the FE-direct presigned
+   * dance — the API receives the multipart body in `multer.memoryStorage`
+   * and immediately persists it to MinIO so workers (which may run on a
+   * different host) can fetch it.
+   */
+  async putObject(storageKey: string, body: Buffer, mimeType: string): Promise<void> {
+    await this.client.putObject(this.bucket, storageKey, body, body.length, {
+      'Content-Type': mimeType,
+    });
+  }
+
+  /**
+   * Read the object back as a UTF-8 string. Used by the import processor
+   * to load CSV bodies into papaparse. We deliberately buffer the whole
+   * thing rather than stream — GestCom exports are small and papaparse's
+   * synchronous mode keeps the dedup logic simple.
+   */
+  async getObjectAsString(storageKey: string): Promise<string> {
+    const stream = await this.client.getObject(this.bucket, storageKey);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk as Buffer);
+    }
+    return Buffer.concat(chunks).toString('utf-8');
+  }
 }

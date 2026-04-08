@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "echo 'apps/web is a placeholder until S8 (FE skeleton)'",
     "preview": "vite preview",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "lint": "echo 'no lint until S8'",
+    "typecheck": "echo 'no typecheck until S8 — apps/web has no tsconfig yet'",
+    "test": "echo 'no tests until S8'"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

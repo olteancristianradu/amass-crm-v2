@@ -60,14 +60,19 @@ describe('Auth (e2e)', () => {
     // /me without token → 401
     await request(app.getHttpServer()).get('/api/v1/auth/me').expect(401);
 
-    // Refresh
+    // Refresh — must return the SAME `{ tokens }` shape as register/login.
+    // (Bug fixed S6.5: refresh used to return bare AuthTokens, breaking client parsing.)
     const ref = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .send({ refreshToken })
       .expect(200);
-    expect(ref.body.accessToken).toBeTruthy();
-    expect(ref.body.refreshToken).toBeTruthy();
-    expect(ref.body.refreshToken).not.toBe(refreshToken); // rotated
+    expect(ref.body.tokens.accessToken).toBeTruthy();
+    expect(ref.body.tokens.refreshToken).toBeTruthy();
+    expect(ref.body.tokens.refreshToken).not.toBe(refreshToken); // rotated
+    // Refresh response must NOT include `user` (only register/login do).
+    expect(ref.body.user).toBeUndefined();
+
+    const newRefresh = ref.body.tokens.refreshToken;
 
     // Old refresh token must now fail (single-use)
     await request(app.getHttpServer())
@@ -78,13 +83,13 @@ describe('Auth (e2e)', () => {
     // Logout new refresh
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
-      .send({ refreshToken: ref.body.refreshToken })
+      .send({ refreshToken: newRefresh })
       .expect(204);
 
     // After logout, refresh fails
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
-      .send({ refreshToken: ref.body.refreshToken })
+      .send({ refreshToken: newRefresh })
       .expect(401);
   });
 

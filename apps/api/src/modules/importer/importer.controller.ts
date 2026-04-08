@@ -12,41 +12,42 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ImportTypeSchema } from '@amass/shared';
 import { UserRole } from '@prisma/client';
-import { diskStorage } from 'multer';
-import { mkdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { memoryStorage } from 'multer';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ImporterService } from './importer.service';
 
-const UPLOAD_DIR = join(tmpdir(), 'amass-imports');
-mkdirSync(UPLOAD_DIR, { recursive: true });
-
+/**
+ * GestCom CSV importer.
+ *
+ * Upload pipeline:
+ *   1. Browser sends multipart `file` to POST /imports?type=CLIENTS|COMPANIES|CONTACTS
+ *   2. Multer buffers it in memory (50MB cap)
+ *   3. Controller calls `importer.enqueue()` which:
+ *      - uploads the bytes to MinIO at `<tenantId>/imports/<uuid>-<fileName>`
+ *      - persists an ImportJob row (status PENDING)
+ *      - enqueues a BullMQ job with the storageKey
+ *   4. ImportProcessor (BullMQ worker, may run on a different host) downloads
+ *      the file from MinIO and parses it row-by-row.
+ *
+ * Why memoryStorage instead of diskStorage:
+ *   The previous implementation wrote uploads to OS tmpdir and the worker
+ *   read them with readFileSync. That breaks the moment workers run on a
+ *   different machine than the API (or after a container restart). MinIO
+ *   is the single source of truth for binary blobs across all sprints.
+ */
 @Controller('imports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ImporterController {
   constructor(private readonly importer: ImporterService) {}
 
-  /**
-   * Multipart upload: field name = `file`, plus a `type` query/body param.
-   * Files land in OS temp dir under `amass-imports/`. After S6 these will
-   * move to MinIO and `filePath` will become an object key.
-   */
   @Post()
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: UPLOAD_DIR,
-        filename: (_req, file, cb) => {
-          const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-          cb(null, `${randomUUID()}-${safe}`);
-        },
-      }),
-      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB cap
+      storage: memoryStorage(),
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB cap — raise if real GestCom exports get bigger
     }),
   )
   async upload(
@@ -64,7 +65,8 @@ export class ImporterController {
     return this.importer.enqueue({
       type: parsed.data,
       fileName: file.originalname,
-      filePath: file.path,
+      mimeType: file.mimetype || 'text/csv',
+      buffer: file.buffer,
     });
   }
 
