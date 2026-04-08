@@ -34,6 +34,13 @@
 
 ## Entries
 
+### 2026-04-08 — Sprint 7 — vitest fileParallelism + BullMQ workers don't mix
+- **Sprint / area:** S7 / reminders / e2e tests
+- **Symptom:** A new test that creates a reminder with `remindAt = now + 700ms`, then polls Postgres for `status = 'FIRED'`, passed in isolation (`vitest run test/reminders.e2e.spec.ts` → 908ms) but failed reliably when run as part of the full suite — the polling loop timed out at 4 seconds with the row still PENDING.
+- **Root cause:** vitest defaults to file-parallel execution via a thread pool. Every test file imports `AppModule`, which registers a `RemindersProcessor` BullMQ worker subscribed to the shared `reminders` queue on Redis. When multiple files boot in parallel, you get N workers from N different `AppModule` instances all listening on the same queue. A job enqueued by the reminders test can be dispatched to a worker belonging to a *different* file's app — and that other app may already be tearing down (its `app.close()` runs at the end of its own `afterAll`), so the worker grabs the job and then the Prisma connection or BullMQ connection vanishes mid-process. The job either silently disappears or repeatedly errors out, never flipping the row to FIRED before the test gives up.
+- **Fix:** Set `fileParallelism: false` in `apps/api/vitest.config.ts`. Test files now run sequentially, so exactly one set of workers per queue is alive at any moment. Total runtime for the full suite went from ~6s parallel to ~7s sequential — the parallelism wasn't buying us much because the tests are I/O-bound on the shared Postgres/Redis/MinIO anyway.
+- **Lesson:** Any e2e suite that boots an `AppModule` containing BullMQ workers MUST run files sequentially. The shared infra (Postgres, Redis, MinIO) was already living dangerously under file-parallel execution — they only worked because each test file uses unique tenant slugs and unique storage keys. BullMQ, by contrast, has no per-test namespace knob: queue names are global to the Redis instance. Either run files sequentially, or namespace the queue per test process (e.g. `reminders-${process.pid}`), and the former is much simpler. Rule of thumb for this repo: **if a test file imports `AppModule`, treat the whole suite as sequential**.
+
 ### 2026-04-08 — Sprint 6 — `pnpm start` runs stale `dist/`, not source
 - **Sprint / area:** S6 / curl verification
 - **Symptom:** Brand new attachment routes were mapped in tests (vitest passes), but the curl verification against the running API got `404 NOT_FOUND: Cannot POST /api/v1/COMPANY/.../attachments/presign`. Stack trace pointed to `apps/api/dist/common/middleware/tenant-context.middleware.js`.
