@@ -237,6 +237,41 @@ model Note {
   @@map("notes")
 }
 
+/// Polymorphic reminder. Created by a user, attached to any subject
+/// (Company / Contact / Client today). A BullMQ delayed job is enqueued
+/// at create time with `jobId = reminder.id` for idempotency. When the
+/// delayed job fires, the processor flips status to FIRED and writes an
+/// activity row. Snooze = cancel old job + re-enqueue at the new time;
+/// dismiss/delete = cancel job. The job and the row are kept in sync via
+/// the row id == BullMQ jobId convention.
+enum ReminderStatus {
+  PENDING
+  FIRED
+  DISMISSED
+  CANCELLED
+}
+
+model Reminder {
+  id          String         @id @default(cuid())
+  tenantId    String
+  subjectType SubjectType
+  subjectId   String
+  actorId     String?        // who created the reminder (null if system)
+  title       String
+  body        String?
+  remindAt    DateTime
+  status      ReminderStatus @default(PENDING)
+  firedAt     DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tenantId, subjectType, subjectId, remindAt])
+  @@index([tenantId, actorId, status, remindAt])
+  @@index([tenantId, status, remindAt])
+  @@map("reminders")
+}
+
 /// Domain-level activity log (NOT the audit_logs table). Activities are
 /// what shows up in the UI timeline: "Andrei created this company",
 /// "Maria added a note", "Status changed to WON". Audit_logs are

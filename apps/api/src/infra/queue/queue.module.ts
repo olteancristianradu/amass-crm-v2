@@ -2,7 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import IORedis from 'ioredis';
 import { loadEnv } from '../../config/env';
-import { QUEUE_IMPORT } from './queue.constants';
+import { QUEUE_IMPORT, QUEUE_REMINDERS } from './queue.constants';
 
 /**
  * Global BullMQ wiring. We share a single ioredis connection across queues
@@ -29,6 +29,7 @@ import { QUEUE_IMPORT } from './queue.constants';
       },
     }),
     BullModule.registerQueue({ name: QUEUE_IMPORT }),
+    BullModule.registerQueue({ name: QUEUE_REMINDERS }),
   ],
   exports: [BullModule],
 })

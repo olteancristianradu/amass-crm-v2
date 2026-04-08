@@ -73,13 +73,15 @@ HTTP response                         { code, message, details, traceId, timesta
 | Import job stuck PENDING | `modules/importer/import.processor.ts` + Redis + MinIO | Worker not consuming, or storage unreachable |
 | Attachment download 404 | `modules/attachments/attachments.service.ts` findOne() | Tenant context missing or row deleted |
 | 400 INVALID_STORAGE_KEY | attachments.service.ts complete() | Defense-in-depth: storageKey must start with `<tenantId>/` |
+| Reminder stuck PENDING past remindAt | `modules/reminders/reminders.processor.ts` + Redis | Worker not consuming OR job was removed by an aborted update/dismiss |
+| 400 on POST /reminders (`remindAt must be in the future`) | `packages/shared/src/schemas/reminder.ts` | Schema rejects past dates so BullMQ delay is never negative |
 
 ## Subsystems
 
 ### Polymorphic subjects
 
-Three feature modules use the `(subjectType, subjectId)` pattern:
-**NotesModule**, **AttachmentsModule**, and (via logging only) **ActivitiesModule**.
+Four feature modules use the `(subjectType, subjectId)` pattern:
+**NotesModule**, **AttachmentsModule**, **RemindersModule**, and (via logging only) **ActivitiesModule**.
 
 The `SubjectType` enum lives in `prisma/schema.prisma`: `COMPANY | CONTACT | CLIENT`. Future sprints will add `DEAL`, `TASK`, `CALL`. Adding a new subject type = (1) extend the enum, (2) add a case to `SubjectResolver.assertExists()`, (3) migrate.
 
@@ -96,7 +98,7 @@ Both pin storage keys to `<tenantId>/...` so even at the object-store level ther
 
 ### BullMQ workers
 
-The `import` queue is the only one today. Reminders sprint (S7) adds one more.
+Two queues today: `import` (S4) and `reminders` (S7).
 
 **Critical config**: every worker needs `connection.maxRetriesPerRequest = null` on the ioredis client. We construct it once in `infra/queue/queue.module.ts` and share it. If you see `BullMQ: Your redis options maxRetriesPerRequest must be null` in the logs, that's where the fix lives.
 
@@ -131,7 +133,7 @@ All errors flow through `common/filters/all-exceptions.filter.ts` and produce:
 
 The `code` field is the contract — frontends and integration tests should match on it, never on the message string.
 
-## Sprint progress (as of S6)
+## Sprint progress (as of S7)
 
 | Sprint | Status | What landed |
 |-|-|-|
@@ -143,7 +145,8 @@ The `code` field is the contract — frontends and integration tests should matc
 | S5 | ✅ | Notes + polymorphic timeline (notes ∪ activities) |
 | S6 | ✅ | Attachments + MinIO (two-step presigned upload) |
 | S6.5 | ✅ | Bug fixes: auth refresh shape, importer→MinIO, web typecheck script, doc pass |
-| S7 | 🟡 next | Reminders + BullMQ delayed jobs |
+| S7 | ✅ | Reminders + BullMQ delayed jobs (polymorphic, fire → activity row) |
+| S8 | 🟡 next | FE skeleton (Vite + React 19 + TanStack) |
 
 ## Verification before committing
 

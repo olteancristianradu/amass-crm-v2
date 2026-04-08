@@ -3,3 +3,4 @@
  * and consumers (processors) can never disagree on the spelling.
  */
 export const QUEUE_IMPORT = 'import';
+export const QUEUE_REMINDERS = 'reminders';
