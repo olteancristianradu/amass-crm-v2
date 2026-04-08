@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateCompanyDto, UpdateCompanyDto } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { buildCursorArgs, CursorPage, makeCursorPage } from '../../common/pagination';
 import { Company, Prisma } from '@prisma/client';
@@ -11,6 +12,7 @@ export class CompaniesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly activities: ActivitiesService,
   ) {}
 
   async create(dto: CreateCompanyDto): Promise<Company> {
@@ -24,6 +26,12 @@ export class CompaniesService {
       action: 'company.create',
       subjectType: 'company',
       subjectId: company.id,
+      metadata: { name: company.name },
+    });
+    await this.activities.log({
+      subjectType: 'COMPANY',
+      subjectId: company.id,
+      action: 'company.created',
       metadata: { name: company.name },
     });
     return company;
@@ -75,6 +83,12 @@ export class CompaniesService {
       subjectId: id,
       metadata: { fields: Object.keys(dto) },
     });
+    await this.activities.log({
+      subjectType: 'COMPANY',
+      subjectId: id,
+      action: 'company.updated',
+      metadata: { fields: Object.keys(dto) },
+    });
     return updated;
   }
 
@@ -85,5 +99,10 @@ export class CompaniesService {
       tx.company.update({ where: { id }, data: { deletedAt: new Date() } }),
     );
     await this.audit.log({ action: 'company.delete', subjectType: 'company', subjectId: id });
+    await this.activities.log({
+      subjectType: 'COMPANY',
+      subjectId: id,
+      action: 'company.deleted',
+    });
   }
 }

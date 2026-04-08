@@ -15,6 +15,8 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Contact',
   'Client',
   'ImportJob',
+  'Note',
+  'Activity',
 ]);
 
 @Injectable()

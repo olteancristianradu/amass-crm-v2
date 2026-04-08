@@ -194,6 +194,50 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// Polymorphic subject types — every notes/activities/attachments row
+/// references one of these via (subjectType, subjectId). Keep in sync with
+/// SubjectTypeSchema in @amass/shared.
+enum SubjectType {
+  COMPANY
+  CONTACT
+  CLIENT
+}
+
+model Note {
+  id          String      @id @default(cuid())
+  tenantId    String
+  subjectType SubjectType
+  subjectId   String
+  body        String
+  authorId    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tenantId, subjectType, subjectId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("notes")
+}
+
+/// Domain-level activity log (NOT the audit_logs table). Activities are
+/// what shows up in the UI timeline: "Andrei created this company",
+/// "Maria added a note", "Status changed to WON". Audit_logs are
+/// security-level and stay separate.
+model Activity {
+  id          String      @id @default(cuid())
+  tenantId    String
+  subjectType SubjectType
+  subjectId   String
+  actorId     String?
+  action      String      // e.g. "company.created", "note.added", "company.updated"
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+
+  @@index([tenantId, subjectType, subjectId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("activities")
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String

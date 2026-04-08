@@ -4,6 +4,7 @@ import { Client, Prisma } from '@prisma/client';
 import { buildCursorArgs, CursorPage, makeCursorPage } from '../../common/pagination';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class ClientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly activities: ActivitiesService,
   ) {}
 
   async create(dto: CreateClientDto): Promise<Client> {
@@ -22,6 +24,12 @@ export class ClientsService {
       action: 'client.create',
       subjectType: 'client',
       subjectId: client.id,
+      metadata: { name: `${client.firstName} ${client.lastName}` },
+    });
+    await this.activities.log({
+      subjectType: 'CLIENT',
+      subjectId: client.id,
+      action: 'client.created',
       metadata: { name: `${client.firstName} ${client.lastName}` },
     });
     return client;
@@ -74,6 +82,12 @@ export class ClientsService {
       subjectId: id,
       metadata: { fields: Object.keys(dto) },
     });
+    await this.activities.log({
+      subjectType: 'CLIENT',
+      subjectId: id,
+      action: 'client.updated',
+      metadata: { fields: Object.keys(dto) },
+    });
     return updated;
   }
 
@@ -84,5 +98,10 @@ export class ClientsService {
       tx.client.update({ where: { id }, data: { deletedAt: new Date() } }),
     );
     await this.audit.log({ action: 'client.delete', subjectType: 'client', subjectId: id });
+    await this.activities.log({
+      subjectType: 'CLIENT',
+      subjectId: id,
+      action: 'client.deleted',
+    });
   }
 }

@@ -4,6 +4,7 @@ import { Contact, Prisma } from '@prisma/client';
 import { buildCursorArgs, CursorPage, makeCursorPage } from '../../common/pagination';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class ContactsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly activities: ActivitiesService,
   ) {}
 
   async create(dto: CreateContactDto): Promise<Contact> {
@@ -34,6 +36,12 @@ export class ContactsService {
         action: 'contact.create',
         subjectType: 'contact',
         subjectId: contact.id,
+        metadata: { name: `${contact.firstName} ${contact.lastName}` },
+      });
+      await this.activities.log({
+        subjectType: 'CONTACT',
+        subjectId: contact.id,
+        action: 'contact.created',
         metadata: { name: `${contact.firstName} ${contact.lastName}` },
       });
       return contact;
@@ -87,6 +95,12 @@ export class ContactsService {
       subjectId: id,
       metadata: { fields: Object.keys(dto) },
     });
+    await this.activities.log({
+      subjectType: 'CONTACT',
+      subjectId: id,
+      action: 'contact.updated',
+      metadata: { fields: Object.keys(dto) },
+    });
     return updated;
   }
 
@@ -97,5 +111,10 @@ export class ContactsService {
       tx.contact.update({ where: { id }, data: { deletedAt: new Date() } }),
     );
     await this.audit.log({ action: 'contact.delete', subjectType: 'contact', subjectId: id });
+    await this.activities.log({
+      subjectType: 'CONTACT',
+      subjectId: id,
+      action: 'contact.deleted',
+    });
   }
 }
