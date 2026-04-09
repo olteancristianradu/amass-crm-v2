@@ -1,3 +1,18 @@
-// Sprint 0 placeholder. Real React app arrives in Sprint 8.
-const root = document.getElementById('root');
-if (root) root.innerHTML = '<h1>AMASS-CRM v2 — Sprint 0</h1>';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
+import './styles.css';
+import { router } from './router';
+import { queryClient } from './lib/queryClient';
+
+const rootEl = document.getElementById('root');
+if (!rootEl) throw new Error('#root element not found');
+
+ReactDOM.createRoot(rootEl).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  </React.StrictMode>,
+);

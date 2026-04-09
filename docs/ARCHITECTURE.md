@@ -11,7 +11,7 @@
 amass-crm-v2/
 ├── apps/
 │   ├── api/        NestJS 10 backend (the heart)
-│   └── web/        React 19 frontend (placeholder until S8)
+│   └── web/        React 19 frontend (Vite + TanStack Router/Query)
 ├── packages/
 │   └── shared/     Zod schemas shared between BE+FE (build to dist/)
 ├── infra/
@@ -146,17 +146,66 @@ The `code` field is the contract — frontends and integration tests should matc
 | S6 | ✅ | Attachments + MinIO (two-step presigned upload) |
 | S6.5 | ✅ | Bug fixes: auth refresh shape, importer→MinIO, web typecheck script, doc pass |
 | S7 | ✅ | Reminders + BullMQ delayed jobs (polymorphic, fire → activity row) |
-| S8 | 🟡 next | FE skeleton (Vite + React 19 + TanStack) |
+| S8 | ✅ | FE skeleton: Vite + React 19 + TanStack Router/Query + Tailwind + shadcn primitives + auth login flow |
+| S9 | ✅ | FE Companies/Contacts/Clients list pages + Company detail with Timeline/Notes/Reminders/Attachments tabs |
+| S10 | 🟡 next | Pipelines / Deals / Tasks |
+
+## Frontend structure (S8 onwards)
+
+```
+apps/web/src/
+├── main.tsx                  React bootstrap → <RouterProvider>
+├── router.tsx                Route tree assembly (code-based TanStack Router)
+├── global.d.ts               Shim for React 19's moved JSX namespace
+├── styles.css                Tailwind v3 + CSS-var shadcn tokens
+├── lib/
+│   ├── api.ts                Typed fetch wrapper + silent 401 refresh + ApiError
+│   ├── queryClient.ts        TanStack Query defaults (30s stale, no retry on 4xx)
+│   ├── cn.ts                 clsx + tailwind-merge helper
+│   └── types.ts              FE-side server response shapes
+├── stores/
+│   └── auth.ts               Zustand + localStorage persist (tokens + user)
+├── components/
+│   ├── ui/                   Button, Input, Label, Card, Textarea, Tabs
+│   └── layout/AppShell.tsx   Sidebar + topbar + logout
+├── routes/
+│   ├── root.tsx              Root <Outlet>
+│   ├── login.tsx             Public /login route (redirects authed users)
+│   ├── authed.tsx            /app guard + <AppShell>
+│   ├── dashboard.tsx         /app index
+│   ├── companies.list.tsx    /app/companies + new company form
+│   ├── company.detail.tsx    /app/companies/$id with 4 tabs
+│   ├── contacts.list.tsx     /app/contacts
+│   ├── clients.list.tsx      /app/clients
+│   └── reminders.mine.tsx    /app/reminders (personal upcoming list)
+└── features/
+    ├── auth/LoginForm.tsx      RHF + Zod, uses shared LoginSchema shape
+    ├── companies/api.ts        Typed companiesApi.list/get/create/update/remove
+    ├── contacts/api.ts
+    ├── clients/api.ts
+    ├── notes/api.ts            + NotesTab + TimelineTab (merged feed)
+    ├── reminders/api.ts        + RemindersTab (status badge, dismiss, delete)
+    └── attachments/api.ts      + AttachmentsTab (two-step presigned upload driver)
+```
+
+The `@amass/shared` package is consumed two ways:
+- **apps/api** reads `packages/shared/dist/` (CJS built by tsc)
+- **apps/web** aliases `@amass/shared` directly to `packages/shared/src/index.ts`
+  in `vite.config.ts` + `tsconfig.json` — Rollup can't statically extract
+  named exports through tsc's CJS `__exportStar` wrapper, so we feed it
+  the TS source.
 
 ## Verification before committing
 
 Always run, in order:
 
 ```bash
-# 1. Static checks (api + shared only — apps/web is placeholder)
+# 1. Static checks (api, web, shared)
+pnpm --filter @amass/shared build
 pnpm --filter @amass/api typecheck
 pnpm --filter @amass/api build
-pnpm --filter @amass/shared build
+pnpm --filter @amass/web typecheck
+pnpm --filter @amass/web build
 
 # 2. Tests (require docker compose up: postgres + redis + minio)
 cd apps/api && DATABASE_URL='postgresql://postgres:postgres@localhost:5432/amass_crm?schema=public' \
@@ -183,3 +232,5 @@ DATABASE_URL='postgresql://postgres:postgres@localhost:5432/amass_crm?schema=pub
 | New BullMQ queue | `infra/queue/queue.module.ts` and `modules/importer/import.processor.ts` | Add `QUEUE_X` constant, register in queue.module, add `@Processor()` |
 | New shared Zod schema | `packages/shared/src/schemas/note.ts` for the template | New file in `packages/shared/src/schemas/`, export from index, run `pnpm --filter @amass/shared build` |
 | New env var | `apps/api/src/config/env.ts` | Add to Zod schema with sensible default for dev |
+| New FE page | `apps/web/src/routes/companies.list.tsx` for a list template, `company.detail.tsx` for a detail | New file in `routes/`, register it in `router.tsx`'s `routeTree`, add sidebar link in `AppShell` if top-level |
+| New FE API binding | `apps/web/src/features/companies/api.ts` for the template | New `features/<thing>/api.ts` that imports the `api` wrapper from `@/lib/api` |

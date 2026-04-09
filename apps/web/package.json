@@ -5,27 +5,39 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "echo 'apps/web is a placeholder until S8 (FE skeleton)'",
+    "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "lint": "echo 'no lint until S8'",
-    "typecheck": "echo 'no typecheck until S8 — apps/web has no tsconfig yet'",
-    "test": "echo 'no tests until S8'"
+    "lint": "echo 'no lint yet'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@amass/shared": "workspace:*",
+    "@hookform/resolvers": "^3.9.0",
     "@tanstack/react-query": "^5.59.0",
     "@tanstack/react-router": "^1.62.0",
     "@tanstack/react-table": "^8.20.5",
+    "clsx": "^2.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.53.0",
     "socket.io-client": "^4.8.0",
+    "tailwind-merge": "^2.5.4",
     "zod": "^3.23.8",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/forms": "^0.5.9",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
     "typescript": "^5.6.3",
     "vite": "^5.4.8",
     "vitest": "^2.1.2"
