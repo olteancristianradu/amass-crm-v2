@@ -8,6 +8,8 @@ import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
 import { RemindersTab } from '@/features/reminders/RemindersTab';
 import { AttachmentsTab } from '@/features/attachments/AttachmentsTab';
+import { TasksTab } from '@/features/tasks/TasksTab';
+import { DealsTab } from '@/features/deals/DealsTab';
 import { ApiError } from '@/lib/api';
 
 export const companyDetailRoute = createRoute({
@@ -78,6 +80,8 @@ function CompanyDetailPage(): JSX.Element {
               <TabsList>
                 <TabsTrigger value="timeline">Cronologie</TabsTrigger>
                 <TabsTrigger value="notes">Note</TabsTrigger>
+                <TabsTrigger value="deals">Deal-uri</TabsTrigger>
+                <TabsTrigger value="tasks">Task-uri</TabsTrigger>
                 <TabsTrigger value="reminders">Reminder-uri</TabsTrigger>
                 <TabsTrigger value="attachments">Fișiere</TabsTrigger>
               </TabsList>
@@ -86,6 +90,12 @@ function CompanyDetailPage(): JSX.Element {
               </TabsContent>
               <TabsContent value="notes">
                 <NotesTab subjectType="COMPANY" subjectId={id} />
+              </TabsContent>
+              <TabsContent value="deals">
+                <DealsTab companyId={id} />
+              </TabsContent>
+              <TabsContent value="tasks">
+                <TasksTab subjectType="COMPANY" subjectId={id} />
               </TabsContent>
               <TabsContent value="reminders">
                 <RemindersTab subjectType="COMPANY" subjectId={id} />

@@ -8,6 +8,8 @@ import { companyDetailRoute } from './routes/company.detail';
 import { contactsRoute } from './routes/contacts.list';
 import { clientsRoute } from './routes/clients.list';
 import { remindersMineRoute } from './routes/reminders.mine';
+import { dealsKanbanRoute } from './routes/deals.kanban';
+import { tasksMineRoute } from './routes/tasks.mine';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -32,6 +34,8 @@ const routeTree = rootRoute.addChildren([
     companyDetailRoute,
     contactsRoute,
     clientsRoute,
+    dealsKanbanRoute,
+    tasksMineRoute,
     remindersMineRoute,
   ]),
 ]);

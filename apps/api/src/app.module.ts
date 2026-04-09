@@ -11,8 +11,11 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { ImporterModule } from './modules/importer/importer.module';
+import { DealsModule } from './modules/deals/deals.module';
 import { NotesModule } from './modules/notes/notes.module';
+import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 import { UsersModule } from './modules/users/users.module';
 
 /**
@@ -62,6 +65,9 @@ import { UsersModule } from './modules/users/users.module';
     NotesModule,
     AttachmentsModule,
     RemindersModule,
+    PipelinesModule,
+    DealsModule,
+    TasksModule,
   ],
 })
 export class AppModule implements NestModule {

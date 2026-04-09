@@ -127,3 +127,68 @@ export interface TimelinePage {
   data: TimelineItem[];
   nextCursor: string | null;
 }
+
+// --- S10: Pipelines / Deals / Tasks ----------------------------------------
+
+export type StageType = 'OPEN' | 'WON' | 'LOST';
+export type DealStatus = 'OPEN' | 'WON' | 'LOST';
+export type TaskStatus = 'OPEN' | 'DONE';
+export type TaskPriority = 'LOW' | 'NORMAL' | 'HIGH';
+
+export interface PipelineStage {
+  id: string;
+  pipelineId: string;
+  name: string;
+  type: StageType;
+  order: number;
+  probability: number;
+}
+
+export interface Pipeline {
+  id: string;
+  name: string;
+  description?: string | null;
+  isDefault: boolean;
+  order: number;
+  stages: PipelineStage[];
+}
+
+export interface Deal {
+  id: string;
+  tenantId: string;
+  pipelineId: string;
+  stageId: string;
+  companyId?: string | null;
+  contactId?: string | null;
+  ownerId?: string | null;
+  title: string;
+  description?: string | null;
+  /** Prisma Decimal is serialised as a string in JSON. */
+  value?: string | null;
+  currency: string;
+  probability?: number | null;
+  expectedCloseAt?: string | null;
+  status: DealStatus;
+  lostReason?: string | null;
+  closedAt?: string | null;
+  orderInStage: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Task {
+  id: string;
+  tenantId: string;
+  dealId?: string | null;
+  subjectType?: SubjectType | null;
+  subjectId?: string | null;
+  assigneeId?: string | null;
+  title: string;
+  description?: string | null;
+  dueAt?: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

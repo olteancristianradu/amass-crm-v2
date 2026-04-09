@@ -43,6 +43,8 @@ export function AppShell({ children }: Props): JSX.Element {
           <NavLink to="/app/companies">Companii</NavLink>
           <NavLink to="/app/contacts">Contacte</NavLink>
           <NavLink to="/app/clients">Clienți</NavLink>
+          <NavLink to="/app/deals">Pipeline</NavLink>
+          <NavLink to="/app/tasks">Task-uri</NavLink>
           <NavLink to="/app/reminders">Reminder-uri</NavLink>
         </nav>
       </aside>

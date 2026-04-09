@@ -291,6 +291,152 @@ model Activity {
   @@map("activities")
 }
 
+/// Sprint 10 — Pipelines, Deals, Tasks.
+///
+/// Pipelines define the sales funnel. Each tenant can have multiple
+/// pipelines (e.g. "Vânzări B2B" vs "Clienți retail"), and exactly one is
+/// marked `isDefault = true`. A pipeline owns an ordered list of Stages,
+/// each with a type (OPEN, WON or LOST) and an implicit win probability.
+/// Deals belong to exactly one (pipeline, stage) pair at a time.
+///
+/// On tenant register, the AuthService seeds a default pipeline with
+/// four stages (New, Qualified, Negotiation, Won + Lost) so the FE has
+/// something to render immediately.
+model Pipeline {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  stages PipelineStage[]
+  deals  Deal[]
+
+  @@index([tenantId, order])
+  @@index([tenantId, isDefault])
+  @@map("pipelines")
+}
+
+enum StageType {
+  OPEN
+  WON
+  LOST
+}
+
+model PipelineStage {
+  id          String    @id @default(cuid())
+  tenantId    String
+  pipelineId  String
+  name        String
+  type        StageType @default(OPEN)
+  order       Int       @default(0)
+  probability Int       @default(0) // 0..100, purely informational
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@index([tenantId, pipelineId, order])
+  @@map("pipeline_stages")
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+/// A Deal is the unit of work on the Kanban. It is linked to (optionally)
+/// a company and/or a contact, and always to a (pipeline, stage) pair.
+/// `orderInStage` lets us preserve a manual ordering within a column —
+/// new deals are appended (max+1), moves set an explicit value, and the
+/// service keeps gaps rather than re-packing (cheaper + fewer write locks).
+/// `status` is derived from the stage's type at move time, so the FE can
+/// filter "open deals" without joining the stages table.
+model Deal {
+  id              String   @id @default(cuid())
+  tenantId        String
+  pipelineId      String
+  stageId         String
+  companyId       String?
+  contactId       String?
+  ownerId         String?  // which user owns the deal
+  title           String
+  description     String?
+  value           Decimal? @db.Decimal(14, 2)
+  currency        String   @default("RON")
+  probability     Int?     // override of stage.probability (nullable → inherit)
+  expectedCloseAt DateTime?
+  status          DealStatus @default(OPEN)
+  lostReason      String?
+  closedAt        DateTime?
+  orderInStage    Int      @default(0)
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  pipeline Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage    PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  tasks    Task[]
+
+  @@index([tenantId, pipelineId, stageId, orderInStage])
+  @@index([tenantId, status])
+  @@index([tenantId, ownerId, status])
+  @@index([tenantId, companyId])
+  @@index([tenantId, contactId])
+  @@index([tenantId, expectedCloseAt])
+  @@map("deals")
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+/// A Task can hang off a Deal OR a polymorphic subject (Company/Contact/
+/// Client). Exactly one of (dealId) or (subjectType + subjectId) is
+/// populated — the service asserts this. Tasks join the polymorphic
+/// SubjectType family along with Notes/Attachments/Reminders.
+model Task {
+  id          String       @id @default(cuid())
+  tenantId    String
+  dealId      String?
+  subjectType SubjectType?
+  subjectId   String?
+  assigneeId  String?      // user who must complete it
+  title       String
+  description String?
+  dueAt       DateTime?
+  status      TaskStatus   @default(OPEN)
+  priority    TaskPriority @default(NORMAL)
+  completedAt DateTime?
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  deal Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, assigneeId, status, dueAt])
+  @@index([tenantId, status, dueAt])
+  @@index([tenantId, dealId])
+  @@index([tenantId, subjectType, subjectId])
+  @@map("tasks")
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String

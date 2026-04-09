@@ -46,7 +46,7 @@ export class AuthService {
       const tenant = await tx.tenant.create({
         data: { slug: dto.tenantSlug, name: dto.tenantName ?? dto.tenantSlug },
       });
-      return tx.user.create({
+      const owner = await tx.user.create({
         data: {
           tenantId: tenant.id,
           email: dto.email.toLowerCase(),
@@ -55,6 +55,32 @@ export class AuthService {
           role: UserRole.OWNER,
         },
       });
+
+      // S10: seed a default sales pipeline so the Kanban has something to
+      // render on first login. Stages are opinionated (New → Qualified →
+      // Negotiation → Won, with a Lost column) and can be renamed/reordered
+      // by an admin UI later. `order` has a gap of 10 so inserting a stage
+      // in the middle is a cheap UPDATE instead of a re-pack.
+      const pipeline = await tx.pipeline.create({
+        data: {
+          tenantId: tenant.id,
+          name: 'Vânzări',
+          description: 'Pipeline implicit',
+          isDefault: true,
+          order: 0,
+        },
+      });
+      await tx.pipelineStage.createMany({
+        data: [
+          { tenantId: tenant.id, pipelineId: pipeline.id, name: 'Nou', type: 'OPEN', order: 0, probability: 10 },
+          { tenantId: tenant.id, pipelineId: pipeline.id, name: 'Calificat', type: 'OPEN', order: 10, probability: 30 },
+          { tenantId: tenant.id, pipelineId: pipeline.id, name: 'Negociere', type: 'OPEN', order: 20, probability: 60 },
+          { tenantId: tenant.id, pipelineId: pipeline.id, name: 'Câștigat', type: 'WON', order: 30, probability: 100 },
+          { tenantId: tenant.id, pipelineId: pipeline.id, name: 'Pierdut', type: 'LOST', order: 40, probability: 0 },
+        ],
+      });
+
+      return owner;
     });
 
     const tokens = await this.issueTokens(user);

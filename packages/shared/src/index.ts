@@ -6,3 +6,6 @@ export * from './schemas/import';
 export * from './schemas/note';
 export * from './schemas/attachment';
 export * from './schemas/reminder';
+export * from './schemas/pipeline';
+export * from './schemas/deal';
+export * from './schemas/task';

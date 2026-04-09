@@ -19,6 +19,10 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Activity',
   'Attachment',
   'Reminder',
+  'Pipeline',
+  'PipelineStage',
+  'Deal',
+  'Task',
 ]);
 
 @Injectable()

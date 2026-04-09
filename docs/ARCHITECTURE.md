@@ -148,7 +148,8 @@ The `code` field is the contract — frontends and integration tests should matc
 | S7 | ✅ | Reminders + BullMQ delayed jobs (polymorphic, fire → activity row) |
 | S8 | ✅ | FE skeleton: Vite + React 19 + TanStack Router/Query + Tailwind + shadcn primitives + auth login flow |
 | S9 | ✅ | FE Companies/Contacts/Clients list pages + Company detail with Timeline/Notes/Reminders/Attachments tabs |
-| S10 | 🟡 next | Pipelines / Deals / Tasks |
+| S10 | ✅ | Pipelines + Deals + Tasks: kanban BE/FE, default pipeline seeded on register, move endpoint recomputes status |
+| S11 | 🟡 next | Email integration |
 
 ## Frontend structure (S8 onwards)
 
