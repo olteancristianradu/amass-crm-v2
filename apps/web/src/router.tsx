@@ -10,6 +10,7 @@ import { clientsRoute } from './routes/clients.list';
 import { remindersMineRoute } from './routes/reminders.mine';
 import { dealsKanbanRoute } from './routes/deals.kanban';
 import { tasksMineRoute } from './routes/tasks.mine';
+import { emailSettingsRoute } from './routes/email-settings';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -37,6 +38,7 @@ const routeTree = rootRoute.addChildren([
     dealsKanbanRoute,
     tasksMineRoute,
     remindersMineRoute,
+    emailSettingsRoute,
   ]),
 ]);
 

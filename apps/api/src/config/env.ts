@@ -26,6 +26,14 @@ const envSchema = z.object({
   MINIO_ACCESS_KEY: z.string().min(1).default('minioadmin'),
   MINIO_SECRET_KEY: z.string().min(1).default('minioadmin'),
   MINIO_BUCKET: z.string().min(1).default('amass-files'),
+
+  // AES-256-GCM key for encrypting SMTP passwords at rest.
+  // Must be exactly 32 bytes hex-encoded (64 hex chars).
+  // Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ENCRYPTION_KEY: z
+    .string()
+    .length(64, 'ENCRYPTION_KEY must be 64 hex chars (32 bytes)')
+    .regex(/^[0-9a-fA-F]+$/, 'ENCRYPTION_KEY must be hex'),
 });
 
 export type Env = z.infer<typeof envSchema>;

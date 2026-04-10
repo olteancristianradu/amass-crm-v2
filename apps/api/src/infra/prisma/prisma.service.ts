@@ -23,6 +23,8 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'PipelineStage',
   'Deal',
   'Task',
+  'EmailAccount',
+  'EmailMessage',
 ]);
 
 @Injectable()

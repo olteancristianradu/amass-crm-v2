@@ -192,3 +192,44 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- S11: Email ---------------------------------------------------------------
+
+export type EmailStatus = 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED';
+
+export interface EmailAccount {
+  id: string;
+  tenantId: string;
+  userId: string;
+  label: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser: string;
+  fromName: string;
+  fromEmail: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailMessage {
+  id: string;
+  tenantId: string;
+  accountId: string;
+  subjectType: SubjectType;
+  subjectId: string;
+  toAddresses: string[];
+  ccAddresses: string[];
+  bccAddresses: string[];
+  subject: string;
+  bodyHtml: string;
+  bodyText?: string | null;
+  status: EmailStatus;
+  sentAt?: string | null;
+  errorMessage?: string | null;
+  messageId?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -75,6 +75,9 @@ HTTP response                         { code, message, details, traceId, timesta
 | 400 INVALID_STORAGE_KEY | attachments.service.ts complete() | Defense-in-depth: storageKey must start with `<tenantId>/` |
 | Reminder stuck PENDING past remindAt | `modules/reminders/reminders.processor.ts` + Redis | Worker not consuming OR job was removed by an aborted update/dismiss |
 | 400 on POST /reminders (`remindAt must be in the future`) | `packages/shared/src/schemas/reminder.ts` | Schema rejects past dates so BullMQ delay is never negative |
+| Email stuck QUEUED | `modules/email/email.processor.ts` + Redis | Worker not consuming, or SMTP credentials wrong/expired |
+| Email FAILED with SMTP error | `modules/email/email.processor.ts` | Check account smtpHost/smtpPort/smtpSecure + password in DB (encrypted) |
+| Email account password decryption fails | `common/crypto/encryption.ts` | ENCRYPTION_KEY env changed since password was stored → re-create account |
 
 ## Subsystems
 
@@ -98,7 +101,7 @@ Both pin storage keys to `<tenantId>/...` so even at the object-store level ther
 
 ### BullMQ workers
 
-Two queues today: `import` (S4) and `reminders` (S7).
+Three queues today: `import` (S4), `reminders` (S7), and `email` (S11).
 
 **Critical config**: every worker needs `connection.maxRetriesPerRequest = null` on the ioredis client. We construct it once in `infra/queue/queue.module.ts` and share it. If you see `BullMQ: Your redis options maxRetriesPerRequest must be null` in the logs, that's where the fix lives.
 
@@ -149,7 +152,8 @@ The `code` field is the contract — frontends and integration tests should matc
 | S8 | ✅ | FE skeleton: Vite + React 19 + TanStack Router/Query + Tailwind + shadcn primitives + auth login flow |
 | S9 | ✅ | FE Companies/Contacts/Clients list pages + Company detail with Timeline/Notes/Reminders/Attachments tabs |
 | S10 | ✅ | Pipelines + Deals + Tasks: kanban BE/FE, default pipeline seeded on register, move endpoint recomputes status |
-| S11 | 🟡 next | Email integration |
+| S11 | ✅ | Email integration: per-user SMTP accounts (encrypted passwords), async send via BullMQ+Nodemailer, EmailTab on detail pages |
+| S12 | 🟡 next | Calls (Twilio) |
 
 ## Frontend structure (S8 onwards)
 
@@ -178,7 +182,8 @@ apps/web/src/
 │   ├── company.detail.tsx    /app/companies/$id with 4 tabs
 │   ├── contacts.list.tsx     /app/contacts
 │   ├── clients.list.tsx      /app/clients
-│   └── reminders.mine.tsx    /app/reminders (personal upcoming list)
+│   ├── reminders.mine.tsx    /app/reminders (personal upcoming list)
+│   └── email-settings.tsx   /app/email-settings (SMTP accounts CRUD)
 └── features/
     ├── auth/LoginForm.tsx      RHF + Zod, uses shared LoginSchema shape
     ├── companies/api.ts        Typed companiesApi.list/get/create/update/remove
@@ -186,7 +191,8 @@ apps/web/src/
     ├── clients/api.ts
     ├── notes/api.ts            + NotesTab + TimelineTab (merged feed)
     ├── reminders/api.ts        + RemindersTab (status badge, dismiss, delete)
-    └── attachments/api.ts      + AttachmentsTab (two-step presigned upload driver)
+    ├── attachments/api.ts      + AttachmentsTab (two-step presigned upload driver)
+    └── email/api.ts           + EmailTab (compose form + sent email list)
 ```
 
 The `@amass/shared` package is consumed two ways:

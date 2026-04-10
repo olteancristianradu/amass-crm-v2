@@ -4,3 +4,4 @@
  */
 export const QUEUE_IMPORT = 'import';
 export const QUEUE_REMINDERS = 'reminders';
+export const QUEUE_EMAIL = 'email';

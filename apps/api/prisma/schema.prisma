@@ -437,6 +437,76 @@ model Task {
   @@map("tasks")
 }
 
+/// Sprint 11 — Email integration (send-only MVP).
+///
+/// EmailAccount stores per-user SMTP credentials. The password is encrypted
+/// at rest using AES-256-GCM with a server-side ENCRYPTION_KEY (env var).
+/// Each user can have multiple accounts but exactly one marked `isDefault`.
+/// The fromEmail is what appears in the From header; smtpUser is the login.
+model EmailAccount {
+  id            String   @id @default(cuid())
+  tenantId      String
+  userId        String   // the user who owns this account
+  label         String   // friendly name, e.g. "Gmail profesional"
+  smtpHost      String
+  smtpPort      Int      @default(587)
+  smtpSecure    Boolean  @default(false) // true = implicit TLS (port 465)
+  smtpUser      String
+  smtpPassEnc   String   // AES-256-GCM encrypted password (base64)
+  fromName      String
+  fromEmail     String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  messages EmailMessage[]
+
+  @@index([tenantId, userId])
+  @@index([tenantId, userId, isDefault])
+  @@map("email_accounts")
+}
+
+enum EmailStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+}
+
+/// EmailMessage tracks every email sent from the CRM. Linked to a polymorphic
+/// subject (Company/Contact/Client) so sent emails appear on the timeline.
+/// Sending is async: the controller creates a QUEUED row + enqueues a BullMQ
+/// job; the processor sends via Nodemailer and flips status to SENT or FAILED.
+model EmailMessage {
+  id            String       @id @default(cuid())
+  tenantId      String
+  accountId     String
+  subjectType   SubjectType
+  subjectId     String
+  toAddresses   String[]     // array of email addresses
+  ccAddresses   String[]     @default([])
+  bccAddresses  String[]     @default([])
+  subject       String
+  bodyHtml      String
+  bodyText      String?      // plain-text fallback
+  status        EmailStatus  @default(QUEUED)
+  sentAt        DateTime?
+  errorMessage  String?
+  messageId     String?      // SMTP Message-ID header after sending
+  createdById   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, subjectType, subjectId, createdAt])
+  @@index([tenantId, accountId, status])
+  @@index([tenantId, createdById, createdAt])
+  @@index([tenantId, status])
+  @@map("email_messages")
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String
