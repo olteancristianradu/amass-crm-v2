@@ -144,11 +144,31 @@ services:
     container_name: amass-ai-worker
     restart: unless-stopped
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Redis — BullMQ queue consumer
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      # MinIO — recordings storage (after worker downloads from Twilio)
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-amass-files}
+      # Twilio — download call recordings
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      # Anthropic — transcript summarisation
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      PORT: ${AI_WORKER_PORT:-8000}
+      # Shared secret for AI worker → NestJS callback
+      AI_WORKER_SECRET: ${AI_WORKER_SECRET:-}
+      # NestJS API URL (internal docker network)
+      API_URL: http://api:3000
+      # Whisper model: "off" = stub, "base" = real (requires heavy ML deps)
+      WHISPER_MODEL: ${WHISPER_MODEL:-off}
     ports:
       - "${AI_WORKER_PORT:-8000}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
 volumes:
   postgres_data:
