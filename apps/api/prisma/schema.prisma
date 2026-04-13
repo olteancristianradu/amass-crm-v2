@@ -507,6 +507,124 @@ model EmailMessage {
   @@map("email_messages")
 }
 
+/// Sprint 12 — Calls (Twilio).
+///
+/// Phone numbers purchased via Twilio and assigned to users. Each user can
+/// have exactly one default number. Outbound calls use the caller's default
+/// (or explicit) number as the From. Inbound calls are routed via webhooks
+/// based on the To number.
+model PhoneNumber {
+  id           String    @id @default(cuid())
+  tenantId     String
+  userId       String?   // null = tenant-level, used by everyone
+  twilioSid    String    @unique
+  number       String    // E.164: +40712345678
+  label        String?
+  isDefault    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  calls Call[]
+
+  @@index([tenantId, userId])
+  @@index([tenantId, number])
+  @@map("phone_numbers")
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CallStatus {
+  QUEUED       // just initiated via API, not yet dialled
+  RINGING      // Twilio is dialling
+  IN_PROGRESS  // call answered
+  COMPLETED    // ended normally
+  BUSY
+  NO_ANSWER
+  FAILED
+  CANCELED
+}
+
+enum TranscriptionStatus {
+  NONE         // no recording / not applicable
+  PENDING      // recording available, waiting for AI worker
+  IN_PROGRESS  // AI worker is processing
+  COMPLETED
+  FAILED
+}
+
+/// A Call row is the canonical record of a phone call — created either
+/// when the user clicks "call" in the CRM (outbound) or when Twilio posts
+/// an inbound webhook. Linked polymorphically to a subject (Company /
+/// Contact / Client) so calls appear in the timeline.
+///
+/// The recording lives in MinIO after download (bucket key = storage_key).
+/// Transcript + summary are populated by the S13 AI worker asynchronously.
+model Call {
+  id                  String              @id @default(cuid())
+  tenantId            String
+  subjectType         SubjectType
+  subjectId           String
+  phoneNumberId       String?             // our side of the call
+  userId              String?             // which user initiated/received
+  twilioCallSid       String?             @unique
+  direction           CallDirection
+  status              CallStatus          @default(QUEUED)
+  fromNumber          String
+  toNumber            String
+  startedAt           DateTime?
+  answeredAt          DateTime?
+  endedAt             DateTime?
+  durationSec         Int?
+  recordingSid        String?
+  recordingUrl        String?             // Twilio URL (signed, short-lived)
+  recordingStorageKey String?             // MinIO key after download
+  transcriptionStatus TranscriptionStatus @default(NONE)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  deletedAt           DateTime?
+
+  phoneNumber PhoneNumber? @relation(fields: [phoneNumberId], references: [id], onDelete: SetNull)
+  transcript  CallTranscript?
+
+  @@index([tenantId, subjectType, subjectId, createdAt])
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, transcriptionStatus])
+  @@map("calls")
+}
+
+/// Sprint 13 — AI worker output. A Call has at most one CallTranscript;
+/// populated by the Python ai-worker after transcription + PII redaction
+/// + summarisation. Keeping it in a separate table because the payload is
+/// large (full transcript JSON with diarization) and we often read Call
+/// rows without needing the transcript.
+model CallTranscript {
+  id             String    @id @default(cuid())
+  tenantId       String
+  callId         String    @unique
+  language       String?   // ISO 639-1 detected by Whisper
+  rawText        String    // full transcript, concatenated
+  segments       Json      // array of { start, end, speaker, text }
+  redactedText   String?   // text after Presidio PII redaction
+  summary        String?   // short Claude-generated summary
+  actionItems    Json?     // array of extracted action items (strings)
+  sentiment      String?   // positive / neutral / negative
+  topics         Json?     // array of topics
+  processedAt    DateTime  @default(now())
+  model          String?   // which Claude model was used
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, callId])
+  @@map("call_transcripts")
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String

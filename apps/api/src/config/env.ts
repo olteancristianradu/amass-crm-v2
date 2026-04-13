@@ -34,6 +34,24 @@ const envSchema = z.object({
     .string()
     .length(64, 'ENCRYPTION_KEY must be 64 hex chars (32 bytes)')
     .regex(/^[0-9a-fA-F]+$/, 'ENCRYPTION_KEY must be hex'),
+
+  // Twilio credentials + webhook base URL. The AUTH_TOKEN is used for
+  // outbound REST calls AND for verifying inbound webhook signatures.
+  // WEBHOOK_BASE_URL is the public URL Twilio can reach — in dev, this
+  // is typically an ngrok/cloudflared tunnel; in prod, the real API host.
+  TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+  TWILIO_WEBHOOK_BASE_URL: z.string().url().optional(),
+
+  // Anthropic API key for S13 AI worker (transcript summarisation).
+  // Consumed by the Python ai-worker service, not the NestJS API — but we
+  // keep it here so the same .env covers both apps.
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+
+  // Static bearer token the Python AI worker uses to call back to the NestJS
+  // API (POST /calls/:id/ai-result). Generate with:
+  // node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  AI_WORKER_SECRET: z.string().min(16).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -25,6 +25,9 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Task',
   'EmailAccount',
   'EmailMessage',
+  'PhoneNumber',
+  'Call',
+  'CallTranscript',
 ]);
 
 @Injectable()

@@ -233,3 +233,68 @@ export interface EmailMessage {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- S12: Calls ---------------------------------------------------------------
+
+export type CallDirection = 'INBOUND' | 'OUTBOUND';
+export type CallStatus =
+  | 'QUEUED'
+  | 'RINGING'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'BUSY'
+  | 'NO_ANSWER'
+  | 'FAILED'
+  | 'CANCELED';
+export type TranscriptionStatus = 'NONE' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+export interface PhoneNumber {
+  id: string;
+  tenantId: string;
+  userId?: string | null;
+  twilioSid: string;
+  number: string;
+  label?: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CallTranscript {
+  id: string;
+  callId: string;
+  language?: string | null;
+  rawText: string;
+  redactedText?: string | null;
+  summary?: string | null;
+  actionItems?: string[] | null;
+  sentiment?: 'positive' | 'neutral' | 'negative' | null;
+  topics?: string[] | null;
+  model?: string | null;
+  processedAt: string;
+}
+
+export interface Call {
+  id: string;
+  tenantId: string;
+  subjectType: SubjectType;
+  subjectId: string;
+  phoneNumberId?: string | null;
+  userId?: string | null;
+  twilioCallSid?: string | null;
+  direction: CallDirection;
+  status: CallStatus;
+  fromNumber: string;
+  toNumber: string;
+  startedAt?: string | null;
+  answeredAt?: string | null;
+  endedAt?: string | null;
+  durationSec?: number | null;
+  recordingSid?: string | null;
+  recordingUrl?: string | null;
+  transcriptionStatus: TranscriptionStatus;
+  phoneNumber?: PhoneNumber | null;
+  transcript?: CallTranscript | null;
+  createdAt: string;
+  updatedAt: string;
+}

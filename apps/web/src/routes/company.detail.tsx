@@ -11,6 +11,7 @@ import { AttachmentsTab } from '@/features/attachments/AttachmentsTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
 import { DealsTab } from '@/features/deals/DealsTab';
 import { EmailTab } from '@/features/email/EmailTab';
+import { CallsTab } from '@/features/calls/CallsTab';
 import { ApiError } from '@/lib/api';
 
 export const companyDetailRoute = createRoute({
@@ -85,6 +86,7 @@ function CompanyDetailPage(): JSX.Element {
                 <TabsTrigger value="tasks">Task-uri</TabsTrigger>
                 <TabsTrigger value="reminders">Reminder-uri</TabsTrigger>
                 <TabsTrigger value="email">Email</TabsTrigger>
+                <TabsTrigger value="calls">Apeluri</TabsTrigger>
                 <TabsTrigger value="attachments">Fișiere</TabsTrigger>
               </TabsList>
               <TabsContent value="timeline">
@@ -104,6 +106,9 @@ function CompanyDetailPage(): JSX.Element {
               </TabsContent>
               <TabsContent value="email">
                 <EmailTab subjectType="COMPANY" subjectId={id} />
+              </TabsContent>
+              <TabsContent value="calls">
+                <CallsTab subjectType="COMPANY" subjectId={id} />
               </TabsContent>
               <TabsContent value="attachments">
                 <AttachmentsTab subjectType="COMPANY" subjectId={id} />
