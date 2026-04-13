@@ -6,6 +6,16 @@
 
 export type SubjectType = 'COMPANY' | 'CONTACT' | 'CLIENT';
 
+export type EntityType = 'company' | 'contact' | 'client';
+
+export interface SearchResult {
+  id: string;
+  type: EntityType;
+  label: string;
+  subtitle: string;
+  score: number;
+}
+
 export type ReminderStatus = 'PENDING' | 'FIRED' | 'DISMISSED' | 'CANCELLED';
 
 export interface Company {

@@ -118,6 +118,9 @@ model Company {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
+  /// Populated asynchronously by EmbeddingService (OpenAI text-embedding-3-small).
+  /// Not accessible via normal Prisma client — use $queryRaw for vector ops.
+  embedding   Unsupported("vector(1536)")?
 
   contacts Contact[]
 
@@ -142,6 +145,8 @@ model Contact {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
+  /// See Company.embedding note above.
+  embedding   Unsupported("vector(1536)")?
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
@@ -169,6 +174,8 @@ model Client {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
+  /// See Company.embedding note above.
+  embedding   Unsupported("vector(1536)")?
 
   @@index([tenantId, createdAt])
   @@index([tenantId, lastName, firstName])

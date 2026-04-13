@@ -52,6 +52,10 @@ const envSchema = z.object({
   // API (POST /calls/:id/ai-result). Generate with:
   // node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   AI_WORKER_SECRET: z.string().min(16).optional(),
+
+  // OpenAI key for text-embedding-3-small (S14 semantic search).
+  // Optional — embedding generation silently skipped when absent.
+  OPENAI_API_KEY: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

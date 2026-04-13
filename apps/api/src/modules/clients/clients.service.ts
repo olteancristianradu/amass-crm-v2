@@ -6,6 +6,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
+import { EmbeddingService } from '../ai/embedding.service';
 
 @Injectable()
 export class ClientsService {
@@ -13,6 +14,7 @@ export class ClientsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly activities: ActivitiesService,
+    private readonly embedding: EmbeddingService,
   ) {}
 
   async create(dto: CreateClientDto): Promise<Client> {
@@ -32,6 +34,10 @@ export class ClientsService {
       action: 'client.created',
       metadata: { name: `${client.firstName} ${client.lastName}` },
     });
+    void this.embedding.updateClient(
+      client.id,
+      [client.firstName, client.lastName, client.email, client.city, client.notes].filter(Boolean).join(' '),
+    );
     return client;
   }
 
@@ -88,6 +94,10 @@ export class ClientsService {
       action: 'client.updated',
       metadata: { fields: Object.keys(dto) },
     });
+    void this.embedding.updateClient(
+      updated.id,
+      [updated.firstName, updated.lastName, updated.email, updated.city, updated.notes].filter(Boolean).join(' '),
+    );
     return updated;
   }
 

@@ -12,3 +12,4 @@ export * from './schemas/task';
 export * from './schemas/email-account';
 export * from './schemas/email-message';
 export * from './schemas/call';
+export * from './schemas/search';

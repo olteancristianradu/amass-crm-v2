@@ -4,6 +4,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
+import { EmbeddingService } from '../ai/embedding.service';
 import { buildCursorArgs, CursorPage, makeCursorPage } from '../../common/pagination';
 import { Company, Prisma } from '@prisma/client';
 
@@ -13,6 +14,7 @@ export class CompaniesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly activities: ActivitiesService,
+    private readonly embedding: EmbeddingService,
   ) {}
 
   async create(dto: CreateCompanyDto): Promise<Company> {
@@ -34,6 +36,11 @@ export class CompaniesService {
       action: 'company.created',
       metadata: { name: company.name },
     });
+    // Fire-and-forget: never blocks the response
+    void this.embedding.updateCompany(
+      company.id,
+      [company.name, company.industry, company.city, company.notes].filter(Boolean).join(' '),
+    );
     return company;
   }
 
@@ -89,6 +96,10 @@ export class CompaniesService {
       action: 'company.updated',
       metadata: { fields: Object.keys(dto) },
     });
+    void this.embedding.updateCompany(
+      updated.id,
+      [updated.name, updated.industry, updated.city, updated.notes].filter(Boolean).join(' '),
+    );
     return updated;
   }
 

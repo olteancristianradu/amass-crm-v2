@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/lib/api';
+import { SearchBar } from '@/features/search/SearchBar';
 
 interface Props {
   children: React.ReactNode;
@@ -50,11 +51,12 @@ export function AppShell({ children }: Props): JSX.Element {
         </nav>
       </aside>
       <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b bg-background px-6">
-          <div className="text-sm text-muted-foreground">
+        <header className="flex h-14 items-center gap-4 border-b bg-background px-6">
+          <div className="text-sm text-muted-foreground shrink-0">
             {user ? `${user.fullName} · ${user.email}` : '—'}
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
+          <SearchBar />
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="shrink-0">
             Deconectare
           </Button>
         </header>
