@@ -39,23 +39,31 @@ const envSchema = z.object({
   // outbound REST calls AND for verifying inbound webhook signatures.
   // WEBHOOK_BASE_URL is the public URL Twilio can reach — in dev, this
   // is typically an ngrok/cloudflared tunnel; in prod, the real API host.
-  TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
-  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
-  TWILIO_WEBHOOK_BASE_URL: z.string().url().optional(),
+  TWILIO_ACCOUNT_SID: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+  TWILIO_AUTH_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
+  TWILIO_WEBHOOK_BASE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
 
   // Anthropic API key for S13 AI worker (transcript summarisation).
-  // Consumed by the Python ai-worker service, not the NestJS API — but we
-  // keep it here so the same .env covers both apps.
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // Optional — empty string is treated as absent (no AI features).
+  ANTHROPIC_API_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
 
   // Static bearer token the Python AI worker uses to call back to the NestJS
   // API (POST /calls/:id/ai-result). Generate with:
   // node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-  AI_WORKER_SECRET: z.string().min(16).optional(),
+  AI_WORKER_SECRET: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(16).optional(),
+  ),
 
   // OpenAI key for text-embedding-3-small (S14 semantic search).
-  // Optional — embedding generation silently skipped when absent.
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  // Optional — empty string is treated as absent (embeddings silently skipped).
+  OPENAI_API_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

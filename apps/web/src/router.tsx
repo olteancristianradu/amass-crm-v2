@@ -6,7 +6,9 @@ import { dashboardRoute } from './routes/dashboard';
 import { companiesRoute } from './routes/companies.list';
 import { companyDetailRoute } from './routes/company.detail';
 import { contactsRoute } from './routes/contacts.list';
+import { contactDetailRoute } from './routes/contact.detail';
 import { clientsRoute } from './routes/clients.list';
+import { clientDetailRoute } from './routes/client.detail';
 import { remindersMineRoute } from './routes/reminders.mine';
 import { dealsKanbanRoute } from './routes/deals.kanban';
 import { tasksMineRoute } from './routes/tasks.mine';
@@ -14,6 +16,7 @@ import { emailSettingsRoute } from './routes/email-settings';
 import { searchRoute } from './routes/search';
 import { workflowsRoute } from './routes/workflows.list';
 import { reportsRoute } from './routes/reports';
+import { phoneSettingsRoute } from './routes/phone-settings';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -37,7 +40,9 @@ const routeTree = rootRoute.addChildren([
     companiesRoute,
     companyDetailRoute,
     contactsRoute,
+    contactDetailRoute,
     clientsRoute,
+    clientDetailRoute,
     dealsKanbanRoute,
     tasksMineRoute,
     remindersMineRoute,
@@ -45,6 +50,7 @@ const routeTree = rootRoute.addChildren([
     searchRoute,
     workflowsRoute,
     reportsRoute,
+    phoneSettingsRoute,
   ]),
 ]);
 

@@ -10,6 +10,7 @@
  */
 import { Global, Module } from '@nestjs/common';
 import { PrismaModule } from '../../infra/prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 import { EmbeddingService } from './embedding.service';
 import { SearchService } from './search.service';
 import { DealAiService } from './deal-ai.service';
@@ -17,7 +18,7 @@ import { AiController } from './ai.controller';
 
 @Global()
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   providers: [EmbeddingService, SearchService, DealAiService],
   controllers: [AiController],
   exports: [EmbeddingService, SearchService, DealAiService],

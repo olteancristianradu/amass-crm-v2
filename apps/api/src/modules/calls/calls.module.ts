@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { CallsController } from './calls.controller';
 import { CallsService } from './calls.service';
 import { CallsWebhookController } from './calls-webhook.controller';
@@ -20,6 +21,7 @@ import { TwilioClient } from './twilio.client';
  *   - AuditModule (global)    — audit log
  */
 @Module({
+  imports: [AuthModule],
   controllers: [CallsController, CallsWebhookController, PhoneNumbersController],
   providers: [CallsService, PhoneNumbersService, TwilioClient],
   exports: [CallsService],

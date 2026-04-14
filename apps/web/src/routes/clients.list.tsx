@@ -1,4 +1,4 @@
-import { createRoute } from '@tanstack/react-router';
+import { createRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -82,7 +82,13 @@ function ClientsListPage(): JSX.Element {
                 {data.data.map((c) => (
                   <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-2 font-medium">
-                      {c.firstName} {c.lastName}
+                      <Link
+                        to="/app/clients/$id"
+                        params={{ id: c.id }}
+                        className="hover:underline"
+                      >
+                        {c.firstName} {c.lastName}
+                      </Link>
                     </td>
                     <td className="px-4 py-2">{c.email ?? '—'}</td>
                     <td className="px-4 py-2">{c.phone ?? c.mobile ?? '—'}</td>

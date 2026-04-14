@@ -101,7 +101,11 @@ export class RemindersService {
    * remindAt ascending (the soonest first), with cursor pagination on
    * (remindAt, id). Cursor format = ISO timestamp of the last entry.
    */
-  async listMine(cursor: string | undefined, limit: number): Promise<ReminderListPage> {
+  async listMine(
+    cursor: string | undefined,
+    limit: number,
+    status: 'PENDING' | 'FIRED' = 'PENDING',
+  ): Promise<ReminderListPage> {
     const ctx = requireTenantContext();
     const cursorDate = cursor ? new Date(cursor) : undefined;
     const validCursor = cursorDate && !Number.isNaN(cursorDate.getTime()) ? cursorDate : undefined;
@@ -111,7 +115,7 @@ export class RemindersService {
         where: {
           tenantId: ctx.tenantId,
           actorId: ctx.userId,
-          status: 'PENDING',
+          status,
           deletedAt: null,
           ...(validCursor ? { remindAt: { gt: validCursor } } : {}),
         },

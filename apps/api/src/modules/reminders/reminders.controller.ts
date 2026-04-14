@@ -70,9 +70,11 @@ export class RemindersController {
   listMine(
     @Query('cursor') cursor: string | undefined,
     @Query('limit') limitRaw: string | undefined,
+    @Query('status') status: string | undefined,
   ) {
     const limit = Math.min(Math.max(Number(limitRaw) || 20, 1), 100);
-    return this.reminders.listMine(cursor, limit);
+    const reminderStatus = status === 'FIRED' ? 'FIRED' : 'PENDING';
+    return this.reminders.listMine(cursor, limit, reminderStatus);
   }
 
   @Patch('reminders/:id')

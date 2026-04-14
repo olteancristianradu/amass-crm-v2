@@ -6,6 +6,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.spec.ts', 'test/**/*.e2e.spec.ts'],
+    globalSetup: ['./test/global.setup.ts'],
+    setupFiles: ['./test/env.setup.ts'],
     testTimeout: 30000,
     hookTimeout: 30000,
     // Run test files sequentially. e2e suites share Postgres/Redis/MinIO,

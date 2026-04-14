@@ -5,8 +5,6 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt.guard';
 
-const env = loadEnv();
-
 /**
  * AuthModule — owns the auth surface area:
  *
@@ -32,9 +30,14 @@ const env = loadEnv();
  */
 @Module({
   imports: [
-    JwtModule.register({
-      secret: env.JWT_SECRET,
-      signOptions: { expiresIn: env.JWT_ACCESS_TTL },
+    // Use registerAsync so loadEnv() is called lazily inside the factory,
+    // not at module-load time. This prevents env validation errors during
+    // test setup before process.env is populated.
+    JwtModule.registerAsync({
+      useFactory: () => {
+        const env = loadEnv();
+        return { secret: env.JWT_SECRET, signOptions: { expiresIn: env.JWT_ACCESS_TTL } };
+      },
     }),
   ],
   controllers: [AuthController],

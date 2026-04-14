@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/lib/api';
 import { SearchBar } from '@/features/search/SearchBar';
+import { Toaster } from '@/components/ui/Toaster';
+import { useReminderPoller } from '@/hooks/useReminderPoller';
 
 interface Props {
   children: React.ReactNode;
@@ -17,6 +19,7 @@ interface Props {
  */
 export function AppShell({ children }: Props): JSX.Element {
   const user = useAuthStore((s) => s.user);
+  useReminderPoller();
   const clear = useAuthStore((s) => s.clear);
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const router = useRouter();
@@ -50,6 +53,9 @@ export function AppShell({ children }: Props): JSX.Element {
           <NavLink to="/app/email-settings">Setări email</NavLink>
           <NavLink to="/app/workflows">Automatizări</NavLink>
           <NavLink to="/app/reports">Rapoarte</NavLink>
+          {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
+            <NavLink to="/app/phone-settings">Telefonie</NavLink>
+          )}
         </nav>
       </aside>
       <div className="flex flex-1 flex-col">
@@ -64,6 +70,7 @@ export function AppShell({ children }: Props): JSX.Element {
         </header>
         <main className="flex-1 p-6">{children}</main>
       </div>
+      <Toaster />
     </div>
   );
 }
