@@ -16,6 +16,9 @@ import { AiModule } from './modules/ai/ai.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { GdprModule } from './modules/gdpr/gdpr.module';
+import { HealthModule } from './modules/health/health.module';
+import { MetricsModule } from './infra/metrics/metrics.module';
+import { SchedulerModule } from './infra/scheduler/scheduler.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { EmailModule } from './modules/email/email.module';
 import { NotesModule } from './modules/notes/notes.module';
@@ -80,6 +83,9 @@ import { UsersModule } from './modules/users/users.module';
     WorkflowsModule,
     ReportsModule,
     GdprModule,
+    HealthModule,
+    MetricsModule,
+    SchedulerModule,
   ],
 })
 export class AppModule implements NestModule {

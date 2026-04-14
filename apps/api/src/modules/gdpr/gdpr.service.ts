@@ -200,4 +200,41 @@ export class GdprService {
 
     return { contacts: staleContacts.length, clients: staleClients.length };
   }
+
+  /**
+   * Called by the cron scheduler — sweeps ALL tenants without requiring
+   * a request context. Uses raw queries bypassing RLS (service-level privilege).
+   */
+  async sweepAllTenants(retentionDays = 365): Promise<{ total: { contacts: number; clients: number } }> {
+    const cutoff = new Date(Date.now() - retentionDays * 86400000);
+    let totalContacts = 0;
+    let totalClients = 0;
+
+    const staleContacts = await this.prisma.contact.findMany({
+      where: { deletedAt: { lte: cutoff }, NOT: { firstName: ANON } },
+      select: { id: true, tenantId: true },
+    });
+    const staleClients = await this.prisma.client.findMany({
+      where: { deletedAt: { lte: cutoff }, NOT: { firstName: ANON } },
+      select: { id: true, tenantId: true },
+    });
+
+    for (const { id } of staleContacts) {
+      await this.prisma.contact.update({
+        where: { id },
+        data: { firstName: ANON, lastName: ANON, email: ANON_EMAIL, phone: null, mobile: null, notes: null, jobTitle: null },
+      }).catch((err) => this.logger.error('Sweep contact %s: %o', id, err));
+      totalContacts++;
+    }
+    for (const { id } of staleClients) {
+      await this.prisma.client.update({
+        where: { id },
+        data: { firstName: ANON, lastName: ANON, email: ANON_EMAIL, phone: null, mobile: null, addressLine: null, notes: null },
+      }).catch((err) => this.logger.error('Sweep client %s: %o', id, err));
+      totalClients++;
+    }
+
+    this.logger.log('Cron sweep done: %d contacts, %d clients anonymised', totalContacts, totalClients);
+    return { total: { contacts: totalContacts, clients: totalClients } };
+  }
 }
