@@ -23,6 +23,8 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/dist ./dist
+# Also copy prisma schema + generated client (needed for migrations at runtime)
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 EXPOSE 3000
-# Sprint 0: placeholder entrypoint until main.ts exists.
-CMD ["node", "-e", "require('http').createServer((_,r)=>r.end('amass-api: sprint 0 placeholder')).listen(3000,()=>console.log('api on :3000'))"]
+CMD ["node", "dist/main.js"]

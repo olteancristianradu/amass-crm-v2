@@ -1,0 +1,48 @@
+# Production Caddyfile — auto-HTTPS via Let's Encrypt.
+#
+# Replace YOUR_DOMAIN with the real domain before deploying.
+# To use this file: mount it as /etc/caddy/Caddyfile in the caddy container.
+#
+# Caddy automatically obtains and renews TLS certificates. The caddy_data
+# volume (defined in docker-compose.yml) persists the cert cache across
+# container restarts.
+#
+# Security headers: HSTS + XSS protection + referrer policy.
+
+{
+  email admin@YOUR_DOMAIN.com   # ACME registration email
+  admin off
+}
+
+YOUR_DOMAIN.com {
+  # HSTS — tell browsers to always use HTTPS for 1 year
+  header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+  header X-Content-Type-Options "nosniff"
+  header X-Frame-Options "SAMEORIGIN"
+  header Referrer-Policy "strict-origin-when-cross-origin"
+
+  # API
+  handle /api/* {
+    reverse_proxy api:3000
+  }
+
+  # Prometheus metrics — restrict to internal subnet only
+  handle /metrics {
+    # Uncomment and set to your monitoring IP range:
+    # @internal remote_ip 10.0.0.0/8
+    # handle @internal { reverse_proxy api:3000 }
+    # respond "Forbidden" 403
+    reverse_proxy api:3000
+  }
+
+  # Everything else → frontend SPA
+  handle {
+    reverse_proxy web:80
+  }
+
+  # Logs in JSON for structured log ingestion
+  log {
+    output stdout
+    format json
+  }
+}

@@ -1,0 +1,28 @@
+# Railway deployment configuration.
+# https://docs.railway.app/reference/config-as-code
+#
+# Railway alternative: use Docker Compose on a single VPS instead.
+# The docker-compose.prod.yml override is the recommended deployment path.
+#
+# For Railway: this config maps each compose service to a Railway service.
+# Set environment variables in the Railway dashboard — never in this file.
+
+[build]
+builder = "DOCKERFILE"
+
+[[services]]
+name = "api"
+source = "apps/api"
+dockerfile = "Dockerfile"
+startCommand = "node dist/main.js"
+
+[[services]]
+name = "web"
+source = "apps/web"
+dockerfile = "Dockerfile"
+
+[[services]]
+name = "ai-worker"
+source = "apps/ai-worker"
+dockerfile = "Dockerfile"
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port 8000"

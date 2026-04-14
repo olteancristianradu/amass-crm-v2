@@ -1,0 +1,60 @@
+# Production overrides for docker-compose.yml
+#
+# Usage:
+#   docker compose \
+#     -f infra/docker-compose.yml \
+#     -f infra/docker-compose.prod.yml \
+#     --env-file .env.production \
+#     up -d
+#
+# This file ONLY contains prod-specific overrides. The base file handles
+# all service definitions. Keep changes minimal — less drift = fewer bugs.
+
+name: amass-crm
+
+services:
+  # In production the API runs with NODE_ENV=production and the
+  # ENCRYPTION_KEY / JWT secrets loaded from real environment vars.
+  api:
+    restart: always
+    environment:
+      NODE_ENV: production
+    # Remove port exposure — traffic goes through Caddy reverse proxy only.
+    ports: []
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  web:
+    restart: always
+    ports: []   # behind Caddy
+
+  ai-worker:
+    restart: always
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1024M
+
+  # Postgres: no direct host port exposure in prod; API connects via
+  # internal Docker network using the service name 'postgres'.
+  postgres:
+    restart: always
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    restart: always
+    ports: []
+
+  minio:
+    restart: always
+    ports: []   # presigned URLs use the public MINIO_ENDPOINT env var
