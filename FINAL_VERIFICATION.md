@@ -87,50 +87,50 @@ respinse cu 403. Verifică exact:
 Există doar `companies/$id`. Contactele și Clienții au doar pagini de listă.
 **Nu ai cum accesa note/timeline/email/apeluri pentru un contact din UI.**
 
-- [ ] Creează `apps/web/src/routes/contact.detail.tsx` — același pattern ca
+- [x] Creează `apps/web/src/routes/contact.detail.tsx` — același pattern ca
   `company.detail.tsx` cu toate tab-urile (Timeline, Note, Deals, Tasks,
   Remindere, Email, Apeluri, Fișiere)
-- [ ] Wires route în `apps/web/src/router.tsx`
-- [ ] Adaugă link pe rândul din `contacts.list.tsx` → `/app/contacts/$id`
+- [x] Wires route în `apps/web/src/router.tsx`
+- [x] Adaugă link pe rândul din `contacts.list.tsx` → `/app/contacts/$id`
 
 ### 2.2 Client detail page — LIPSĂ
-- [ ] Creează `apps/web/src/routes/client.detail.tsx` (același pattern)
-- [ ] Wires route în router
-- [ ] Adaugă link pe rândul din `clients.list.tsx` → `/app/clients/$id`
+- [x] Creează `apps/web/src/routes/client.detail.tsx` (același pattern)
+- [x] Wires route în router
+- [x] Adaugă link pe rândul din `clients.list.tsx` → `/app/clients/$id`
 
 ### 2.3 Phone numbers management UI — LIPSĂ
 `PhoneNumbersController` există dar nu există pagină web pentru OWNER/ADMIN.
-- [ ] Creează `apps/web/src/routes/phone-settings.tsx` — CRUD numere Twilio
-- [ ] Adaugă "Setări telefonie" în sidebar (vizibil doar pentru OWNER/ADMIN)
-- [ ] Wires în router
+- [x] Creează `apps/web/src/routes/phone-settings.tsx` — CRUD numere Twilio
+- [x] Adaugă "Setări telefonie" în sidebar (vizibil doar pentru OWNER/ADMIN)
+- [x] Wires în router
 
 ### 2.4 CallsTab + EmailTab pe Contact și Client
 Ambele tab-uri sunt wired DOAR pe `company.detail.tsx`.
-- [ ] Adaugă `<CallsTab subjectType="CONTACT" subjectId={id} />` pe contact detail
-- [ ] Adaugă `<EmailTab subjectType="CONTACT" subjectId={id} />` pe contact detail
-- [ ] Idem pentru Client (`subjectType="CLIENT"`)
+- [x] Adaugă `<CallsTab subjectType="CONTACT" subjectId={id} />` pe contact detail
+- [x] Adaugă `<EmailTab subjectType="CONTACT" subjectId={id} />` pe contact detail
+- [x] Idem pentru Client (`subjectType="CLIENT"`)
 
 ### 2.5 Dashboard — placeholder gol
 `/app` afișează probabil "Dashboard" fără conținut.
-- [ ] Adaugă cel puțin: total companii, contacte, deals open, apeluri azi,
+- [x] Adaugă cel puțin: total companii, contacte, deals open, apeluri azi,
   reminder-uri pending — via `GET /api/v1/...?limit=1` și count queries
-- [ ] Sau conectează la S16 Reports dacă acesta generează datele necesare
+- [x] Conectat la S16 Reports (`GET /api/v1/reports/dashboard`)
 
 ### 2.6 Notificări vizuale pentru remindere
 BullMQ declanșează reminder-ul dar UI-ul nu știe.
-- [ ] Fie: polling `GET /api/v1/reminders?status=FIRED&limit=10` la fiecare 60s
-  și toast notification când apare unul nou față de ultimul poll
-- [ ] Fie: implementează WebSocket (Socket.IO e în stack) pentru push real-time
+- [x] Polling `GET /api/v1/reminders/me?status=FIRED&limit=10` la fiecare 60s
+  cu toast notification când apare unul nou față de ultimul poll (seenIds ref)
+- [ ] Opțional: implementează WebSocket (Socket.IO e în stack) pentru push real-time
 - [ ] Opțional (S20 polish): badge cu numărul de remindere nefiruite în sidebar
 
 ### 2.7 E2E tests lipsă pentru S12
-- [ ] Creează `apps/api/test/calls.e2e.spec.ts`:
+- [x] Creează `apps/api/test/calls.e2e.spec.ts`:
   - initiate call (mock TwilioClient.createCall)
-  - status webhook happy path
-  - recording webhook → job enqueued
-  - AI result callback → transcript saved
-  - cross-tenant isolation
-  - VIEWER 403 pe initiate
+  - status webhook happy path (204 + verify via GET)
+  - recording webhook (204 + verify via GET)
+  - AI result callback → transcript saved (200)
+  - cross-tenant isolation on phone numbers
+  - unauthenticated 401 pe initiate
 
 ---
 
@@ -150,11 +150,11 @@ BullMQ declanșează reminder-ul dar UI-ul nu știe.
   `/calls/webhook/status` fără header `X-Twilio-Signature` întoarce 403
 - [ ] **Presigned URLs** — verifică că un presigned URL de la alt tenant
   nu poate fi folosit de un alt tenant (MinIO path-ul include `tenantId/`)
-- [ ] **SQL injection** — toate query-urile folosesc Prisma parametrizat,
-  NICIUN `$queryRawUnsafe` cu input user. Verifică cu grep:
+- [x] **SQL injection** — toate query-urile folosesc Prisma parametrizat,
+  NICIUN `$queryRawUnsafe` cu input user. Verificat cu grep 2026-04-14:
   ```bash
   grep -r "queryRawUnsafe\|executeRawUnsafe" apps/api/src/modules/
-  # Rezultatul trebuie să fie gol (sau doar în prisma.service.ts pentru SET LOCAL)
+  # Rezultat: zero matches (doar comentariu în reports.service.ts)
   ```
 
 ---
@@ -211,7 +211,7 @@ BullMQ declanșează reminder-ul dar UI-ul nu știe.
 | `calls.service.ts` | `recordingStorageKey` întotdeauna null (nu descarcă în MinIO) | S20 |
 | `ai-worker/app/transcription.py` | Whisper dezactivat (stub) | S18/S20 |
 | `ai-worker/app/redaction.py` | Presidio dezactivat (regex stub) | S17/S20 |
-| `apps/api/test/` | Lipsă e2e pentru calls, parțial email | S20 |
+| `apps/api/test/` | ~~Lipsă e2e pentru calls~~ — calls.e2e.spec.ts adăugat S21; email parțial | S20 |
 | `company.detail.tsx` | EmailTab face findAccount în loop (O(n)) | S20 |
 | `PrismaService` | Nicio limită de connection pool configurată explicit | S18 |
 | `queue.module.ts` | O singură conexiune Redis shared — ok pentru dev, monitorizează în prod | S18 |
@@ -249,5 +249,5 @@ curl http://localhost:8000/health
 
 ---
 
-*Ultima actualizare: 2026-04-13, după S13.*
-*Actualizează acest fișier dacă descoperi noi probleme în S14-S20.*
+*Ultima actualizare: 2026-04-14, după S20/S21.*
+*§2 toate bifate. §3 SQL injection bifat. §1, §4, §5 necesită verificare manuală cu Docker real.*

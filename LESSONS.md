@@ -34,6 +34,34 @@
 
 ## Entries
 
+### 2026-04-14 — S20/S21 — NestJS module-level loadEnv() breaks test bootstrap
+- **Sprint / area:** S20/S21 / test infrastructure
+- **Symptom:** `pnpm test` failed with `Environment validation failed — ENCRYPTION_KEY: Required` even though `globalSetup` was loading the `.env` file. The env vars were present in the setup process but not in the worker processes that actually import NestJS modules.
+- **Root cause:** `auth.module.ts` called `const env = loadEnv()` at **module evaluation time** (top-level, outside any function). When vitest workers import `AppModule` → `AuthModule`, the module-level code runs before `setupFiles` can inject env vars. The `globalSetup` runs in the main process; env vars set there do NOT propagate to worker processes.
+- **Fix:** Changed `JwtModule.register({ secret: env.JWT_SECRET })` to `JwtModule.registerAsync({ useFactory: () => { const env = loadEnv(); return { ... }; } })`. The factory runs lazily when the DI container is actually built, by which time `setupFiles` has already set the env vars in the worker process.
+- **Lesson:** Never call `loadEnv()` (or any Zod-validated env schema) at module level in NestJS. Always lazy-load inside `useFactory` / `useClass` / provider factories. Module-level code runs at import time, before any test setup can run. This applies to any side-effectful initialization: DB connections, external clients, etc.
+
+### 2026-04-14 — S20/S21 — Prisma @map required when migration uses snake_case
+- **Sprint / area:** S21 / Workflow models
+- **Symptom:** `PrismaClientKnownRequestError: The column 'workflows.tenantId' does not exist in the current database`. Prisma generated JS used `tenantId` but the actual DB column (from the migration SQL) was `tenant_id`.
+- **Root cause:** Prisma schema models used camelCase field names (`tenantId`, `isActive`, etc.) without `@map("snake_case")` annotations. The migration SQL (written manually) used snake_case column names. Prisma's generated client uses the schema field names, not the DB column names — so there was a permanent mismatch.
+- **Fix:** Added `@map("tenant_id")`, `@map("is_active")`, etc. to every camelCase field in `Workflow`, `WorkflowStep`, and `WorkflowRun` models. Then ran `npx prisma generate` to regenerate the client.
+- **Lesson:** When writing a migration SQL by hand AND using camelCase field names in the schema, you must add `@map("snake_case")` to every field. Alternatively, let `prisma migrate dev` generate the SQL (it respects `@map` automatically). Mixing hand-written SQL with a schema that lacks `@map` annotations always leads to this mismatch.
+
+### 2026-04-14 — S20/S21 — AuthModule must be imported in every module using JwtAuthGuard
+- **Sprint / area:** S21 / DI / module wiring
+- **Symptom:** `Nest can't resolve dependencies of the JwtAuthGuard (?). Please make sure that the argument JwtService at index [0] is available in the ReportsModule context.`
+- **Root cause:** `JwtAuthGuard` depends on `JwtService`, which is provided by `JwtModule` inside `AuthModule`. Any NestJS module whose controllers use `@UseGuards(JwtAuthGuard)` must import `AuthModule` to make `JwtService` visible in that module's DI context. Six later-sprint modules (ai, calls, email, gdpr, reports, workflows) were missing this import.
+- **Fix:** Added `AuthModule` to the `imports` array in all six modules.
+- **Lesson:** Every module that uses JWT-protected routes MUST import `AuthModule`. This is easy to miss when creating new modules — add it as a checklist item when wiring up a new controller with `@UseGuards(JwtAuthGuard)`. Consider making `AuthModule` `@Global()` to avoid this repetition (trade-off: implicit vs explicit dependency).
+
+### 2026-04-14 — S20/S21 — z.string().min(1) rejects empty strings from .env
+- **Sprint / area:** S21 / env validation
+- **Symptom:** `ZodError: ANTHROPIC_API_KEY: String must contain at least 1 character(s)` when `.env` has `ANTHROPIC_API_KEY=` (empty value).
+- **Root cause:** An empty value in `.env` is parsed as an empty string `""`, not as `undefined`. `z.string().min(1).optional()` passes on `undefined` but rejects `""`. Devs commonly leave optional keys blank in `.env` files.
+- **Fix:** Wrapped each optional key with `z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional())` to convert empty strings to `undefined` before Zod validates.
+- **Lesson:** For optional env vars, always use `z.preprocess` to coerce `""` → `undefined`. The pattern `z.string().min(1).optional()` is not sufficient when env files may contain `KEY=` (blank value). This applies to any env var that is optional but must be non-empty if provided.
+
 ### 2026-04-08 — Sprint 7 — vitest fileParallelism + BullMQ workers don't mix
 - **Sprint / area:** S7 / reminders / e2e tests
 - **Symptom:** A new test that creates a reminder with `remindAt = now + 700ms`, then polls Postgres for `status = 'FIRED'`, passed in isolation (`vitest run test/reminders.e2e.spec.ts` → 908ms) but failed reliably when run as part of the full suite — the polling loop timed out at 4 seconds with the row still PENDING.
