@@ -13,6 +13,7 @@ import { tasksMineRoute } from './routes/tasks.mine';
 import { emailSettingsRoute } from './routes/email-settings';
 import { searchRoute } from './routes/search';
 import { workflowsRoute } from './routes/workflows.list';
+import { reportsRoute } from './routes/reports';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -43,6 +44,7 @@ const routeTree = rootRoute.addChildren([
     emailSettingsRoute,
     searchRoute,
     workflowsRoute,
+    reportsRoute,
   ]),
 ]);
 
