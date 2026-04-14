@@ -29,6 +29,24 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Split vendor chunks to keep app chunk < 500KB and improve HTTP caching.
+    // When libs update you still ship a fresh vendor chunk, but app changes
+    // don't bust the vendor cache.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'tanstack-vendor': [
+            '@tanstack/react-router',
+            '@tanstack/react-query',
+            '@tanstack/react-table',
+          ],
+          'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
