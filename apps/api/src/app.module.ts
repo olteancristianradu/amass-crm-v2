@@ -15,6 +15,7 @@ import { DealsModule } from './modules/deals/deals.module';
 import { AiModule } from './modules/ai/ai.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { GdprModule } from './modules/gdpr/gdpr.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { EmailModule } from './modules/email/email.module';
 import { NotesModule } from './modules/notes/notes.module';
@@ -78,6 +79,7 @@ import { UsersModule } from './modules/users/users.module';
     AiModule,
     WorkflowsModule,
     ReportsModule,
+    GdprModule,
   ],
 })
 export class AppModule implements NestModule {
