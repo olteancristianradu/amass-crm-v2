@@ -660,16 +660,16 @@ enum WorkflowRunStatus {
 
 model Workflow {
   id            String          @id @default(cuid())
-  tenantId      String
+  tenantId      String          @map("tenant_id")
   name          String
   description   String?
-  isActive      Boolean         @default(true)
+  isActive      Boolean         @default(true) @map("is_active")
   trigger       WorkflowTrigger
   /// { stageId?: string } for DEAL_STAGE_CHANGED, {} for others
-  triggerConfig Json            @default("{}")
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  deletedAt     DateTime?
+  triggerConfig Json            @default("{}") @map("trigger_config")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  deletedAt     DateTime?       @map("deleted_at")
 
   steps WorkflowStep[]
   runs  WorkflowRun[]
@@ -680,16 +680,16 @@ model Workflow {
 
 model WorkflowStep {
   id           String             @id @default(cuid())
-  workflowId   String
-  tenantId     String
+  workflowId   String             @map("workflow_id")
+  tenantId     String             @map("tenant_id")
   order        Int                @default(0)
-  actionType   WorkflowActionType
+  actionType   WorkflowActionType @map("action_type")
   /// SEND_EMAIL: { accountId, subject, body }
   /// CREATE_TASK: { title, priority, dueInDays }
   /// ADD_NOTE: { body }
   /// WAIT_DAYS: { days }
-  actionConfig Json               @default("{}")
-  createdAt    DateTime           @default(now())
+  actionConfig Json               @default("{}") @map("action_config")
+  createdAt    DateTime           @default(now()) @map("created_at")
 
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
@@ -699,14 +699,14 @@ model WorkflowStep {
 
 model WorkflowRun {
   id          String            @id @default(cuid())
-  tenantId    String
-  workflowId  String
-  subjectType String            // 'DEAL' | 'CONTACT' | 'COMPANY'
-  subjectId   String
+  tenantId    String            @map("tenant_id")
+  workflowId  String            @map("workflow_id")
+  subjectType String            @map("subject_type") // 'DEAL' | 'CONTACT' | 'COMPANY'
+  subjectId   String            @map("subject_id")
   status      WorkflowRunStatus @default(RUNNING)
-  currentStep Int               @default(0)
-  startedAt   DateTime          @default(now())
-  completedAt DateTime?
+  currentStep Int               @default(0) @map("current_step")
+  startedAt   DateTime          @default(now()) @map("started_at")
+  completedAt DateTime?         @map("completed_at")
   error       String?
 
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)

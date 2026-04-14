@@ -80,6 +80,7 @@ export class CallsWebhookController {
    * Protected by SystemApiKeyGuard (AI_WORKER_SECRET Bearer token).
    */
   @Post(':id/ai-result')
+  @HttpCode(200)
   @UseGuards(SystemApiKeyGuard)
   saveAiResult(
     @Param('id') id: string,
