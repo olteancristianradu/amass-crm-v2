@@ -48,6 +48,7 @@ export function AppShell({ children }: Props): JSX.Element {
           <NavLink to="/app/tasks">Task-uri</NavLink>
           <NavLink to="/app/reminders">Reminder-uri</NavLink>
           <NavLink to="/app/email-settings">Setări email</NavLink>
+          <NavLink to="/app/workflows">Automatizări</NavLink>
         </nav>
       </aside>
       <div className="flex flex-1 flex-col">

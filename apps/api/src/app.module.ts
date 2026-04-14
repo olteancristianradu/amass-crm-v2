@@ -13,6 +13,7 @@ import { ContactsModule } from './modules/contacts/contacts.module';
 import { ImporterModule } from './modules/importer/importer.module';
 import { DealsModule } from './modules/deals/deals.module';
 import { AiModule } from './modules/ai/ai.module';
+import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { EmailModule } from './modules/email/email.module';
 import { NotesModule } from './modules/notes/notes.module';
@@ -74,6 +75,7 @@ import { UsersModule } from './modules/users/users.module';
     EmailModule,
     CallsModule,
     AiModule,
+    WorkflowsModule,
   ],
 })
 export class AppModule implements NestModule {

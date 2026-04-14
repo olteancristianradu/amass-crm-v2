@@ -11,6 +11,7 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { PipelinesService } from '../pipelines/pipelines.service';
+import { WorkflowsService } from '../workflows/workflows.service';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
 
 /**
@@ -43,6 +44,7 @@ export class DealsService {
     private readonly audit: AuditService,
     private readonly activities: ActivitiesService,
     private readonly pipelines: PipelinesService,
+    private readonly workflows: WorkflowsService,
   ) {}
 
   async create(dto: CreateDealDto): Promise<Deal> {
@@ -97,6 +99,13 @@ export class DealsService {
         metadata: { dealId: deal.id, title: deal.title },
       });
     }
+    // Fire-and-forget workflow trigger
+    void this.workflows.trigger({
+      trigger: 'DEAL_CREATED',
+      subjectType: 'DEAL',
+      subjectId: deal.id,
+      tenantId: ctx.tenantId,
+    });
     return deal;
   }
 
@@ -258,6 +267,14 @@ export class DealsService {
         },
       });
     }
+    // Fire-and-forget workflow trigger for stage change
+    void this.workflows.trigger({
+      trigger: 'DEAL_STAGE_CHANGED',
+      subjectType: 'DEAL',
+      subjectId: updated.id,
+      tenantId: ctx.tenantId,
+      stageId: dto.stageId,
+    });
     return updated;
   }
 

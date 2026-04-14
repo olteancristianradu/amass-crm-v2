@@ -5,6 +5,7 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { EmbeddingService } from '../ai/embedding.service';
+import { WorkflowsService } from '../workflows/workflows.service';
 import { buildCursorArgs, CursorPage, makeCursorPage } from '../../common/pagination';
 import { Company, Prisma } from '@prisma/client';
 
@@ -15,6 +16,7 @@ export class CompaniesService {
     private readonly audit: AuditService,
     private readonly activities: ActivitiesService,
     private readonly embedding: EmbeddingService,
+    private readonly workflows: WorkflowsService,
   ) {}
 
   async create(dto: CreateCompanyDto): Promise<Company> {
@@ -36,11 +38,16 @@ export class CompaniesService {
       action: 'company.created',
       metadata: { name: company.name },
     });
-    // Fire-and-forget: never blocks the response
     void this.embedding.updateCompany(
       company.id,
       [company.name, company.industry, company.city, company.notes].filter(Boolean).join(' '),
     );
+    void this.workflows.trigger({
+      trigger: 'COMPANY_CREATED',
+      subjectType: 'COMPANY',
+      subjectId: company.id,
+      tenantId: ctx.tenantId,
+    });
     return company;
   }
 

@@ -7,6 +7,7 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { EmbeddingService } from '../ai/embedding.service';
+import { WorkflowsService } from '../workflows/workflows.service';
 
 @Injectable()
 export class ContactsService {
@@ -15,6 +16,7 @@ export class ContactsService {
     private readonly audit: AuditService,
     private readonly activities: ActivitiesService,
     private readonly embedding: EmbeddingService,
+    private readonly workflows: WorkflowsService,
   ) {}
 
   async create(dto: CreateContactDto): Promise<Contact> {
@@ -50,6 +52,12 @@ export class ContactsService {
         contact.id,
         [contact.firstName, contact.lastName, contact.jobTitle, contact.email, contact.notes].filter(Boolean).join(' '),
       );
+      void this.workflows.trigger({
+        trigger: 'CONTACT_CREATED',
+        subjectType: 'CONTACT',
+        subjectId: contact.id,
+        tenantId: ctx.tenantId,
+      });
       return contact;
     });
   }

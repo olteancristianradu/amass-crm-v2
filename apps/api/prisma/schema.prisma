@@ -632,6 +632,90 @@ model CallTranscript {
   @@map("call_transcripts")
 }
 
+/// Sprint 15 — Automated workflows/sequences.
+///
+/// A Workflow is a tenant-scoped automation: one trigger event starts an
+/// ordered list of WorkflowSteps. A WorkflowRun tracks one execution of a
+/// workflow for one subject (Deal / Contact / Company).
+enum WorkflowTrigger {
+  DEAL_CREATED
+  DEAL_STAGE_CHANGED
+  CONTACT_CREATED
+  COMPANY_CREATED
+}
+
+enum WorkflowActionType {
+  SEND_EMAIL
+  CREATE_TASK
+  ADD_NOTE
+  WAIT_DAYS
+}
+
+enum WorkflowRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Workflow {
+  id            String          @id @default(cuid())
+  tenantId      String
+  name          String
+  description   String?
+  isActive      Boolean         @default(true)
+  trigger       WorkflowTrigger
+  /// { stageId?: string } for DEAL_STAGE_CHANGED, {} for others
+  triggerConfig Json            @default("{}")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+
+  steps WorkflowStep[]
+  runs  WorkflowRun[]
+
+  @@index([tenantId, isActive])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id           String             @id @default(cuid())
+  workflowId   String
+  tenantId     String
+  order        Int                @default(0)
+  actionType   WorkflowActionType
+  /// SEND_EMAIL: { accountId, subject, body }
+  /// CREATE_TASK: { title, priority, dueInDays }
+  /// ADD_NOTE: { body }
+  /// WAIT_DAYS: { days }
+  actionConfig Json               @default("{}")
+  createdAt    DateTime           @default(now())
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, order])
+  @@map("workflow_steps")
+}
+
+model WorkflowRun {
+  id          String            @id @default(cuid())
+  tenantId    String
+  workflowId  String
+  subjectType String            // 'DEAL' | 'CONTACT' | 'COMPANY'
+  subjectId   String
+  status      WorkflowRunStatus @default(RUNNING)
+  currentStep Int               @default(0)
+  startedAt   DateTime          @default(now())
+  completedAt DateTime?
+  error       String?
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, workflowId, status])
+  @@index([tenantId, subjectType, subjectId])
+  @@map("workflow_runs")
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String

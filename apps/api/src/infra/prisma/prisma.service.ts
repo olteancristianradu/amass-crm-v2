@@ -28,6 +28,9 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'PhoneNumber',
   'Call',
   'CallTranscript',
+  'Workflow',
+  'WorkflowStep',
+  'WorkflowRun',
 ]);
 
 @Injectable()

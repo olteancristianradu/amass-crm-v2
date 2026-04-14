@@ -12,6 +12,7 @@ import { dealsKanbanRoute } from './routes/deals.kanban';
 import { tasksMineRoute } from './routes/tasks.mine';
 import { emailSettingsRoute } from './routes/email-settings';
 import { searchRoute } from './routes/search';
+import { workflowsRoute } from './routes/workflows.list';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -41,6 +42,7 @@ const routeTree = rootRoute.addChildren([
     remindersMineRoute,
     emailSettingsRoute,
     searchRoute,
+    workflowsRoute,
   ]),
 ]);
 
