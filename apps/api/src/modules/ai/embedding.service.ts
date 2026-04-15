@@ -1,59 +1,81 @@
 /**
- * EmbeddingService — generates OpenAI text-embedding-3-small vectors and
- * stores them back into the DB using raw SQL (pgvector Unsupported type).
+ * EmbeddingService — generates 1536-dim text vectors and stores them in
+ * the DB via raw SQL (pgvector Unsupported type).
+ *
+ * Provider priority:
+ *   1. Google Gemini (gemini-embedding-001 @ outputDimensionality=1536) — FREE tier
+ *   2. OpenAI (text-embedding-3-small) — paid fallback
+ *   3. No-op — if neither key set, semantic search returns empty
  *
  * All update methods are fire-and-forget: callers do `void this.embed.updateXxx()`.
  * Errors are caught internally so they never blow up the main request path.
- *
- * When OPENAI_API_KEY is absent, all methods are no-ops — the app stays fully
- * functional without embeddings (semantic search just returns empty results).
  */
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
 
 import { loadEnv } from '../../config/env';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 
+type Provider = 'gemini' | 'openai' | 'none';
+
 @Injectable()
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
-  private readonly client: OpenAI | null;
-  private readonly model = 'text-embedding-3-small';
+  private readonly openai: OpenAI | null;
+  private readonly gemini: GoogleGenAI | null;
+  private readonly provider: Provider;
   private readonly dims = 1536;
 
   constructor(private readonly prisma: PrismaService) {
-    const { OPENAI_API_KEY } = loadEnv();
-    this.client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
-    if (!this.client) {
-      this.logger.warn('OPENAI_API_KEY not set — semantic search disabled');
+    const { GEMINI_API_KEY, OPENAI_API_KEY } = loadEnv();
+    this.gemini = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
+    this.openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+
+    if (this.gemini) this.provider = 'gemini';
+    else if (this.openai) this.provider = 'openai';
+    else this.provider = 'none';
+
+    if (this.provider === 'none') {
+      this.logger.warn('Neither GEMINI_API_KEY nor OPENAI_API_KEY set — semantic search disabled');
+    } else {
+      this.logger.log(`EmbeddingService using provider=${this.provider}`);
     }
   }
 
-  // ── embed helpers ─────────────────────────────────────────────────────────
-
   /** @internal — exposed for SearchService use */
   async embed(text: string): Promise<number[] | null> {
-    if (!this.client) return null;
+    if (this.provider === 'none') return null;
+    const input = text.slice(0, 8192);
     try {
-      const res = await this.client.embeddings.create({
-        model: this.model,
-        input: text.slice(0, 8192),
-        dimensions: this.dims,
-      });
-      return res.data[0].embedding;
+      if (this.provider === 'gemini' && this.gemini) {
+        const res = await this.gemini.models.embedContent({
+          model: 'gemini-embedding-001',
+          contents: [input],
+          config: { outputDimensionality: this.dims },
+        });
+        const values = res.embeddings?.[0]?.values;
+        return values ?? null;
+      }
+      if (this.provider === 'openai' && this.openai) {
+        const res = await this.openai.embeddings.create({
+          model: 'text-embedding-3-small',
+          input,
+          dimensions: this.dims,
+        });
+        return res.data[0].embedding;
+      }
     } catch (err) {
-      this.logger.error('OpenAI embed error: %o', err);
-      return null;
+      this.logger.error(`${this.provider} embed error: %o`, err);
     }
+    return null;
   }
 
   /** @internal — exposed for SearchService use */
   toVectorLiteral(vec: number[]): string {
     return `[${vec.join(',')}]`;
   }
-
-  // ── public update methods (fire-and-forget from entity services) ──────────
 
   async updateCompany(id: string, text: string): Promise<void> {
     const vec = await this.embed(text);
@@ -82,10 +104,8 @@ export class EmbeddingService {
     `;
   }
 
-  // ── reindex — called by /ai/reindex admin endpoint ────────────────────────
-
   async reindexAll(): Promise<{ companies: number; contacts: number; clients: number }> {
-    if (!this.client) return { companies: 0, contacts: 0, clients: 0 };
+    if (this.provider === 'none') return { companies: 0, contacts: 0, clients: 0 };
     const { tenantId } = requireTenantContext();
 
     const [companies, contacts, clients] = await Promise.all([

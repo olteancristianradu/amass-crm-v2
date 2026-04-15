@@ -17,6 +17,8 @@ import { searchRoute } from './routes/search';
 import { workflowsRoute } from './routes/workflows.list';
 import { reportsRoute } from './routes/reports';
 import { phoneSettingsRoute } from './routes/phone-settings';
+import { invoicesListRoute } from './routes/invoices.list';
+import { projectsListRoute } from './routes/projects.list';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -51,6 +53,8 @@ const routeTree = rootRoute.addChildren([
     workflowsRoute,
     reportsRoute,
     phoneSettingsRoute,
+    invoicesListRoute,
+    projectsListRoute,
   ]),
 ]);
 

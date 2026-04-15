@@ -9,6 +9,8 @@ import { ReportsService } from './reports.service';
  * Reports endpoints:
  *   GET /reports/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD
  *   GET /reports/deals-trend?from=...&to=...
+ *   GET /reports/financial-summary?from=...&to=...
+ *   GET /reports/revenue-trend?from=...&to=...
  */
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -38,5 +40,23 @@ export class ReportsController {
     const toDate = to ?? now.toISOString().slice(0, 10);
     const fromDate = from ?? new Date(now.getTime() - 90 * 86400000).toISOString().slice(0, 10);
     return this.reports.dealsTrend(fromDate, toDate);
+  }
+
+  @Get('financial-summary')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  financialSummary(@Query('from') from?: string, @Query('to') to?: string) {
+    const now = new Date();
+    const toDate = to ?? now.toISOString().slice(0, 10);
+    const fromDate = from ?? new Date(now.getTime() - 90 * 86400000).toISOString().slice(0, 10);
+    return this.reports.financialSummary(fromDate, toDate);
+  }
+
+  @Get('revenue-trend')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  revenueTrend(@Query('from') from?: string, @Query('to') to?: string) {
+    const now = new Date();
+    const toDate = to ?? now.toISOString().slice(0, 10);
+    const fromDate = from ?? new Date(now.getTime() - 180 * 86400000).toISOString().slice(0, 10);
+    return this.reports.revenueTrend(fromDate, toDate);
   }
 }

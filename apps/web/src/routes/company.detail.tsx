@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
 import { RemindersTab } from '@/features/reminders/RemindersTab';
+import { InvoicesTab } from '@/features/invoices/InvoicesTab';
 import { AttachmentsTab } from '@/features/attachments/AttachmentsTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
 import { DealsTab } from '@/features/deals/DealsTab';
@@ -88,6 +89,7 @@ function CompanyDetailPage(): JSX.Element {
                 <TabsTrigger value="email">Email</TabsTrigger>
                 <TabsTrigger value="calls">Apeluri</TabsTrigger>
                 <TabsTrigger value="attachments">Fișiere</TabsTrigger>
+                <TabsTrigger value="invoices">Facturi</TabsTrigger>
               </TabsList>
               <TabsContent value="timeline">
                 <TimelineTab subjectType="COMPANY" subjectId={id} />
@@ -112,6 +114,9 @@ function CompanyDetailPage(): JSX.Element {
               </TabsContent>
               <TabsContent value="attachments">
                 <AttachmentsTab subjectType="COMPANY" subjectId={id} />
+              </TabsContent>
+              <TabsContent value="invoices">
+                <InvoicesTab companyId={id} />
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -31,6 +31,10 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Workflow',
   'WorkflowStep',
   'WorkflowRun',
+  'Invoice',
+  'InvoiceLine',
+  'Payment',
+  'Project',
 ]);
 
 @Injectable()

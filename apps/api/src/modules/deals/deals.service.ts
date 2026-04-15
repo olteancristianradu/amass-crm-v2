@@ -11,6 +11,7 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { PipelinesService } from '../pipelines/pipelines.service';
+import { ProjectsService } from '../projects/projects.service';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
 
@@ -45,6 +46,7 @@ export class DealsService {
     private readonly activities: ActivitiesService,
     private readonly pipelines: PipelinesService,
     private readonly workflows: WorkflowsService,
+    private readonly projects: ProjectsService,
   ) {}
 
   async create(dto: CreateDealDto): Promise<Deal> {
@@ -275,6 +277,18 @@ export class DealsService {
       tenantId: ctx.tenantId,
       stageId: dto.stageId,
     });
+    // S23: auto-spin a Project when a deal lands in a WON stage. Idempotent
+    // (ProjectsService.createFromDeal short-circuits if dealId already has
+    // a project). Awaited so tests and audit trail are deterministic.
+    if (targetStage.type === 'WON') {
+      try {
+        await this.projects.createFromDeal(updated.id);
+      } catch (err) {
+        // Never block deal-move on project creation failure.
+        // eslint-disable-next-line no-console
+        console.error('deal→project auto-creation failed', err);
+      }
+    }
     return updated;
   }
 

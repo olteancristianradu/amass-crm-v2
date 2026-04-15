@@ -1,13 +1,17 @@
 /**
- * DealAiService — AI-powered deal suggestions using Claude claude-sonnet-4-6.
+ * DealAiService — AI-powered deal suggestions.
+ *
+ * Provider priority (first one with a valid key wins):
+ *   1. Google Gemini (gemini-1.5-flash) — FREE tier (1M tokens/day)
+ *   2. Anthropic Claude (claude-sonnet-4-6) — paid fallback
+ *   3. Static fallback — generic "review deal" message
  *
  * Builds a context snapshot for a deal (company name, contact, open tasks)
- * and asks Claude for the next best action.
- *
- * Falls back gracefully when ANTHROPIC_API_KEY is not set.
+ * and asks the LLM for the next best action as JSON.
  */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 
 import { loadEnv } from '../../config/env';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -19,6 +23,8 @@ export interface DealSuggestion {
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   suggestedAt: string;
 }
+
+type Provider = 'gemini' | 'anthropic' | 'none';
 
 const SYSTEM_PROMPT = `You are a CRM sales assistant. Given a deal context, suggest the single most impactful next action the salesperson should take.
 
@@ -32,23 +38,33 @@ Respond ONLY with valid JSON (no markdown) in this exact shape:
 @Injectable()
 export class DealAiService {
   private readonly logger = new Logger(DealAiService.name);
-  private readonly client: Anthropic | null;
+  private readonly anthropic: Anthropic | null;
+  private readonly gemini: GoogleGenAI | null;
+  private readonly provider: Provider;
 
   constructor(private readonly prisma: PrismaService) {
-    const { ANTHROPIC_API_KEY } = loadEnv();
-    this.client = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
-    if (!this.client) {
-      this.logger.warn('ANTHROPIC_API_KEY not set — deal suggestions disabled');
+    const { GEMINI_API_KEY, ANTHROPIC_API_KEY } = loadEnv();
+    this.gemini = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
+    this.anthropic = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
+
+    if (this.gemini) this.provider = 'gemini';
+    else if (this.anthropic) this.provider = 'anthropic';
+    else this.provider = 'none';
+
+    if (this.provider === 'none') {
+      this.logger.warn('No AI provider key set — deal suggestions disabled');
+    } else {
+      this.logger.log(`DealAiService using provider=${this.provider}`);
     }
   }
 
   async suggest(dealId: string): Promise<DealSuggestion> {
     const { tenantId } = requireTenantContext();
 
-    if (!this.client) {
+    if (this.provider === 'none') {
       return {
-        action: 'Configure ANTHROPIC_API_KEY to enable AI suggestions',
-        reasoning: 'AI suggestions require an Anthropic API key.',
+        action: 'Configure GEMINI_API_KEY (free) or ANTHROPIC_API_KEY to enable AI suggestions',
+        reasoning: 'AI suggestions require an API key. Gemini free tier covers most SMB workloads.',
         priority: 'LOW',
         suggestedAt: new Date().toISOString(),
       };
@@ -96,14 +112,7 @@ ${deal.tasks.map((t) => `- [${t.priority}] ${t.title}${t.dueAt ? ` (due ${t.dueA
 `.trim();
 
     try {
-      const msg = await this.client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 256,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: context }],
-      });
-
-      const text = msg.content.find((b) => b.type === 'text')?.text ?? '{}';
+      const text = await this.callLLM(context);
       const parsed = JSON.parse(text) as { action: string; reasoning: string; priority: string };
 
       return {
@@ -113,7 +122,7 @@ ${deal.tasks.map((t) => `- [${t.priority}] ${t.title}${t.dueAt ? ` (due ${t.dueA
         suggestedAt: new Date().toISOString(),
       };
     } catch (err) {
-      this.logger.error('Claude suggestion failed for deal %s: %o', dealId, err);
+      this.logger.error('AI suggestion failed for deal %s: %o', dealId, err);
       return {
         action: 'Review deal status and follow up',
         reasoning: 'AI suggestion unavailable — please review manually.',
@@ -121,5 +130,30 @@ ${deal.tasks.map((t) => `- [${t.priority}] ${t.title}${t.dueAt ? ` (due ${t.dueA
         suggestedAt: new Date().toISOString(),
       };
     }
+  }
+
+  private async callLLM(context: string): Promise<string> {
+    if (this.provider === 'gemini' && this.gemini) {
+      const res = await this.gemini.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: context,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: 'application/json',
+          maxOutputTokens: 256,
+        },
+      });
+      return res.text ?? '{}';
+    }
+    if (this.provider === 'anthropic' && this.anthropic) {
+      const msg = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 256,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: context }],
+      });
+      return msg.content.find((b) => b.type === 'text')?.text ?? '{}';
+    }
+    return '{}';
   }
 }

@@ -14,3 +14,5 @@ export * from './schemas/email-message';
 export * from './schemas/call';
 export * from './schemas/search';
 export * from './schemas/workflow';
+export * from './schemas/invoice';
+export * from './schemas/project';

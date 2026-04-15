@@ -64,6 +64,15 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().min(1).optional(),
   ),
+
+  // Google Gemini API key — used as primary AI provider (free tier covers
+  // embeddings + chat for typical SMB CRM workload). Get one free at
+  // https://aistudio.google.com/app/apikey (no card required).
+  // Falls back to OpenAI/Anthropic if unset.
+  GEMINI_API_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;

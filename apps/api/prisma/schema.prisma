@@ -716,6 +716,140 @@ model WorkflowRun {
   @@map("workflow_runs")
 }
 
+// ─── S22 Invoices ────────────────────────────────────────────────────────────
+// Facturi emise de către tenant către Company (clienți).
+// Status transitions: DRAFT → ISSUED → (PARTIALLY_PAID|PAID|OVERDUE|CANCELLED).
+// Numbering: (series, number) unique per tenant — standard RO invoice practice.
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum InvoiceCurrency {
+  RON
+  EUR
+  USD
+}
+
+model Invoice {
+  id            String          @id @default(cuid())
+  tenantId      String          @map("tenant_id")
+  companyId     String          @map("company_id")
+  dealId        String?         @map("deal_id")
+  series        String
+  number        Int
+  issueDate     DateTime        @map("issue_date")
+  dueDate       DateTime        @map("due_date")
+  subtotal      Decimal         @db.Decimal(14, 2)
+  vatAmount     Decimal         @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  total         Decimal         @db.Decimal(14, 2)
+  currency      InvoiceCurrency @default(RON)
+  status        InvoiceStatus   @default(DRAFT)
+  notes         String?
+  pdfStorageKey String?         @map("pdf_storage_key")
+  createdById   String?         @map("created_by_id")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  deletedAt     DateTime?       @map("deleted_at")
+
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@unique([tenantId, series, number])
+  @@index([tenantId, companyId, issueDate])
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  tenantId    String  @map("tenant_id")
+  invoiceId   String  @map("invoice_id")
+  position    Int
+  description String
+  quantity    Decimal @db.Decimal(14, 3)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(14, 2)
+  vatRate     Decimal @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  subtotal    Decimal @db.Decimal(14, 2)
+  vatAmount   Decimal @map("vat_amount") @db.Decimal(14, 2)
+  total       Decimal @db.Decimal(14, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
+}
+
+// ─── S24 Payments (scaffold — used by Invoice status calc) ──────────────────
+
+enum PaymentMethod {
+  BANK
+  CASH
+  CARD
+  OTHER
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  tenantId    String        @map("tenant_id")
+  invoiceId   String        @map("invoice_id")
+  amount      Decimal       @db.Decimal(14, 2)
+  paidAt      DateTime      @map("paid_at")
+  method      PaymentMethod @default(BANK)
+  reference   String?
+  notes       String?
+  createdById String?       @map("created_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, invoiceId])
+  @@index([tenantId, paidAt])
+  @@map("payments")
+}
+
+// ─── S23 Projects ────────────────────────────────────────────────────────────
+// A Project is created from a won Deal — groups invoices, tasks, attachments
+// under one delivery umbrella.
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  tenantId    String        @map("tenant_id")
+  companyId   String        @map("company_id")
+  dealId      String?       @unique @map("deal_id")
+  name        String
+  description String?
+  status      ProjectStatus @default(PLANNED)
+  startDate   DateTime?     @map("start_date")
+  endDate     DateTime?     @map("end_date")
+  budget      Decimal?      @db.Decimal(14, 2)
+  currency    InvoiceCurrency @default(RON)
+  createdById String?       @map("created_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  @@index([tenantId, companyId])
+  @@index([tenantId, status])
+  @@map("projects")
+}
+
 model Session {
   id               String    @id @default(cuid())
   userId           String

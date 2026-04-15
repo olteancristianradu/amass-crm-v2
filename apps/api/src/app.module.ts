@@ -26,6 +26,9 @@ import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { UsersModule } from './modules/users/users.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -80,6 +83,9 @@ import { UsersModule } from './modules/users/users.module';
     EmailModule,
     CallsModule,
     AiModule,
+    InvoicesModule,
+    PaymentsModule,
+    ProjectsModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

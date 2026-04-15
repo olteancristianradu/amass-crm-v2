@@ -284,6 +284,87 @@ export interface CallTranscript {
   processedAt: string;
 }
 
+// ── S22/S23/S24 Invoices, Projects, Payments ────────────────────────────────
+
+export type InvoiceStatus =
+  | 'DRAFT'
+  | 'ISSUED'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'OVERDUE'
+  | 'CANCELLED';
+
+export type InvoiceCurrency = 'RON' | 'EUR' | 'USD';
+export type PaymentMethod = 'BANK' | 'CASH' | 'CARD' | 'OTHER';
+export type ProjectStatus =
+  | 'PLANNED'
+  | 'ACTIVE'
+  | 'ON_HOLD'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface InvoiceLine {
+  id: string;
+  invoiceId: string;
+  position: number;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  vatRate: string;
+  subtotal: string;
+  vatAmount: string;
+  total: string;
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  amount: string;
+  paidAt: string;
+  method: PaymentMethod;
+  reference?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  dealId?: string | null;
+  series: string;
+  number: number;
+  issueDate: string;
+  dueDate: string;
+  subtotal: string;
+  vatAmount: string;
+  total: string;
+  currency: InvoiceCurrency;
+  status: InvoiceStatus;
+  notes?: string | null;
+  pdfStorageKey?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines?: InvoiceLine[];
+  payments?: Payment[];
+}
+
+export interface Project {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  dealId?: string | null;
+  name: string;
+  description?: string | null;
+  status: ProjectStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+  budget?: string | null;
+  currency: InvoiceCurrency;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Call {
   id: string;
   tenantId: string;

@@ -188,6 +188,95 @@ export class ReportsService {
     };
   }
 
+  /**
+   * S25 Financial summary — invoice-centric totals for the period.
+   * Grouped by currency because a tenant may issue both RON + EUR.
+   */
+  async financialSummary(
+    from: string,
+    to: string,
+  ): Promise<{
+    currency: string;
+    issued: number;
+    overdue: number;
+    paid: number;
+    outstanding: number;
+    issuedCount: number;
+    overdueCount: number;
+    paidCount: number;
+  }[]> {
+    const { tenantId } = requireTenantContext();
+    const rows = await this.prisma.$queryRaw<Array<{
+      currency: string;
+      issued_total: string | null;
+      overdue_total: string | null;
+      paid_total: string | null;
+      issued_count: bigint;
+      overdue_count: bigint;
+      paid_count: bigint;
+    }>>`
+      SELECT
+        currency,
+        SUM(total) FILTER (WHERE status NOT IN ('DRAFT', 'CANCELLED'))     AS issued_total,
+        SUM(total) FILTER (WHERE status = 'OVERDUE')                        AS overdue_total,
+        SUM(total) FILTER (WHERE status = 'PAID')                           AS paid_total,
+        COUNT(*) FILTER (WHERE status NOT IN ('DRAFT', 'CANCELLED'))        AS issued_count,
+        COUNT(*) FILTER (WHERE status = 'OVERDUE')                          AS overdue_count,
+        COUNT(*) FILTER (WHERE status = 'PAID')                             AS paid_count
+      FROM invoices
+      WHERE tenant_id   = ${tenantId}
+        AND deleted_at  IS NULL
+        AND issue_date >= ${from}::date
+        AND issue_date <= ${to}::date + INTERVAL '1 day'
+      GROUP BY currency
+      ORDER BY currency ASC
+    `;
+    return rows.map((r) => {
+      const issued = parseFloat(r.issued_total ?? '0');
+      const paid = parseFloat(r.paid_total ?? '0');
+      return {
+        currency: r.currency,
+        issued,
+        overdue: parseFloat(r.overdue_total ?? '0'),
+        paid,
+        outstanding: Math.max(0, issued - paid),
+        issuedCount: Number(r.issued_count),
+        overdueCount: Number(r.overdue_count),
+        paidCount: Number(r.paid_count),
+      };
+    });
+  }
+
+  /** Revenue (paid invoices) grouped by month + currency for the trend chart. */
+  async revenueTrend(
+    from: string,
+    to: string,
+  ): Promise<{ month: string; currency: string; revenue: number }[]> {
+    const { tenantId } = requireTenantContext();
+    const rows = await this.prisma.$queryRaw<Array<{
+      month: Date;
+      currency: string;
+      revenue: string | null;
+    }>>`
+      SELECT
+        date_trunc('month', issue_date)::date AS month,
+        currency,
+        SUM(total) FILTER (WHERE status = 'PAID') AS revenue
+      FROM invoices
+      WHERE tenant_id   = ${tenantId}
+        AND deleted_at  IS NULL
+        AND issue_date >= ${from}::date
+        AND issue_date <= ${to}::date + INTERVAL '1 day'
+      GROUP BY month, currency
+      ORDER BY month ASC
+    `;
+    return rows.map((r) => ({
+      month: r.month.toISOString().slice(0, 10),
+      currency: r.currency,
+      revenue: parseFloat(r.revenue ?? '0'),
+    }));
+  }
+
   /** Deals grouped by week for a trend chart */
   async dealsTrend(from: string, to: string): Promise<{ week: string; created: number; won: number; revenue: number }[]> {
     const { tenantId } = requireTenantContext();
