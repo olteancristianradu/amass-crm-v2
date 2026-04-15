@@ -18,6 +18,7 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { SubjectResolver } from '../activities/subject-resolver';
+import { EmailTrackingService } from '../email-tracking/email-tracking.service';
 import { encrypt, decrypt } from '../../common/crypto/encryption';
 import { QUEUE_EMAIL } from '../../infra/queue/queue.constants';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
@@ -54,6 +55,7 @@ export class EmailService {
     private readonly audit: AuditService,
     private readonly activities: ActivitiesService,
     private readonly subjects: SubjectResolver,
+    private readonly tracking: EmailTrackingService,
     @InjectQueue(QUEUE_EMAIL) private readonly emailQueue: Queue,
   ) {}
 
@@ -188,8 +190,11 @@ export class EmailService {
     // Validate subject exists
     await this.subjects.assertExists(dto.subjectType, dto.subjectId);
 
-    const message = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
-      tx.emailMessage.create({
+    // Two-phase write so tracking URLs can embed the final message id.
+    // Phase 1: insert with original body. Phase 2: rewrite + update. Both
+    // run in the same tenant transaction so no observable intermediate state.
+    const message = await this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const created = await tx.emailMessage.create({
         data: {
           tenantId: ctx.tenantId,
           accountId: account.id,
@@ -204,8 +209,16 @@ export class EmailService {
           status: 'QUEUED',
           createdById: ctx.userId,
         },
-      }),
-    );
+      });
+      const tracked = this.tracking.injectTracking(created.id, dto.bodyHtml);
+      if (tracked !== dto.bodyHtml) {
+        return tx.emailMessage.update({
+          where: { id: created.id },
+          data: { bodyHtml: tracked },
+        });
+      }
+      return created;
+    });
 
     const payload: EmailJobPayload = {
       emailMessageId: message.id,

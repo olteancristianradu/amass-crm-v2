@@ -61,6 +61,7 @@ export const invoicesApi = {
   update: (id: string, dto: UpdateInvoiceInput) => api.patch<Invoice>(`/invoices/${id}`, dto),
   changeStatus: (id: string, status: InvoiceStatus) =>
     api.post<Invoice>(`/invoices/${id}/status`, { status }),
+  pdfUrl: (id: string) => api.get<{ url: string }>(`/invoices/${id}/pdf-url`),
   remove: (id: string) => api.delete<void>(`/invoices/${id}`),
 
   listPayments: (invoiceId: string) =>

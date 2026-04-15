@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -63,14 +64,35 @@ export class AttachmentsController {
 
   @Get(':subjectType/:subjectId/attachments')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
-  list(@Param('subjectType') subjectType: string, @Param('subjectId') subjectId: string) {
-    return this.attachments.list(this.parseSubject(subjectType), subjectId);
+  list(
+    @Param('subjectType') subjectType: string,
+    @Param('subjectId') subjectId: string,
+    @Query('latestOnly') latestOnly?: string,
+  ) {
+    return this.attachments.list(this.parseSubject(subjectType), subjectId, {
+      latestOnly: latestOnly === 'true' || latestOnly === '1',
+    });
   }
 
   @Get('attachments/:id/download')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   download(@Param('id') id: string) {
     return this.attachments.getDownloadUrl(id);
+  }
+
+  @Get('attachments/:id/versions')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  versions(@Param('id') id: string) {
+    return this.attachments.listVersions(id);
+  }
+
+  @Post('attachments/:id/versions')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  newVersion(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CompleteAttachmentSchema)) dto: CompleteAttachmentDto,
+  ) {
+    return this.attachments.createNewVersion(id, dto);
   }
 
   @Delete('attachments/:id')

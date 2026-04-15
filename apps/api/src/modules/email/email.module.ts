@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { EmailTrackingModule } from '../email-tracking/email-tracking.module';
 import { EmailController } from './email.controller';
 import { EmailService } from './email.service';
 import { EmailProcessor } from './email.processor';
@@ -17,7 +18,7 @@ import { EmailProcessor } from './email.processor';
  *  - AuditModule — audit log
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, EmailTrackingModule],
   controllers: [EmailController],
   providers: [EmailService, EmailProcessor],
   exports: [EmailService],

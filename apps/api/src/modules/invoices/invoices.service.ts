@@ -13,10 +13,12 @@ import {
   UpdateInvoiceDto,
 } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { StorageService } from '../../infra/storage/storage.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
+import { InvoicePdfService } from './invoice-pdf.service';
 
 /**
  * S22 InvoicesService.
@@ -36,6 +38,8 @@ export class InvoicesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly activities: ActivitiesService,
+    private readonly storage: StorageService,
+    private readonly pdf: InvoicePdfService,
   ) {}
 
   async create(dto: CreateInvoiceDto): Promise<InvoiceWithLines> {
@@ -216,8 +220,27 @@ export class InvoicesService {
     const existing = await this.findOne(id);
     assertTransition(existing.status, dto.status);
     const ctx = requireTenantContext();
+
+    // When moving DRAFT → ISSUED, freeze a PDF snapshot in MinIO. This is the
+    // legally binding artifact the customer receives — we generate it ONCE
+    // at issue time and never re-render, so edits to lines after issue
+    // cannot retroactively change what the customer saw.
+    let pdfKey: string | null = existing.pdfStorageKey;
+    if (existing.status === 'DRAFT' && dto.status === 'ISSUED' && !pdfKey) {
+      try {
+        pdfKey = await this.generateAndStorePdf(id);
+      } catch (err) {
+        // Don't block the status transition on PDF failure — log and move on.
+        // eslint-disable-next-line no-console
+        console.error(`Invoice PDF generation failed for ${id}`, err);
+      }
+    }
+
     const updated = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
-      tx.invoice.update({ where: { id }, data: { status: dto.status } }),
+      tx.invoice.update({
+        where: { id },
+        data: { status: dto.status, ...(pdfKey !== existing.pdfStorageKey ? { pdfStorageKey: pdfKey } : {}) },
+      }),
     );
     await this.audit.log({
       action: 'invoice.status',
@@ -296,6 +319,50 @@ export class InvoicesService {
         metadata: { from: invoice.status, to: next, reason: 'payment-recompute' },
       });
     }
+  }
+
+  /**
+   * Render the invoice to PDF + upload to MinIO. Returns the storage key.
+   * Idempotent-ish: if a PDF already exists for this invoice we overwrite it.
+   * Object key shape: <tenantId>/invoices/<id>.pdf — keeps tenant isolation
+   * on the storage layer too.
+   */
+  async generateAndStorePdf(invoiceId: string): Promise<string> {
+    const ctx = requireTenantContext();
+    const invoice = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.invoice.findFirst({
+        where: { id: invoiceId, tenantId: ctx.tenantId, deletedAt: null },
+        include: { lines: { orderBy: { position: 'asc' } } },
+      }),
+    );
+    if (!invoice) {
+      throw new NotFoundException({ code: 'INVOICE_NOT_FOUND', message: 'Invoice not found' });
+    }
+    const [tenant, company] = await Promise.all([
+      this.prisma.tenant.findUnique({ where: { id: ctx.tenantId } }),
+      this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+        tx.company.findFirst({ where: { id: invoice.companyId, tenantId: ctx.tenantId } }),
+      ),
+    ]);
+    const buf = await this.pdf.render(
+      invoice,
+      company?.name ?? 'Client',
+      tenant?.name ?? 'Emitent',
+    );
+    const key = `${ctx.tenantId}/invoices/${invoice.id}.pdf`;
+    await this.storage.putObject(key, buf, 'application/pdf');
+    await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.invoice.update({ where: { id: invoice.id }, data: { pdfStorageKey: key } }),
+    );
+    return key;
+  }
+
+  /** Presigned GET URL for the PDF (15-min TTL). Generates the PDF on demand if missing. */
+  async getPdfUrl(invoiceId: string): Promise<{ url: string }> {
+    const invoice = await this.findOne(invoiceId);
+    const key = invoice.pdfStorageKey ?? (await this.generateAndStorePdf(invoiceId));
+    const url = await this.storage.presignGet(key);
+    return { url };
   }
 
   /**

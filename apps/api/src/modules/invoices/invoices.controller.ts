@@ -78,6 +78,12 @@ export class InvoicesController {
     return this.invoices.changeStatus(id, dto);
   }
 
+  @Get(':id/pdf-url')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  pdfUrl(@Param('id') id: string) {
+    return this.invoices.getPdfUrl(id);
+  }
+
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)

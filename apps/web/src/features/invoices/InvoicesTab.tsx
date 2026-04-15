@@ -47,7 +47,7 @@ export function InvoicesTab({ companyId }: Props): JSX.Element {
       )}
       <ul className="space-y-2">
         {listQ.data?.data.map((inv) => (
-          <li key={inv.id} className="rounded-md border bg-background p-3">
+          <li key={inv.id} className="relative rounded-md border bg-background p-3">
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -70,6 +70,17 @@ export function InvoicesTab({ companyId }: Props): JSX.Element {
                     qc.invalidateQueries({ queryKey: ['invoices', 'by-company', companyId] })
                   } />
                 )}
+                {['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'].includes(inv.status) && (
+                  <PayButton
+                    invoiceId={inv.id}
+                    remaining={Number(inv.total)}
+                    currency={inv.currency}
+                    onPaid={() =>
+                      qc.invalidateQueries({ queryKey: ['invoices', 'by-company', companyId] })
+                    }
+                  />
+                )}
+                {inv.status !== 'DRAFT' && <PdfButton id={inv.id} />}
               </div>
             </div>
           </li>
@@ -90,6 +101,109 @@ function IssueButton({ id, onIssued }: { id: string; onIssued: () => void }): JS
     </Button>
   );
 }
+
+function PdfButton({ id }: { id: string }): JSX.Element {
+  const [loading, setLoading] = useState(false);
+  const open = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      const { url } = await invoicesApi.pdfUrl(id);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Button size="sm" variant="ghost" disabled={loading} onClick={open}>
+      {loading ? '…' : 'PDF'}
+    </Button>
+  );
+}
+
+function PayButton({
+  invoiceId,
+  remaining,
+  currency,
+  onPaid,
+}: {
+  invoiceId: string;
+  remaining: number;
+  currency: string;
+  onPaid: () => void;
+}): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(remaining.toFixed(2));
+  const [paidAt, setPaidAt] = useState(today());
+  const [method, setMethod] = useState('BANK');
+  const [reference, setReference] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  const record = useMutation({
+    mutationFn: () =>
+      invoicesApi.createPayment(invoiceId, {
+        amount,
+        paidAt: new Date(paidAt).toISOString(),
+        method: method as 'BANK' | 'CASH' | 'CARD' | 'OTHER',
+        reference: reference.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setOpen(false);
+      onPaid();
+    },
+    onError: (e) => setErr(e instanceof ApiError ? e.message : 'Eroare'),
+  });
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        Înregistrează plată
+      </Button>
+    );
+  }
+  return (
+    <div className="absolute right-0 z-10 mt-2 w-80 rounded-md border bg-background p-3 shadow-lg">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          record.mutate();
+        }}
+        className="space-y-2"
+      >
+        <Label>Sumă ({currency})</Label>
+        <Input value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Label>Data plății</Label>
+        <Input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+        <Label>Metodă</Label>
+        <select
+          value={method}
+          onChange={(e) => setMethod(e.target.value)}
+          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+        >
+          <option value="BANK">Transfer bancar</option>
+          <option value="CASH">Numerar</option>
+          <option value="CARD">Card</option>
+          <option value="OTHER">Altă</option>
+        </select>
+        <Label>Referință</Label>
+        <Input
+          placeholder="Nr. OP / chitanță"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+        />
+        {err && <p className="text-xs text-destructive">{err}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            Anulează
+          </Button>
+          <Button type="submit" size="sm" disabled={record.isPending}>
+            {record.isPending ? '…' : 'Salvează'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 
 interface FormProps {
   companyId: string;

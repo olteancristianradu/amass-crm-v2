@@ -214,7 +214,7 @@ model Attachment {
   id           String      @id @default(cuid())
   tenantId     String
   subjectType  SubjectType
-  subjectId    String
+  subjectId   String
   storageKey   String      @unique // path inside the MinIO bucket
   fileName     String
   mimeType     String
@@ -223,8 +223,18 @@ model Attachment {
   createdAt    DateTime    @default(now())
   deletedAt    DateTime?
 
+  // Versioning — parentId points to the root (v1). version starts at 1
+  // and increments for each new version. isLatest is denormalised for
+  // cheap filtering in the list endpoint.
+  parentId     String?
+  version      Int         @default(1)
+  isLatest     Boolean     @default(true)
+  parent       Attachment?  @relation("AttachmentVersions", fields: [parentId], references: [id])
+  versions     Attachment[] @relation("AttachmentVersions")
+
   @@index([tenantId, subjectType, subjectId, createdAt])
   @@index([tenantId, createdAt])
+  @@index([tenantId, parentId])
   @@map("attachments")
 }
 
@@ -506,12 +516,40 @@ model EmailMessage {
   updatedAt     DateTime     @updatedAt
 
   account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tracks  EmailTrack[]
 
   @@index([tenantId, subjectType, subjectId, createdAt])
   @@index([tenantId, accountId, status])
   @@index([tenantId, createdById, createdAt])
   @@index([tenantId, status])
   @@map("email_messages")
+}
+
+enum EmailTrackKind {
+  OPEN
+  CLICK
+}
+
+/// Tracks opens (tracking pixel hit) + clicks (redirect endpoint) for
+/// outbound emails. One row per event, not per recipient — we don't have
+/// per-recipient IDs because a single message can have multiple recipients
+/// and all share the same pixel/link URLs. If you need per-recipient
+/// granularity, generate separate EmailMessage rows per recipient.
+model EmailTrack {
+  id        String         @id @default(cuid())
+  tenantId  String
+  messageId String
+  kind      EmailTrackKind
+  url       String?        // present for CLICK, null for OPEN
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime       @default(now())
+
+  message EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, messageId, createdAt])
+  @@index([tenantId, kind, createdAt])
+  @@map("email_tracks")
 }
 
 /// Sprint 12 — Calls (Twilio).

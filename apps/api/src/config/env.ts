@@ -35,6 +35,12 @@ const envSchema = z.object({
     .length(64, 'ENCRYPTION_KEY must be 64 hex chars (32 bytes)')
     .regex(/^[0-9a-fA-F]+$/, 'ENCRYPTION_KEY must be hex'),
 
+  // Public base URL for the API itself. Used for building absolute tracking
+  // URLs embedded in outbound emails (open pixel + click redirect). Falls
+  // back to TWILIO_WEBHOOK_BASE_URL in dev if unset — they serve the same
+  // purpose (a public-reachable URL pointing at this API).
+  PUBLIC_API_BASE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+
   // Twilio credentials + webhook base URL. The AUTH_TOKEN is used for
   // outbound REST calls AND for verifying inbound webhook signatures.
   // WEBHOOK_BASE_URL is the public URL Twilio can reach — in dev, this

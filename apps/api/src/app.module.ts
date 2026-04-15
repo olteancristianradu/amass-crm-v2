@@ -21,6 +21,7 @@ import { MetricsModule } from './infra/metrics/metrics.module';
 import { SchedulerModule } from './infra/scheduler/scheduler.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { EmailModule } from './modules/email/email.module';
+import { EmailTrackingModule } from './modules/email-tracking/email-tracking.module';
 import { NotesModule } from './modules/notes/notes.module';
 import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
@@ -81,6 +82,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
     DealsModule,
     TasksModule,
     EmailModule,
+    EmailTrackingModule,
     CallsModule,
     AiModule,
     InvoicesModule,

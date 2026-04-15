@@ -35,6 +35,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'InvoiceLine',
   'Payment',
   'Project',
+  'EmailTrack',
 ]);
 
 @Injectable()

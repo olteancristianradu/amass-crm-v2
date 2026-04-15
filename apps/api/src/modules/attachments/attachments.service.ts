@@ -113,15 +113,124 @@ export class AttachmentsService {
     return attachment;
   }
 
-  async list(subjectType: SubjectType, subjectId: string): Promise<Attachment[]> {
+  async list(
+    subjectType: SubjectType,
+    subjectId: string,
+    opts: { latestOnly?: boolean } = {},
+  ): Promise<Attachment[]> {
     await this.subjects.assertExists(subjectType, subjectId);
     const ctx = requireTenantContext();
     return this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.attachment.findMany({
-        where: { tenantId: ctx.tenantId, subjectType, subjectId, deletedAt: null },
+        where: {
+          tenantId: ctx.tenantId,
+          subjectType,
+          subjectId,
+          deletedAt: null,
+          ...(opts.latestOnly ? { isLatest: true } : {}),
+        },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
     );
+  }
+
+  /**
+   * List every version in the chain that `id` belongs to, newest first.
+   * Walks the parentId link — `id` may be any version in the chain.
+   */
+  async listVersions(id: string): Promise<Attachment[]> {
+    const anchor = await this.findOne(id);
+    const ctx = requireTenantContext();
+    const rootId = anchor.parentId ?? anchor.id;
+    return this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.attachment.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          deletedAt: null,
+          OR: [{ id: rootId }, { parentId: rootId }],
+        },
+        orderBy: [{ version: 'desc' }],
+      }),
+    );
+  }
+
+  /**
+   * Upload a new version of an existing attachment. Caller already PUT
+   * the new bytes to MinIO — we register the row, bump version, and flip
+   * the old isLatest=true entry to false. parentId always points at the
+   * root so the chain stays flat.
+   */
+  async createNewVersion(id: string, dto: CompleteAttachmentDto): Promise<Attachment> {
+    const ctx = requireTenantContext();
+    const anchor = await this.findOne(id);
+    if (!dto.storageKey.startsWith(`${ctx.tenantId}/`)) {
+      throw new BadRequestException({
+        code: 'INVALID_STORAGE_KEY',
+        message: 'storageKey does not belong to this tenant',
+      });
+    }
+    const exists = await this.storage.exists(dto.storageKey);
+    if (!exists) {
+      throw new BadRequestException({
+        code: 'UPLOAD_NOT_FOUND',
+        message: 'Object not found in storage — did the PUT complete?',
+      });
+    }
+
+    const rootId = anchor.parentId ?? anchor.id;
+
+    const next = await this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const agg = await tx.attachment.aggregate({
+        where: {
+          tenantId: ctx.tenantId,
+          OR: [{ id: rootId }, { parentId: rootId }],
+        },
+        _max: { version: true },
+      });
+      const nextVersion = (agg._max.version ?? 1) + 1;
+      await tx.attachment.updateMany({
+        where: {
+          tenantId: ctx.tenantId,
+          OR: [{ id: rootId }, { parentId: rootId }],
+        },
+        data: { isLatest: false },
+      });
+      return tx.attachment.create({
+        data: {
+          tenantId: ctx.tenantId,
+          subjectType: anchor.subjectType,
+          subjectId: anchor.subjectId,
+          storageKey: dto.storageKey,
+          fileName: dto.fileName,
+          mimeType: dto.mimeType,
+          size: dto.size,
+          uploadedById: ctx.userId,
+          parentId: rootId,
+          version: nextVersion,
+          isLatest: true,
+        },
+      });
+    });
+
+    await this.audit.log({
+      action: 'attachment.new_version',
+      subjectType: anchor.subjectType.toLowerCase(),
+      subjectId: anchor.subjectId,
+      metadata: {
+        attachmentId: next.id,
+        rootId,
+        version: next.version,
+        fileName: dto.fileName,
+      },
+    });
+    await this.activities.log({
+      subjectType: anchor.subjectType,
+      subjectId: anchor.subjectId,
+      action: 'attachment.new_version',
+      metadata: { attachmentId: next.id, rootId, version: next.version, fileName: dto.fileName },
+    });
+
+    return next;
   }
 
   async findOne(id: string): Promise<Attachment> {
