@@ -1,9 +1,10 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'node:crypto';
 import { loadEnv } from '../../config/env';
+import { RedisService } from '../../infra/redis/redis.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto, RefreshDto, RegisterDto } from './dto';
@@ -21,6 +22,11 @@ export interface AuthTokens {
   expiresIn: number;
 }
 
+/** Max consecutive failed logins before the account is temporarily locked. */
+const MAX_LOGIN_ATTEMPTS = 10;
+/** Lockout duration in seconds (15 minutes). */
+const LOCKOUT_TTL_SECONDS = 15 * 60;
+
 @Injectable()
 export class AuthService {
   private readonly env = loadEnv();
@@ -29,6 +35,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly audit: AuditService,
+    private readonly redis: RedisService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ user: SafeUser; tokens: AuthTokens }> {
@@ -95,18 +102,42 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta: SessionMeta = {}): Promise<{ user: SafeUser; tokens: AuthTokens }> {
+    // Check account lockout before hitting the DB to avoid timing oracle attacks.
+    const lockKey = `auth:lockout:${dto.tenantSlug}:${dto.email.toLowerCase()}`;
+    const failKey = `auth:fails:${dto.tenantSlug}:${dto.email.toLowerCase()}`;
+
+    const lockTtl = await this.redis.ttl(lockKey);
+    if (lockTtl > 0) {
+      throw new HttpException(
+        { code: 'ACCOUNT_LOCKED', message: `Too many failed login attempts. Try again in ${Math.ceil(lockTtl / 60)} minute(s).` },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const tenant = await this.prisma.tenant.findUnique({ where: { slug: dto.tenantSlug } });
-    if (!tenant) throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
+    if (!tenant) {
+      // Still consume a fail-counter slot to prevent user enumeration via timing.
+      await this.recordFailedAttempt(failKey, lockKey);
+      throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { tenantId_email: { tenantId: tenant.id, email: dto.email.toLowerCase() } },
     });
     if (!user || !user.isActive) {
+      await this.recordFailedAttempt(failKey, lockKey);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
+    if (!ok) {
+      await this.recordFailedAttempt(failKey, lockKey);
+      throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
+    }
+
+    // Successful login — clear failure counters.
+    await this.redis.del(failKey);
+    await this.redis.del(lockKey);
 
     const tokens = await this.issueTokens(user, meta);
     await this.audit.log({
@@ -119,6 +150,15 @@ export class AuthService {
       userAgent: meta.userAgent,
     });
     return { user: toSafeUser(user), tokens };
+  }
+
+  private async recordFailedAttempt(failKey: string, lockKey: string): Promise<void> {
+    const attempts = await this.redis.incr(failKey, LOCKOUT_TTL_SECONDS);
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      // Promote to a hard lockout key and clear the counter.
+      await this.redis.incr(lockKey, LOCKOUT_TTL_SECONDS);
+      await this.redis.del(failKey);
+    }
   }
 
   /**

@@ -1,7 +1,10 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { QueueModule } from './infra/queue/queue.module';
+import { RedisModule } from './infra/redis/redis.module';
 import { StorageModule } from './infra/storage/storage.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
@@ -64,8 +67,13 @@ import { ProjectsModule } from './modules/projects/projects.module';
  */
 @Module({
   imports: [
+    // Global rate limiting: 60 req/min by default; auth routes override to stricter limits.
+    ThrottlerModule.forRoot([
+      { name: 'global', ttl: 60_000, limit: 60 },
+    ]),
     PrismaModule,
     QueueModule,
+    RedisModule,
     StorageModule,
     ActivitiesModule,
     AuditModule,
@@ -94,6 +102,11 @@ import { ProjectsModule } from './modules/projects/projects.module';
     HealthModule,
     MetricsModule,
     SchedulerModule,
+  ],
+  providers: [
+    // Apply ThrottlerGuard globally so every route is rate-limited.
+    // Auth routes use @Throttle() to override with stricter per-route limits.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule implements NestModule {

@@ -81,6 +81,40 @@ const envSchema = z.object({
   ),
 });
 
+/**
+ * Extra rules that only apply in production. We don't want to block dev/test
+ * with secrets that are fine to leave as placeholders locally.
+ */
+const prodOnlyChecks = (data: z.infer<typeof envSchema>): string[] => {
+  const errors: string[] = [];
+
+  // AI_WORKER_SECRET is required in prod — the Python worker authenticates
+  // callbacks with it. Without it, any process can post fake AI results.
+  if (!data.AI_WORKER_SECRET) {
+    errors.push('AI_WORKER_SECRET must be set in production');
+  }
+
+  // Reject the default MinIO credentials from .env.example.
+  if (data.MINIO_ACCESS_KEY === 'minioadmin' || data.MINIO_SECRET_KEY === 'minioadmin') {
+    errors.push('MINIO_ACCESS_KEY/MINIO_SECRET_KEY must not be "minioadmin" in production');
+  }
+
+  // Reject the example ENCRYPTION_KEY (all zeros).
+  if (data.ENCRYPTION_KEY === '0'.repeat(64)) {
+    errors.push('ENCRYPTION_KEY must not be all-zeros in production');
+  }
+
+  // JWT secrets must be cryptographically strong (≥32 chars) in prod.
+  if (data.JWT_SECRET.length < 32) {
+    errors.push('JWT_SECRET must be ≥32 chars in production');
+  }
+  if (data.JWT_REFRESH_SECRET.length < 32) {
+    errors.push('JWT_REFRESH_SECRET must be ≥32 chars in production');
+  }
+
+  return errors;
+};
+
 export type Env = z.infer<typeof envSchema>;
 
 let cached: Env | null = null;
@@ -93,6 +127,17 @@ export function loadEnv(): Env {
     console.error('❌ Invalid environment variables:', parsed.error.flatten().fieldErrors);
     throw new Error('Environment validation failed — see errors above.');
   }
+
+  // Run production-only checks.
+  if (parsed.data.NODE_ENV === 'production') {
+    const prodErrors = prodOnlyChecks(parsed.data);
+    if (prodErrors.length > 0) {
+      // eslint-disable-next-line no-console
+      console.error('❌ Production environment misconfiguration:', prodErrors);
+      throw new Error('Production environment validation failed — see errors above.');
+    }
+  }
+
   cached = parsed.data;
   return cached;
 }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { loadEnv } from '../../config/env';
+import { RedisModule } from '../../infra/redis/redis.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt.guard';
@@ -30,6 +31,7 @@ import { JwtAuthGuard } from './jwt.guard';
  */
 @Module({
   imports: [
+    RedisModule,
     // Use registerAsync so loadEnv() is called lazily inside the factory,
     // not at module-load time. This prevents env validation errors during
     // test setup before process.env is populated.

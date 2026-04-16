@@ -40,6 +40,28 @@ const TENANT_SCOPED_MODELS = new Set<string>([
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  constructor() {
+    super({
+      datasources: {
+        db: {
+          // Cap the connection pool to prevent exhausting Postgres max_connections.
+          // Formula: (max_connections - 5 system slots) / (number of API replicas).
+          // Default Postgres: 100 connections. Single replica → 20 app + headroom.
+          url: PrismaService.buildDatabaseUrl(),
+        },
+      },
+    });
+  }
+
+  private static buildDatabaseUrl(): string {
+    const base = process.env.DATABASE_URL ?? '';
+    if (!base) return base;
+    // Append pool params only if not already present in the URL.
+    if (base.includes('connection_limit')) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}connection_limit=20&pool_timeout=10`;
+  }
+
   async onModuleInit(): Promise<void> {
     await this.$connect();
   }

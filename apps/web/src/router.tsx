@@ -20,6 +20,7 @@ import { phoneSettingsRoute } from './routes/phone-settings';
 import { invoicesListRoute } from './routes/invoices.list';
 import { projectsListRoute } from './routes/projects.list';
 import { projectDetailRoute } from './routes/project.detail';
+import { settingsUsersRoute } from './routes/settings.users';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -57,6 +58,7 @@ const routeTree = rootRoute.addChildren([
     invoicesListRoute,
     projectsListRoute,
     projectDetailRoute,
+    settingsUsersRoute,
   ]),
 ]);
 
