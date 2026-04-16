@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AuditLog } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { getTenantContext } from '../../infra/prisma/tenant-context';
 
@@ -19,6 +20,30 @@ export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Paginated audit log for the current tenant. OWNER/ADMIN only. */
+  async list(opts: {
+    cursor?: string;
+    limit: number;
+    action?: string;
+  }): Promise<{ data: AuditLog[]; nextCursor: string | null }> {
+    const ctx = getTenantContext();
+    if (!ctx?.tenantId) return { data: [], nextCursor: null };
+
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        ...(opts.action ? { action: { contains: opts.action } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: opts.limit + 1,
+      ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = rows.length > opts.limit;
+    const data = hasMore ? rows.slice(0, opts.limit) : rows;
+    return { data, nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null };
+  }
 
   /**
    * Best-effort audit write. Never throws — failing to log must not break business flows.

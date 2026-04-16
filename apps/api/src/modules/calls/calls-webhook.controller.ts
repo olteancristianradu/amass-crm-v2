@@ -37,10 +37,10 @@ export class CallsWebhookController {
   @Post('webhook/voice')
   @HttpCode(200)
   @Header('Content-Type', 'text/xml')
-  voiceWebhook(
+  async voiceWebhook(
     @Body() body: Record<string, string>,
     @Req() req: Request,
-  ): string {
+  ): Promise<string> {
     const sig = req.headers['x-twilio-signature'] as string | undefined;
     return this.calls.handleVoiceWebhook(body, sig, req.originalUrl);
   }

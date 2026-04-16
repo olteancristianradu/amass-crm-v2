@@ -7,6 +7,7 @@ import { loadEnv } from '../../config/env';
 import { RedisService } from '../../infra/redis/redis.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { TotpService } from './totp.service';
 import { LoginDto, RefreshDto, RegisterDto } from './dto';
 
 export interface JwtPayload {
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly audit: AuditService,
     private readonly redis: RedisService,
+    private readonly totpSvc: TotpService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ user: SafeUser; tokens: AuthTokens }> {
@@ -133,6 +135,19 @@ export class AuthService {
     if (!ok) {
       await this.recordFailedAttempt(failKey, lockKey);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
+    }
+
+    // If 2FA is enabled, require a valid TOTP code before issuing tokens.
+    // We return a specific code so the FE can show the TOTP input instead of
+    // a generic error (the FE knows the password was correct at this point).
+    if (user.totpEnabled && user.totpSecret) {
+      if (!dto.totpCode) {
+        throw new UnauthorizedException({ code: 'TOTP_REQUIRED', message: 'Two-factor authentication code required' });
+      }
+      if (!(await this.totpSvc.verify(user.totpSecret, dto.totpCode))) {
+        await this.recordFailedAttempt(failKey, lockKey);
+        throw new UnauthorizedException({ code: 'INVALID_TOTP', message: 'Invalid authenticator code' });
+      }
     }
 
     // Successful login — clear failure counters.

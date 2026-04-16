@@ -61,6 +61,10 @@ export function AppShell({ children }: Props): JSX.Element {
           {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
             <NavLink to="/app/settings/users">Utilizatori</NavLink>
           )}
+          {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
+            <NavLink to="/app/audit">Jurnal audit</NavLink>
+          )}
+          <NavLink to="/app/settings/2fa">Securitate (2FA)</NavLink>
         </nav>
       </aside>
       <div className="flex flex-1 flex-col">

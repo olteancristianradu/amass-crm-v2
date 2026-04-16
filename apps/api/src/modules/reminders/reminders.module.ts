@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { QueueModule } from '../../infra/queue/queue.module';
+import { WsModule } from '../../infra/ws/ws.module';
 import { RemindersController } from './reminders.controller';
 import { RemindersService } from './reminders.service';
 import { RemindersProcessor } from './reminders.processor';
@@ -28,7 +29,7 @@ import { RemindersProcessor } from './reminders.processor';
  * row, not off the queue, so this module won't need changes.
  */
 @Module({
-  imports: [AuthModule, QueueModule],
+  imports: [AuthModule, QueueModule, WsModule],
   controllers: [RemindersController],
   providers: [RemindersService, RemindersProcessor],
 })

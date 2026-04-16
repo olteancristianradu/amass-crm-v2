@@ -142,14 +142,14 @@ export class CallsService {
    *
    * For outbound calls `record:true` is set in createCall(), so Twilio
    * records automatically — we just return empty TwiML.
-   * For inbound calls in this MVP: log + hang up.
+   * For inbound calls: create a Call row + look up caller by phone number.
    * Returns a TwiML XML string; controller must set Content-Type: text/xml.
    */
-  handleVoiceWebhook(
+  async handleVoiceWebhook(
     params: Record<string, string>,
     signature: string | undefined,
     rawUrl: string,
-  ): string {
+  ): Promise<string> {
     const fullUrl = this.twilio.publicWebhookUrl(rawUrl);
     if (!this.twilio.verifySignature(fullUrl, params, signature)) {
       throw new ForbiddenException({ code: 'INVALID_TWILIO_SIGNATURE', message: 'Twilio webhook signature invalid' });
@@ -157,9 +157,58 @@ export class CallsService {
 
     const direction = (params['Direction'] ?? '').toLowerCase();
     if (direction === 'inbound') {
-      // Inbound call-to-contact matching is out of scope for MVP.
-      // Log it, return TwiML that hangs up gracefully.
-      this.logger.log(`Inbound call from=${params['From']} to=${params['To']} — MVP: no routing`);
+      const toNumber = params['To'] ?? '';
+      const fromNumber = params['From'] ?? '';
+      const twilioCallSid = params['CallSid'] ?? '';
+
+      // Look up which tenant owns the destination number.
+      const phoneNumber = await this.prisma.phoneNumber.findFirst({
+        where: { number: toNumber },
+      });
+
+      if (phoneNumber) {
+        // Try to match caller to a contact or client in the tenant.
+        const [contact, client, company] = await Promise.all([
+          this.prisma.runWithTenant(phoneNumber.tenantId, (tx) =>
+            tx.contact.findFirst({ where: { tenantId: phoneNumber.tenantId, OR: [{ phone: fromNumber }, { mobile: fromNumber }] } }),
+          ),
+          this.prisma.runWithTenant(phoneNumber.tenantId, (tx) =>
+            tx.client.findFirst({ where: { tenantId: phoneNumber.tenantId, OR: [{ phone: fromNumber }, { mobile: fromNumber }] } }),
+          ),
+          this.prisma.runWithTenant(phoneNumber.tenantId, (tx) =>
+            tx.company.findFirst({ where: { tenantId: phoneNumber.tenantId, phone: fromNumber } }),
+          ),
+        ]);
+
+        const subject = contact
+          ? { subjectType: 'CONTACT' as const, subjectId: contact.id }
+          : client
+            ? { subjectType: 'CLIENT' as const, subjectId: client.id }
+            : company
+              ? { subjectType: 'COMPANY' as const, subjectId: company.id }
+              : { subjectType: 'CONTACT' as const, subjectId: 'unknown' };
+
+        await this.prisma.runWithTenant(phoneNumber.tenantId, (tx) =>
+          tx.call.create({
+            data: {
+              tenantId: phoneNumber.tenantId,
+              phoneNumberId: phoneNumber.id,
+              twilioCallSid,
+              direction: 'INBOUND',
+              status: 'RINGING',
+              fromNumber,
+              toNumber,
+              subjectType: subject.subjectType,
+              subjectId: subject.subjectId,
+              startedAt: new Date(),
+            },
+          }),
+        );
+        this.logger.log(`Inbound call created from=${fromNumber} tenant=${phoneNumber.tenantId} subject=${subject.subjectType}:${subject.subjectId}`);
+      } else {
+        this.logger.warn(`Inbound call to unrecognised number ${toNumber} — no tenant found`);
+      }
+
       return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="ro-RO">Apelul dvs. a fost înregistrat. Vă mulțumim.</Say><Hangup/></Response>`;
     }
 

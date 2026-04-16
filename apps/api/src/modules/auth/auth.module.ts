@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { loadEnv } from '../../config/env';
+import { AuditModule } from '../audit/audit.module';
 import { RedisModule } from '../../infra/redis/redis.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt.guard';
+import { TotpController } from './totp.controller';
+import { TotpService } from './totp.service';
 
 /**
  * AuthModule — owns the auth surface area:
@@ -31,6 +34,7 @@ import { JwtAuthGuard } from './jwt.guard';
  */
 @Module({
   imports: [
+    AuditModule,
     RedisModule,
     // Use registerAsync so loadEnv() is called lazily inside the factory,
     // not at module-load time. This prevents env validation errors during
@@ -42,8 +46,8 @@ import { JwtAuthGuard } from './jwt.guard';
       },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard],
-  exports: [AuthService, JwtAuthGuard, JwtModule],
+  controllers: [AuthController, TotpController],
+  providers: [AuthService, JwtAuthGuard, TotpService],
+  exports: [AuthService, JwtAuthGuard, JwtModule, TotpService],
 })
 export class AuthModule {}

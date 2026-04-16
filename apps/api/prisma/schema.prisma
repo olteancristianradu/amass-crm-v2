@@ -41,6 +41,10 @@ model User {
   fullName     String
   role         UserRole @default(AGENT)
   isActive     Boolean  @default(true)
+  // TOTP two-factor authentication. Secret is stored encrypted via ENCRYPTION_KEY.
+  // totpEnabled gates the TOTP check in the login flow.
+  totpSecret   String?
+  totpEnabled  Boolean  @default(false) @map("totp_enabled")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -1,42 +1,45 @@
-import { useEffect, useRef } from 'react';
-import { api } from '@/lib/api';
+import { useEffect } from 'react';
+import { io, Socket } from 'socket.io-client';
 import { toast } from '@/stores/toasts';
 import { useAuthStore } from '@/stores/auth';
-import type { CursorPage, Reminder } from '@/lib/types';
 
-const POLL_INTERVAL_MS = 60_000; // 60 seconds
+let socket: Socket | null = null;
 
 /**
- * Polls GET /reminders/me?status=FIRED every 60 seconds.
- * Shows a toast for each newly FIRED reminder since the last poll.
- * Mount once inside AppShell.
+ * Connects to the Socket.IO server and listens for `reminder:fired` events.
+ * Falls back gracefully if the connection fails — this is UI chrome, not
+ * a critical path.
+ *
+ * A module-level socket instance is reused across React strict-mode double
+ * mounts. It is torn down when the last authenticated consumer unmounts.
  */
 export function useReminderPoller(): void {
+  const accessToken = useAuthStore((s) => s.accessToken);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const seenIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !accessToken) return;
 
-    const poll = async (): Promise<void> => {
-      try {
-        const result = await api.get<CursorPage<Reminder>>('/reminders/me', {
-          status: 'FIRED',
-          limit: 10,
-        });
-        for (const reminder of result.data) {
-          if (!seenIds.current.has(reminder.id)) {
-            seenIds.current.add(reminder.id);
-            toast(`Reminder: ${reminder.title}`, reminder.body ?? undefined);
-          }
-        }
-      } catch {
-        // Silently ignore poll errors — network blip shouldn't break anything
-      }
+    if (!socket) {
+      socket = io({ path: '/ws', auth: { token: accessToken }, transports: ['websocket'] });
+    }
+
+    const handler = (data: { id: string; title: string; body: string | null }) => {
+      toast(`Reminder: ${data.title}`, data.body ?? undefined);
     };
 
-    void poll();
-    const id = setInterval(() => void poll(), POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    socket.on('reminder:fired', handler);
+
+    return () => {
+      socket?.off('reminder:fired', handler);
+    };
+  }, [isAuthenticated, accessToken]);
+
+  // Disconnect on logout
+  useEffect(() => {
+    if (!isAuthenticated && socket) {
+      socket.disconnect();
+      socket = null;
+    }
   }, [isAuthenticated]);
 }

@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { WsGateway } from '../../infra/ws/ws.gateway';
 import { QUEUE_REMINDERS } from '../../infra/queue/queue.constants';
 import type { ReminderJobPayload } from './reminders.service';
 
@@ -24,6 +25,7 @@ export class RemindersProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly ws: WsGateway,
   ) {
     super();
   }
@@ -50,6 +52,13 @@ export class RemindersProcessor extends WorkerHost {
         data: { status: 'FIRED', firedAt: new Date() },
       }),
     );
+
+    // Push real-time notification to all sessions in this tenant's room.
+    this.ws.emitReminderFired(tenantId, {
+      id: fired.id,
+      title: fired.title,
+      body: fired.body,
+    });
 
     // Best-effort audit + activity. Worker runs outside an HTTP request,
     // so we pass tenant + actor explicitly (audit.log accepts overrides).

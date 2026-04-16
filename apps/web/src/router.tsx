@@ -21,6 +21,8 @@ import { invoicesListRoute } from './routes/invoices.list';
 import { projectsListRoute } from './routes/projects.list';
 import { projectDetailRoute } from './routes/project.detail';
 import { settingsUsersRoute } from './routes/settings.users';
+import { settings2faRoute } from './routes/settings.2fa';
+import { auditRoute } from './routes/audit';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -59,6 +61,8 @@ const routeTree = rootRoute.addChildren([
     projectsListRoute,
     projectDetailRoute,
     settingsUsersRoute,
+    settings2faRoute,
+    auditRoute,
   ]),
 ]);
 

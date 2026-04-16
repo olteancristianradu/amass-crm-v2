@@ -13,6 +13,8 @@ export const LoginSchema = z.object({
   tenantSlug: z.string().min(2).max(64),
   email: z.string().email(),
   password: z.string().min(1),
+  // 6-digit TOTP code — required only when the account has 2FA enabled.
+  totpCode: z.string().length(6).optional(),
 });
 export type LoginDto = z.infer<typeof LoginSchema>;
 
