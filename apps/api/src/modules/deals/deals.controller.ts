@@ -53,6 +53,12 @@ export class DealsController {
     return this.deals.list(q);
   }
 
+  @Get('forecast')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  forecast(@Query('pipelineId') pipelineId?: string) {
+    return this.deals.forecast(pipelineId);
+  }
+
   @Get(':id')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   findOne(@Param('id') id: string) {

@@ -277,14 +277,18 @@ export class ReportsService {
     }));
   }
 
-  /** Deals grouped by week for a trend chart */
-  async dealsTrend(from: string, to: string): Promise<{ week: string; created: number; won: number; revenue: number }[]> {
+  /** Deals grouped by week or month for a trend chart */
+  async dealsTrend(
+    from: string,
+    to: string,
+    groupBy: 'week' | 'month' = 'week',
+  ): Promise<{ period: string; created: number; won: number; revenue: number }[]> {
     const { tenantId } = requireTenantContext();
     const rows = await this.prisma.$queryRaw<Array<{
-      week: Date; created: bigint; won: bigint; revenue: string | null;
+      period: Date; created: bigint; won: bigint; revenue: string | null;
     }>>`
       SELECT
-        date_trunc('week', created_at)                AS week,
+        date_trunc(${groupBy}, created_at)            AS period,
         COUNT(*)                                      AS created,
         COUNT(*) FILTER (WHERE status = 'WON')        AS won,
         SUM(value) FILTER (WHERE status = 'WON')      AS revenue
@@ -293,11 +297,11 @@ export class ReportsService {
         AND deleted_at  IS NULL
         AND created_at >= ${from}::date
         AND created_at <= ${to}::date + INTERVAL '1 day'
-      GROUP BY week
-      ORDER BY week ASC
+      GROUP BY 1
+      ORDER BY 1 ASC
     `;
     return rows.map((r) => ({
-      week: r.week.toISOString().slice(0, 10),
+      period: r.period.toISOString().slice(0, 10),
       created: Number(r.created),
       won: Number(r.won),
       revenue: parseFloat(r.revenue ?? '0'),

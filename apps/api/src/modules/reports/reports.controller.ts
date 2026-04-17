@@ -35,11 +35,12 @@ export class ReportsController {
   dealsTrend(
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('groupBy') groupBy?: 'week' | 'month',
   ) {
     const now = new Date();
     const toDate = to ?? now.toISOString().slice(0, 10);
     const fromDate = from ?? new Date(now.getTime() - 90 * 86400000).toISOString().slice(0, 10);
-    return this.reports.dealsTrend(fromDate, toDate);
+    return this.reports.dealsTrend(fromDate, toDate, groupBy ?? 'week');
   }
 
   @Get('financial-summary')

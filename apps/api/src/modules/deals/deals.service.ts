@@ -315,6 +315,52 @@ export class DealsService {
   }
 
   /**
+   * Weighted forecast: all OPEN deals grouped by stage with probability applied.
+   * Returns per-stage breakdown + total weighted value for the forecast chart.
+   * Probability comes from the deal's own override if set, otherwise from the stage default.
+   */
+  async forecast(pipelineId?: string) {
+    const ctx = requireTenantContext();
+    const deals = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.deal.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          status: 'OPEN',
+          deletedAt: null,
+          ...(pipelineId ? { pipelineId } : {}),
+        },
+        include: { stage: { select: { id: true, name: true, probability: true } } },
+      }),
+    );
+
+    // Group by stage, compute weighted value per deal
+    const byStage = new Map<string, { stageName: string; deals: { id: string; title: string; value: number | null; currency: string; probability: number; weightedValue: number }[] }>();
+    for (const deal of deals) {
+      const prob = (deal.probability ?? deal.stage.probability ?? 0) / 100;
+      const raw = deal.value ? Number(deal.value) : 0;
+      const weighted = Math.round(raw * prob * 100) / 100;
+      const entry = byStage.get(deal.stageId) ?? { stageName: deal.stage.name, deals: [] };
+      entry.deals.push({ id: deal.id, title: deal.title, value: raw, currency: deal.currency, probability: prob * 100, weightedValue: weighted });
+      byStage.set(deal.stageId, entry);
+    }
+
+    const stages = Array.from(byStage.entries()).map(([stageId, data]) => ({
+      stageId,
+      stageName: data.stageName,
+      totalValue: data.deals.reduce((s, d) => s + (d.value ?? 0), 0),
+      weightedValue: data.deals.reduce((s, d) => s + d.weightedValue, 0),
+      dealCount: data.deals.length,
+      deals: data.deals,
+    }));
+
+    return {
+      stages,
+      totalRaw: stages.reduce((s, st) => s + st.totalValue, 0),
+      totalWeighted: stages.reduce((s, st) => s + st.weightedValue, 0),
+    };
+  }
+
+  /**
    * Compute the next `orderInStage` value for a given (pipeline, stage).
    * Uses max+10 so that manually inserting a deal in the middle of a
    * column is a cheap single-row update rather than a re-pack. Returns 10
