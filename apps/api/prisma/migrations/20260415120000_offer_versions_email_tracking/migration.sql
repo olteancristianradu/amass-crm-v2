@@ -8,7 +8,7 @@ ALTER TABLE "attachments"
     ADD COLUMN "version" INTEGER NOT NULL DEFAULT 1,
     ADD COLUMN "is_latest" BOOLEAN NOT NULL DEFAULT true;
 
-CREATE INDEX "attachments_tenant_id_parent_id_idx" ON "attachments"("tenant_id", "parent_id");
+CREATE INDEX "attachments_tenantId_parent_id_idx" ON "attachments"("tenantId", "parent_id");
 
 ALTER TABLE "attachments"
     ADD CONSTRAINT "attachments_parent_id_fkey"
