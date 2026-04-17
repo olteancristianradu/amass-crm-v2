@@ -9,6 +9,7 @@ export const CreateContactSchema = z.object({
   email: z.string().email().max(256).optional().or(z.literal('').transform(() => undefined)),
   phone: z.string().trim().max(64).optional(),
   mobile: z.string().trim().max(64).optional(),
+  isDecider: z.boolean().optional(),
   notes: z.string().max(8000).optional(),
 });
 export type CreateContactDto = z.infer<typeof CreateContactSchema>;

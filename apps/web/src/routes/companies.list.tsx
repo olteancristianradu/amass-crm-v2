@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { useState } from 'react';
 import { authedRoute } from './authed';
 import { companiesApi } from '@/features/companies/api';
-import { CreateCompanySchema, type CreateCompanyDto } from '@amass/shared';
+import { CreateCompanySchema, type CreateCompanyDto, type RelationshipStatus } from '@amass/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -72,6 +72,7 @@ function CompaniesListPage(): JSX.Element {
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
                   <th className="px-4 py-2 font-medium">Nume</th>
+                  <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium">CUI</th>
                   <th className="px-4 py-2 font-medium">Industrie</th>
                   <th className="px-4 py-2 font-medium">Oraș</th>
@@ -81,7 +82,7 @@ function CompaniesListPage(): JSX.Element {
               <tbody>
                 {data.data.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                       Nicio companie. Adaugă prima companie folosind butonul de mai sus.
                     </td>
                   </tr>
@@ -96,6 +97,9 @@ function CompaniesListPage(): JSX.Element {
                       >
                         {c.name}
                       </Link>
+                    </td>
+                    <td className="px-4 py-2">
+                      <RelationshipBadge status={(c as { relationshipStatus?: RelationshipStatus }).relationshipStatus} />
                     </td>
                     <td className="px-4 py-2 font-mono text-xs">{c.vatNumber ?? '—'}</td>
                     <td className="px-4 py-2">{c.industry ?? '—'}</td>
@@ -158,6 +162,37 @@ function NewCompanyForm({ onDone }: { onDone: () => void }): JSX.Element {
             <Input id="industry" {...register('industry')} />
           </div>
           <div className="space-y-1">
+            <Label htmlFor="relationshipStatus">Status relație</Label>
+            <select
+              id="relationshipStatus"
+              {...register('relationshipStatus')}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            >
+              <option value="">— selectează —</option>
+              <option value="LEAD">Lead</option>
+              <option value="PROSPECT">Prospect</option>
+              <option value="ACTIVE">Activ</option>
+              <option value="INACTIVE">Inactiv</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="leadSource">Sursă lead</Label>
+            <select
+              id="leadSource"
+              {...register('leadSource')}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            >
+              <option value="">— selectează —</option>
+              <option value="REFERRAL">Recomandare</option>
+              <option value="WEB">Website</option>
+              <option value="COLD_CALL">Apel rece</option>
+              <option value="EVENT">Eveniment</option>
+              <option value="PARTNER">Partener</option>
+              <option value="SOCIAL">Social media</option>
+              <option value="OTHER">Altele</option>
+            </select>
+          </div>
+          <div className="space-y-1">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" {...register('email')} />
           </div>
@@ -182,5 +217,28 @@ function NewCompanyForm({ onDone }: { onDone: () => void }): JSX.Element {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+const RELATIONSHIP_LABELS: Record<RelationshipStatus, string> = {
+  LEAD: 'Lead',
+  PROSPECT: 'Prospect',
+  ACTIVE: 'Activ',
+  INACTIVE: 'Inactiv',
+};
+
+const RELATIONSHIP_COLORS: Record<RelationshipStatus, string> = {
+  LEAD: 'bg-blue-100 text-blue-800',
+  PROSPECT: 'bg-yellow-100 text-yellow-800',
+  ACTIVE: 'bg-green-100 text-green-800',
+  INACTIVE: 'bg-gray-100 text-gray-600',
+};
+
+export function RelationshipBadge({ status }: { status: RelationshipStatus | null | undefined }): JSX.Element {
+  if (!status) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className={`rounded px-2 py-0.5 text-xs font-medium ${RELATIONSHIP_COLORS[status]}`}>
+      {RELATIONSHIP_LABELS[status]}
+    </span>
   );
 }
