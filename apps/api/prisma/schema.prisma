@@ -101,36 +101,59 @@ enum CompanySize {
   LARGE   // 250+
 }
 
+/// CRM relationship lifecycle stage for a company.
+enum RelationshipStatus {
+  LEAD
+  PROSPECT
+  ACTIVE
+  INACTIVE
+}
+
+/// How this company/lead was acquired.
+enum LeadSource {
+  REFERRAL
+  WEB
+  COLD_CALL
+  EVENT
+  PARTNER
+  SOCIAL
+  OTHER
+}
+
 model Company {
-  id          String       @id @default(cuid())
-  tenantId    String
-  name        String
-  vatNumber   String?      // CUI for Romanian companies
-  registrationNumber String? // J-number
-  industry    String?
-  size        CompanySize?
-  website     String?
-  email       String?
-  phone       String?
-  addressLine String?
-  city        String?
-  county      String?
-  postalCode  String?
-  country     String?      @default("RO")
-  notes       String?
-  createdById String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  deletedAt   DateTime?
+  id                  String              @id @default(cuid())
+  tenantId            String
+  name                String
+  vatNumber           String?             // CUI for Romanian companies
+  registrationNumber  String?             // J-number
+  industry            String?
+  size                CompanySize?
+  relationshipStatus  RelationshipStatus? @map("relationship_status")
+  leadSource          LeadSource?         @map("lead_source")
+  website             String?
+  email               String?
+  phone               String?
+  addressLine         String?
+  city                String?
+  county              String?
+  postalCode          String?
+  country             String?             @default("RO")
+  notes               String?
+  createdById         String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  deletedAt           DateTime?
   /// Populated asynchronously by EmbeddingService (OpenAI text-embedding-3-small).
   /// Not accessible via normal Prisma client — use $queryRaw for vector ops.
-  embedding   Unsupported("vector(1536)")?
+  embedding           Unsupported("vector(1536)")?
 
   contacts Contact[]
+  quotes   Quote[]
 
   @@index([tenantId, createdAt])
   @@index([tenantId, name])
   @@index([tenantId, vatNumber])
+  @@index([tenantId, relationshipStatus])
   @@map("companies")
 }
 
@@ -144,6 +167,7 @@ model Contact {
   email       String?
   phone       String?
   mobile      String?
+  isDecider   Boolean   @default(false) @map("is_decider")
   notes       String?
   createdById String?
   createdAt   DateTime  @default(now())
@@ -909,4 +933,159 @@ model Session {
   @@index([tenantId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+// ─── Quotes (oferte comerciale) ──────────────────────────────────────────────
+// Separate from Invoices: Quote → (accepted) → Invoice conversion.
+// Status flow: DRAFT → SENT → ACCEPTED | REJECTED | EXPIRED.
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  tenantId        String      @map("tenant_id")
+  companyId       String      @map("company_id")
+  dealId          String?     @map("deal_id")
+  /// Human-readable number e.g. "OF-2024-001"
+  number          String
+  title           String
+  issueDate       DateTime    @map("issue_date")
+  validUntil      DateTime    @map("valid_until")
+  subtotal        Decimal     @db.Decimal(14, 2)
+  vatAmount       Decimal     @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  total           Decimal     @db.Decimal(14, 2)
+  currency        InvoiceCurrency @default(RON)
+  status          QuoteStatus @default(DRAFT)
+  notes           String?
+  /// Set when the quote is converted to an invoice
+  invoiceId       String?     @unique @map("invoice_id")
+  createdById     String?     @map("created_by_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  deletedAt       DateTime?   @map("deleted_at")
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lines     QuoteLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, companyId, issueDate])
+  @@index([tenantId, status])
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id          String  @id @default(cuid())
+  tenantId    String  @map("tenant_id")
+  quoteId     String  @map("quote_id")
+  position    Int
+  description String
+  quantity    Decimal @db.Decimal(14, 3)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(14, 2)
+  vatRate     Decimal @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  subtotal    Decimal @db.Decimal(14, 2)
+  vatAmount   Decimal @map("vat_amount") @db.Decimal(14, 2)
+  total       Decimal @db.Decimal(14, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("quote_lines")
+}
+
+// ─── Email sequences (S32) ───────────────────────────────────────────────────
+// Drip campaigns: a sequence of emails sent with configurable delays.
+
+enum SequenceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  UNSUBSCRIBED
+  FAILED
+}
+
+model EmailSequence {
+  id          String         @id @default(cuid())
+  tenantId    String         @map("tenant_id")
+  name        String
+  description String?
+  status      SequenceStatus @default(DRAFT)
+  createdById String?        @map("created_by_id")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+
+  steps       EmailSequenceStep[]
+  enrollments SequenceEnrollment[]
+
+  @@index([tenantId, status])
+  @@map("email_sequences")
+}
+
+model EmailSequenceStep {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  sequenceId   String   @map("sequence_id")
+  order        Int
+  delayDays    Int      @default(0) @map("delay_days")
+  subject      String
+  bodyHtml     String   @map("body_html")
+  bodyText     String?  @map("body_text")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sequence EmailSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId, order])
+  @@map("email_sequence_steps")
+}
+
+model SequenceEnrollment {
+  id           String           @id @default(cuid())
+  tenantId     String           @map("tenant_id")
+  sequenceId   String           @map("sequence_id")
+  /// Contact email address
+  toEmail      String           @map("to_email")
+  contactId    String?          @map("contact_id")
+  currentStep  Int              @default(0) @map("current_step")
+  status       EnrollmentStatus @default(ACTIVE)
+  enrolledAt   DateTime         @default(now()) @map("enrolled_at")
+  completedAt  DateTime?        @map("completed_at")
+  nextSendAt   DateTime?        @map("next_send_at")
+
+  sequence EmailSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, sequenceId, status])
+  @@index([tenantId, status, nextSendAt])
+  @@map("sequence_enrollments")
+}
+
+// ─── Contact segments (S33) ──────────────────────────────────────────────────
+// Saved filter sets for contact list segmentation.
+
+model ContactSegment {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  /// JSON filter tree: { op: 'AND'|'OR', rules: FilterRule[] }
+  filterJson  Json     @map("filter_json")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("contact_segments")
 }

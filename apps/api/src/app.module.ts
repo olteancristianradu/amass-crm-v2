@@ -33,6 +33,9 @@ import { UsersModule } from './modules/users/users.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { QuotesModule } from './modules/quotes/quotes.module';
+import { EmailSequencesModule } from './modules/email-sequences/email-sequences.module';
+import { ContactSegmentsModule } from './modules/contact-segments/contact-segments.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -96,6 +99,9 @@ import { ProjectsModule } from './modules/projects/projects.module';
     InvoicesModule,
     PaymentsModule,
     ProjectsModule,
+    QuotesModule,
+    EmailSequencesModule,
+    ContactSegmentsModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

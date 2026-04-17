@@ -18,6 +18,9 @@ import { workflowsRoute } from './routes/workflows.list';
 import { reportsRoute } from './routes/reports';
 import { phoneSettingsRoute } from './routes/phone-settings';
 import { invoicesListRoute } from './routes/invoices.list';
+import { quotesListRoute } from './routes/quotes.list';
+import { emailSequencesRoute } from './routes/email-sequences.list';
+import { contactSegmentsRoute } from './routes/contact-segments.list';
 import { projectsListRoute } from './routes/projects.list';
 import { projectDetailRoute } from './routes/project.detail';
 import { settingsUsersRoute } from './routes/settings.users';
@@ -58,6 +61,9 @@ const routeTree = rootRoute.addChildren([
     reportsRoute,
     phoneSettingsRoute,
     invoicesListRoute,
+    quotesListRoute,
+    emailSequencesRoute,
+    contactSegmentsRoute,
     projectsListRoute,
     projectDetailRoute,
     settingsUsersRoute,

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loadEnv } from './config/env';
@@ -44,6 +45,23 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new AllExceptionsFilter());
+
+  // ── Swagger / OpenAPI (S35) ───────────────────────────────────────────────
+  // Available at /api/docs in non-production environments.
+  if (env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('AMASS CRM API')
+      .setDescription('REST API for AMASS CRM v2 — multi-tenant B2B/B2C CRM')
+      .setVersion('1.0')
+      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
+      .addServer(`http://localhost:${env.PORT}`, 'Local development')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
+
   await app.listen(env.PORT, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`amass-api listening on http://0.0.0.0:${env.PORT}/api/v1`);

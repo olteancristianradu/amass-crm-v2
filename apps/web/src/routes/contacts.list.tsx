@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 
 const searchSchema = z.object({
   q: z.string().optional(),
@@ -105,7 +106,7 @@ function ContactsListPage(): JSX.Element {
 
       {showForm && <NewContactForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <Card><TableSkeleton rows={5} cols={5} /></Card>}
       {isError && (
         <p className="text-sm text-destructive">
           {error instanceof ApiError ? error.message : 'Eroare'}
@@ -125,6 +126,7 @@ function ContactsListPage(): JSX.Element {
                   <th className="px-4 py-2 font-medium">Funcție</th>
                   <th className="px-4 py-2 font-medium">Email</th>
                   <th className="px-4 py-2 font-medium">Telefon</th>
+                  <th className="px-4 py-2 font-medium">Decident</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,6 +148,11 @@ function ContactsListPage(): JSX.Element {
                     <td className="px-4 py-2">{c.jobTitle ?? '—'}</td>
                     <td className="px-4 py-2">{c.email ?? '—'}</td>
                     <td className="px-4 py-2">{c.phone ?? c.mobile ?? '—'}</td>
+                    <td className="px-4 py-2">
+                      {(c as { isDecider?: boolean }).isDecider
+                        ? <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Da</span>
+                        : <span className="text-muted-foreground text-xs">Nu</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -216,6 +223,10 @@ function NewContactForm({ onDone }: { onDone: () => void }): JSX.Element {
           <div className="space-y-1">
             <Label htmlFor="mobile">Mobil</Label>
             <Input id="mobile" {...register('mobile')} />
+          </div>
+          <div className="flex items-center gap-2 md:col-span-2">
+            <input type="checkbox" id="isDecider" {...register('isDecider')} className="h-4 w-4 rounded border-input" />
+            <Label htmlFor="isDecider" className="cursor-pointer">Factor de decizie (decident)</Label>
           </div>
           <div className="md:col-span-2">
             {createMut.isError && (
