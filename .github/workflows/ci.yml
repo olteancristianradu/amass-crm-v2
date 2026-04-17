@@ -20,6 +20,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @amass/shared build
+      - name: Generate Prisma client
+        run: pnpm --filter @amass/api exec prisma generate
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
@@ -78,9 +80,9 @@ jobs:
       # Create the MinIO bucket the API expects
       - name: Create MinIO bucket
         run: |
-          docker run --rm --network host \
+          docker run --rm --network host --entrypoint /bin/sh \
             minio/mc:latest \
-            sh -c "mc alias set local http://localhost:9000 minioadmin minioadmin \
+            -c "mc alias set local http://localhost:9000 minioadmin minioadmin \
               && mc mb --ignore-existing local/amass-files"
 
       # Apply Prisma migrations so the schema is ready
