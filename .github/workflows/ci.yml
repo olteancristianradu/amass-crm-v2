@@ -50,20 +50,7 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-      minio:
-        image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports:
-          - 9000:9000
-        # minio needs the server command; use options for health
-        options: >-
-          --entrypoint ""
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -76,11 +63,25 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @amass/shared build
 
+      # Start MinIO as a step (more reliable than service containers for MinIO
+      # because the health check needs curl which isn't in the minio image)
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2024-01-16T16-07-38Z server /data
+          # Wait for MinIO to be healthy (up to 30 seconds)
+          timeout 30 bash -c 'until curl -sf http://localhost:9000/minio/health/live; do sleep 2; done'
+
       # Create the MinIO bucket the API expects
       - name: Create MinIO bucket
         run: |
-          docker run --rm --network host minio/mc:latest \
-            sh -c "mc alias set local http://localhost:9000 minioadmin minioadmin && mc mb --ignore-existing local/amass-files"
+          docker run --rm --network host \
+            minio/mc:latest \
+            sh -c "mc alias set local http://localhost:9000 minioadmin minioadmin \
+              && mc mb --ignore-existing local/amass-files"
 
       # Apply Prisma migrations so the schema is ready
       - name: Apply Prisma migrations
@@ -98,6 +99,12 @@ jobs:
           MINIO_ACCESS_KEY: minioadmin
           MINIO_SECRET_KEY: minioadmin
           MINIO_BUCKET: amass-files
-          JWT_SECRET: ci-test-secret-min-32-chars-padding
-          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars!
+          JWT_SECRET: ci-test-secret-min-32-chars-padding!
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars!!
           ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+          AI_WORKER_SECRET: test-ai-worker-secret-16chars
+          AI_WORKER_URL: http://localhost:8001
+          PUBLIC_URL: http://localhost:3000
+          TWILIO_ACCOUNT_SID: ACtest00000000000000000000000000000
+          TWILIO_AUTH_TOKEN: test-auth-token-not-real-for-ci
+          TWILIO_TWIML_APP_SID: APtest0000000000000000000000000000
