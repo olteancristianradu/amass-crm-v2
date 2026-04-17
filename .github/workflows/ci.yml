@@ -85,6 +85,10 @@ jobs:
             -c "mc alias set local http://localhost:9000 minioadmin minioadmin \
               && mc mb --ignore-existing local/amass-files"
 
+      # Generate Prisma client so imports resolve at test runtime
+      - name: Generate Prisma client
+        run: pnpm --filter @amass/api exec prisma generate
+
       # Apply Prisma migrations so the schema is ready
       - name: Apply Prisma migrations
         run: pnpm --filter @amass/api exec prisma migrate deploy
