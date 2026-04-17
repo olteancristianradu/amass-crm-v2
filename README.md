@@ -418,7 +418,7 @@ amass-crm-v2/
 
 ### Raportare vulnerabilități
 
-Trimite un email la **security@amass.ro** (sau deschide un Issue privat pe GitHub).
+Trimite un email la **raduoltean@amass.ro** (sau deschide un Issue privat pe GitHub).
 
 ---
 
