@@ -1,4 +1,7 @@
 import { Global, Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { loadEnv } from '../../config/env';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 import { AuditController } from './audit.controller';
 import { AuditService } from './audit.service';
 
@@ -18,8 +21,19 @@ import { AuditService } from './audit.service';
  */
 @Global()
 @Module({
+  imports: [
+    // AuditController guards routes with JwtAuthGuard, which depends on
+    // JwtService. We can't import AuthModule here (circular dep), so we
+    // register JwtModule directly with the same factory as AuthModule.
+    JwtModule.registerAsync({
+      useFactory: () => {
+        const env = loadEnv();
+        return { secret: env.JWT_SECRET, signOptions: { expiresIn: env.JWT_ACCESS_TTL } };
+      },
+    }),
+  ],
   controllers: [AuditController],
-  providers: [AuditService],
+  providers: [AuditService, JwtAuthGuard],
   exports: [AuditService],
 })
 export class AuditModule {}
