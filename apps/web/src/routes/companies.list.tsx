@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
+import { downloadCsv } from '@/lib/csv';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 
 const searchSchema = z.object({
   q: z.string().optional(),
@@ -27,38 +29,99 @@ export const companiesRoute = createRoute({
 function CompaniesListPage(): JSX.Element {
   const { q } = companiesRoute.useSearch();
   const navigate = companiesRoute.useNavigate();
+  const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['companies', { q }],
     queryFn: () => companiesApi.list(undefined, 50, q),
   });
 
+  const bulkDeleteMut = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map((id) => companiesApi.remove(id)));
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['companies'] });
+      setSelected(new Set());
+    },
+  });
+
+  const rows = data?.data ?? [];
+  const allIds = rows.map((c) => c.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
+
+  function toggleAll(): void {
+    setSelected(allSelected ? new Set() : new Set(allIds));
+  }
+
+  function toggleOne(id: string): void {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function handleBulkDelete(): void {
+    if (!confirm(`Ștergi ${selected.size} compani${selected.size === 1 ? 'e' : 'i'}? Acțiunea este ireversibilă.`)) return;
+    bulkDeleteMut.mutate([...selected]);
+  }
+
+  function handleExportCsv(): void {
+    const exportRows = rows
+      .filter((c) => selected.size === 0 || selected.has(c.id))
+      .map((c) => ({
+        Nume: c.name,
+        CUI: c.vatNumber ?? '',
+        Industrie: c.industry ?? '',
+        Oras: c.city ?? '',
+        Email: c.email ?? '',
+        Telefon: c.phone ?? '',
+        'Creat la': new Date(c.createdAt).toLocaleDateString('ro-RO'),
+      }));
+    downloadCsv(exportRows, `companii-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Companii</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Anulează' : '+ Companie nouă'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportCsv}>
+            Export CSV {selected.size > 0 ? `(${selected.size})` : '(toate)'}
+          </Button>
+          <Button onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Anulează' : '+ Companie nouă'}
+          </Button>
+        </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Input
           placeholder="Caută după nume, CUI, email…"
           defaultValue={q ?? ''}
           onChange={(e) => {
-            const v = e.target.value;
-            // debounce-free: with staleTime=30s the extra refetch is cheap
-            void navigate({ search: { q: v || undefined } });
+            void navigate({ search: { q: e.target.value || undefined } });
           }}
           className="max-w-sm"
         />
+        {selected.size > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={bulkDeleteMut.isPending}
+            onClick={handleBulkDelete}
+          >
+            Șterge {selected.size} selectate
+          </Button>
+        )}
       </div>
 
       {showForm && <NewCompanyForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <Card><TableSkeleton rows={6} cols={5} /></Card>}
       {isError && (
         <p className="text-sm text-destructive">
           Eroare: {error instanceof ApiError ? error.message : 'necunoscută'}
@@ -67,10 +130,18 @@ function CompaniesListPage(): JSX.Element {
 
       {data && (
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
+                  <th className="px-3 py-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      className="rounded"
+                    />
+                  </th>
                   <th className="px-4 py-2 font-medium">Nume</th>
                   <th className="px-4 py-2 font-medium">CUI</th>
                   <th className="px-4 py-2 font-medium">Industrie</th>
@@ -79,15 +150,26 @@ function CompaniesListPage(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {data.data.length === 0 && (
+                {rows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                       Nicio companie. Adaugă prima companie folosind butonul de mai sus.
                     </td>
                   </tr>
                 )}
-                {data.data.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
+                {rows.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`border-b last:border-0 hover:bg-muted/30 ${selected.has(c.id) ? 'bg-primary/5' : ''}`}
+                  >
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleOne(c.id)}
+                        className="rounded"
+                      />
+                    </td>
                     <td className="px-4 py-2">
                       <Link
                         to="/app/companies/$id"

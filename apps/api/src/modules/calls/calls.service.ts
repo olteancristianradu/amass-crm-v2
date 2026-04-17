@@ -11,6 +11,7 @@ import { Call, CallStatus, CallTranscript, Prisma, TranscriptionStatus } from '@
 import { AiCallResultDto, InitiateCallDto, ListCallsQueryDto } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { RedisService } from '../../infra/redis/redis.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { SubjectResolver } from '../activities/subject-resolver';
 import { TwilioClient } from './twilio.client';
@@ -46,6 +47,7 @@ export class CallsService {
     private readonly twilio: TwilioClient,
     private readonly activities: ActivitiesService,
     private readonly subjects: SubjectResolver,
+    private readonly redis: RedisService,
     @InjectQueue(QUEUE_AI_CALLS) private readonly aiQueue: Queue,
   ) {}
 
@@ -155,6 +157,18 @@ export class CallsService {
       throw new ForbiddenException({ code: 'INVALID_TWILIO_SIGNATURE', message: 'Twilio webhook signature invalid' });
     }
 
+    // Idempotency: Twilio may retry webhooks. Skip if already processed.
+    const callSid = params['CallSid'] ?? '';
+    if (callSid) {
+      const idempKey = `twilio:processed:${callSid}:voice`;
+      const already = await this.redis.client.get(idempKey);
+      if (already) {
+        this.logger.debug(`Voice webhook ${callSid} already processed — skipping`);
+        return `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`;
+      }
+      await this.redis.client.set(idempKey, '1', 'EX', 300);
+    }
+
     const direction = (params['Direction'] ?? '').toLowerCase();
     if (direction === 'inbound') {
       const toNumber = params['To'] ?? '';
@@ -236,6 +250,18 @@ export class CallsService {
     if (!ourStatus) {
       this.logger.warn(`Unknown Twilio status "${twilioStatus}" callId=${callId}`);
       return;
+    }
+
+    // Idempotency: deduplicate status transitions per (CallSid, status).
+    const statusSid = params['CallSid'] ?? '';
+    if (statusSid) {
+      const idempKey = `twilio:processed:${statusSid}:status:${twilioStatus}`;
+      const already = await this.redis.client.get(idempKey);
+      if (already) {
+        this.logger.debug(`Status webhook ${statusSid}/${twilioStatus} already processed — skipping`);
+        return;
+      }
+      await this.redis.client.set(idempKey, '1', 'EX', 300);
     }
 
     // callId is always present for outbound (we set it in the URL)
