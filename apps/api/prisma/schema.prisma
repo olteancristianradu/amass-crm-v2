@@ -254,9 +254,9 @@ model Attachment {
   // Versioning — parentId points to the root (v1). version starts at 1
   // and increments for each new version. isLatest is denormalised for
   // cheap filtering in the list endpoint.
-  parentId     String?
+  parentId     String?     @map("parent_id")
   version      Int         @default(1)
-  isLatest     Boolean     @default(true)
+  isLatest     Boolean     @default(true) @map("is_latest")
   parent       Attachment?  @relation("AttachmentVersions", fields: [parentId], references: [id])
   versions     Attachment[] @relation("AttachmentVersions")
 
@@ -565,13 +565,13 @@ enum EmailTrackKind {
 /// granularity, generate separate EmailMessage rows per recipient.
 model EmailTrack {
   id        String         @id @default(cuid())
-  tenantId  String
-  messageId String
+  tenantId  String         @map("tenant_id")
+  messageId String         @map("message_id")
   kind      EmailTrackKind
   url       String?        // present for CLICK, null for OPEN
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime       @default(now())
+  ipAddress String?        @map("ip_address")
+  userAgent String?        @map("user_agent")
+  createdAt DateTime       @default(now()) @map("created_at")
 
   message EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
