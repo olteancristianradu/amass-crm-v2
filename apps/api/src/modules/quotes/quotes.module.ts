@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { ActivitiesModule } from '../activities/activities.module';
 import { QuotesController } from './quotes.controller';
 import { QuotesService } from './quotes.service';
-import { ActivitiesModule } from '../activities/activities.module';
 
 @Module({
-  imports: [ActivitiesModule],
+  imports: [AuthModule, ActivitiesModule],
   controllers: [QuotesController],
   providers: [QuotesService],
   exports: [QuotesService],

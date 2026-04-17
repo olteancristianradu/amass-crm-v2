@@ -34,6 +34,23 @@
 
 ## Entries
 
+### 2026-04-17 — CI — JwtAuthGuard DI failures repeat across multiple modules (reactive vs upfront audit)
+- **Sprint / area:** S15–S16 / CI / module wiring
+- **Symptom:** CI kept failing with a cascade: `Nest can't resolve dependencies of the JwtAuthGuard (?). Please make sure that the argument JwtService at index [0] is available in the XModule context.` → app couldn't bootstrap → ALL 13 e2e specs failed with `TypeError: Cannot read properties of undefined (reading 'tenant')` in `afterAll` (because `prisma` was never assigned in `beforeAll`).
+- **Root cause:** Multiple new late-sprint modules (`EmailSequencesModule`, `ContactSegmentsModule`, `QuotesModule`) were scaffolded without importing `AuthModule`. Because I fixed them one at a time as CI revealed them, three separate CI runs failed with essentially the same bug. Each fix only unmasked the next one.
+- **Fix:** Comprehensive upfront grep: `for each module dir, if controller uses JwtAuthGuard/UseGuards and module doesn't import AuthModule/JwtModule → flag`. Then fix ALL in one commit.
+- **Lesson 1:** When a pattern like "module missing AuthModule" surfaces, **immediately audit every module** — don't fix one and push. The effort of a 10-line shell loop saves 3+ CI run cycles.
+- **Lesson 2:** The `prisma undefined in afterAll` error is always a **secondary symptom** of app bootstrap failure. Don't chase it directly — find the root bootstrap error first.
+- **Lesson 3:** Whenever creating a new NestJS module with a protected controller: always add `AuthModule` to `imports[]` on the spot, before committing. Treat it as a checklist item alongside creating the service/controller files.
+- **Lesson 4:** The AuditModule fix was special: `AuditModule` → `AuthModule` → `AuditModule` = circular. Solution: import `JwtModule.registerAsync()` directly in `AuditModule` instead of `AuthModule`. For all non-circular cases, import `AuthModule`.
+
+### 2026-04-17 — CI — migration column name mismatch (camelCase vs snake_case in index DDL)
+- **Sprint / area:** S15–S16 / CI / migrations
+- **Symptom:** `column "tenant_id" does not exist` during `prisma migrate deploy` in CI. The `attachments` table had been created with `"tenantId"` (camelCase, no `@map`) but a later migration's `CREATE INDEX` referenced `"tenant_id"` (snake_case).
+- **Root cause:** Hand-written migration SQL for a new index copy-pasted the conventional snake_case column name without checking how the original migration created the column.
+- **Fix:** Changed the index to use `"tenantId"` (matching the actual column name in the DB).
+- **Lesson:** Before writing any hand-crafted DDL that references existing columns, check the original migration or `\d tablename` to see exact column names. This repo does NOT use `@map` on most fields, so column names are camelCase in Postgres. Don't assume snake_case.
+
 ### 2026-04-14 — S20/S21 — NestJS module-level loadEnv() breaks test bootstrap
 - **Sprint / area:** S20/S21 / test infrastructure
 - **Symptom:** `pnpm test` failed with `Environment validation failed — ENCRYPTION_KEY: Required` even though `globalSetup` was loading the `.env` file. The env vars were present in the setup process but not in the worker processes that actually import NestJS modules.
