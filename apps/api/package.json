@@ -36,6 +36,8 @@
     "@nestjs/websockets": "^11.1.19",
     "@node-saml/passport-saml": "^5.1.0",
     "@prisma/client": "^6.0.0",
+    "@sentry/nestjs": "^10.49.0",
+    "@sentry/node": "^10.49.0",
     "@types/express": "^5.0.6",
     "@types/passport": "^1.0.17",
     "@types/qrcode": "^1.5.6",

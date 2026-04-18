@@ -1,6 +1,7 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import * as Sentry from '@sentry/node';
 
 interface ErrorResponseBody {
   code: string;
@@ -51,6 +52,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       traceId,
       timestamp: new Date().toISOString(),
     };
+
+    // Report unexpected 5xx errors to Sentry (not 4xx — those are expected)
+    if (status >= 500 && exception instanceof Error) {
+      Sentry.captureException(exception, { extra: { traceId, url: request.url, method: request.method } });
+    }
 
     this.logger.error(
       `[${traceId}] ${request.method} ${request.url} → ${status} ${code}: ${message}`,

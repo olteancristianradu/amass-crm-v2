@@ -26,6 +26,17 @@ import { projectDetailRoute } from './routes/project.detail';
 import { settingsUsersRoute } from './routes/settings.users';
 import { settings2faRoute } from './routes/settings.2fa';
 import { auditRoute } from './routes/audit';
+import { smsInboxRoute } from './routes/sms.inbox';
+import { exportsRoute } from './routes/exports';
+import { duplicatesRoute } from './routes/duplicates';
+import { reportBuilderRoute } from './routes/report-builder';
+import { whatsappInboxRoute } from './routes/whatsapp.inbox';
+import { productsRoute } from './routes/products.list';
+import { settingsCustomFieldsRoute } from './routes/settings.custom-fields';
+import { approvalsRoute } from './routes/approvals.list';
+import { calendarRoute } from './routes/calendar';
+import { settingsBillingRoute } from './routes/settings.billing';
+import { settingsWebhooksRoute } from './routes/settings.webhooks';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -69,6 +80,17 @@ const routeTree = rootRoute.addChildren([
     settingsUsersRoute,
     settings2faRoute,
     auditRoute,
+    smsInboxRoute,
+    exportsRoute,
+    duplicatesRoute,
+    reportBuilderRoute,
+    whatsappInboxRoute,
+    productsRoute,
+    settingsCustomFieldsRoute,
+    approvalsRoute,
+    calendarRoute,
+    settingsBillingRoute,
+    settingsWebhooksRoute,
   ]),
 ]);
 

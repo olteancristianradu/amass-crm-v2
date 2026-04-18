@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { SearchBar } from '@/features/search/SearchBar';
 import { Toaster } from '@/components/ui/Toaster';
 import { useReminderPoller } from '@/hooks/useReminderPoller';
+import { NotificationsBell } from './NotificationsBell';
 
 interface Props {
   children: React.ReactNode;
@@ -56,6 +57,9 @@ export function AppShell({ children }: Props): JSX.Element {
           <NavLink to="/app/email-settings">Setări email</NavLink>
           <NavLink to="/app/email-sequences">Secvențe email</NavLink>
           <NavLink to="/app/contact-segments">Segmente</NavLink>
+          <NavLink to="/app/products">Produse</NavLink>
+          <NavLink to="/app/approvals">Aprobări</NavLink>
+          <NavLink to="/app/calendar">Calendar</NavLink>
           <NavLink to="/app/workflows">Automatizări</NavLink>
           <NavLink to="/app/reports">Rapoarte</NavLink>
           {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
@@ -63,6 +67,15 @@ export function AppShell({ children }: Props): JSX.Element {
           )}
           {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
             <NavLink to="/app/settings/users">Utilizatori</NavLink>
+          )}
+          {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
+            <NavLink to="/app/settings/custom-fields">Câmpuri custom</NavLink>
+          )}
+          {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
+            <NavLink to="/app/settings/webhooks">Webhook-uri</NavLink>
+          )}
+          {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
+            <NavLink to="/app/settings/billing">Facturare</NavLink>
           )}
           {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
             <NavLink to="/app/audit">Jurnal audit</NavLink>
@@ -76,6 +89,7 @@ export function AppShell({ children }: Props): JSX.Element {
             {user ? `${user.fullName} · ${user.email}` : '—'}
           </div>
           <SearchBar />
+          <NotificationsBell />
           <Button variant="ghost" size="sm" onClick={handleLogout} className="shrink-0">
             Deconectare
           </Button>

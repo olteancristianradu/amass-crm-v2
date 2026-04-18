@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
@@ -9,6 +10,17 @@ import { loadEnv } from './config/env';
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv(); // fail-fast on missing env
+
+  // Sentry must be initialised before the app is created so it can instrument
+  // the HTTP server. DSN is optional — no-op when absent (dev/test).
+  if (process.env['SENTRY_DSN']) {
+    Sentry.init({
+      dsn: process.env['SENTRY_DSN'],
+      environment: env.NODE_ENV,
+      tracesSampleRate: env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    });
+  }
+
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
 
   // ── Security headers ──────────────────────────────────────────────────────
