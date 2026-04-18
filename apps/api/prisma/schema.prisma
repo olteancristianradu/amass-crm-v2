@@ -146,6 +146,9 @@ model Company {
   /// Populated asynchronously by EmbeddingService (OpenAI text-embedding-3-small).
   /// Not accessible via normal Prisma client — use $queryRaw for vector ops.
   embedding           Unsupported("vector(1536)")?
+  parentId            String?   @map("parent_id")
+  parent              Company?  @relation("CompanyHierarchy", fields: [parentId], references: [id])
+  subsidiaries        Company[] @relation("CompanyHierarchy")
 
   contacts Contact[]
   quotes   Quote[]
@@ -154,6 +157,7 @@ model Company {
   @@index([tenantId, name])
   @@index([tenantId, vatNumber])
   @@index([tenantId, relationshipStatus])
+  @@index([parentId])
   @@map("companies")
 }
 
@@ -1698,4 +1702,102 @@ model BillingSubscription {
   updatedAt            DateTime           @updatedAt @map("updated_at")
 
   @@map("billing_subscriptions")
+}
+
+// ─── S53 Leads ───────────────────────────────────────────────────────────────
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  DISQUALIFIED
+  CONVERTED
+}
+
+model Lead {
+  id                   String      @id @default(cuid())
+  tenantId             String      @map("tenant_id")
+  firstName            String?     @map("first_name")
+  lastName             String?     @map("last_name")
+  email                String?
+  phone                String?
+  company              String?
+  jobTitle             String?     @map("job_title")
+  source               LeadSource?
+  status               LeadStatus  @default(NEW)
+  score                Int         @default(0)
+  ownerId              String?     @map("owner_id")
+  notes                String?
+  convertedAt          DateTime?   @map("converted_at")
+  convertedToContactId String?     @map("converted_to_contact_id")
+  convertedToCompanyId String?     @map("converted_to_company_id")
+  convertedToDealId    String?     @map("converted_to_deal_id")
+  createdById          String?     @map("created_by_id")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+  deletedAt            DateTime?   @map("deleted_at")
+
+  @@index([tenantId, status])
+  @@index([tenantId, ownerId])
+  @@index([tenantId, createdAt])
+  @@map("leads")
+}
+
+// ─── S54 Contracts ────────────────────────────────────────────────────────────
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+model Contract {
+  id          String         @id @default(cuid())
+  tenantId    String         @map("tenant_id")
+  companyId   String         @map("company_id")
+  title       String
+  description String?
+  value       Decimal?       @db.Decimal(14, 2)
+  currency    String         @default("RON")
+  status      ContractStatus @default(DRAFT)
+  signedAt    DateTime?      @map("signed_at")
+  startDate   DateTime?      @map("start_date")
+  endDate     DateTime?      @map("end_date")
+  renewalDate DateTime?      @map("renewal_date")
+  autoRenew   Boolean        @default(false) @map("auto_renew")
+  storageKey  String?        @map("storage_key")
+  createdById String?        @map("created_by_id")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+
+  @@index([tenantId, companyId])
+  @@index([tenantId, status])
+  @@index([tenantId, endDate])
+  @@map("contracts")
+}
+
+// ─── S55 Forecasting ──────────────────────────────────────────────────────────
+
+enum ForecastPeriodType {
+  MONTHLY
+  QUARTERLY
+}
+
+model ForecastQuota {
+  id         String            @id @default(cuid())
+  tenantId   String            @map("tenant_id")
+  userId     String            @map("user_id")
+  year       Int
+  period     Int
+  periodType ForecastPeriodType @default(MONTHLY) @map("period_type")
+  quota      Decimal           @db.Decimal(14, 2)
+  currency   String            @default("RON")
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId, year, period, periodType])
+  @@map("forecast_quotas")
 }

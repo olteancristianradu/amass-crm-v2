@@ -16,4 +16,11 @@ export default tseslint.config(
     },
     ignores: ['dist/**', 'node_modules/**', 'prisma/migrations/**'],
   },
+  // Test files: relax no-explicit-any — partial mocks legitimately need it
+  {
+    files: ['**/*.spec.ts', '**/*.e2e.spec.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 );

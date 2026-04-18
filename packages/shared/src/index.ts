@@ -29,3 +29,6 @@ export * from './schemas/calendar';
 export * from './schemas/report-builder';
 export * from './schemas/portal';
 export * from './schemas/lead-scoring';
+export * from './schemas/leads';
+export * from './schemas/contracts';
+export * from './schemas/forecasting';
