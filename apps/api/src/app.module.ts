@@ -41,6 +41,12 @@ import { ProductsModule } from './modules/products/products.module';
 import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { SsoModule } from './modules/sso/sso.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { AnafModule } from './modules/anaf/anaf.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
+import { ReportBuilderModule } from './modules/report-builder/report-builder.module';
+import { LeadScoringModule } from './modules/lead-scoring/lead-scoring.module';
+import { PortalModule } from './modules/portal/portal.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -112,6 +118,12 @@ import { SsoModule } from './modules/sso/sso.module';
     CustomFieldsModule,
     ApprovalsModule,
     SsoModule,
+    WhatsappModule,
+    AnafModule,
+    CalendarModule,
+    ReportBuilderModule,
+    LeadScoringModule,
+    PortalModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

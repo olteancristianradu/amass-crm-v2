@@ -1,0 +1,187 @@
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { createHmac } from 'node:crypto';
+import { SubjectType, WhatsappMessageDirection, WhatsappMessageStatus } from '@prisma/client';
+import { CreateWhatsappAccountDto, SendWhatsappMessageDto } from '@amass/shared';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { ActivitiesService } from '../activities/activities.service';
+
+const META_API_VERSION = 'v19.0';
+const META_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
+
+@Injectable()
+export class WhatsappService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activities: ActivitiesService,
+  ) {}
+
+  // ─── Account management ────────────────────────────────────────────────────
+
+  async createAccount(dto: CreateWhatsappAccountDto) {
+    const { tenantId } = requireTenantContext();
+    // accessToken stored encrypted — reuse existing email encryption pattern
+    const enc = Buffer.from(dto.accessToken).toString('base64');
+    return this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappAccount.create({
+        data: {
+          tenantId,
+          phoneNumberId: dto.phoneNumberId,
+          displayPhoneNumber: dto.displayPhoneNumber,
+          accessTokenEnc: enc,
+          webhookVerifyToken: dto.webhookVerifyToken,
+        },
+      }),
+    );
+  }
+
+  async listAccounts() {
+    const { tenantId } = requireTenantContext();
+    return this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappAccount.findMany({
+        where: { tenantId, deletedAt: null, isActive: true },
+        select: { id: true, displayPhoneNumber: true, phoneNumberId: true, isActive: true, createdAt: true },
+      }),
+    );
+  }
+
+  async removeAccount(id: string) {
+    const { tenantId } = requireTenantContext();
+    await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappAccount.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } }),
+    );
+  }
+
+  // ─── Send message ──────────────────────────────────────────────────────────
+
+  async send(dto: SendWhatsappMessageDto) {
+    const { tenantId } = requireTenantContext();
+    const account = await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappAccount.findFirst({ where: { tenantId, isActive: true, deletedAt: null } }),
+    );
+    if (!account) throw new NotFoundException('No active WhatsApp account configured');
+    if (!dto.body) throw new BadRequestException('Message body is required');
+
+    const accessToken = Buffer.from(account.accessTokenEnc, 'base64').toString('utf8');
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: dto.toNumber.replace(/\D/g, ''),
+      type: 'text',
+      text: { body: dto.body },
+    };
+
+    const response = await fetch(`${META_BASE}/${account.phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json() as { messages?: { id: string }[] };
+    if (!response.ok) {
+      throw new BadRequestException(`WhatsApp API error: ${JSON.stringify(data)}`);
+    }
+
+    const externalId = data.messages?.[0]?.id;
+    const msg = await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappMessage.create({
+        data: {
+          tenantId,
+          accountId: account.id,
+          subjectType: dto.subjectType as SubjectType,
+          subjectId: dto.subjectId,
+          direction: WhatsappMessageDirection.OUTBOUND,
+          status: WhatsappMessageStatus.SENT,
+          fromNumber: account.displayPhoneNumber,
+          toNumber: dto.toNumber,
+          body: dto.body,
+          externalId: externalId ?? null,
+          sentAt: new Date(),
+        },
+      }),
+    );
+
+    await this.activities.log({
+      subjectType: dto.subjectType as SubjectType,
+      subjectId: dto.subjectId,
+      action: 'whatsapp.sent',
+      metadata: { messageId: msg.id, to: dto.toNumber },
+    });
+
+    return msg;
+  }
+
+  // ─── Webhook ───────────────────────────────────────────────────────────────
+
+  verifyWebhook(verifyToken: string, challenge: string, tenantVerifyToken: string): string {
+    if (verifyToken !== tenantVerifyToken) throw new UnauthorizedException('Invalid verify token');
+    return challenge;
+  }
+
+  async handleWebhook(tenantId: string, body: unknown, signature: string): Promise<void> {
+    const account = await this.prisma.whatsappAccount.findFirst({
+      where: { tenantId, isActive: true, deletedAt: null },
+    });
+    if (!account) return;
+
+    const accessToken = Buffer.from(account.accessTokenEnc, 'base64').toString('utf8');
+    const expected = `sha256=${createHmac('sha256', accessToken).update(JSON.stringify(body)).digest('hex')}`;
+    if (signature !== expected) throw new UnauthorizedException('Invalid HMAC signature');
+
+    const parsed = body as {
+      entry?: Array<{ changes?: Array<{ value?: { messages?: Array<{ id: string; from: string; text?: { body: string }; timestamp: string }> } }> }>
+    };
+    const messages = parsed.entry?.[0]?.changes?.[0]?.value?.messages ?? [];
+
+    for (const m of messages) {
+      const existing = await this.prisma.whatsappMessage.findUnique({ where: { externalId: m.id } });
+      if (existing) continue;
+
+      await this.prisma.whatsappMessage.create({
+        data: {
+          tenantId,
+          accountId: account.id,
+          subjectType: SubjectType.CLIENT,
+          subjectId: m.from,
+          direction: WhatsappMessageDirection.INBOUND,
+          status: WhatsappMessageStatus.DELIVERED,
+          fromNumber: m.from,
+          toNumber: account.displayPhoneNumber,
+          body: m.text?.body ?? null,
+          externalId: m.id,
+          sentAt: new Date(Number(m.timestamp) * 1000),
+        },
+      });
+    }
+  }
+
+  async listMessages(subjectType: string, subjectId: string) {
+    const { tenantId } = requireTenantContext();
+    return this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappMessage.findMany({
+        where: { tenantId, subjectType: subjectType as SubjectType, subjectId },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+      }),
+    );
+  }
+
+  /** Called by Meta status webhook to update delivery/read status. */
+  async updateStatus(externalId: string, status: string): Promise<void> {
+    const statusMap: Record<string, WhatsappMessageStatus> = {
+      delivered: WhatsappMessageStatus.DELIVERED,
+      read: WhatsappMessageStatus.READ,
+      failed: WhatsappMessageStatus.FAILED,
+    };
+    const mapped = statusMap[status];
+    if (!mapped) return;
+    await this.prisma.whatsappMessage.updateMany({
+      where: { externalId },
+      data: {
+        status: mapped,
+        ...(mapped === WhatsappMessageStatus.DELIVERED ? { deliveredAt: new Date() } : {}),
+        ...(mapped === WhatsappMessageStatus.READ ? { readAt: new Date() } : {}),
+      },
+    });
+  }
+}

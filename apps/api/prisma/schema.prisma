@@ -1328,3 +1328,213 @@ model SsoConfig {
 
   @@map("sso_configs")
 }
+
+// ─── S41 WhatsApp Business ────────────────────────────────────────────────────
+
+enum WhatsappMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum WhatsappMessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model WhatsappAccount {
+  id                  String    @id @default(cuid())
+  tenantId            String    @map("tenant_id")
+  phoneNumberId       String    @map("phone_number_id")
+  displayPhoneNumber  String    @map("display_phone_number")
+  accessTokenEnc      String    @map("access_token_enc")
+  webhookVerifyToken  String    @map("webhook_verify_token")
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  messages WhatsappMessage[]
+
+  @@index([tenantId, isActive])
+  @@map("whatsapp_accounts")
+}
+
+model WhatsappMessage {
+  id          String                   @id @default(cuid())
+  tenantId    String                   @map("tenant_id")
+  accountId   String                   @map("account_id")
+  subjectType SubjectType
+  subjectId   String                   @map("subject_id")
+  direction   WhatsappMessageDirection
+  status      WhatsappMessageStatus    @default(SENT)
+  fromNumber  String                   @map("from_number")
+  toNumber    String                   @map("to_number")
+  body        String?
+  mediaUrl    String?                  @map("media_url")
+  mediaType   String?                  @map("media_type")
+  externalId  String?                  @unique @map("external_id")
+  sentAt      DateTime?                @map("sent_at")
+  deliveredAt DateTime?                @map("delivered_at")
+  readAt      DateTime?                @map("read_at")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+
+  account WhatsappAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, subjectType, subjectId, createdAt])
+  @@index([tenantId, accountId])
+  @@map("whatsapp_messages")
+}
+
+// ─── S42 ANAF e-Factura ───────────────────────────────────────────────────────
+
+enum AnafSubmissionStatus {
+  PENDING
+  UPLOADED
+  IN_VALIDATION
+  OK
+  NOK
+  FAILED
+}
+
+model AnafSubmission {
+  id           String               @id @default(cuid())
+  tenantId     String               @map("tenant_id")
+  invoiceId    String               @unique @map("invoice_id")
+  status       AnafSubmissionStatus @default(PENDING)
+  uploadIndex  String?              @map("upload_index")
+  downloadId   String?              @map("download_id")
+  errorMessage String?              @map("error_message")
+  xmlContent   String?              @map("xml_content")
+  submittedAt  DateTime?            @map("submitted_at")
+  validatedAt  DateTime?            @map("validated_at")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@index([tenantId, invoiceId])
+  @@map("anaf_submissions")
+}
+
+// ─── S43 Calendar Sync ────────────────────────────────────────────────────────
+
+enum CalendarProvider {
+  GOOGLE
+  OUTLOOK
+}
+
+model CalendarIntegration {
+  id             String           @id @default(cuid())
+  tenantId       String           @map("tenant_id")
+  userId         String           @map("user_id")
+  provider       CalendarProvider
+  accessTokenEnc String           @map("access_token_enc")
+  refreshTokenEnc String?         @map("refresh_token_enc")
+  tokenExpiresAt DateTime?        @map("token_expires_at")
+  calendarId     String?          @map("calendar_id")
+  isActive       Boolean          @default(true) @map("is_active")
+  lastSyncAt     DateTime?        @map("last_sync_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  deletedAt      DateTime?        @map("deleted_at")
+
+  events CalendarEvent[]
+
+  @@unique([tenantId, userId, provider])
+  @@index([tenantId, userId])
+  @@map("calendar_integrations")
+}
+
+model CalendarEvent {
+  id            String      @id @default(cuid())
+  tenantId      String      @map("tenant_id")
+  integrationId String      @map("integration_id")
+  externalId    String      @map("external_id")
+  title         String
+  description   String?
+  startAt       DateTime    @map("start_at")
+  endAt         DateTime    @map("end_at")
+  location      String?
+  attendees     Json?
+  subjectType   SubjectType?
+  subjectId     String?     @map("subject_id")
+  syncedAt      DateTime    @default(now()) @map("synced_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  integration CalendarIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, externalId])
+  @@index([tenantId, integrationId])
+  @@index([tenantId, subjectType, subjectId])
+  @@map("calendar_events")
+}
+
+// ─── S44 Report Builder ───────────────────────────────────────────────────────
+
+enum ReportEntityType {
+  DEAL
+  COMPANY
+  CONTACT
+  CLIENT
+  INVOICE
+  QUOTE
+  CALL
+  ACTIVITY
+}
+
+model ReportTemplate {
+  id          String           @id @default(cuid())
+  tenantId    String           @map("tenant_id")
+  name        String
+  description String?
+  entityType  ReportEntityType @map("entity_type")
+  // { columns, filters, groupBy, orderBy, chartType, limit }
+  config      Json
+  isShared    Boolean          @default(false) @map("is_shared")
+  createdById String?          @map("created_by_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
+
+  @@index([tenantId, entityType])
+  @@index([tenantId, createdById])
+  @@map("report_templates")
+}
+
+// ─── S45 Lead Scoring ─────────────────────────────────────────────────────────
+
+model LeadScore {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  score      Int
+  // { emailOpens, calls, activeDays, dealCount, dealValue, lastActivityDays }
+  factors    Json
+  computedAt DateTime @default(now()) @map("computed_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, entityType, entityId])
+  @@index([tenantId, entityType, score])
+  @@map("lead_scores")
+}
+
+// ─── S46 Client Portal ────────────────────────────────────────────────────────
+
+model PortalToken {
+  id        String    @id @default(cuid())
+  tenantId  String    @map("tenant_id")
+  token     String    @unique
+  email     String
+  companyId String?   @map("company_id")
+  clientId  String?   @map("client_id")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, email])
+  @@index([token])
+  @@map("portal_tokens")
+}
