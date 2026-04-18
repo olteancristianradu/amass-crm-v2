@@ -14,6 +14,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { SearchService, EntityType } from './search.service';
 import { EmbeddingService } from './embedding.service';
 import { DealAiService } from './deal-ai.service';
+import { EnrichmentService } from './enrichment.service';
 
 @Controller('ai')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -22,6 +23,7 @@ export class AiController {
     private readonly search: SearchService,
     private readonly embedding: EmbeddingService,
     private readonly dealAi: DealAiService,
+    private readonly enrichment: EnrichmentService,
   ) {}
 
   /**
@@ -77,5 +79,21 @@ export class AiController {
   async reindex() {
     const counts = await this.embedding.reindexAll();
     return { message: 'Reindex complete', counts };
+  }
+
+  /** POST /ai/companies/:id/enrich — AI-powered company enrichment */
+  @Post('companies/:id/enrich')
+  @HttpCode(200)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  enrichCompany(@Param('id') id: string) {
+    return this.enrichment.enrichCompany(id);
+  }
+
+  /** POST /ai/contacts/:id/enrich — AI-powered contact enrichment */
+  @Post('contacts/:id/enrich')
+  @HttpCode(200)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  enrichContact(@Param('id') id: string) {
+    return this.enrichment.enrichContact(id);
   }
 }

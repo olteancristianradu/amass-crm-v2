@@ -8,3 +8,4 @@ export const QUEUE_EMAIL = 'email';
 export const QUEUE_AI_CALLS = 'ai-calls';
 export const QUEUE_WORKFLOWS = 'workflow-runs';
 export const QUEUE_LEAD_SCORING = 'lead-scoring';
+export const QUEUE_EXPORT = 'exports';

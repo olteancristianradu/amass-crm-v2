@@ -79,6 +79,23 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().min(1).optional(),
   ),
+
+  // Stripe secret key + webhook signing secret (S51 billing).
+  // Optional — empty = billing features disabled.
+  STRIPE_SECRET_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  STRIPE_WEBHOOK_SECRET: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+
+  // Twilio SMS sender phone number (E.164, e.g. +40700000000). Optional.
+  TWILIO_SMS_FROM: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
 });
 
 /**

@@ -47,6 +47,11 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { ReportBuilderModule } from './modules/report-builder/report-builder.module';
 import { LeadScoringModule } from './modules/lead-scoring/lead-scoring.module';
 import { PortalModule } from './modules/portal/portal.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ExportsModule } from './modules/exports/exports.module';
+import { SmsModule } from './modules/sms/sms.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { BillingModule } from './modules/billing/billing.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -124,6 +129,11 @@ import { PortalModule } from './modules/portal/portal.module';
     ReportBuilderModule,
     LeadScoringModule,
     PortalModule,
+    NotificationsModule,
+    ExportsModule,
+    SmsModule,
+    WebhooksModule,
+    BillingModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

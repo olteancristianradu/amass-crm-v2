@@ -153,7 +153,7 @@ export class LeadScoringService {
         tx.call.count({
           where: {
             tenantId,
-            ...(companyId ? { companyId } : { contactId: contactId! }),
+            ...(companyId ? { subjectType: 'COMPANY', subjectId: companyId } : { subjectType: 'CONTACT', subjectId: contactId! }),
           },
         }),
       ),
