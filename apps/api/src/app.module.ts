@@ -36,6 +36,11 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
 import { EmailSequencesModule } from './modules/email-sequences/email-sequences.module';
 import { ContactSegmentsModule } from './modules/contact-segments/contact-segments.module';
+import { DuplicatesModule } from './modules/duplicates/duplicates.module';
+import { ProductsModule } from './modules/products/products.module';
+import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module';
+import { ApprovalsModule } from './modules/approvals/approvals.module';
+import { SsoModule } from './modules/sso/sso.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -102,6 +107,11 @@ import { ContactSegmentsModule } from './modules/contact-segments/contact-segmen
     QuotesModule,
     EmailSequencesModule,
     ContactSegmentsModule,
+    DuplicatesModule,
+    ProductsModule,
+    CustomFieldsModule,
+    ApprovalsModule,
+    SsoModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

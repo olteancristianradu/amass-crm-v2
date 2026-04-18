@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const QuoteStatusSchema = z.enum(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED']);
+export const QuoteStatusSchema = z.enum(['DRAFT', 'PENDING_APPROVAL', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED']);
 export type QuoteStatus = z.infer<typeof QuoteStatusSchema>;
 
 const money = z

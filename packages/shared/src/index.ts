@@ -19,3 +19,7 @@ export * from './schemas/invoice';
 export * from './schemas/project';
 export * from './schemas/quote';
 export * from './schemas/contact-segment';
+export * from './schemas/product';
+export * from './schemas/custom-field';
+export * from './schemas/approval';
+export * from './schemas/sso';

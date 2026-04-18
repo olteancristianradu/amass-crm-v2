@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector")]
+  extensions = [pgvector(map: "vector"), pg_trgm]
 }
 
 enum UserRole {
@@ -834,20 +834,22 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id          String  @id @default(cuid())
-  tenantId    String  @map("tenant_id")
-  invoiceId   String  @map("invoice_id")
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  invoiceId   String   @map("invoice_id")
+  productId   String?  @map("product_id")
   position    Int
   description String
-  quantity    Decimal @db.Decimal(14, 3)
-  unitPrice   Decimal @map("unit_price") @db.Decimal(14, 2)
-  vatRate     Decimal @default(19) @map("vat_rate") @db.Decimal(5, 2)
-  subtotal    Decimal @db.Decimal(14, 2)
-  vatAmount   Decimal @map("vat_amount") @db.Decimal(14, 2)
-  total       Decimal @db.Decimal(14, 2)
+  quantity    Decimal  @db.Decimal(14, 3)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(14, 2)
+  vatRate     Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  subtotal    Decimal  @db.Decimal(14, 2)
+  vatAmount   Decimal  @map("vat_amount") @db.Decimal(14, 2)
+  total       Decimal  @db.Decimal(14, 2)
   createdAt   DateTime @default(now()) @map("created_at")
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([invoiceId])
   @@map("invoice_lines")
@@ -941,6 +943,7 @@ model Session {
 
 enum QuoteStatus {
   DRAFT
+  PENDING_APPROVAL
   SENT
   ACCEPTED
   REJECTED
@@ -980,20 +983,22 @@ model Quote {
 }
 
 model QuoteLine {
-  id          String  @id @default(cuid())
-  tenantId    String  @map("tenant_id")
-  quoteId     String  @map("quote_id")
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  quoteId     String   @map("quote_id")
+  productId   String?  @map("product_id")
   position    Int
   description String
-  quantity    Decimal @db.Decimal(14, 3)
-  unitPrice   Decimal @map("unit_price") @db.Decimal(14, 2)
-  vatRate     Decimal @default(19) @map("vat_rate") @db.Decimal(5, 2)
-  subtotal    Decimal @db.Decimal(14, 2)
-  vatAmount   Decimal @map("vat_amount") @db.Decimal(14, 2)
-  total       Decimal @db.Decimal(14, 2)
+  quantity    Decimal  @db.Decimal(14, 3)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(14, 2)
+  vatRate     Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  subtotal    Decimal  @db.Decimal(14, 2)
+  vatAmount   Decimal  @map("vat_amount") @db.Decimal(14, 2)
+  total       Decimal  @db.Decimal(14, 2)
   createdAt   DateTime @default(now()) @map("created_at")
 
-  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([quoteId])
   @@map("quote_lines")
@@ -1088,4 +1093,238 @@ model ContactSegment {
 
   @@index([tenantId])
   @@map("contact_segments")
+}
+
+// ─── S39 Product Catalog + Price Lists ───────────────────────────────────────
+
+model ProductCategory {
+  id        String    @id @default(cuid())
+  tenantId  String    @map("tenant_id")
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  products Product[]
+
+  @@index([tenantId])
+  @@map("product_categories")
+}
+
+model Product {
+  id           String          @id @default(cuid())
+  tenantId     String          @map("tenant_id")
+  categoryId   String?         @map("category_id")
+  name         String
+  sku          String?
+  description  String?
+  unit         String          @default("buc")
+  defaultPrice Decimal         @default(0) @map("default_price") @db.Decimal(14, 2)
+  vatRate      Decimal         @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  currency     InvoiceCurrency @default(RON)
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  deletedAt    DateTime?       @map("deleted_at")
+
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  priceListItems PriceListItem[]
+  quoteLines     QuoteLine[]
+  invoiceLines   InvoiceLine[]
+
+  @@index([tenantId, isActive])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, sku])
+  @@map("products")
+}
+
+model PriceList {
+  id          String          @id @default(cuid())
+  tenantId    String          @map("tenant_id")
+  name        String
+  description String?
+  currency    InvoiceCurrency @default(RON)
+  isDefault   Boolean         @default(false) @map("is_default")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  deletedAt   DateTime?       @map("deleted_at")
+
+  items PriceListItem[]
+
+  @@index([tenantId, isDefault])
+  @@map("price_lists")
+}
+
+model PriceListItem {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
+  priceListId String    @map("price_list_id")
+  productId   String    @map("product_id")
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(14, 2)
+  minQuantity Decimal   @default(1) @map("min_quantity") @db.Decimal(14, 3)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([priceListId, productId, minQuantity])
+  @@index([tenantId, priceListId])
+  @@map("price_list_items")
+}
+
+// ─── S36 Custom Fields ────────────────────────────────────────────────────────
+
+enum CustomFieldEntityType {
+  COMPANY
+  CONTACT
+  CLIENT
+  DEAL
+  QUOTE
+  INVOICE
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  BOOLEAN
+  SELECT
+  MULTI_SELECT
+}
+
+model CustomFieldDef {
+  id         String                @id @default(cuid())
+  tenantId   String                @map("tenant_id")
+  entityType CustomFieldEntityType @map("entity_type")
+  fieldType  CustomFieldType       @map("field_type")
+  // internal key (snake_case, immutable after create)
+  name       String
+  label      String
+  // string[] for SELECT/MULTI_SELECT
+  options    Json?
+  isRequired Boolean               @default(false) @map("is_required")
+  order      Int                   @default(0)
+  isActive   Boolean               @default(true) @map("is_active")
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+  deletedAt  DateTime?             @map("deleted_at")
+
+  values CustomFieldValue[]
+
+  @@unique([tenantId, entityType, name])
+  @@index([tenantId, entityType, isActive])
+  @@map("custom_field_defs")
+}
+
+// entityId is a plain string ref — no FK because the entity can be any type.
+// Interpret value based on fieldDef.fieldType.
+model CustomFieldValue {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  fieldDefId String   @map("field_def_id")
+  entityId   String   @map("entity_id")
+  value      String
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  fieldDef CustomFieldDef @relation(fields: [fieldDefId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldDefId, entityId])
+  @@index([tenantId, entityId])
+  @@map("custom_field_values")
+}
+
+// ─── S37 Approval Workflows ───────────────────────────────────────────────────
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalPolicyTrigger {
+  QUOTE_ABOVE_VALUE
+  DISCOUNT_ABOVE_PCT
+}
+
+// Defines when approval is required. Multiple policies can be active per tenant.
+model ApprovalPolicy {
+  id          String                @id @default(cuid())
+  tenantId    String                @map("tenant_id")
+  name        String
+  trigger     ApprovalPolicyTrigger
+  // QUOTE_ABOVE_VALUE: { threshold: number, currency: string }
+  // DISCOUNT_ABOVE_PCT: { pct: number }
+  config      Json                  @default("{}")
+  // null = any manager can approve; else specific user
+  approverId  String?               @map("approver_id")
+  isActive    Boolean               @default(true) @map("is_active")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  deletedAt   DateTime?             @map("deleted_at")
+
+  requests ApprovalRequest[]
+
+  @@index([tenantId, isActive])
+  @@map("approval_policies")
+}
+
+model ApprovalRequest {
+  id          String         @id @default(cuid())
+  tenantId    String         @map("tenant_id")
+  policyId    String         @map("policy_id")
+  // Only quotes for now; extend via subjectType later
+  quoteId     String         @map("quote_id")
+  requestedBy String         @map("requested_by")
+  status      ApprovalStatus @default(PENDING)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  policy    ApprovalPolicy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  decisions ApprovalDecision[]
+
+  @@index([tenantId, quoteId])
+  @@index([tenantId, status])
+  @@map("approval_requests")
+}
+
+model ApprovalDecision {
+  id         String         @id @default(cuid())
+  tenantId   String         @map("tenant_id")
+  requestId  String         @map("request_id")
+  deciderId  String         @map("decider_id")
+  status     ApprovalStatus
+  comment    String?
+  decidedAt  DateTime       @default(now()) @map("decided_at")
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, requestId])
+  @@map("approval_decisions")
+}
+
+// ─── S40 SSO / SAML ──────────────────────────────────────────────────────────
+
+model SsoConfig {
+  id             String    @id @default(cuid())
+  tenantId       String    @unique @map("tenant_id")
+  // IdP metadata — paste the SSO URL + public cert from your IdP dashboard
+  idpSsoUrl      String    @map("idp_sso_url")
+  idpCertificate String    @map("idp_certificate")
+  // SP entity ID — usually https://your-domain/api/v1/sso/:tenantSlug/metadata
+  spEntityId     String    @map("sp_entity_id")
+  // Optional: sign AuthnRequests with SP private key
+  spPrivateKey   String?   @map("sp_private_key")
+  // SAML attribute names that map to our user fields
+  attrEmail      String    @default("email") @map("attr_email")
+  attrFirstName  String    @default("firstName") @map("attr_first_name")
+  attrLastName   String    @default("lastName") @map("attr_last_name")
+  // Optional attribute that maps to UserRole enum value
+  attrRole       String?   @map("attr_role")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("sso_configs")
 }

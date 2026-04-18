@@ -16,6 +16,7 @@ import {
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
+import { ApprovalsService } from '../approvals/approvals.service';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
 
 export type QuoteWithLines = Quote & { lines: QuoteLine[] };
@@ -43,7 +44,8 @@ function sumLines(lines: ReturnType<typeof computeLine>[]) {
 }
 
 const STATUS_TRANSITIONS: Partial<Record<QuoteStatus, QuoteStatus[]>> = {
-  DRAFT: ['SENT'],
+  DRAFT: ['SENT', 'PENDING_APPROVAL'],
+  PENDING_APPROVAL: ['SENT', 'DRAFT'],
   SENT: ['ACCEPTED', 'REJECTED', 'EXPIRED'],
 };
 
@@ -75,6 +77,7 @@ export class QuotesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activities: ActivitiesService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   async create(dto: CreateQuoteDto): Promise<QuoteWithLines> {
@@ -194,6 +197,27 @@ export class QuotesService {
     const ctx = requireTenantContext();
     const existing = await this.findOne(id);
     assertTransition(existing.status, dto.status as QuoteStatus);
+
+    // When agent tries to SEND a DRAFT quote, check approval policies first
+    if (existing.status === 'DRAFT' && dto.status === 'SENT') {
+      const needsApproval = await this.approvals.checkAndRequestApproval(
+        id,
+        existing.total,
+        existing.currency,
+      );
+      if (needsApproval) {
+        const updated = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+          tx.quote.update({ where: { id }, data: { status: 'PENDING_APPROVAL' } }),
+        );
+        await this.activities.log({
+          subjectType: 'COMPANY',
+          subjectId: existing.companyId,
+          action: 'quote.pending_approval',
+          metadata: { quoteId: id },
+        });
+        return updated;
+      }
+    }
 
     const updated = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.quote.update({ where: { id }, data: { status: dto.status as QuoteStatus } }),
