@@ -34,6 +34,34 @@
 
 ## Entries
 
+### 2026-04-19 — Shared package export conflict: LeadSourceSchema duplicate
+- **Sprint / area:** S53 / Leads / shared schemas
+- **Symptom:** TypeScript error `Module './schemas/company' has already exported a member named 'LeadSourceSchema'`. Both `company.ts` and `leads.ts` exported it.
+- **Root cause:** Agent-generated `leads.ts` redeclared the enum instead of importing from `company.ts` where it already existed (LeadSource was originally defined for Company).
+- **Fix:** Removed duplicate declaration from `leads.ts`, added `import { LeadSourceSchema } from './company'` and re-exported it.
+- **Lesson:** Before adding an enum to a new schema file, grep shared/schemas/ for existing exports with the same name. In this codebase, `LeadSource` lives in `company.ts` and is shared.
+
+### 2026-04-19 — vitest mock order wrong for Promise.all calls
+- **Sprint / area:** S53 / lead-scoring spec
+- **Symptom:** `mockRunWithTenant` mock consumed in wrong order → wrong values in service, tests failed.
+- **Root cause:** `gatherFactors()` uses `Promise.all([activities, calls, emailMessages, deals])` for 4 of the 6 calls. For `entityType='company'`, `emailMessages` resolves via `Promise.resolve(0)` (not `runWithTenant`), so only 3 calls in the Promise.all. The spec had an extra mock for email.
+- **Fix:** Reordered spec mocks: exists → activities → calls → deals → lastActivity → upsert (6 calls, not 7).
+- **Lesson:** When mocking sequential + parallel async calls, map the ACTUAL code path. `Promise.all` does NOT change the `mockResolvedValueOnce` consumption order but skipped branches (like `Promise.resolve(0)` shortcircuits) DO reduce the call count.
+
+### 2026-04-19 — ESLint `no-explicit-any` blocks test spec files
+- **Sprint / area:** S53+ / tests / ESLint
+- **Symptom:** `pnpm lint` failed with 13 errors — `as any` in mock object casts in spec files.
+- **Root cause:** `eslint.config.mjs` applied `no-explicit-any: error` globally, including `*.spec.ts`.
+- **Fix:** Added ESLint override for `**/*.spec.ts` files relaxing `no-explicit-any: off`.
+- **Lesson:** Partial mock objects in test files legitimately need `as any` (or `as unknown as Type`). Add the test file override from the start, not after the fact.
+
+### 2026-04-19 — CI MinIO duplicate: service container + step on same port 9000
+- **Sprint / area:** S47–S55 / CI / MinIO
+- **Symptom:** CI e2e job likely failing because both a `services: minio:` container and a `Start MinIO` step tried to bind port 9000 simultaneously.
+- **Root cause:** The MinIO service container was added when the MinIO step was already present; both got merged into the same branch during a non-fast-forward merge.
+- **Fix:** Removed the `services: minio:` section (health check uses `curl` which isn't in the MinIO image anyway). Kept only the explicit Docker `run` step.
+- **Lesson:** MinIO's healthcheck requires curl which is NOT in the official MinIO image. Use a step with `docker run` + manual `until curl` wait instead of a service container.
+
 ### 2026-04-17 — CI — JwtAuthGuard DI failures repeat across multiple modules (reactive vs upfront audit)
 - **Sprint / area:** S15–S16 / CI / module wiring
 - **Symptom:** CI kept failing with a cascade: `Nest can't resolve dependencies of the JwtAuthGuard (?). Please make sure that the argument JwtService at index [0] is available in the XModule context.` → app couldn't bootstrap → ALL 13 e2e specs failed with `TypeError: Cannot read properties of undefined (reading 'tenant')` in `afterAll` (because `prisma` was never assigned in `beforeAll`).

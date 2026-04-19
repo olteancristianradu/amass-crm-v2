@@ -1,10 +1,14 @@
 import { z } from 'zod';
+import { LeadSourceSchema } from './company';
 
 /**
  * S53 Leads — top-of-funnel records that haven't yet been converted to
  * a Contact/Company/Deal. A lead can be converted in one atomic operation
  * which stamps convertedAt and the IDs of the created records.
  */
+
+export { LeadSourceSchema };
+export type LeadSourceDto = z.infer<typeof LeadSourceSchema>;
 
 export const LeadStatusSchema = z.enum([
   'NEW',
@@ -14,17 +18,6 @@ export const LeadStatusSchema = z.enum([
   'CONVERTED',
 ]);
 export type LeadStatusDto = z.infer<typeof LeadStatusSchema>;
-
-export const LeadSourceSchema = z.enum([
-  'REFERRAL',
-  'WEB',
-  'COLD_CALL',
-  'EVENT',
-  'PARTNER',
-  'SOCIAL',
-  'OTHER',
-]);
-export type LeadSourceDto = z.infer<typeof LeadSourceSchema>;
 
 export const CreateLeadSchema = z.object({
   firstName: z.string().trim().max(100).optional(),

@@ -52,6 +52,9 @@ import { ExportsModule } from './modules/exports/exports.module';
 import { SmsModule } from './modules/sms/sms.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { ContractsModule } from './modules/contracts/contracts.module';
+import { ForecastingModule } from './modules/forecasting/forecasting.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -134,6 +137,9 @@ import { BillingModule } from './modules/billing/billing.module';
     SmsModule,
     WebhooksModule,
     BillingModule,
+    LeadsModule,
+    ContractsModule,
+    ForecastingModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

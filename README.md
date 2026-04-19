@@ -130,9 +130,11 @@
 
 | Modul | Funcționalități |
 |---|---|
+| **Leads** | Pipeline prospecți (NEW→CONTACTED→QUALIFIED→CONVERTED), conversie atomică Lead→Contact+Company+Deal, scor, sursă, owner |
 | **Pipeline / Deals** | Kanban drag & drop, multiple pipeline-uri, etape configurabile, valoare + monedă, probabilitate (override per deal), ownerId, status WON/LOST + motiv pierdere |
+| **Forecasting** | Pipeline ponderat (value × probability), commit (≥70% prob), best case, quota per user per perioadă, tabel per reprezentant |
+| **Contracte** | CRUD contracte legate de companii, tracking expirare (alert 30 zile), auto-renewal, stocare PDF MinIO, filtrare status/companie |
 | **Tasks** | Legate de deal SAU de subiect polymorfic, prioritate, scadență, assignee |
-| **Forecast pipeline** | Vizualizare ponderată valoare × probabilitate cu slider ajustabil per deal |
 
 ### Comunicare
 

@@ -201,35 +201,68 @@ Orice firmă care cumpără licența primește propriul spațiu izolat, complet 
 
 ---
 
+## Funcționalități noi — Sprint Aprilie 2026
+
+### Leads — prospecții tăi, organizați
+
+Înainte de această funcție, nu exista o diferență clară între un prospect (cineva cu care abia ai vorbit) și un client activ. Acum ai un pipeline dedicat:
+
+**NEW → CONTACTED → QUALIFIED → CONVERTED / DISQUALIFIED**
+
+Când un prospect este gata, îl **convertești cu un singur click** — se creează automat fișa companiei, contactul și oportunitatea de vânzare. Nimeni nu se pierde între crack-uri.
+
+### Contracte — știi mereu ce expiră și când
+
+Contractele nu mai trăiesc în dosare fizice sau pe email. Acum sunt centralizate cu:
+- Data de expirare (sistem te alertează cu **30 de zile înainte**)
+- Status: Schiță / Activ / Expirat / Reînnoit
+- Valoarea contractuală
+- Opțiune auto-reînnoire
+- Documentul PDF stocat securizat
+
+### Prognoze Vânzări — nu mai ghicești, calculezi
+
+Sistemul calculează automat:
+- **Pipeline ponderat**: suma tuturor deal-urilor × probabilitate de câștig
+- **Commit**: ce urmează SIGUR să se închidă (≥70% probabilitate)
+- **Target**: dacă ai setat un target lunar per reprezentant, vezi instant progresul
+
+Exemplu: dacă Ion are deals de 100.000 RON cu probabilitate medie 60%, pipeline-ul lui ponderat este 60.000 RON. Dacă targetul este 80.000 RON, știi că trebuie să mai aducă oportunități.
+
+---
+
 ## Starea curentă a platformei (Aprilie 2026)
 
 ### Complet implementat și funcțional
-- Gestiune companii, contacte, clienți (B2B și B2C)
-- Pipeline vânzări cu Kanban drag & drop
+- Gestiune companii, contacte, clienți (B2B și B2C), **ierarhie companii** (holding → subsidiare)
+- **Leads pipeline** — prospecți cu conversie automată în CRM
+- Pipeline vânzări Kanban drag & drop
+- **Forecasting** — prognoze vânzări cu quota per reprezentant
+- **Contracte** — tracking expirare, alertă 30 zile, stocare PDF
 - Oferte și facturi cu conversie automată
 - Email cu tracking deschideri și clickuri
 - Telefonie Twilio + transcriere AI + rezumat Claude
-- Reminder-uri în timp real (Socket.IO)
+- WhatsApp + SMS (Twilio)
+- Reminder-uri și notificări în timp real (Socket.IO)
 - Automatizări workflow
 - 2FA (Google Authenticator)
 - Audit log complet
 - GDPR (export + ștergere)
-- Rapoarte și dashboard
+- Rapoarte și dashboard personalizabil
 - Segmente contacte cu filtre avansate
 - Secvențe email automate (drip campaigns)
 - Multi-tenancy complet (pregătit pentru francize)
-
-### În lucru (versiunea 2.1)
-- Câmpuri custom per entitate (fiecare franciza să poată adăuga câmpuri proprii)
-- Import facturi ANAF/SPV
-- Approval workflow (aprobare oferte de către manager)
+- ANAF e-Factura (facturare electronică RO)
+- SSO/SAML (autentificare enterprise)
+- Stripe Billing (abonamente)
 
 ### Planificat (versiunea 2.2–3.0)
-- Aplicație mobilă
-- Integrare WhatsApp Business
-- Sincronizare Google Calendar / Outlook
-- OCR facturi furnizori
-- E-semnătură documente
+- Cazuri Suport (ticketing intern cu SLA)
+- Campanii Marketing cu tracking ROI
+- Subscriptions/MRR tracking (venituri recurente)
+- Comenzi (Orders) după acceptare ofertă
+- Aplicație mobilă PWA
+- Câmpuri formula (calculate din alte câmpuri)
 - Marketplace integrări ERP (SAP, Saga)
 - White-label pentru parteneri
 
