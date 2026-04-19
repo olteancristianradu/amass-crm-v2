@@ -43,6 +43,10 @@ import { forecastingRoute } from './routes/forecasting';
 import { casesListRoute } from './routes/cases.list';
 import { ordersListRoute } from './routes/orders.list';
 import { campaignsListRoute } from './routes/campaigns.list';
+import { subscriptionsListRoute } from './routes/subscriptions.list';
+import { commissionsListRoute } from './routes/commissions.list';
+import { territoriesListRoute } from './routes/territories.list';
+import { eventsListRoute } from './routes/events.list';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -103,6 +107,10 @@ const routeTree = rootRoute.addChildren([
     casesListRoute,
     ordersListRoute,
     campaignsListRoute,
+    subscriptionsListRoute,
+    commissionsListRoute,
+    territoriesListRoute,
+    eventsListRoute,
   ]),
 ]);
 

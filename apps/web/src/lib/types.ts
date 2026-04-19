@@ -35,6 +35,7 @@ export interface Company {
   postalCode?: string | null;
   country?: string | null;
   notes?: string | null;
+  parentId?: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;

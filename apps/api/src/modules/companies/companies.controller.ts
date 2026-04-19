@@ -48,6 +48,12 @@ export class CompaniesController {
     return this.companies.findOne(id);
   }
 
+  @Get(':id/subsidiaries')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  subsidiaries(@Param('id') id: string) {
+    return this.companies.subsidiaries(id);
+  }
+
   @Patch(':id')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   update(

@@ -11,6 +11,7 @@ import { InvoicesTab } from '@/features/invoices/InvoicesTab';
 import { AttachmentsTab } from '@/features/attachments/AttachmentsTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
 import { DealsTab } from '@/features/deals/DealsTab';
+import { SubsidiariesTab } from '@/features/companies/SubsidiariesTab';
 import { EmailTab } from '@/features/email/EmailTab';
 import { CallsTab } from '@/features/calls/CallsTab';
 import { ApiError } from '@/lib/api';
@@ -74,6 +75,7 @@ function CompanyDetailPage(): JSX.Element {
             <Field label="Județ" value={data.county} />
             <Field label="Cod poștal" value={data.postalCode} />
             <Field label="Țară" value={data.country} />
+            {data.parentId && <ParentLink parentId={data.parentId} />}
           </CardContent>
         </Card>
 
@@ -90,6 +92,7 @@ function CompanyDetailPage(): JSX.Element {
                 <TabsTrigger value="calls">Apeluri</TabsTrigger>
                 <TabsTrigger value="attachments">Fișiere</TabsTrigger>
                 <TabsTrigger value="invoices">Facturi</TabsTrigger>
+                <TabsTrigger value="subsidiaries">Subsidiare</TabsTrigger>
               </TabsList>
               <TabsContent value="timeline">
                 <TimelineTab subjectType="COMPANY" subjectId={id} />
@@ -118,6 +121,9 @@ function CompanyDetailPage(): JSX.Element {
               <TabsContent value="invoices">
                 <InvoicesTab companyId={id} />
               </TabsContent>
+              <TabsContent value="subsidiaries">
+                <SubsidiariesTab companyId={id} />
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -131,6 +137,21 @@ function Field({ label, value }: { label: string; value?: string | null }): JSX.
     <div className="flex justify-between gap-4">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium">{value ?? '—'}</span>
+    </div>
+  );
+}
+
+function ParentLink({ parentId }: { parentId: string }): JSX.Element {
+  const { data } = useQuery({
+    queryKey: ['companies', 'detail', parentId],
+    queryFn: () => companiesApi.get(parentId),
+  });
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-muted-foreground">Companie-mamă</span>
+      <Link to="/app/companies/$id" params={{ id: parentId }} className="font-medium text-primary hover:underline">
+        {data?.name ?? '…'}
+      </Link>
     </div>
   );
 }

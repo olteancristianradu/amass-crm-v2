@@ -1802,6 +1802,41 @@ model ForecastQuota {
   @@map("forecast_quotas")
 }
 
+// ─── Customer Subscriptions / MRR ────────────────────────────────────────────
+
+enum CustomerSubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+/**
+ * Tenant's OWN customers that pay on a recurring schedule. Distinct from
+ * BillingSubscription (which tracks SaaS subs paid by tenant to us via Stripe).
+ * Powers the MRR/ARR/churn dashboard.
+ */
+model CustomerSubscription {
+  id           String                     @id @default(cuid())
+  tenantId     String                     @map("tenant_id")
+  companyId    String                     @map("company_id")
+  name         String
+  plan         String?
+  status       CustomerSubscriptionStatus @default(ACTIVE)
+  mrr          Decimal                    @db.Decimal(14, 2)
+  currency     String                     @default("RON")
+  startDate    DateTime                   @map("start_date")
+  endDate      DateTime?                  @map("end_date")
+  cancelledAt  DateTime?                  @map("cancelled_at")
+  createdAt    DateTime                   @default(now()) @map("created_at")
+  updatedAt    DateTime                   @updatedAt @map("updated_at")
+  deletedAt    DateTime?                  @map("deleted_at")
+
+  @@index([tenantId, status])
+  @@index([tenantId, companyId])
+  @@map("customer_subscriptions")
+}
+
 // ─── S56 Cases (support tickets) ──────────────────────────────────────────────
 
 enum CaseStatus {
@@ -1933,4 +1968,260 @@ model Campaign {
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
   @@map("campaigns")
+}
+
+// ─── Validation Rules (custom field validation on entities) ───────────────────
+
+enum ValidationEntityType {
+  COMPANY
+  CONTACT
+  CLIENT
+  DEAL
+  LEAD
+  CASE
+  ORDER
+}
+
+enum ValidationOperator {
+  REGEX
+  MIN_LENGTH
+  MAX_LENGTH
+  EQUALS
+  NOT_EQUALS
+}
+
+/**
+ * Business rules applied pre-save on entity writes. Minimal expression engine:
+ * a single `field` + operator + value. Complex boolean logic is intentionally
+ * deferred — if you need AND/OR, create multiple rules.
+ */
+model ValidationRule {
+  id           String               @id @default(cuid())
+  tenantId     String               @map("tenant_id")
+  entityType   ValidationEntityType @map("entity_type")
+  field        String
+  operator     ValidationOperator
+  value        String
+  errorMessage String               @map("error_message")
+  isActive     Boolean              @default(true) @map("is_active")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId, entityType, isActive])
+  @@map("validation_rules")
+}
+
+// ─── Formula Fields ───────────────────────────────────────────────────────────
+
+/**
+ * Tenant-defined computed fields. Expression references other fields by name.
+ * Evaluation is deliberately sandboxed — no free-form JS. Operators: + - * /,
+ * CONCAT(...), IF(cond, a, b). See FormulaEvaluator for exact grammar.
+ */
+model FormulaField {
+  id           String               @id @default(cuid())
+  tenantId     String               @map("tenant_id")
+  entityType   ValidationEntityType @map("entity_type")
+  fieldName    String               @map("field_name")
+  expression   String
+  returnType   String               @default("STRING") @map("return_type")
+  isActive     Boolean              @default(true) @map("is_active")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  @@unique([tenantId, entityType, fieldName])
+  @@map("formula_fields")
+}
+
+// ─── Product Bundles / Variants / Stock ──────────────────────────────────────
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  productId  String   @map("product_id")
+  sku        String
+  name       String
+  price      Decimal? @db.Decimal(14, 2)
+  stockQty   Int      @default(0) @map("stock_qty")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductBundle {
+  id          String              @id @default(cuid())
+  tenantId    String              @map("tenant_id")
+  name        String
+  description String?
+  price       Decimal             @db.Decimal(14, 2)
+  currency    String              @default("RON")
+  isActive    Boolean             @default(true) @map("is_active")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  items       ProductBundleItem[]
+
+  @@map("product_bundles")
+}
+
+model ProductBundleItem {
+  id        String        @id @default(cuid())
+  bundleId  String        @map("bundle_id")
+  productId String        @map("product_id")
+  quantity  Int           @default(1)
+  bundle    ProductBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@index([bundleId])
+  @@map("product_bundle_items")
+}
+
+// ─── Sales Commissions ───────────────────────────────────────────────────────
+
+model CommissionPlan {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  name       String
+  /// Percent applied to WON deal value. Example: 5.0 = 5% commission.
+  percent    Decimal  @db.Decimal(5, 2)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("commission_plans")
+}
+
+/**
+ * Computed commissions per (user × period). Filled by CommissionsService
+ * which walks WON deals in the period and multiplies by the assigned plan.
+ */
+model Commission {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  userId     String   @map("user_id")
+  planId     String   @map("plan_id")
+  year       Int
+  month      Int
+  dealsCount Int      @default(0) @map("deals_count")
+  basis      Decimal  @db.Decimal(14, 2)
+  amount     Decimal  @db.Decimal(14, 2)
+  currency   String   @default("RON")
+  paidAt     DateTime? @map("paid_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId, year, month])
+  @@map("commissions")
+}
+
+// ─── Territory Management (Tier C) ───────────────────────────────────────────
+
+model Territory {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  /// Region criteria: list of counties (ISO codes). Null = no region filter.
+  counties    String[] @default([])
+  /// Industry filter: list of industry keywords. Null = no industry filter.
+  industries  String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  assignments TerritoryAssignment[]
+
+  @@map("territories")
+}
+
+model TerritoryAssignment {
+  id          String    @id @default(cuid())
+  territoryId String    @map("territory_id")
+  userId      String    @map("user_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  territory   Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+
+  @@unique([territoryId, userId])
+  @@map("territory_assignments")
+}
+
+// ─── Chatter (internal comment feed) ─────────────────────────────────────────
+
+enum ChatterSubjectType {
+  COMPANY
+  CONTACT
+  CLIENT
+  DEAL
+  LEAD
+  CASE
+  ORDER
+  PROJECT
+}
+
+model ChatterPost {
+  id           String             @id @default(cuid())
+  tenantId     String             @map("tenant_id")
+  subjectType  ChatterSubjectType @map("subject_type")
+  subjectId    String             @map("subject_id")
+  authorId     String             @map("author_id")
+  body         String
+  /// IDs of users @-mentioned. Notifications fire via NotificationsService.
+  mentions     String[]           @default([])
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+  deletedAt    DateTime?          @map("deleted_at")
+
+  @@index([tenantId, subjectType, subjectId, createdAt])
+  @@map("chatter_posts")
+}
+
+// ─── Event Management (Tier C) ───────────────────────────────────────────────
+
+enum EventKind {
+  CONFERENCE
+  WEBINAR
+  WORKSHOP
+  MEETUP
+}
+
+enum EventAttendeeStatus {
+  INVITED
+  REGISTERED
+  ATTENDED
+  CANCELLED
+}
+
+model Event {
+  id          String         @id @default(cuid())
+  tenantId    String         @map("tenant_id")
+  name        String
+  description String?
+  kind        EventKind      @default(CONFERENCE)
+  startAt     DateTime       @map("start_at")
+  endAt       DateTime       @map("end_at")
+  location    String?
+  capacity    Int?
+  createdById String?        @map("created_by_id")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+  attendees   EventAttendee[]
+
+  @@index([tenantId, startAt])
+  @@map("events")
+}
+
+model EventAttendee {
+  id         String              @id @default(cuid())
+  eventId    String              @map("event_id")
+  contactId  String?             @map("contact_id")
+  clientId   String?             @map("client_id")
+  email      String?
+  fullName   String?             @map("full_name")
+  status     EventAttendeeStatus @default(INVITED)
+  registeredAt DateTime?         @map("registered_at")
+  attendedAt DateTime?           @map("attended_at")
+  event      Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_attendees")
 }

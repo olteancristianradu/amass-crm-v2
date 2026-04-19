@@ -34,6 +34,27 @@
 
 ## Entries
 
+### 2026-04-19 — Formula evaluator: use recursive descent, never eval/new Function
+- **Sprint / area:** Tier B / formula-fields
+- **Symptom:** Nevoie de expresii calculate definite de tenant ("MRR * 12", "CONCAT(firstName, ' ', lastName)") fără risc de code injection.
+- **Root cause:** `eval()` sau `new Function()` permit execuție arbitrară de cod în contextul serverului.
+- **Fix:** Parser recursive descent manual: tokenizer → parseExpr → parseTerm → parseFactor → callBuiltin. Whitelist de built-ins (CONCAT, IF, UPPER, LOWER, LEN, NUMBER, ROUND). Variabilele sunt lookup în `context` map, nu în scope global.
+- **Lesson:** Orice sandbox de expresii definit de utilizator în Node.js TREBUIE să evite `eval`/`Function`. Recursive descent cu whitelist este simplu, testabil și suficient pentru formulele CRM.
+
+### 2026-04-19 — catch(e) unused var triggers ESLint @typescript-eslint/no-unused-vars
+- **Sprint / area:** Tier B / territories
+- **Symptom:** `catch (e)` unde `e` nu este folosit dă eroare lint.
+- **Root cause:** `@typescript-eslint/no-unused-vars` include și parametrii catch.
+- **Fix:** Folosit `catch {` (fără parametru) — sintaxă validă în ES2019+/TS.
+- **Lesson:** Când vrei să ignori eroarea din catch, scrie `catch {` nu `catch (_e)` sau `catch (e)`.
+
+### 2026-04-19 — SLA escalation via raw SQL cu enum cast Postgres
+- **Sprint / area:** Tier B / cases
+- **Symptom:** `$executeRaw` cu cast la enum Prisma (`"CasePriority"`) necesită ghilimele duble în SQL Postgres.
+- **Root cause:** Enum-urile Prisma sunt tipuri Postgres cu majuscule; cast via `::` necesită exact `"CasePriority"` cu ghilimele (case sensitive).
+- **Fix:** `${next}::"CasePriority"` în template literal `$executeRaw`.
+- **Lesson:** La cast enum Postgres în raw SQL, folosește întotdeauna ghilimele duble: `'WON'::"DealStatus"`.
+
 ### 2026-04-19 — PWA service worker must NOT cache /api/ requests
 - **Sprint / area:** Tier B / PWA
 - **Symptom:** Risc de leak multi-tenant dacă service worker-ul cache-uiește răspunsuri API între utilizatori (alt tenant primește date altui tenant din cache).

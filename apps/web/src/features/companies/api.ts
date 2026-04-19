@@ -8,4 +8,5 @@ export const companiesApi = {
   create: (dto: Partial<Company>) => api.post<Company>('/companies', dto),
   update: (id: string, dto: Partial<Company>) => api.patch<Company>(`/companies/${id}`, dto),
   remove: (id: string) => api.delete<void>(`/companies/${id}`),
+  subsidiaries: (id: string) => api.get<Company[]>(`/companies/${id}/subsidiaries`),
 };

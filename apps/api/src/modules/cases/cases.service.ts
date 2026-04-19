@@ -101,4 +101,31 @@ export class CasesService {
       tx.case.update({ where: { id }, data: { deletedAt: new Date() } }),
     );
   }
+
+  /**
+   * SLA escalation sweep across ALL tenants. Promotes priority on any
+   * still-open case whose slaDeadline has passed: NORMAL→HIGH, HIGH→URGENT.
+   * Idempotent — already-URGENT cases don't move.
+   */
+  async escalateOverdueForAllTenants(): Promise<number> {
+    const now = new Date();
+    const candidates = await this.prisma.$queryRaw<{ id: string; priority: string }[]>`
+      SELECT id, priority FROM cases
+      WHERE deleted_at IS NULL
+        AND resolved_at IS NULL
+        AND sla_deadline IS NOT NULL
+        AND sla_deadline < ${now}
+        AND priority <> 'URGENT'
+    `;
+    let count = 0;
+    for (const row of candidates) {
+      const next = row.priority === 'NORMAL' ? 'HIGH' : 'URGENT';
+      await this.prisma.$executeRaw`
+        UPDATE cases SET priority = ${next}::"CasePriority", updated_at = NOW()
+        WHERE id = ${row.id}
+      `;
+      count++;
+    }
+    return count;
+  }
 }

@@ -26,6 +26,7 @@ export const CreateCompanySchema = z.object({
   postalCode: z.string().trim().max(32).optional(),
   country: z.string().trim().max(64).optional(),
   notes: z.string().max(8000).optional(),
+  parentId: z.string().min(1).max(64).nullable().optional(),
 });
 export type CreateCompanyDto = z.infer<typeof CreateCompanySchema>;
 

@@ -58,6 +58,15 @@ import { ForecastingModule } from './modules/forecasting/forecasting.module';
 import { CasesModule } from './modules/cases/cases.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { CustomerSubscriptionsModule } from './modules/customer-subscriptions/customer-subscriptions.module';
+import { ValidationRulesModule } from './modules/validation-rules/validation-rules.module';
+import { FormulaFieldsModule } from './modules/formula-fields/formula-fields.module';
+import { ProductVariantsModule } from './modules/product-variants/product-variants.module';
+import { ProductBundlesModule } from './modules/product-bundles/product-bundles.module';
+import { CommissionsModule } from './modules/commissions/commissions.module';
+import { TerritoriesModule } from './modules/territories/territories.module';
+import { ChatterModule } from './modules/chatter/chatter.module';
+import { EventsModule } from './modules/events/events.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -146,6 +155,15 @@ import { CampaignsModule } from './modules/campaigns/campaigns.module';
     CasesModule,
     OrdersModule,
     CampaignsModule,
+    CustomerSubscriptionsModule,
+    ValidationRulesModule,
+    FormulaFieldsModule,
+    ProductVariantsModule,
+    ProductBundlesModule,
+    CommissionsModule,
+    TerritoriesModule,
+    ChatterModule,
+    EventsModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

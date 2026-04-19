@@ -1,6 +1,6 @@
 # STATUS.md — Stadiul Proiectului Amass CRM v2
 
-> Actualizat: 2026-04-19 | Sprint curent: S56–S58 (Cases, Orders, Campaigns) + PWA
+> Actualizat: 2026-04-19 | Sprint curent: Tier B+C complete (MRR, Validare, Formula, Variante, Bundle-uri, Comisioane, Teritorii, Chatter, Evenimente, SLA auto-escalation)
 
 ---
 
@@ -8,9 +8,9 @@
 
 | Indicator | Valoare |
 |-----------|---------|
-| Module backend | 51 |
-| Modele Prisma (tabele) | 64+ |
-| Pagini frontend | 46 |
+| Module backend | 63 |
+| Modele Prisma (tabele) | 80+ |
+| Pagini frontend | 51 |
 | Unit tests API | **32 passing** |
 | TypeScript errors | **0** |
 | Lint errors | **0** |
@@ -52,6 +52,7 @@
 
 ### Suport
 - [x] **Cazuri Suport (Cases/Tickets)** — auto-numerotare per tenant, prioritate, SLA deadline, asignare, tranziții status auto-stamp resolvedAt
+- [x] **SLA Escalation** — cron fiecare 15min, auto-bump NORMAL→HIGH→URGENT pe cazuri cu SLA depășit
 
 ### Integrări & Platform
 - [x] Calendar (Google + Outlook sync, CalDAV)
@@ -83,6 +84,10 @@
 - [x] **Tichete Suport** (list, KPI SLA depășit, status inline)
 - [x] **Comenzi** (list, creare cu line items, status inline)
 - [x] **Campanii Marketing** (list, creare, conversion rate, ROI)
+- [x] **Abonamente Clienți / MRR** — dashboard MRR/ARR/churn, snapshot per plan
+- [x] **Comisioane Vânzări** — planuri commission, calcul lunar per agent, mark-paid
+- [x] **Teritorii** — zone geografice/industrie, asignare agenți, CRUD
+- [x] **Evenimente** — conferințe/webinare/workshop, invitați + tracking prezență
 - [x] **PWA Mobile** — installable, manifest + service worker (offline shell)
 - [x] Tasks, Reminders
 - [x] Invoices, Quotes, Products, Projects
@@ -97,33 +102,29 @@
 
 ---
 
-## 🔄 Parțial implementat
+## ✅ Completat în această sesiune (Tier B+C)
 
-- [ ] **Company Timeline UI** — backend există (Activities), UI aggregat lipsă
-- [ ] **Dashboard KPIs reale** — pagina există, date din API-uri reale nu sunt connectate
-- [ ] **Company subsidiary view** — `parent_id` în DB, UI de vizualizare lipsă
+- [x] **Company subsidiary view** — UI cu tab "Subsidiare" + ParentLink pe Company Detail
+- [x] **Dashboard KPIs reale** — conectat la `/reports/dashboard` API real
+- [x] **Company Timeline UI** — tab "Cronologie" cu TimelineTab component
+- [x] **Subscriptions/MRR** — model `CustomerSubscription`, service+controller, snapshot MRR/ARR/churn, dashboard FE
+- [x] **Reguli de validare** — model `ValidationRule`, engine evaluator (REGEX/MIN_LENGTH/MAX_LENGTH/EQUALS/NOT_EQUALS), CRUD API
+- [x] **Câmpuri formula** — model `FormulaField`, parser sandboxat fără eval (grammar complet: +/-/*//, CONCAT/IF/UPPER/LOWER/LEN), CRUD API + endpoint evaluate
+- [x] **Product Variants** — model `ProductVariant` (SKU + stoc), CRUD + adjust-stock endpoint
+- [x] **Product Bundles** — model `ProductBundle` + `ProductBundleItem`, CRUD cu items atomice
+- [x] **Comisioane vânzători** — model `CommissionPlan` + `Commission`, compute lunar (walk WON deals × percent), upsert idempotent, mark-paid, dashboard FE
+- [x] **SLA escalation** — cron `*/15 * * * *`, auto-bump NORMAL→HIGH→URGENT pe cazuri cu `slaDeadline` depășit
+- [x] **Territory Management (Tier C)** — model `Territory` + `TerritoryAssignment`, counties/industries filter, assign/unassign, dashboard FE
+- [x] **Chatter intern (Tier C)** — model `ChatterPost`, feed polimorfic pe orice subiect, edit/delete doar de author, mentions[]
+- [x] **Event Management (Tier C)** — model `Event` + `EventAttendee`, CRUD complet, status attendee (INVITED→REGISTERED→ATTENDED), dashboard FE
 
 ---
 
-## ❌ Lipsă față de Salesforce (prioritizat)
+## ❌ Rămase (nice-to-have, nicio urgență)
 
-### Prioritate mare (Tier B)
-- [ ] **Subscriptions/MRR** — venituri recurente, churn tracking, ARR dashboard (Stripe Billing există, dar fără dashboard MRR/ARR)
-- [ ] **Reguli de validare** — logică custom pe câmpuri (ex: "CUI must be 8 digits")
-- [ ] **Câmpuri formula** — câmpuri calculate din alte câmpuri
-- [ ] **SLA escalation rules** — auto-escalation tichete SLA depășit (model există, escaladare automată lipsă)
-
-### Prioritate medie (Tier B/C)
-- [ ] **Gantt view** pentru proiecte
-- [ ] **Catalog produse avansat** — bundle-uri, variante, stoc
-- [ ] **Comisioane vânzători** — tracking sales rep commissions
-- [ ] **Campaign automation** — declanșare automată email/SMS din Workflows pe Campaign
-
-### Prioritate mică / Enterprise (Tier C — skip pentru SMB)
-- [ ] **Territory Management** — zone geografice/industrie per rep (over-engineered pentru România SMB)
-- [ ] **Marketplace integrări** (AppExchange equivalent — necesită ecosistem terț)
-- [ ] **Chatter intern** — comentarii/feed pe fiecare record (Notes acoperă use-case)
-- [ ] **Event Management** — conferințe, webinare (use Eventbrite/Meetup)
+- [ ] **Gantt view proiecte** — necesită bibliotecă `gantt-task-react`, UI vizual
+- [ ] **Marketplace integrări** — AppExchange equiv., necesită ecosistem terț
+- [ ] **Campaign automation trigger** — Workflow → declanșare Campaign send automată
 
 ---
 

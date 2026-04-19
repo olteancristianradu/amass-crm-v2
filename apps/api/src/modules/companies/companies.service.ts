@@ -85,6 +85,18 @@ export class CompaniesService {
     return company;
   }
 
+  /** List direct subsidiaries (children where parentId = :id). */
+  async subsidiaries(id: string): Promise<Company[]> {
+    await this.findOne(id);
+    const ctx = requireTenantContext();
+    return this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.company.findMany({
+        where: { parentId: id, tenantId: ctx.tenantId, deletedAt: null },
+        orderBy: { name: 'asc' },
+      }),
+    );
+  }
+
   async update(id: string, dto: UpdateCompanyDto): Promise<Company> {
     await this.findOne(id); // existence + tenant check
     const ctx = requireTenantContext();

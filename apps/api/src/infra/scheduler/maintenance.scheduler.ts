@@ -10,6 +10,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { CasesService } from '../../modules/cases/cases.service';
 import { GdprService } from '../../modules/gdpr/gdpr.service';
 import { InvoicesService } from '../../modules/invoices/invoices.service';
 
@@ -20,6 +21,7 @@ export class MaintenanceScheduler {
   constructor(
     private readonly gdpr: GdprService,
     private readonly invoices: InvoicesService,
+    private readonly cases: CasesService,
   ) {}
 
   /** Run every day at 02:00 UTC */
@@ -42,6 +44,17 @@ export class MaintenanceScheduler {
       if (count > 0) this.logger.log(`Marked ${count} invoice(s) as OVERDUE`);
     } catch (err) {
       this.logger.error('Invoice overdue sweep failed: %o', err);
+    }
+  }
+
+  /** Bump priority on cases whose SLA deadline has passed. Every 15 minutes. */
+  @Cron('*/15 * * * *', { name: 'cases-sla-escalation', timeZone: 'UTC' })
+  async handleCaseSlaEscalation(): Promise<void> {
+    try {
+      const count = await this.cases.escalateOverdueForAllTenants();
+      if (count > 0) this.logger.log(`SLA-escalated ${count} case(s)`);
+    } catch (err) {
+      this.logger.error('Case SLA escalation failed: %o', err);
     }
   }
 }
