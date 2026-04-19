@@ -1801,3 +1801,136 @@ model ForecastQuota {
   @@unique([tenantId, userId, year, period, periodType])
   @@map("forecast_quotas")
 }
+
+// ─── S56 Cases (support tickets) ──────────────────────────────────────────────
+
+enum CaseStatus {
+  NEW
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum CasePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Case {
+  id           String       @id @default(cuid())
+  tenantId     String       @map("tenant_id")
+  number       Int
+  subject      String
+  description  String?
+  status       CaseStatus   @default(NEW)
+  priority     CasePriority @default(NORMAL)
+  companyId    String?      @map("company_id")
+  contactId    String?      @map("contact_id")
+  assigneeId   String?      @map("assignee_id")
+  slaDeadline  DateTime?    @map("sla_deadline")
+  resolvedAt   DateTime?    @map("resolved_at")
+  resolution   String?
+  createdById  String?      @map("created_by_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  deletedAt    DateTime?    @map("deleted_at")
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, assigneeId])
+  @@index([tenantId, companyId])
+  @@map("cases")
+}
+
+// ─── S57 Orders (Q2C) ─────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  FULFILLED
+  CANCELLED
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  tenantId      String      @map("tenant_id")
+  number        Int
+  companyId     String      @map("company_id")
+  quoteId       String?     @map("quote_id")
+  status        OrderStatus @default(DRAFT)
+  totalAmount   Decimal     @default(0) @db.Decimal(14, 2) @map("total_amount")
+  currency      String      @default("RON")
+  notes         String?
+  confirmedAt   DateTime?   @map("confirmed_at")
+  fulfilledAt   DateTime?   @map("fulfilled_at")
+  cancelledAt   DateTime?   @map("cancelled_at")
+  createdById   String?     @map("created_by_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
+  items         OrderItem[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, companyId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String  @map("order_id")
+  productId   String? @map("product_id")
+  description String
+  quantity    Decimal @default(1) @db.Decimal(14, 3)
+  unitPrice   Decimal @default(0) @db.Decimal(14, 2) @map("unit_price")
+  total       Decimal @default(0) @db.Decimal(14, 2)
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ─── S58 Marketing Campaigns ──────────────────────────────────────────────────
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum CampaignChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  MIXED
+}
+
+model Campaign {
+  id            String           @id @default(cuid())
+  tenantId      String           @map("tenant_id")
+  name          String
+  description   String?
+  status        CampaignStatus   @default(DRAFT)
+  channel       CampaignChannel  @default(EMAIL)
+  segmentId    String?           @map("segment_id")
+  startDate     DateTime?        @map("start_date")
+  endDate       DateTime?        @map("end_date")
+  budget        Decimal?         @db.Decimal(14, 2)
+  currency      String           @default("RON")
+  targetCount   Int              @default(0) @map("target_count")
+  sentCount     Int              @default(0) @map("sent_count")
+  conversions   Int              @default(0)
+  revenue       Decimal          @default(0) @db.Decimal(14, 2)
+  createdById   String?          @map("created_by_id")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  deletedAt     DateTime?        @map("deleted_at")
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("campaigns")
+}

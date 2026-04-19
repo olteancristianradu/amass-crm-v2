@@ -229,6 +229,38 @@ Sistemul calculează automat:
 
 Exemplu: dacă Ion are deals de 100.000 RON cu probabilitate medie 60%, pipeline-ul lui ponderat este 60.000 RON. Dacă targetul este 80.000 RON, știi că trebuie să mai aducă oportunități.
 
+### Tichete suport — niciun client nu mai cade între crack-uri
+
+Înainte: emailurile clienților rămâneau în inbox-uri private, problemele se uitau, SLA-urile se rateau. Acum:
+- **Tichete numerotate automat** (#1, #2, … per firma ta)
+- **Prioritate** Scăzută / Normală / Înaltă / Urgentă
+- **SLA deadline** — sistemul îți arată cu roșu tichetele care au depășit termenul
+- **Asignare** către un coleg responsabil
+- **Tranziție status** Nou → Deschis → În așteptare → Rezolvat → Închis (data rezolvării se completează automat)
+
+KPI-uri vizibile imediat: câte tichete deschise ai, câte au SLA depășit, câte sunt urgente.
+
+### Comenzi — flux Q2C complet (Quote to Cash)
+
+După ce o ofertă este acceptată de client, urmează **comanda fermă**. Acum ai:
+- **Comenzi numerotate automat** cu linii de produs (descriere, cantitate, preț unitar)
+- **Total auto-calculat** din linii
+- Lifecycle Schiță → Confirmată → Livrată → Anulată (data confirmării/livrării/anulării se completează automat)
+- KPI: total comenzi, valoare confirmată/livrată
+
+### Campanii Marketing — măsoară ROI-ul real al outreach-ului
+
+Trimiți emailuri / SMS-uri / mesaje WhatsApp către contactele tale și vrei să știi care campanie aduce cei mai mulți bani. Acum:
+- **Buget vs Venit atribuit** → calculezi ROI-ul direct
+- **Target / Trimise / Conversii** → vezi cât de eficient ajungi la public
+- **Conversion rate auto-calculat** (% conversii din mesaje trimise)
+- Multi-canal: Email, SMS, WhatsApp sau Mixed
+- Status: Schiță / Activă / Întreruptă / Finalizată
+
+### Mobile (PWA) — instalezi CRM-ul pe telefon
+
+Acum AMASS-CRM se **instalează pe telefon ca o aplicație nativă** (Android & iOS) — fără App Store. Deschizi site-ul, apeși "Adaugă pe ecranul principal" și ai aplicația direct pe telefon. Funcționează offline pentru navigare în interfață.
+
 ---
 
 ## Starea curentă a platformei (Aprilie 2026)
@@ -239,6 +271,10 @@ Exemplu: dacă Ion are deals de 100.000 RON cu probabilitate medie 60%, pipeline
 - Pipeline vânzări Kanban drag & drop
 - **Forecasting** — prognoze vânzări cu quota per reprezentant
 - **Contracte** — tracking expirare, alertă 30 zile, stocare PDF
+- **Comenzi (Q2C)** — comenzi cu line items, auto-numerotate, lifecycle complet
+- **Tichete suport** — auto-numerotate, SLA tracking, prioritizare, asignare
+- **Campanii marketing** — multi-canal, tracking conversii, ROI calculat
+- **PWA Mobile** — instalabilă pe telefon (Android + iOS)
 - Oferte și facturi cu conversie automată
 - Email cu tracking deschideri și clickuri
 - Telefonie Twilio + transcriere AI + rezumat Claude

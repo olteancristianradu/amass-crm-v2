@@ -34,6 +34,20 @@
 
 ## Entries
 
+### 2026-04-19 — PWA service worker must NOT cache /api/ requests
+- **Sprint / area:** Tier B / PWA
+- **Symptom:** Risc de leak multi-tenant dacă service worker-ul cache-uiește răspunsuri API între utilizatori (alt tenant primește date altui tenant din cache).
+- **Root cause:** Default fetch interception cache-uiește toate GET requests; combinat cu JWT-uri per-tenant, două sesiuni pot returna răspunsul greșit.
+- **Fix:** Service worker (`apps/web/public/sw.js`) verifică `url.pathname.startsWith('/api/')` și face skip → mereu network. Doar app shell-ul (HTML, manifest, icons) este cache-uit.
+- **Lesson:** Pentru PWA în context multi-tenant + auth, NU intercepta cereri API. Cache-uiește doar resurse statice publice fără semnificație tenant-specifică.
+
+### 2026-04-19 — Auto-numbered records (Cases, Orders) need findFirst orderBy desc, not COUNT
+- **Sprint / area:** Tier B / Cases & Orders
+- **Symptom:** Două creates concurente pot primi același număr dacă folosim `count() + 1`.
+- **Root cause:** `count()` nu blochează rândurile inserate concurent; race condition între tx-uri.
+- **Fix:** Folosit `findFirst({ orderBy: { number: 'desc' } })` apoi insert. UNIQUE constraint `(tenant_id, number)` garantează că un duplicat va eșua și aplicația poate retry. Tx-ul fiind serializabil sub `runWithTenant` reduce probabilitatea conflictului.
+- **Lesson:** Pentru numere secvențiale per-tenant, combină `findFirst` (cel mai mare) cu UNIQUE constraint. Dacă volumul crește, migrează la sequence Postgres dedicat per tenant sau lock advisory.
+
 ### 2026-04-19 — Shared package export conflict: LeadSourceSchema duplicate
 - **Sprint / area:** S53 / Leads / shared schemas
 - **Symptom:** TypeScript error `Module './schemas/company' has already exported a member named 'LeadSourceSchema'`. Both `company.ts` and `leads.ts` exported it.

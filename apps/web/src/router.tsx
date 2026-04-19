@@ -40,6 +40,9 @@ import { settingsWebhooksRoute } from './routes/settings.webhooks';
 import { leadsListRoute } from './routes/leads.list';
 import { contractsListRoute } from './routes/contracts.list';
 import { forecastingRoute } from './routes/forecasting';
+import { casesListRoute } from './routes/cases.list';
+import { ordersListRoute } from './routes/orders.list';
+import { campaignsListRoute } from './routes/campaigns.list';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -97,6 +100,9 @@ const routeTree = rootRoute.addChildren([
     leadsListRoute,
     contractsListRoute,
     forecastingRoute,
+    casesListRoute,
+    ordersListRoute,
+    campaignsListRoute,
   ]),
 ]);
 

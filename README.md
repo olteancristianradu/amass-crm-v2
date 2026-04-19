@@ -134,7 +134,15 @@
 | **Pipeline / Deals** | Kanban drag & drop, multiple pipeline-uri, etape configurabile, valoare + monedă, probabilitate (override per deal), ownerId, status WON/LOST + motiv pierdere |
 | **Forecasting** | Pipeline ponderat (value × probability), commit (≥70% prob), best case, quota per user per perioadă, tabel per reprezentant |
 | **Contracte** | CRUD contracte legate de companii, tracking expirare (alert 30 zile), auto-renewal, stocare PDF MinIO, filtrare status/companie |
+| **Comenzi (Orders)** | Quote-to-Cash: comenzi cu line items, auto-numerotare per tenant (UNIQUE constraint), lifecycle DRAFT→CONFIRMED→FULFILLED→CANCELLED cu auto-stamp lifecycle dates, total auto-calculat din linii |
 | **Tasks** | Legate de deal SAU de subiect polymorfic, prioritate, scadență, assignee |
+
+### Suport & Marketing
+
+| Modul | Funcționalități |
+|---|---|
+| **Tichete suport (Cases)** | Auto-numerotate per tenant, prioritate (LOW→URGENT), SLA deadline cu alert depășire, asignare, status lifecycle NEW→OPEN→PENDING→RESOLVED→CLOSED cu auto-stamp `resolvedAt` la tranziție terminală, link Company/Contact |
+| **Campanii marketing** | Outreach multi-canal (EMAIL/SMS/WHATSAPP/MIXED), legare opțională de Segment, tracking targetCount/sentCount/conversions/revenue, calcul conversion rate, buget vs venit pentru ROI |
 
 ### Comunicare
 

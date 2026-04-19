@@ -1,6 +1,6 @@
 # STATUS.md — Stadiul Proiectului Amass CRM v2
 
-> Actualizat: 2026-04-19 | Sprint curent: S53–S55 (Leads, Contracte, Forecasting)
+> Actualizat: 2026-04-19 | Sprint curent: S56–S58 (Cases, Orders, Campaigns) + PWA
 
 ---
 
@@ -8,13 +8,14 @@
 
 | Indicator | Valoare |
 |-----------|---------|
-| Module backend | 48 |
-| Modele Prisma (tabele) | 60+ |
-| Pagini frontend | 43 |
+| Module backend | 51 |
+| Modele Prisma (tabele) | 64+ |
+| Pagini frontend | 46 |
 | Unit tests API | **32 passing** |
 | TypeScript errors | **0** |
 | Lint errors | **0** |
 | E2e tests | 13 fișiere (necesită Docker cu Postgres + Redis + MinIO) |
+| PWA installable | ✅ (manifest + service worker) |
 
 ---
 
@@ -38,6 +39,8 @@
 - [x] Lead Scoring (AI-powered, BullMQ async recompute)
 - [x] **Forecasting** — pipeline ponderat vs quota per user/perioadă
 - [x] **Contracte** — CRUD cu tracking expirare, auto-renewal, stocare PDF MinIO
+- [x] **Comenzi (Orders)** — Q2C: comenzi cu line items, lifecycle DRAFT→CONFIRMED→FULFILLED, total auto-calculat
+- [x] **Campanii Marketing** — outreach multi-canal (email/SMS/WhatsApp), tracking conversii, ROI, buget
 
 ### Comunicare
 - [x] Email (SMTP + tracking deschidere click)
@@ -46,6 +49,9 @@
 - [x] WhatsApp (Twilio Business API)
 - [x] SMS (Twilio, inbound + outbound)
 - [x] Notificări real-time (Socket.IO gateway, JWT auth)
+
+### Suport
+- [x] **Cazuri Suport (Cases/Tickets)** — auto-numerotare per tenant, prioritate, SLA deadline, asignare, tranziții status auto-stamp resolvedAt
 
 ### Integrări & Platform
 - [x] Calendar (Google + Outlook sync, CalDAV)
@@ -67,13 +73,17 @@
 - [x] Sentry (error monitoring API + Web)
 - [x] OpenAPI/Swagger auto-generat
 
-### Frontend (43 pagini)
+### Frontend (46 pagini)
 - [x] Dashboard
 - [x] Companies (list + detail), Contacts (list + detail), Clients (list + detail)
 - [x] **Leads** (list, creare, conversie)
 - [x] Deals Kanban
 - [x] **Contracte** (list, creare, tracking expirare)
 - [x] **Prognoze Vânzări** (pipeline vs quota)
+- [x] **Tichete Suport** (list, KPI SLA depășit, status inline)
+- [x] **Comenzi** (list, creare cu line items, status inline)
+- [x] **Campanii Marketing** (list, creare, conversion rate, ROI)
+- [x] **PWA Mobile** — installable, manifest + service worker (offline shell)
 - [x] Tasks, Reminders
 - [x] Invoices, Quotes, Products, Projects
 - [x] Calendar
@@ -97,25 +107,23 @@
 
 ## ❌ Lipsă față de Salesforce (prioritizat)
 
-### Prioritate mare
-- [ ] **Cazuri Suport (Cases/Tickets)** — ticketing intern, SLA tracking, escalation rules
-- [ ] **Campanii Marketing** — grupuri de contacte, tracking conversii, ROI campanie
-- [ ] **Subscriptions/MRR** — venituri recurente, churn tracking, ARR dashboard
-- [ ] **Comenzi (Orders)** — after quote acceptance → order + fulfillment tracking
-
-### Prioritate medie
+### Prioritate mare (Tier B)
+- [ ] **Subscriptions/MRR** — venituri recurente, churn tracking, ARR dashboard (Stripe Billing există, dar fără dashboard MRR/ARR)
 - [ ] **Reguli de validare** — logică custom pe câmpuri (ex: "CUI must be 8 digits")
 - [ ] **Câmpuri formula** — câmpuri calculate din alte câmpuri
+- [ ] **SLA escalation rules** — auto-escalation tichete SLA depășit (model există, escaladare automată lipsă)
+
+### Prioritate medie (Tier B/C)
 - [ ] **Gantt view** pentru proiecte
-- [ ] **Mobile PWA** — app responsivă instalabilă pe telefon
 - [ ] **Catalog produse avansat** — bundle-uri, variante, stoc
 - [ ] **Comisioane vânzători** — tracking sales rep commissions
+- [ ] **Campaign automation** — declanșare automată email/SMS din Workflows pe Campaign
 
-### Prioritate mică / Enterprise
-- [ ] **Territory Management** — zone geografice/industrie per rep
-- [ ] **Marketplace integrări** (AppExchange equivalent)
-- [ ] **Chatter intern** — comentarii/feed pe fiecare record
-- [ ] **Event Management** — conferințe, webinare
+### Prioritate mică / Enterprise (Tier C — skip pentru SMB)
+- [ ] **Territory Management** — zone geografice/industrie per rep (over-engineered pentru România SMB)
+- [ ] **Marketplace integrări** (AppExchange equivalent — necesită ecosistem terț)
+- [ ] **Chatter intern** — comentarii/feed pe fiecare record (Notes acoperă use-case)
+- [ ] **Event Management** — conferințe, webinare (use Eventbrite/Meetup)
 
 ---
 
@@ -137,10 +145,11 @@ Rezumat:
 ## 📁 Structura fișierelor cheie
 
 ```
-apps/api/src/modules/    — 48 module NestJS
-apps/api/prisma/         — schema.prisma + migrări
-apps/web/src/routes/     — 43 pagini React
-apps/web/src/features/   — 32 API clients frontend
+apps/api/src/modules/    — 51 module NestJS
+apps/api/prisma/         — schema.prisma + migrări (incl. tier_b_features)
+apps/web/src/routes/     — 46 pagini React
+apps/web/src/features/   — 35 API clients frontend
+apps/web/public/         — manifest.webmanifest + sw.js + icons (PWA)
 packages/shared/         — Zod schemas comune BE+FE
 .github/workflows/ci.yml — CI (lint + typecheck + build + e2e)
 ```

@@ -32,3 +32,6 @@ export * from './schemas/lead-scoring';
 export * from './schemas/leads';
 export * from './schemas/contracts';
 export * from './schemas/forecasting';
+export * from './schemas/cases';
+export * from './schemas/orders';
+export * from './schemas/campaigns';
