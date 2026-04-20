@@ -44,8 +44,14 @@ def summarise(transcript_text: str) -> dict[str, Any]:
 
     try:
         import anthropic
+        import httpx
 
-        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        client = anthropic.Anthropic(
+            api_key=settings.ANTHROPIC_API_KEY,
+            # Raise read timeout to 90 s to avoid "stream idle timeout" on long transcripts.
+            timeout=httpx.Timeout(90.0, connect=5.0),
+            max_retries=2,
+        )
 
         message = client.messages.create(
             model=MODEL,
