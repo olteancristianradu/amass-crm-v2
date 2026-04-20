@@ -59,8 +59,16 @@ Respond ONLY with valid JSON matching exactly:
 @Injectable()
 export class EnrichmentService {
   private readonly logger = new Logger(EnrichmentService.name);
+  private readonly anthropic: Anthropic | null;
+  private readonly gemini: GoogleGenAI | null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    const { ANTHROPIC_API_KEY, GEMINI_API_KEY } = loadEnv();
+    this.anthropic = ANTHROPIC_API_KEY
+      ? new Anthropic({ apiKey: ANTHROPIC_API_KEY, timeout: 90_000, maxRetries: 2 })
+      : null;
+    this.gemini = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
+  }
 
   async enrichCompany(companyId: string): Promise<CompanyEnrichment> {
     const { tenantId } = requireTenantContext();
@@ -127,11 +135,8 @@ export class EnrichmentService {
   }
 
   private async callAI(systemPrompt: string, userMessage: string): Promise<string> {
-    const env = loadEnv();
-
-    if (env.ANTHROPIC_API_KEY) {
-      const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-      const res = await client.messages.create({
+    if (this.anthropic) {
+      const res = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 512,
         system: systemPrompt,
@@ -141,9 +146,8 @@ export class EnrichmentService {
       return block.type === 'text' ? block.text : '{}';
     }
 
-    if (env.GEMINI_API_KEY) {
-      const genai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
-      const result = await genai.models.generateContent({
+    if (this.gemini) {
+      const result = await this.gemini.models.generateContent({
         model: 'gemini-1.5-flash',
         contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }],
       });

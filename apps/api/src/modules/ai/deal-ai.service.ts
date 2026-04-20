@@ -45,7 +45,9 @@ export class DealAiService {
   constructor(private readonly prisma: PrismaService) {
     const { GEMINI_API_KEY, ANTHROPIC_API_KEY } = loadEnv();
     this.gemini = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
-    this.anthropic = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
+    this.anthropic = ANTHROPIC_API_KEY
+      ? new Anthropic({ apiKey: ANTHROPIC_API_KEY, timeout: 90_000, maxRetries: 2 })
+      : null;
 
     if (this.gemini) this.provider = 'gemini';
     else if (this.anthropic) this.provider = 'anthropic';
