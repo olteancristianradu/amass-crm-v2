@@ -21,6 +21,7 @@ import { Prisma, Workflow, WorkflowRun, WorkflowStep, WorkflowTrigger } from '@p
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { QUEUE_WORKFLOWS } from '../../infra/queue/queue.constants';
+import { CampaignsService } from '../campaigns/campaigns.service';
 import {
   CreateWorkflowDto,
   ListWorkflowsQueryDto,
@@ -50,6 +51,7 @@ export class WorkflowsService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_WORKFLOWS) private readonly queue: Queue,
+    private readonly campaigns: CampaignsService,
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -274,6 +276,14 @@ export class WorkflowsService {
         // MVP stub — SEND_EMAIL step is logged only.
         // Full implementation would inject EmailService + look up subject email.
         this.logger.log('SEND_EMAIL step for run %s — enqueue email delivery here in S15+', run.id);
+      } else if (step.actionType === 'SEND_CAMPAIGN') {
+        const campaignId = typeof cfg.campaignId === 'string' ? cfg.campaignId : null;
+        if (!campaignId) {
+          this.logger.warn('SEND_CAMPAIGN step for run %s missing campaignId in config', run.id);
+        } else {
+          await this.campaigns.launch(campaignId, tenantId);
+          this.logger.log('Launched campaign %s from workflow run %s', campaignId, run.id);
+        }
       }
     } catch (err) {
       this.logger.error('Step execution failed for run %s step %s: %o', run.id, step.id, err);

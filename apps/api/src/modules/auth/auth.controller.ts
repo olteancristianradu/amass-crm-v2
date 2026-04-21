@@ -11,17 +11,23 @@ import { JwtAuthGuard } from './jwt.guard';
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  // 5 registration attempts per IP per 10 minutes
+  // Registration: 3 attempts/IP/15min (long window) + 5/min short burst (strict-auth).
   @Post('register')
-  @Throttle({ default: { ttl: 600_000, limit: 5 } })
+  @Throttle({
+    default: { ttl: 900_000, limit: 3 },
+    'strict-auth': { ttl: 60_000, limit: 2 },
+  })
   async register(@Body(new ZodValidationPipe(RegisterSchema)) dto: RegisterDto) {
     return this.auth.register(dto);
   }
 
-  // 10 login attempts per IP per 15 minutes — tight to slow brute-force
+  // Login: 5 attempts/IP/15min (brute-force defense) + 3/min short burst.
   @Post('login')
   @HttpCode(200)
-  @Throttle({ default: { ttl: 900_000, limit: 10 } })
+  @Throttle({
+    default: { ttl: 900_000, limit: 5 },
+    'strict-auth': { ttl: 60_000, limit: 3 },
+  })
   async login(@Body(new ZodValidationPipe(LoginSchema)) dto: LoginDto, @Req() req: Request) {
     return this.auth.login(dto, {
       userAgent: req.headers['user-agent'],

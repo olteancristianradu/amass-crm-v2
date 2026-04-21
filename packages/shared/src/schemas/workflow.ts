@@ -13,6 +13,7 @@ export const WorkflowActionTypeSchema = z.enum([
   'CREATE_TASK',
   'ADD_NOTE',
   'WAIT_DAYS',
+  'SEND_CAMPAIGN',
 ]);
 export type WorkflowActionType = z.infer<typeof WorkflowActionTypeSchema>;
 

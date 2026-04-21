@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Case, Prisma } from '@prisma/client';
+import { Case, CasePriority, Prisma } from '@prisma/client';
 import {
   CreateCaseDto,
   ListCasesQueryDto,
@@ -109,21 +109,25 @@ export class CasesService {
    */
   async escalateOverdueForAllTenants(): Promise<number> {
     const now = new Date();
-    const candidates = await this.prisma.$queryRaw<{ id: string; priority: string }[]>`
-      SELECT id, priority FROM cases
-      WHERE deleted_at IS NULL
-        AND resolved_at IS NULL
-        AND sla_deadline IS NOT NULL
-        AND sla_deadline < ${now}
-        AND priority <> 'URGENT'
-    `;
+    // Cross-tenant sweep: intentionally does NOT call runWithTenant so the cron
+    // can see every tenant's overdue cases. Safe because the query only touches
+    // the `cases` table and only bumps priority; no PII is read or leaked.
+    const candidates = await this.prisma.case.findMany({
+      where: {
+        deletedAt: null,
+        resolvedAt: null,
+        slaDeadline: { lt: now, not: null },
+        priority: { not: CasePriority.URGENT },
+      },
+      select: { id: true, priority: true },
+    });
     let count = 0;
     for (const row of candidates) {
-      const next = row.priority === 'NORMAL' ? 'HIGH' : 'URGENT';
-      await this.prisma.$executeRaw`
-        UPDATE cases SET priority = ${next}::"CasePriority", updated_at = NOW()
-        WHERE id = ${row.id}
-      `;
+      const next = row.priority === CasePriority.NORMAL ? CasePriority.HIGH : CasePriority.URGENT;
+      await this.prisma.case.update({
+        where: { id: row.id },
+        data: { priority: next },
+      });
       count++;
     }
     return count;

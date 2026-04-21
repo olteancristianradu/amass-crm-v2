@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
-import { json, urlencoded } from 'express';
+import { json, urlencoded, type NextFunction, type Request, type Response } from 'express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -27,27 +27,56 @@ async function bootstrap(): Promise<void> {
   // Helmet sets X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy
   // and a strict CSP. The /metrics and /e/t/* (email-tracking pixel) routes
   // are public by design but still benefit from these headers.
+  const isProd = env.NODE_ENV === 'production';
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"], // allow inline styles for emails
+          // 'unsafe-inline' kept because transactional email templates and
+          // Swagger UI (non-prod) both embed inline <style> blocks. Scripts
+          // remain strict.
+          styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'https:'],
           connectSrc: ["'self'"],
-          fontSrc: ["'self'"],
+          fontSrc: ["'self'", 'data:'],
+          mediaSrc: ["'self'"],
+          workerSrc: ["'self'"],
+          manifestSrc: ["'self'"],
           objectSrc: ["'none'"],
+          frameSrc: ["'none'"],
           frameAncestors: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          // Force HTTPS in prod only — dev runs over http://localhost.
+          ...(isProd ? { upgradeInsecureRequests: [] } : {}),
         },
       },
       // HSTS: 1 year, include subdomains — enforced when behind Caddy HTTPS.
       strictTransportSecurity: {
         maxAge: 31_536_000,
         includeSubDomains: true,
+        preload: true,
       },
+      referrerPolicy: { policy: 'no-referrer' },
+      crossOriginOpenerPolicy: { policy: 'same-origin' },
+      crossOriginResourcePolicy: { policy: 'same-site' },
+      // COEP disabled because it breaks third-party images (gravatars, etc.)
+      // embedded in emails and would require explicit CORP on every remote.
+      crossOriginEmbedderPolicy: false,
     }),
   );
+
+  // Permissions-Policy: deny powerful features the CRM doesn't need.
+  // Helmet dropped the built-in helper in v7, so we set the header manually.
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
+    );
+    next();
+  });
 
   // ── Body size limits ──────────────────────────────────────────────────────
   // Prevent DoS via oversized JSON payloads. File uploads go via presigned

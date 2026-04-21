@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Campaign, Prisma } from '@prisma/client';
 import {
   CreateCampaignDto,
@@ -11,7 +11,33 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 
 @Injectable()
 export class CampaignsService {
+  private readonly logger = new Logger(CampaignsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Transitions a DRAFT or PAUSED campaign into ACTIVE.
+   * Called from the API directly or from the workflow engine's SEND_CAMPAIGN
+   * action. Idempotent for ACTIVE state. Throws if campaign missing or
+   * already COMPLETED (terminal).
+   */
+  async launch(campaignId: string, tenantId: string): Promise<Campaign> {
+    const existing = await this.prisma.campaign.findFirst({
+      where: { id: campaignId, tenantId, deletedAt: null },
+    });
+    if (!existing) {
+      throw new NotFoundException({ code: 'CAMPAIGN_NOT_FOUND', message: 'Campaign not found' });
+    }
+    if (existing.status === 'COMPLETED') {
+      this.logger.warn('Cannot launch completed campaign %s', campaignId);
+      return existing;
+    }
+    if (existing.status === 'ACTIVE') return existing;
+    return this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: 'ACTIVE', startDate: existing.startDate ?? new Date() },
+    });
+  }
 
   async create(dto: CreateCampaignDto): Promise<Campaign> {
     const ctx = requireTenantContext();

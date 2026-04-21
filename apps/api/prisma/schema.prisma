@@ -719,6 +719,7 @@ enum WorkflowActionType {
   CREATE_TASK
   ADD_NOTE
   WAIT_DAYS
+  SEND_CAMPAIGN
 }
 
 enum WorkflowRunStatus {
