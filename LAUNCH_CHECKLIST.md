@@ -1,5 +1,5 @@
-# FINAL_VERIFICATION.md
-# Citește-mă obligatoriu la finalul Sprint 21, înainte de orice altceva.
+# LAUNCH_CHECKLIST.md
+# Citește înainte de launch / go-live.
 
 > Creat după S13 (2026-04-13). Conține toate găurile cunoscute, testele care
 > nu au rulat niciodată pe Docker real, UI-urile lipsă și lista de verificări

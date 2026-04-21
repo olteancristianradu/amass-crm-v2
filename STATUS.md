@@ -130,7 +130,7 @@
 
 ## 🔧 Necesită acțiuni manuale (de tine)
 
-Vezi **[MANUAL_STEPS.md](./MANUAL_STEPS.md)** pentru detalii complete.
+Vezi **[README.md — secțiunea 11 (Deployment VPS)](./README.md#11-deployment-vps)** pentru detalii complete.
 
 Rezumat:
 1. Cumpără VPS (Hetzner CX31 ~10€/lună) și configurează DNS

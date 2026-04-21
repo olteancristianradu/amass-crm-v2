@@ -1,446 +1,535 @@
-# AMASS CRM v2
+# AMASS CRM v2 — Ghid tehnic developer
 
-> **CRM multi-tenant B2B/B2C cu inteligență vocală** — transcripție apeluri, diarizare, redactare PII, sumarizare AI.
-> Piața țintă: IMM-uri din România și UE.
+CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI, redactare PII). Construit pentru IMM-uri românești și EU.
+
+**Versiune:** Tier B+C complete · **Stack:** NestJS + Prisma + Postgres + React · **Solo developer.**
+
+> Pentru manualul utilizatorului final (conducere companie), vezi **[README-CEO.md](./README-CEO.md)**.
+> Pentru catalogul tuturor funcțiilor vezi **[docs/FEATURES.md](./docs/FEATURES.md)**.
+> Pentru checklist-ul de launch vezi **[LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)**.
 
 ---
 
 ## Cuprins
 
-1. [Stack tehnic](#stack-tehnic)
-2. [Arhitectură](#arhitectură)
-3. [Funcționalități implementate](#funcționalități-implementate)
-4. [Roadmap](#roadmap)
-5. [Variabile de mediu](#variabile-de-mediu)
-6. [Instalare și pornire](#instalare-și-pornire)
-7. [Conturi de test](#conturi-de-test)
-8. [Structura proiectului](#structura-proiectului)
-9. [Securitate](#securitate)
-10. [Contribuție](#contribuție)
+1. [Stack complet](#1-stack-complet)
+2. [Arhitectura](#2-arhitectura)
+3. [Setup local](#3-setup-local)
+4. [Variabile de mediu](#4-variabile-de-mediu)
+5. [Structura monorepo](#5-structura-monorepo)
+6. [Multi-tenancy (3 straturi)](#6-multi-tenancy-3-straturi)
+7. [Convenții API REST](#7-conventii-api-rest)
+8. [Cum adaugi un feature nou](#8-cum-adaugi-un-feature-nou)
+9. [Testing](#9-testing)
+10. [CI/CD](#10-cicd)
+11. [Deployment VPS (producție)](#11-deployment-vps)
+12. [Gestionare conturi și integrări](#12-gestionare-conturi)
+13. [Debugging & troubleshooting](#13-debugging)
+14. [Cum repari erorile comune](#14-reparare-erori)
 
 ---
 
-## Stack tehnic
+## 1. Stack complet
 
-### Backend
+**Backend:** Node 22 · NestJS 10 · TypeScript 5 strict · Prisma 6 · Zod · Vitest · Pino · JWT+sessions+TOTP
 
-| Tehnologie | Versiune | Utilizare |
-|---|---|---|
-| **Node.js** | 22 LTS | Runtime server |
-| **TypeScript** | 5 strict | Tip-safe pe tot codul |
-| **NestJS** | 10 | Framework HTTP (guards, pipes, middleware, BullMQ) |
-| **Prisma** | 6 | ORM + migrări + Postgres RLS |
-| **PostgreSQL** | 16 + pgvector | Baza de date principală + căutare semantică vectorială |
-| **Redis** | 7 | Cache, sesiuni BullMQ, idempotență webhook Twilio |
-| **BullMQ** | 5 | Cozi async: email, transcriere, importuri CSV, reminder-uri |
-| **MinIO** | RELEASE.2024 | Object storage S3-compatible (înregistrări, fișiere atașate) |
-| **Zod** | 3 | Validare scheme partajate FE+BE |
-| **Pino** | 9 | Logging structurat JSON |
-| **Nodemailer** | 6 | Trimitere email via SMTP |
+**Data:** Postgres 16 + pgvector + pg_trgm · Redis 7 · BullMQ · MinIO · Postgres tsvector (NU Meilisearch)
 
-### Frontend
+**AI:** Python 3.12 + FastAPI · Whisper / whisperX · Presidio · Claude `claude-sonnet-4-6` · OpenAI embeddings (text-embedding-3-small)
 
-| Tehnologie | Versiune | Utilizare |
-|---|---|---|
-| **React** | 19 | UI principal |
-| **Vite** | 5 | Build tool + dev server |
-| **TanStack Router** | 1 | Routing type-safe cu search params validați |
-| **TanStack Query** | 5 | Server state, cache, invalidare automată |
-| **shadcn/ui + Tailwind CSS** | 3 | Design system + styling |
-| **React Hook Form + Zod** | - | Formulare cu validare tip-safe |
-| **Zustand** | 4 | State global (auth) |
-| **Socket.IO client** | 4 | Reminder-uri realtime push |
+**Frontend:** React 19 · Vite · TanStack Router/Query/Table · shadcn/ui + Tailwind · React Hook Form + Zod · Zustand · Socket.IO client
 
-### AI Worker (Python)
+**Infra:** Docker Compose (NU k8s) · Caddy · Twilio · pnpm + Turborepo · GitHub Actions · Sentry · Pino + Prometheus + OTel
 
-| Tehnologie | Versiune | Utilizare |
-|---|---|---|
-| **Python** | 3.12 | Runtime worker AI |
-| **FastAPI** | 0.111 | API HTTP pentru callback-uri din NestJS |
-| **Whisper / WhisperX** | - | Transcriere audio + diarizare vorbitori |
-| **Presidio** | 2 | Redactare automată PII (nume, CNP, IBAN, telefon) |
-| **Anthropic Claude API** | `claude-sonnet-4-6` | Sumarizare apeluri, extragere acțiuni, analiză sentiment |
-| **OpenAI Embeddings** | `text-embedding-3-small` | Vectorizare documente pentru căutare semantică |
-
-### Infrastructură
-
-| Tehnologie | Utilizare |
-|---|---|
-| **Docker Compose** | Orchestrare dev: Postgres, Redis, MinIO, ai-worker, api, web |
-| **Caddy** | Reverse proxy HTTPS (producție) |
-| **Twilio** | Centrală telefonică: numere virtuale, apeluri outbound/inbound, înregistrări |
-| **GitHub Actions** | CI: lint, typecheck, build, teste (Vitest) pe fiecare PR |
-| **Turborepo + pnpm** | Monorepo cu build caching |
+**Explicit NU folosim:** Kubernetes, Kafka, microservices, GraphQL, MongoDB, Meilisearch, Redux.
 
 ---
 
-## Arhitectură
+## 2. Arhitectura
+
+### Principii de design
+
+1. **Monolit modular** — un singur API NestJS cu 63 module. Simplitate > microservices pentru solo dev.
+2. **Multi-tenancy in-row** — toate tabelele au `tenant_id`. RLS + middleware garantează izolarea.
+3. **Outbox pattern** — evenimente scrise în DB în aceeași tranzacție, consumate async de Redis Streams.
+4. **Idempotent consumers** — toate jobs-urile BullMQ suportă retry fără efecte duble.
+5. **Presigned URLs** pentru binare — frontend upload direct spre MinIO, backend primește doar metadata.
+6. **Zod everywhere** — schema-uri partajate BE+FE în `packages/shared`.
+
+### Diagramă componente
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        BROWSER                              │
-│                React 19 + TanStack Router/Query             │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTPS / WebSocket
-┌──────────────────────────▼──────────────────────────────────┐
-│                  CADDY (reverse proxy)                      │
-└────────┬───────────────────────────────────┬────────────────┘
-         │ /api/v1/*                          │ /ws
-┌────────▼────────┐                 ┌─────────▼──────────────┐
-│   NestJS API    │                 │   Socket.IO Gateway    │
-│  (port 3000)    │                 │  (reminder push, live) │
-│                 │                 └────────────────────────┘
-│  JwtAuthGuard   │
-│  TenantGuard    │◄──── AsyncLocalStorage (tenant context)
-│  RolesGuard     │
-│  ZodPipes       │
-└────┬────┬───────┘
-     │    │
-     │    └──────── BullMQ ──────► Redis ──► Workers
-     │                               │        ├── email.processor.ts
-     │                               │        ├── import.processor.ts
-     │                               │        ├── reminder.processor.ts
-     │                               │        └── ai-calls queue ──► Python AI Worker
-     │
-┌────▼────┐    ┌──────────┐    ┌────────────┐
-│Postgres │    │  Redis   │    │   MinIO    │
-│16+RLS   │    │  7 cache │    │ S3 storage │
-└─────────┘    └──────────┘    └────────────┘
-```
-
-**Izolare multi-tenant (3 straturi):**
-1. `TenantContextMiddleware` → citește JWT, populează `AsyncLocalStorage`
-2. Prisma extension `tenantExtension()` → injectează automat `tenantId` în toate query-urile
-3. PostgreSQL RLS policies → ultimul strat de apărare la nivel DB
-
----
-
-## Funcționalități implementate
-
-### Gestiune date
-
-| Modul | Funcționalități |
-|---|---|
-| **Companii** | CRUD complet, CUI/J-number, industrie, dimensiune, **status relație** (Lead/Prospect/Activ/Inactiv), **sursă lead** (Referral/Web/Cold-call/etc.), export CSV, căutare full-text, bulk delete |
-| **Contacte** | CRUD, legătură companie (1:many), funcție, telefon/mobil, **flag decident**, export CSV, bulk delete, căutare |
-| **Clienți** | CRUD persoane fizice, adresă completă, import CSV (GestCom format) |
-| **Segmente contacte** | Builder filtre AND/OR cu preview live, salvare segmente reutilizabile |
-
-### Pipeline vânzări
-
-| Modul | Funcționalități |
-|---|---|
-| **Leads** | Pipeline prospecți (NEW→CONTACTED→QUALIFIED→CONVERTED), conversie atomică Lead→Contact+Company+Deal, scor, sursă, owner |
-| **Pipeline / Deals** | Kanban drag & drop, multiple pipeline-uri, etape configurabile, valoare + monedă, probabilitate (override per deal), ownerId, status WON/LOST + motiv pierdere |
-| **Forecasting** | Pipeline ponderat (value × probability), commit (≥70% prob), best case, quota per user per perioadă, tabel per reprezentant |
-| **Contracte** | CRUD contracte legate de companii, tracking expirare (alert 30 zile), auto-renewal, stocare PDF MinIO, filtrare status/companie |
-| **Comenzi (Orders)** | Quote-to-Cash: comenzi cu line items, auto-numerotare per tenant (UNIQUE constraint), lifecycle DRAFT→CONFIRMED→FULFILLED→CANCELLED cu auto-stamp lifecycle dates, total auto-calculat din linii |
-| **Tasks** | Legate de deal SAU de subiect polymorfic, prioritate, scadență, assignee |
-
-### Suport & Marketing
-
-| Modul | Funcționalități |
-|---|---|
-| **Tichete suport (Cases)** | Auto-numerotate per tenant, prioritate (LOW→URGENT), SLA deadline cu alert depășire, asignare, status lifecycle NEW→OPEN→PENDING→RESOLVED→CLOSED cu auto-stamp `resolvedAt` la tranziție terminală, link Company/Contact |
-| **Campanii marketing** | Outreach multi-canal (EMAIL/SMS/WHATSAPP/MIXED), legare opțională de Segment, tracking targetCount/sentCount/conversions/revenue, calcul conversion rate, buget vs venit pentru ROI |
-
-### Comunicare
-
-| Modul | Funcționalități |
-|---|---|
-| **Email** | Conturi SMTP multiple per user (parola encryptată AES-256-GCM), trimitere asincronă via BullMQ, tracking deschideri (pixel) + clickuri (redirect), status QUEUED/SENT/FAILED |
-| **Secvențe email** | Drip campaigns: N pași cu delay în zile, activare/pausare, înrolare contacte, gestionare dezabonare |
-| **Apeluri (Twilio)** | Numere virtuale E.164, click-to-call outbound, inbound routing (lookup caller în CRM), înregistrare automată, status webhook cu idempotență Redis |
-
-### AI & Inteligență
-
-| Modul | Funcționalități |
-|---|---|
-| **Transcriere apeluri** | Python worker cu Whisper (stub activ în dev, real la `WHISPER_MODEL=base`), diarizare vorbitori, segmente cu timestamps |
-| **PII Redaction** | Presidio: redactare automată CNP, IBAN, nume, nr. telefon din transcrieri |
-| **Sumarizare AI** | Claude `claude-sonnet-4-6`: rezumat apel, extragere acțiuni, analiză sentiment, topici detectate |
-| **Căutare semantică** | OpenAI `text-embedding-3-small`: vectorizare companii/contacte/clienți, căutare `nearest neighbor` cu pgvector |
-
-### Documente financiare
-
-| Modul | Funcționalități |
-|---|---|
-| **Oferte (Quotes)** | Creare oferte cu linii (cantitate, preț, TVA), flux DRAFT→SENT→ACCEPTED/REJECTED/EXPIRED, conversie automată ofertă → factură |
-| **Facturi** | Serii multiple, numerotare automată, linii cu TVA, status DRAFT→ISSUED→PAID/OVERDUE/CANCELLED, PDF generat automat, export CSV |
-| **Plăți** | Înregistrare plăți parțiale/totale, metode BANK/CARD/CASH/OTHER, reconciliere automată status factură |
-
-### Operațional
-
-| Modul | Funcționalități |
-|---|---|
-| **Proiecte** | Creat din deal WON, status PLANNED/ACTIVE/ON_HOLD/COMPLETED/CANCELLED, buget, date start/end |
-| **Reminder-uri** | Polymorfice (Company/Contact/Client), push realtime Socket.IO, snooze, BullMQ delayed jobs |
-| **Note + Timeline** | Log activitate polymorfic pe orice subiect, note text, atașamente cu versioning |
-| **Atașamente** | Upload direct la MinIO via presigned PUT, versioning (v1/v2/...), download via presigned GET (15 min) |
-
-### Automatizări
-
-| Modul | Funcționalități |
-|---|---|
-| **Workflows** | Trigger: DEAL_CREATED/STAGE_CHANGED/CONTACT_CREATED/COMPANY_CREATED, pași: SEND_EMAIL / CREATE_TASK / ADD_NOTE / WAIT_DAYS |
-| **Secvențe email** | Drip campaigns cu delay configurabil între pași, gestionare status înrolare |
-
-### Rapoarte
-
-| Modul | Funcționalități |
-|---|---|
-| **Dashboard** | Selector perioadă (7/30/90 zile, 1 an, custom range), KPIs deals, pipeline pe etape, activitate, email, apeluri |
-| **Financiar** | Sume emise/plătite/restante/de-încasat per monedă, trend lunar |
-| **Forecast** | Pipeline ponderat cu slider probabilitate ajustabil per deal, total forecast vs. valoare brută |
-
-### Admin & Securitate
-
-| Modul | Funcționalități |
-|---|---|
-| **Auth** | JWT access (15 min) + refresh token (30 zile), bcrypt hashing, rate limiting (60 req/min, 5 login/min) |
-| **2FA (TOTP)** | Google Authenticator / Authy compatibil, activare/dezactivare, QR code setup |
-| **RBAC** | 5 roluri: OWNER > ADMIN > MANAGER > AGENT > VIEWER, guards pe fiecare endpoint |
-| **Audit log** | Înregistrare acțiuni sensibile (login, create, delete, export) cu IP + user-agent |
-| **GDPR** | Export date user (portabilitate), ștergere cont + soft-delete pe toate modelele |
-| **Swagger/OpenAPI** | Disponibil la `/api/docs` în mediu non-production |
-
----
-
-## Roadmap
-
-### Versiunea 2.1 (în lucru)
-
-- [ ] Câmpuri custom (custom fields) per entitate
-- [ ] Multiple pipeline-uri pe același tenant
-- [ ] Approval workflows (aprovare oferte/contracte)
-- [ ] SLA tracking pe deal-uri
-- [ ] Import SPV (ANAF) — facturi fiscale
-
-### Versiunea 2.2
-
-- [ ] Integrare email inbound (IMAP) — primire + asociere automată cu subiect CRM
-- [ ] Sync Google Calendar / Outlook pentru reminder-uri
-- [ ] Mobile app (React Native + API existent)
-- [ ] WhatsApp Business API integration
-- [ ] Rapoarte exportabile PDF/Excel
-
-### Versiunea 2.3
-
-- [ ] AI predictiv: probabilitate câștigare deal bazată pe istoricul tenantului
-- [ ] Chatbot intern (RAG pe baza de cunoștințe + documente companie)
-- [ ] OCR facturi intrare + matching automat furnizori
-- [ ] E-semnătură documente (DocuSign / semnatură.ro)
-
-### Versiunea 3.0
-
-- [ ] Marketplace integrări (ERP SAP/Saga, contabilitate, eCommerce)
-- [ ] Multi-language UI (EN/RO/DE)
-- [ ] White-label pentru parteneri
-- [ ] SaaS multi-region deployment (Railway / Fly.io)
-
----
-
-## Variabile de mediu
-
-### Backend (`apps/api/.env`)
-
-```bash
-# ── Baza de date ──────────────────────────────────────────────────────────────
-DATABASE_URL=postgresql://amass:secret@localhost:5432/amasscrm
-
-# ── Auth ──────────────────────────────────────────────────────────────────────
-JWT_SECRET=minim-32-caractere-secret-schimba-in-productie
-JWT_REFRESH_SECRET=alt-secret-minim-32-caractere-diferit
-JWT_ACCESS_TTL=15m
-JWT_REFRESH_TTL_DAYS=30
-
-# ── Encryption (parole SMTP stocate encrypted) ───────────────────────────────
-# Genereaza cu: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-ENCRYPTION_KEY=64-caractere-hex-obligatoriu
-
-# ── Redis ─────────────────────────────────────────────────────────────────────
-REDIS_URL=redis://localhost:6379
-
-# ── MinIO (object storage) ───────────────────────────────────────────────────
-MINIO_ENDPOINT=http://localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-MINIO_BUCKET=amass-files
-
-# ── Twilio (centrală telefonică) — https://console.twilio.com ────────────────
-# Necesare pentru: apeluri outbound/inbound, înregistrări, webhook-uri
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_TWIML_APP_SID=APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   # TwiML App pentru outbound
-PUBLIC_URL=https://your-domain.com                        # URL public pentru webhook-uri Twilio
-
-# ── AI Worker ─────────────────────────────────────────────────────────────────
-AI_WORKER_URL=http://localhost:8000
-AI_WORKER_SECRET=secret-partajat-intre-api-si-worker
-
-# ── Server ────────────────────────────────────────────────────────────────────
-PORT=3000
-NODE_ENV=development
-```
-
-### AI Worker (`apps/ai-worker/.env`)
-
-```bash
-# ── Anthropic Claude (sumarizare, extragere acțiuni) ─────────────────────────
-# Obține de la: https://console.anthropic.com/settings/keys
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx
-
-# ── OpenAI (embeddings pentru căutare semantică) ──────────────────────────────
-# Obții de la: https://platform.openai.com/api-keys
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
-
-# ── Whisper (transcriere audio) ───────────────────────────────────────────────
-# "off" = stub (dev fără GPU)
-# "base" / "small" / "medium" / "large" = model real (necesită GPU sau OpenAI Whisper API)
-WHISPER_MODEL=off
-
-# ── Securitate ────────────────────────────────────────────────────────────────
-AI_WORKER_SECRET=secret-identic-cu-cel-din-api
+┌─────────────┐     HTTPS      ┌──────────────┐
+│   Browser   │◄──────────────►│    Caddy     │
+│   (React)   │                │ reverse proxy│
+└─────────────┘                └──────┬───────┘
+                                      │
+                     ┌────────────────┼────────────────┐
+                     ▼                ▼                ▼
+              ┌────────────┐   ┌────────────┐   ┌────────────┐
+              │  NestJS    │   │ AI Worker  │   │  Static    │
+              │   API      │   │  FastAPI   │   │   Web      │
+              │  :3000     │   │   :8000    │   │   :3001    │
+              └──────┬─────┘   └──────┬─────┘   └────────────┘
+                     │                │
+        ┌────────────┼────────────┐   │
+        ▼            ▼            ▼   ▼
+    ┌────────┐  ┌────────┐  ┌──────────┐
+    │Postgres│  │ Redis  │  │  MinIO   │
+    │  +pgv  │  │+BullMQ │  │(S3-like) │
+    └────────┘  └────────┘  └──────────┘
 ```
 
 ---
 
-## Instalare și pornire
+## 3. Setup local
 
-### Cerințe
+### Prerequisite
+- Node 22+ (`fnm use 22`)
+- pnpm 9+
+- Docker + Docker Compose
+- Git
 
-- **Docker** + **Docker Compose** v2+
-- **Node.js** 22 LTS + **pnpm** 9.12+
-- **Python** 3.12 (doar pentru AI worker)
-
-### Pas 1 — Clonare și instalare dependențe
+### Pași
 
 ```bash
 git clone https://github.com/olteancristianradu/amass-crm-v2.git
 cd amass-crm-v2
+
 pnpm install
-```
 
-### Pas 2 — Configurare variabile de mediu
+docker compose -f infra/docker-compose.dev.yml up -d
 
-```bash
 cp apps/api/.env.example apps/api/.env
-# Editează apps/api/.env cu valorile tale
+# Completează variabilele (secțiunea 4)
 
-cp apps/ai-worker/.env.example apps/ai-worker/.env
-# Editează apps/ai-worker/.env cu cheile API
-```
-
-### Pas 3 — Pornire infrastructură (Docker)
-
-```bash
-docker compose up -d postgres redis minio
-```
-
-### Pas 4 — Migrare baza de date + seed
-
-```bash
 cd apps/api
-npx prisma migrate deploy    # aplică toate migrările
-npx prisma db seed           # crează conturile de test
-```
+pnpm prisma migrate deploy
+pnpm prisma generate
+pnpm prisma db seed
+cd ../..
 
-### Pas 5 — Pornire aplicație
-
-```bash
-# Din rădăcina monorepo-ului:
 pnpm dev
-# → API pe http://localhost:3000
-# → Frontend pe http://localhost:5173
-# → Swagger pe http://localhost:3000/api/docs
+# API:  http://localhost:3000/api/v1
+# Web:  http://localhost:3001
+# Swagger: http://localhost:3000/api/docs
+# MinIO: http://localhost:9001
 ```
 
-### Producție
+### Comenzi utile
 
 ```bash
-pnpm build           # compilare toate pachetele
-docker compose up    # pornire completă cu Caddy HTTPS
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm format
+
+pnpm --filter @amass/api dev
+pnpm --filter @amass/web dev
+pnpm --filter @amass/api test -- --watch
 ```
 
 ---
 
-## Conturi de test
+## 4. Variabile de mediu
 
-După rularea `prisma db seed`:
+Toate validate cu Zod la startup — **fail fast** dacă lipsește ceva obligatoriu.
 
-| Rol | Email | Parolă | Permisiuni |
-|---|---|---|---|
-| **OWNER** | `admin@amass-demo.ro` | `AmassCRM2026!` | Acces total: setări, utilizatori, audit, delete |
-| **AGENT** | `agent@amass-demo.ro` | `AmassCRM2026!` | CRM operațional: create/edit companii, contacte, deals, facturi |
+`apps/api/.env`:
 
-> **Atenție:** Schimbă parolele înainte de deployment în producție!
+```env
+# Core
+NODE_ENV=development
+DATABASE_URL=postgresql://crm_user:PAROLA@localhost:5432/amass_crm
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=                # openssl rand -hex 64
+SESSION_SECRET=            # openssl rand -hex 64
+ENCRYPTION_KEY=            # openssl rand -hex 32
+
+# MinIO
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_ACCESS_KEY=
+MINIO_SECRET_KEY=
+MINIO_BUCKET=amass-crm
+MINIO_USE_SSL=false
+
+# Twilio
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=+40...
+
+# Email
+SENDGRID_API_KEY=
+EMAIL_FROM=noreply@amass.ro
+
+# AI (opțional)
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+GOOGLE_AI_API_KEY=
+
+# Monitoring
+SENTRY_DSN=
+
+# Stripe
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+
+# ANAF
+ANAF_CLIENT_ID=
+ANAF_CLIENT_SECRET=
+
+# SSO SAML
+SAML_IDP_METADATA_URL=
+SAML_SP_ENTITY_ID=
+```
+
+`apps/web/.env`:
+
+```env
+VITE_API_URL=http://localhost:3000/api/v1
+VITE_SOCKET_URL=http://localhost:3000
+VITE_SENTRY_DSN=
+```
 
 ---
 
-## Structura proiectului
+## 5. Structura monorepo
 
 ```
 amass-crm-v2/
 ├── apps/
-│   ├── api/                    # Backend NestJS
-│   │   ├── prisma/
-│   │   │   ├── schema.prisma   # Schema baza de date + migrări
-│   │   │   └── seed.ts         # Date inițiale + conturi test
+│   ├── api/                 # NestJS backend
+│   │   ├── prisma/          # schema + migrări
 │   │   └── src/
-│   │       ├── modules/        # Feature modules (companies, contacts, deals, ...)
-│   │       ├── infra/          # Prisma, Redis, Queue, Storage, Metrics
-│   │       └── common/         # Guards, pipes, filters, decorators
-│   ├── web/                    # Frontend React
+│   │       ├── config/      # Zod env loader
+│   │       ├── infra/       # Prisma, Redis, MinIO, Queue
+│   │       ├── common/      # pagination, filters
+│   │       └── modules/     # 63 module
+│   ├── web/                 # React frontend
+│   │   ├── public/          # PWA manifest + SW
 │   │   └── src/
-│   │       ├── routes/         # Pagini (TanStack Router)
-│   │       ├── features/       # API calls + logică per feature
-│   │       ├── components/     # Componente reutilizabile
-│   │       └── stores/         # Zustand stores
-│   └── ai-worker/              # Python FastAPI worker
-│       └── app/
-│           ├── transcription.py  # Whisper integration
-│           ├── redaction.py      # Presidio PII redaction
-│           ├── summary.py        # Claude AI summarization
-│           └── pipeline.py       # Orchestrator
+│   │       ├── routes/      # 48 pagini
+│   │       ├── features/    # API clients
+│   │       ├── components/  # ui + layout
+│   │       ├── lib/
+│   │       ├── stores/      # Zustand
+│   │       └── hooks/
+│   └── ai-worker/           # FastAPI Python
 ├── packages/
-│   └── shared/                 # Scheme Zod partajate FE+BE
-│       └── src/schemas/        # company, contact, deal, invoice, quote, ...
-├── docker-compose.yml
-├── CLAUDE.md                   # Reguli pentru Claude Code AI assistant
-└── LESSONS.md                  # Lecții învățate și greșeli corectate
+│   └── shared/              # Zod schemas BE+FE
+├── infra/
+│   ├── docker-compose.dev.yml
+│   └── docker-compose.prod.yml
+├── docs/
+│   ├── ARCHITECTURE.md
+│   └── FEATURES.md
+├── .github/workflows/ci.yml
+├── CLAUDE.md
+├── LESSONS.md
+├── LAUNCH_CHECKLIST.md
+├── STATUS.md
+├── README.md
+├── README-CEO.md
+└── pnpm-workspace.yaml
 ```
 
 ---
 
-## Securitate
+## 6. Multi-tenancy (3 straturi)
 
-- **Multi-tenancy** — 3 straturi: Middleware → Prisma extension → PostgreSQL RLS
-- **JWT** — access token 15 min + refresh 30 zile, rotație la refresh
-- **Parole** — bcrypt rounds=10, niciodată stocate plain
-- **SMTP passwords** — AES-256-GCM encrypted at rest cu `ENCRYPTION_KEY`
-- **Rate limiting** — 60 req/min global, 5 req/min pe login
-- **Helmet** — HSTS, CSP strict, X-Frame-Options, Referrer-Policy
-- **Twilio webhooks** — verificare semnătură HMAC-SHA1 + idempotență Redis
-- **2FA TOTP** — compatibil Google Authenticator, OTPlib, activare opțională per user
-- **Audit log** — toate acțiunile sensibile loggate cu IP + user-agent + actorId
-- **Input validation** — Zod pe toate endpoint-urile, nicio acceptare de `any`
-- **SQL injection** — imposibil: Prisma ORM parametrizat + raw queries cu tagged template literals
+**Defense in depth.** Dacă un strat pică, următoarele te acoperă.
 
-### Raportare vulnerabilități
+### Stratul 1: TenantGuard (NestJS)
+Extrage `tenantId` din JWT și-l stochează în AsyncLocalStorage.
 
-Trimite un email la **raduoltean@amass.ro** (sau deschide un Issue privat pe GitHub).
+```typescript
+export const tenantStorage = new AsyncLocalStorage<TenantContext>();
+export const requireTenantContext = () => {
+  const ctx = tenantStorage.getStore();
+  if (!ctx) throw new Error('No tenant context');
+  return ctx;
+};
+```
+
+### Stratul 2: Prisma middleware
+Interceptează orice query și adaugă `WHERE tenantId = <current>`.
+
+### Stratul 3: Postgres RLS
+Ultimul cordon — chiar dacă scrii raw SQL fără filtru:
+
+```sql
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON companies
+  USING (tenant_id = current_setting('app.tenant_id')::text);
+```
+
+### Stratul 4 (audit)
+Orice cross-tenant attempt → loggat în `audit_logs` cu level ERROR.
 
 ---
 
-## Contribuție
+## 7. Convenții API REST
 
-Proiect solo-developer. Pull request-urile sunt binevenite pentru:
-- Bugfix-uri documentate cu test
-- Traduceri (i18n)
-- Documentație
-
-Citește [CLAUDE.md](./CLAUDE.md) pentru regulile de development și [LESSONS.md](./LESSONS.md) pentru istoricul deciziilor tehnice.
+- Toate rutele sub `/api/v1/`
+- **Cursor pagination:** `?cursor=abc&limit=50`
+- **Filtrare:** `?filter[status]=OPEN&filter[priority]=HIGH`
+- **Sortare:** `?sort=-createdAt`
+- **Response paginat:** `{ items: [...], nextCursor: "xyz" | null }`
+- **Eroare standard:**
+  ```json
+  {
+    "code": "COMPANY_NOT_FOUND",
+    "message": "Company not found",
+    "details": {},
+    "traceId": "uuid-v4",
+    "timestamp": "2026-04-21T10:30:00Z"
+  }
+  ```
+- **OpenAPI** la `/api/docs` (dev only)
+- **Rate limiting:** 60 req/min/IP default, 5/min pe `/auth/login`
 
 ---
 
-*AMASS CRM v2 — © 2026 Cristian Radu Oltean. Licență comercială.*
+## 8. Cum adaugi un feature nou
+
+Loop strict din `CLAUDE.md`:
+
+1. **Plan** (≤15 linii) → cere aprobare
+2. **Schema Prisma** → `pnpm prisma migrate dev --name add_my_feature`
+3. **Zod schema** în `packages/shared/src/schemas/`
+4. **Service** în `apps/api/src/modules/my-feature/`
+5. **Controller** cu `@UseGuards(JwtAuthGuard, TenantGuard)`
+6. **Module** cu imports corecte
+7. Înregistrează în `app.module.ts`
+8. **Tests** Vitest (unit + integration)
+9. **Frontend:** feature client + pagină + link în `AppShell.tsx`
+10. `pnpm lint && pnpm test` → verzi
+11. Verificare e2e — paste evidence
+12. Commit: `feat(my-feature): add CRUD`
+
+---
+
+## 9. Testing
+
+```bash
+pnpm --filter @amass/api test
+pnpm --filter @amass/web test
+pnpm --filter @amass/api test:e2e  # testcontainers Postgres real
+```
+
+**Target coverage:** ≥80% pe services (CLAUDE.md regulă #8).
+
+---
+
+## 10. CI/CD
+
+`.github/workflows/ci.yml` — 3 jobs:
+
+| Job | Ce face | Durată |
+|-----|---------|--------|
+| `lint-typecheck-build` | ESLint + tsc + build | ~3 min |
+| `test-api` | Unit + integration cu Postgres+Redis | ~5 min |
+| `test-web` | Vitest + Testing Library | ~2 min |
+
+**Trigger:** push pe `main` + toate PR-urile.
+
+---
+
+## 11. Deployment VPS
+
+### 11.1 VPS
+- Minim: 4 vCPU, 8 GB RAM, 100 GB SSD
+- Recomandat: Hetzner CX31 (~10 EUR/lună) sau DO Droplet 4GB
+- OS: Ubuntu 24.04 LTS
+
+### 11.2 DNS
+```
+crm.amass.ro  → IP_VPS
+api.amass.ro  → IP_VPS
+```
+
+### 11.3 Docker + pnpm + Node
+```bash
+curl -fsSL https://get.docker.com | sh
+apt install docker-compose-plugin
+curl -fsSL https://fnm.vercel.app/install | bash
+fnm use 22
+npm i -g pnpm
+```
+
+### 11.4 Firewall
+```bash
+ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw enable
+# 5432/6379/9000 NU expuse public!
+```
+
+### 11.5 Postgres + extensii
+```bash
+psql -U postgres -c "CREATE USER crm_user WITH PASSWORD 'PAROLA';"
+psql -U postgres -c "CREATE DATABASE amass_crm OWNER crm_user;"
+psql -U crm_user -d amass_crm -c "CREATE EXTENSION IF NOT EXISTS pgvector;"
+psql -U crm_user -d amass_crm -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+cd apps/api
+pnpm prisma migrate deploy
+pnpm prisma generate
+```
+
+### 11.6 MinIO
+```bash
+docker run -d --name minio \
+  -p 9000:9000 -p 9001:9001 \
+  -e MINIO_ROOT_USER=ACCESS \
+  -e MINIO_ROOT_PASSWORD=SECRET \
+  -v /data/minio:/data \
+  quay.io/minio/minio server /data --console-address ":9001"
+# Creează bucket 'amass-crm' privat din http://IP:9001
+```
+
+### 11.7 Caddy (HTTPS automat)
+```bash
+apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy.gpg
+echo "deb [signed-by=/usr/share/keyrings/caddy.gpg] https://dl.cloudsmith.io/public/caddy/stable/debian.bookworm main" | tee /etc/apt/sources.list.d/caddy.list
+apt update && apt install caddy
+```
+
+`/etc/caddy/Caddyfile`:
+```
+crm.amass.ro {
+  reverse_proxy localhost:3001
+}
+api.amass.ro {
+  reverse_proxy localhost:3000 {
+    transport http {
+      read_timeout 120s
+      write_timeout 120s
+    }
+  }
+}
+```
+
+```bash
+systemctl enable --now caddy
+```
+
+### 11.8 Backup Postgres
+```bash
+cat > /usr/local/bin/pg-backup.sh << 'EOF'
+#!/bin/bash
+DATE=$(date +%Y%m%d_%H%M%S)
+pg_dump -U crm_user amass_crm | gzip > /backups/amass_crm_$DATE.sql.gz
+find /backups -name "*.sql.gz" -mtime +30 -delete
+EOF
+chmod +x /usr/local/bin/pg-backup.sh
+mkdir -p /backups
+(crontab -l 2>/dev/null; echo "0 2 * * * /usr/local/bin/pg-backup.sh") | crontab -
+```
+
+### 11.9 Primul tenant
+```bash
+cd apps/api && pnpm prisma db seed
+# sau:
+curl -X POST https://api.amass.ro/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@amass.ro","password":"PAROLA","firstName":"Admin","lastName":"AMASS","tenantName":"AMASS SRL"}'
+```
+
+---
+
+## 12. Gestionare conturi
+
+### 12.1 Twilio
+1. Cont [twilio.com](https://twilio.com) → număr RO Voice+SMS
+2. Webhook Voice inbound: `https://api.amass.ro/api/v1/calls/twilio/incoming`
+3. Webhook status: `https://api.amass.ro/api/v1/calls/twilio/status`
+4. Copiază SID + AUTH_TOKEN în `.env`
+
+### 12.2 SendGrid
+1. Cont [sendgrid.com](https://sendgrid.com)
+2. Domain Authentication (DNS: DKIM + SPF) pentru `amass.ro`
+3. API Key cu `Mail Send` → `.env`
+
+### 12.3 Sentry
+1. [sentry.io](https://sentry.io) → proiecte separate Node.js + React
+2. DSN backend + DSN frontend în env
+
+### 12.4 Stripe
+1. [stripe.com](https://stripe.com) → Products + Prices
+2. Webhook: `https://api.amass.ro/api/v1/billing/webhooks/stripe`
+3. Secrete în `.env`
+
+### 12.5 ANAF e-Factura
+1. [anaf.ro](https://anaf.ro) → SEF → OAuth2 client
+2. Credentials în `.env`
+
+### 12.6 OAuth Google/Microsoft
+Calendar sync = consent user individual; nu config global.
+
+---
+
+## 13. Debugging
+
+### Backend
+- **Logs:** Pino JSON; în dev → `pino-pretty`
+- **Sentry:** 5xx trimis automat
+- **Trace ID:** UUID propagat în logs + error response
+
+### Frontend
+- **React DevTools** + TanStack Router DevTools
+- **Sentry React** cu breadcrumbs
+
+### DB
+- **Prisma Studio:** `pnpm prisma studio`
+- **psql / pgAdmin** pentru prod
+
+### Observability
+- `/metrics` expune Prometheus
+- OTel pentru distributed tracing (opțional)
+
+---
+
+## 14. Reparare erori
+
+### `Stream idle timeout - partial response received`
+**Cauză:** Claude API stream întrerupt de proxy/network.
+**Fix aplicat:** `new Anthropic({ timeout: 90_000, maxRetries: 2 })` în `enrichment.service.ts` + `deal-ai.service.ts`.
+**Dacă persistă:** crește `read_timeout` Caddy la 180s.
+
+### `ERR_PNPM_OUTDATED_LOCKFILE`
+**Fix:** `pnpm install --lockfile-only`, commit `pnpm-lock.yaml`.
+
+### `No tenant context` în service
+**Fix:** verifică `@UseGuards(TenantGuard)` pe controller.
+
+### Migration refuză drop coloană în prod
+**Fix:** expand-contract — nullable întâi, deploy, apoi drop.
+
+### BullMQ job repetă la infinit
+**Fix:** try/catch în handler, rethrow doar errors recuperabile.
+
+### Prisma `P2002 Unique constraint failed`
+**Fix:** catch în service → `ConflictException` cu mesaj friendly.
+
+### Frontend 401 după refresh token expirat
+**Fix:** interceptor axios reîncearcă o dată cu refresh; eșec → redirect `/login`.
+
+### MinIO presigned URL 403 SignatureMismatch
+**Cauză:** clock skew > 15min.
+**Fix:** `timedatectl set-ntp true` pe VPS.
+
+---
+
+## Resurse
+
+- [CLAUDE.md](./CLAUDE.md)
+- [LESSONS.md](./LESSONS.md)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [docs/FEATURES.md](./docs/FEATURES.md)
+- [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)
+
+---
+
+*Ultima actualizare: 2026-04-21*
