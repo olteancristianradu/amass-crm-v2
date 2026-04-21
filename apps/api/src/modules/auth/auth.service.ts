@@ -15,7 +15,13 @@ export interface JwtPayload {
   tid: string; // tenantId
   email: string;
   role: string;
+  jti: string; // unique token id — used for server-side revocation
+  // `exp` is added automatically by @nestjs/jwt from signOptions.expiresIn.
+  exp?: number;
 }
+
+/** Redis key namespace for revoked access tokens (logout, force-signout). */
+export const JWT_BLOCKLIST_PREFIX = 'auth:jwt:blocklist:';
 
 export interface AuthTokens {
   accessToken: string;
@@ -204,11 +210,23 @@ export class AuthService {
     return { tokens };
   }
 
-  async logout(refreshToken: string): Promise<void> {
+  async logout(refreshToken: string, accessJti?: string, accessExp?: number): Promise<void> {
     const hash = hashToken(refreshToken);
     await this.prisma.session
       .update({ where: { refreshTokenHash: hash }, data: { revokedAt: new Date() } })
       .catch(() => undefined); // idempotent
+
+    // Also add the access token's jti to the Redis blocklist so the access
+    // token is rejected immediately instead of remaining valid until its exp.
+    if (accessJti && accessExp) {
+      await this.revokeAccessJti(accessJti, accessExp);
+    }
+  }
+
+  /** Blocklist an access token's jti until its natural expiry. */
+  async revokeAccessJti(jti: string, expEpochSeconds: number): Promise<void> {
+    const ttl = Math.max(1, expEpochSeconds - Math.floor(Date.now() / 1000));
+    await this.redis.client.setex(`${JWT_BLOCKLIST_PREFIX}${jti}`, ttl, '1');
   }
 
   async me(userId: string): Promise<SafeUser | null> {
@@ -224,6 +242,7 @@ export class AuthService {
       tid: user.tenantId,
       email: user.email,
       role: user.role,
+      jti: randomBytes(16).toString('hex'),
     };
 
     const accessToken = await this.jwt.signAsync(payload, {

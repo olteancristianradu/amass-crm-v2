@@ -6,6 +6,10 @@ export interface AuthenticatedUser {
   tenantId: string;
   email: string;
   role: string;
+  /** JWT id claim — needed to revoke this token on logout. */
+  jti: string;
+  /** JWT expiry (epoch seconds) — needed to set Redis TTL on revocation. */
+  exp: number;
 }
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthenticatedUser => {

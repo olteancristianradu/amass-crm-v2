@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import {
   ConvertLeadSchema,
   CreateLeadSchema,
@@ -18,29 +19,35 @@ import {
 } from '@amass/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { LeadsService } from './leads.service';
 
 @Controller('leads')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class LeadsController {
   constructor(private readonly leads: LeadsService) {}
 
   @Post()
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   create(@Body(new ZodValidationPipe(CreateLeadSchema)) body: Parameters<LeadsService['create']>[0]) {
     return this.leads.create(body);
   }
 
   @Get()
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   findAll(@Query(new ZodValidationPipe(ListLeadsQuerySchema)) query: Parameters<LeadsService['findAll']>[0]) {
     return this.leads.findAll(query);
   }
 
   @Get(':id')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   findOne(@Param('id') id: string) {
     return this.leads.findOne(id);
   }
 
   @Patch(':id')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateLeadSchema)) body: Parameters<LeadsService['update']>[1],
@@ -49,6 +56,7 @@ export class LeadsController {
   }
 
   @Post(':id/convert')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   convert(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(ConvertLeadSchema)) body: Parameters<LeadsService['convert']>[1],
@@ -58,6 +66,7 @@ export class LeadsController {
 
   @Delete(':id')
   @HttpCode(204)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   remove(@Param('id') id: string) {
     return this.leads.remove(id);
   }

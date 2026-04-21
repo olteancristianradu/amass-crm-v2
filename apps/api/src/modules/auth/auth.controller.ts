@@ -49,8 +49,12 @@ export class AuthController {
   @Post('logout')
   @HttpCode(204)
   @SkipThrottle()
-  async logout(@Body(new ZodValidationPipe(RefreshSchema)) dto: RefreshDto): Promise<void> {
-    await this.auth.logout(dto.refreshToken);
+  @UseGuards(JwtAuthGuard)
+  async logout(
+    @Body(new ZodValidationPipe(RefreshSchema)) dto: RefreshDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.auth.logout(dto.refreshToken, user.jti, user.exp);
   }
 
   @Get('me')

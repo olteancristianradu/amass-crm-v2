@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Deal, Prisma, StageType } from '@prisma/client';
 import {
   CreateDealDto,
@@ -40,6 +40,8 @@ import { CursorPage, makeCursorPage } from '../../common/pagination';
  */
 @Injectable()
 export class DealsService {
+  private readonly logger = new Logger(DealsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -285,8 +287,10 @@ export class DealsService {
         await this.projects.createFromDeal(updated.id);
       } catch (err) {
         // Never block deal-move on project creation failure.
-        // eslint-disable-next-line no-console
-        console.error('deal→project auto-creation failed', err);
+        this.logger.error(
+          'deal→project auto-creation failed',
+          err instanceof Error ? err.stack : String(err),
+        );
       }
     }
     return updated;

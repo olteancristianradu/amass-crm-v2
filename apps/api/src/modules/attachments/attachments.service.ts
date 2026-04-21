@@ -248,7 +248,10 @@ export class AttachmentsService {
 
   async getDownloadUrl(id: string): Promise<{ downloadUrl: string; expiresIn: number; fileName: string; mimeType: string }> {
     const a = await this.findOne(id);
-    const downloadUrl = await this.storage.presignGet(a.storageKey);
+    // Force Content-Disposition: attachment so browsers never render the file
+    // inline (defense against XSS if a risky MIME ever makes it past the
+    // whitelist, and against phishing via HTML/SVG preview).
+    const downloadUrl = await this.storage.presignGet(a.storageKey, a.fileName);
     return { downloadUrl, expiresIn: PRESIGN_TTL_SECONDS, fileName: a.fileName, mimeType: a.mimeType };
   }
 

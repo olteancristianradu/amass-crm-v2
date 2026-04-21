@@ -96,6 +96,26 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().min(1).optional(),
   ),
+
+  // Comma-separated list of origins allowed to call the API and open the
+  // WebSocket gateway (e.g. "https://app.example.com,https://admin.example.com").
+  // In dev, defaults to localhost Vite origins. Wildcard ('*') is only
+  // allowed in non-production to prevent CSRF + websocket-hijacking.
+  CORS_ALLOWED_ORIGINS: z
+    .string()
+    .default('http://localhost:5173,http://localhost:4173,http://localhost:3000'),
+
+  // Comma-separated CIDR/IP/substring list allowed to scrape /metrics.
+  // Empty = require auth token. In dev defaults to localhost.
+  METRICS_ALLOWED_IPS: z.string().default('127.0.0.1,::1,::ffff:127.0.0.1'),
+
+  // Static bearer token to scrape /metrics when the request isn't from an
+  // allowed IP. Generate with:
+  //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  METRICS_AUTH_TOKEN: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(16).optional(),
+  ),
 });
 
 /**
@@ -127,6 +147,18 @@ const prodOnlyChecks = (data: z.infer<typeof envSchema>): string[] => {
   }
   if (data.JWT_REFRESH_SECRET.length < 32) {
     errors.push('JWT_REFRESH_SECRET must be ≥32 chars in production');
+  }
+
+  // CORS wildcard is a CSRF + WS-hijacking risk — reject in prod.
+  if (data.CORS_ALLOWED_ORIGINS.split(',').map((s) => s.trim()).includes('*')) {
+    errors.push('CORS_ALLOWED_ORIGINS must not contain "*" in production');
+  }
+
+  // /metrics must be protected in production: either a non-empty IP allow-list
+  // or an explicit bearer token.
+  const metricsIps = data.METRICS_ALLOWED_IPS.split(',').map((s) => s.trim()).filter(Boolean);
+  if (metricsIps.length === 0 && !data.METRICS_AUTH_TOKEN) {
+    errors.push('METRICS_ALLOWED_IPS or METRICS_AUTH_TOKEN must be set in production');
   }
 
   return errors;

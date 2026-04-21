@@ -38,7 +38,7 @@ export class GdprService {
   async exportContact(id: string): Promise<Record<string, unknown>> {
     const { tenantId } = requireTenantContext();
     const contact = await this.prisma.contact.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, deletedAt: null },
     });
     if (!contact) throw new NotFoundException({ code: 'CONTACT_NOT_FOUND' });
 
@@ -65,7 +65,7 @@ export class GdprService {
   async exportClient(id: string): Promise<Record<string, unknown>> {
     const { tenantId } = requireTenantContext();
     const client = await this.prisma.client.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, deletedAt: null },
     });
     if (!client) throw new NotFoundException({ code: 'CLIENT_NOT_FOUND' });
 
@@ -93,7 +93,8 @@ export class GdprService {
 
   async eraseContact(id: string): Promise<{ erased: true }> {
     const { tenantId } = requireTenantContext();
-    const contact = await this.prisma.contact.findFirst({ where: { id, tenantId } });
+    // Only act on live rows — re-erasing a soft-deleted contact is a no-op.
+    const contact = await this.prisma.contact.findFirst({ where: { id, tenantId, deletedAt: null } });
     if (!contact) throw new NotFoundException({ code: 'CONTACT_NOT_FOUND' });
 
     await this.prisma.runWithTenant(tenantId, async (tx) => {
@@ -125,7 +126,7 @@ export class GdprService {
 
   async eraseClient(id: string): Promise<{ erased: true }> {
     const { tenantId } = requireTenantContext();
-    const client = await this.prisma.client.findFirst({ where: { id, tenantId } });
+    const client = await this.prisma.client.findFirst({ where: { id, tenantId, deletedAt: null } });
     if (!client) throw new NotFoundException({ code: 'CLIENT_NOT_FOUND' });
 
     await this.prisma.runWithTenant(tenantId, async (tx) => {

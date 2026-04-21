@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { LoggerModule } from 'nestjs-pino';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { QueueModule } from './infra/queue/queue.module';
@@ -101,6 +102,51 @@ import { EventsModule } from './modules/events/events.module';
  */
 @Module({
   imports: [
+    // Structured JSON logging with PII redaction. The redact list covers the
+    // places PII or secrets commonly end up in request/response payloads so
+    // access-logs never leak a password, JWT, or customer email.
+    //
+    // NOTE: Pino redact uses JSON-path-style patterns with wildcards. We cover:
+    //   - Authorization/cookies/set-cookie headers (req + res)
+    //   - any "password", "passwordHash", "totpSecret", "secret", "apiKey",
+    //     "token", "refreshToken", "accessToken" at any depth in the body
+    //   - the standard email + phone fields
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: process.env['LOG_LEVEL'] ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug'),
+        autoLogging: { ignore: (req) => req.url === '/metrics' || req.url === '/api/v1/metrics' },
+        redact: {
+          paths: [
+            'req.headers.authorization',
+            'req.headers.cookie',
+            'req.headers["set-cookie"]',
+            'res.headers["set-cookie"]',
+            'req.body.password',
+            'req.body.currentPassword',
+            'req.body.newPassword',
+            'req.body.totpCode',
+            'req.body.refreshToken',
+            'req.body.accessToken',
+            'req.body.apiKey',
+            'req.body.secret',
+            'req.body.token',
+            'req.body.email',
+            'req.body.phone',
+            'req.body.mobile',
+            '*.password',
+            '*.passwordHash',
+            '*.totpSecret',
+            '*.refreshToken',
+            '*.accessToken',
+            '*.apiKey',
+            '*.secret',
+          ],
+          censor: '[REDACTED]',
+        },
+        // Keep request-id propagation on for traceability.
+        customProps: () => ({ app: 'amass-api' }),
+      },
+    }),
     // Global rate limiting: 60 req/min by default; auth routes override to stricter limits.
     // The `strict-auth` named throttler provides a per-IP short-window hard cap
     // usable by credential-sensitive endpoints on top of the default.

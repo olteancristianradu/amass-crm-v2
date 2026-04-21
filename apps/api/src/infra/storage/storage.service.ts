@@ -62,9 +62,24 @@ export class StorageService implements OnModuleInit {
 
   /**
    * Presigned GET URL for download. 15-minute window.
+   *
+   * When `fileName` is provided, the URL forces `Content-Disposition: attachment`
+   * so the browser downloads instead of rendering inline — important for any
+   * file type that can execute script in the document context (HTML, SVG, etc.).
    */
-  presignGet(storageKey: string): Promise<string> {
-    return this.client.presignedGetObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS);
+  presignGet(storageKey: string, fileName?: string): Promise<string> {
+    const reqParams: Record<string, string> = {};
+    if (fileName) {
+      // RFC 5987 — encode non-ASCII + quote-sensitive chars for the filename* param.
+      // The plain `filename=` fallback keeps the ASCII approximation for older UAs.
+      const safeAscii = fileName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+      const encoded = encodeURIComponent(fileName);
+      reqParams['response-content-disposition'] =
+        `attachment; filename="${safeAscii}"; filename*=UTF-8''${encoded}`;
+    } else {
+      reqParams['response-content-disposition'] = 'attachment';
+    }
+    return this.client.presignedGetObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS, reqParams);
   }
 
   /**

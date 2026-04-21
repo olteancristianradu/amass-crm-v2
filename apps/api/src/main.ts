@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { json, urlencoded, type NextFunction, type Request, type Response } from 'express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loadEnv } from './config/env';
@@ -21,7 +22,24 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // Replace the default Nest console logger with Pino. This also picks up the
+  // PII-redaction config from LoggerModule.forRoot().
+  app.useLogger(app.get(Logger));
+
+  // ── CORS ──────────────────────────────────────────────────────────────────
+  // Restrict browsers to the configured allow-list. '*' is only ever valid in
+  // dev/test; env validation blocks it in production.
+  const allowedOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: allowedOrigins.includes('*') ? true : allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With'],
+    maxAge: 86_400,
+  });
 
   // ── Security headers ──────────────────────────────────────────────────────
   // Helmet sets X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy
@@ -76,6 +94,30 @@ async function bootstrap(): Promise<void> {
       'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
     );
     next();
+  });
+
+  // ── /metrics access control ──────────────────────────────────────────────
+  // Prometheus metrics expose internal telemetry (heap size, route timings,
+  // queue depths) that aids reconnaissance. Restrict to:
+  //   1) Source IPs in METRICS_ALLOWED_IPS (exact match on req.ip)
+  //   2) OR Authorization: Bearer <METRICS_AUTH_TOKEN>
+  //
+  // Env validation requires at least one of these in production.
+  const metricsAllowedIps = new Set(
+    env.METRICS_ALLOWED_IPS.split(',').map((s) => s.trim()).filter(Boolean),
+  );
+  const metricsToken = env.METRICS_AUTH_TOKEN;
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path !== '/metrics' && req.path !== '/api/v1/metrics') return next();
+    const ip = (req.ip ?? req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
+    const ipOk = metricsAllowedIps.has(ip) || metricsAllowedIps.has(req.ip ?? '');
+    const auth = req.headers.authorization ?? '';
+    const tokenOk =
+      metricsToken !== undefined &&
+      auth.startsWith('Bearer ') &&
+      auth.slice('Bearer '.length).trim() === metricsToken;
+    if (ipOk || tokenOk) return next();
+    res.status(403).setHeader('Content-Type', 'text/plain').send('forbidden');
   });
 
   // ── Body size limits ──────────────────────────────────────────────────────

@@ -109,20 +109,61 @@ export class ExportsService {
     }
   }
 
+  /**
+   * Fetch rows in cursor-based chunks of CHUNK_SIZE, up to MAX_EXPORT_ROWS.
+   * Previously this issued a single `take: 50_000` query, which silently
+   * truncated larger tenants and loaded up to ~50k rows into memory at once.
+   * Chunked fetch bounds memory per page and makes progress linear so the
+   * worker can be interrupted cleanly.
+   */
   private async fetchRows(tenantId: string, entityType: ExportableEntity, filters?: Record<string, unknown>): Promise<Record<string, unknown>[]> {
-    const where: Record<string, unknown> = { tenantId, deletedAt: null, ...filters };
+    const CHUNK_SIZE = 2_000;
+    const MAX_EXPORT_ROWS = 1_000_000;
 
-    const delegates: Record<ExportableEntity, (tx: Parameters<Parameters<typeof this.prisma.runWithTenant>[1]>[0]) => Promise<Record<string, unknown>[]>> = {
-      companies: (tx) => tx.company.findMany({ where, take: 50_000 }) as Promise<Record<string, unknown>[]>,
-      contacts: (tx) => tx.contact.findMany({ where, take: 50_000 }) as Promise<Record<string, unknown>[]>,
-      clients: (tx) => tx.client.findMany({ where, take: 50_000 }) as Promise<Record<string, unknown>[]>,
-      deals: (tx) => tx.deal.findMany({ where: { tenantId, deletedAt: null }, take: 50_000 }) as Promise<Record<string, unknown>[]>,
-      invoices: (tx) => tx.invoice.findMany({ where: { tenantId, deletedAt: null }, take: 50_000 }) as Promise<Record<string, unknown>[]>,
-      quotes: (tx) => tx.quote.findMany({ where: { tenantId, deletedAt: null }, take: 50_000 }) as Promise<Record<string, unknown>[]>,
-      activities: (tx) => tx.activity.findMany({ where: { tenantId }, take: 50_000 }) as Promise<Record<string, unknown>[]>,
+    const tableWhere: Record<ExportableEntity, Record<string, unknown>> = {
+      companies: { tenantId, deletedAt: null, ...(filters ?? {}) },
+      contacts: { tenantId, deletedAt: null, ...(filters ?? {}) },
+      clients: { tenantId, deletedAt: null, ...(filters ?? {}) },
+      deals: { tenantId, deletedAt: null },
+      invoices: { tenantId, deletedAt: null },
+      quotes: { tenantId, deletedAt: null },
+      activities: { tenantId },
+    };
+    const where = tableWhere[entityType];
+
+    type TxClient = Parameters<Parameters<typeof this.prisma.runWithTenant>[1]>[0];
+    const page = async (
+      tx: TxClient,
+      cursor: string | null,
+    ): Promise<Array<{ id: string } & Record<string, unknown>>> => {
+      const args = {
+        where,
+        orderBy: [{ id: 'asc' as const }],
+        take: CHUNK_SIZE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      };
+      switch (entityType) {
+        case 'companies': return tx.company.findMany(args) as Promise<Array<{ id: string } & Record<string, unknown>>>;
+        case 'contacts': return tx.contact.findMany(args) as Promise<Array<{ id: string } & Record<string, unknown>>>;
+        case 'clients': return tx.client.findMany(args) as Promise<Array<{ id: string } & Record<string, unknown>>>;
+        case 'deals': return tx.deal.findMany(args) as Promise<Array<{ id: string } & Record<string, unknown>>>;
+        case 'invoices': return tx.invoice.findMany(args) as Promise<Array<{ id: string } & Record<string, unknown>>>;
+        case 'quotes': return tx.quote.findMany(args) as Promise<Array<{ id: string } & Record<string, unknown>>>;
+        case 'activities': return tx.activity.findMany(args) as Promise<Array<{ id: string } & Record<string, unknown>>>;
+      }
     };
 
-    return this.prisma.runWithTenant(tenantId, (tx) => delegates[entityType](tx));
+    const all: Array<{ id: string } & Record<string, unknown>> = [];
+    let cursor: string | null = null;
+    while (all.length < MAX_EXPORT_ROWS) {
+      const chunk: Array<{ id: string } & Record<string, unknown>> =
+        await this.prisma.runWithTenant(tenantId, (tx) => page(tx, cursor));
+      if (chunk.length === 0) break;
+      all.push(...chunk);
+      if (chunk.length < CHUNK_SIZE) break;
+      cursor = chunk[chunk.length - 1].id;
+    }
+    return all;
   }
 
   private toCsv(rows: Record<string, unknown>[]): string {

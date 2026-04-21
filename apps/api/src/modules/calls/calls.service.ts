@@ -182,15 +182,16 @@ export class CallsService {
 
       if (phoneNumber) {
         // Try to match caller to a contact or client in the tenant.
+        // Exclude soft-deleted rows — a deleted contact shouldn't be auto-linked.
         const [contact, client, company] = await Promise.all([
           this.prisma.runWithTenant(phoneNumber.tenantId, (tx) =>
-            tx.contact.findFirst({ where: { tenantId: phoneNumber.tenantId, OR: [{ phone: fromNumber }, { mobile: fromNumber }] } }),
+            tx.contact.findFirst({ where: { tenantId: phoneNumber.tenantId, deletedAt: null, OR: [{ phone: fromNumber }, { mobile: fromNumber }] } }),
           ),
           this.prisma.runWithTenant(phoneNumber.tenantId, (tx) =>
-            tx.client.findFirst({ where: { tenantId: phoneNumber.tenantId, OR: [{ phone: fromNumber }, { mobile: fromNumber }] } }),
+            tx.client.findFirst({ where: { tenantId: phoneNumber.tenantId, deletedAt: null, OR: [{ phone: fromNumber }, { mobile: fromNumber }] } }),
           ),
           this.prisma.runWithTenant(phoneNumber.tenantId, (tx) =>
-            tx.company.findFirst({ where: { tenantId: phoneNumber.tenantId, phone: fromNumber } }),
+            tx.company.findFirst({ where: { tenantId: phoneNumber.tenantId, deletedAt: null, phone: fromNumber } }),
           ),
         ]);
 

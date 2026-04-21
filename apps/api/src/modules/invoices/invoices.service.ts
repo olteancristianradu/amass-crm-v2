@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Invoice, InvoiceLine, InvoiceStatus, Prisma } from '@prisma/client';
@@ -34,6 +35,8 @@ import { InvoicePdfService } from './invoice-pdf.service';
  */
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -231,8 +234,10 @@ export class InvoicesService {
         pdfKey = await this.generateAndStorePdf(id);
       } catch (err) {
         // Don't block the status transition on PDF failure — log and move on.
-        // eslint-disable-next-line no-console
-        console.error(`Invoice PDF generation failed for ${id}`, err);
+        this.logger.error(
+          `Invoice PDF generation failed for ${id}`,
+          err instanceof Error ? err.stack : String(err),
+        );
       }
     }
 
