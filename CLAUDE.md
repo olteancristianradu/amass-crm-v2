@@ -41,7 +41,24 @@ AI: Python 3.12 + FastAPI · Whisper / whisperX · Presidio · Claude (`claude-s
 Frontend: React 19 · Vite · TanStack Router/Query/Table · shadcn/ui + Tailwind · React Hook Form + Zod · Zustand · Socket.IO
 Infra: Docker compose (no k8s) · Caddy · Twilio · pnpm + Turborepo · GitHub Actions · Sentry · Pino + Prometheus + OTel
 
-**Explicitly NOT used:** Kubernetes, Kafka, microservices, GraphQL, MongoDB, Meilisearch, Redux.
+### Deferred tech (NOT "never" — "not until metrics justify it")
+
+Default is **don't introduce**. Unblock only when a threshold below is hit and
+documented (dashboard screenshot or postmortem reference required in the PR).
+
+| Tech | Unblock threshold | What replaces it today |
+|---|---|---|
+| **Kubernetes** | >20 services OR >3 regions OR >5 engineers on-call OR sustained >5 deploys/day for 30 days | Docker Compose + Caddy + Railway/Hetzner VM |
+| **Kafka / Redpanda** | >10k events/sec sustained p95 for 7 days OR cross-DC replay requirement from a postmortem OR >3 DC topology | Redis Streams + BullMQ (idempotent consumers, outbox pattern) |
+| **Postgres sharding (Citus/Vitess)** | >2 TB data OR >5k QPS sustained 7 days OR top-tenant p95 latency >500ms due to contention | Single-master Postgres + PgBouncer + 1–3 read replicas; `shardId` column precomputed |
+| **Microservices split** | A single module shows >20% deploy failure rate OR team >10 engineers OR independent release cadence justified by incident data | NestJS modules with clear boundaries + outbox events |
+| **Meilisearch/Elasticsearch** | Postgres tsvector p95 >500ms on representative queries OR ranking requirements tsvector can't express | Postgres tsvector + GIN indexes |
+
+When a threshold is hit: open an ADR in `docs/adr/`, link the evidence, get
+explicit user sign-off, then unblock. Until then: do not scaffold speculative
+integrations for these.
+
+**Permanent no (architectural):** GraphQL, MongoDB, Redux.
 
 ## Architecture mandates
 

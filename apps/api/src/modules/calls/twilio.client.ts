@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import twilio, { Twilio, validateRequest } from 'twilio';
 import { loadEnv } from '../../config/env';
+import { getBreaker } from '../../common/resilience/circuit-breaker';
 
 /**
  * Thin wrapper around the Twilio SDK. We keep all Twilio-touching code in
@@ -47,16 +48,20 @@ export class TwilioClient {
     }
     const client = this.getClient();
     const base = env.TWILIO_WEBHOOK_BASE_URL.replace(/\/$/, '');
-    const call = await client.calls.create({
-      from: params.from,
-      to: params.to,
-      url: `${base}/api/v1/calls/webhook/voice?callId=${params.callId}`,
-      statusCallback: `${base}/api/v1/calls/webhook/status?callId=${params.callId}`,
-      statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-      statusCallbackMethod: 'POST',
-      record: true,
-      recordingStatusCallback: `${base}/api/v1/calls/webhook/recording?callId=${params.callId}`,
-    });
+    // C-ops: breaker trips after 5 consecutive Twilio failures so we don't
+    // keep queuing doomed outbound calls while the provider is degraded.
+    const call = await getBreaker('twilio').exec(() =>
+      client.calls.create({
+        from: params.from,
+        to: params.to,
+        url: `${base}/api/v1/calls/webhook/voice?callId=${params.callId}`,
+        statusCallback: `${base}/api/v1/calls/webhook/status?callId=${params.callId}`,
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        statusCallbackMethod: 'POST',
+        record: true,
+        recordingStatusCallback: `${base}/api/v1/calls/webhook/recording?callId=${params.callId}`,
+      }),
+    );
     this.logger.log(`Twilio call created sid=${call.sid} callId=${params.callId}`);
     return { sid: call.sid };
   }

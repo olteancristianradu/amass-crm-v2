@@ -131,7 +131,11 @@ export class ExportsService {
     };
     const where = tableWhere[entityType];
 
-    type TxClient = Parameters<Parameters<typeof this.prisma.runWithTenant>[1]>[0];
+    // After runWithTenant grew an (tenantId, mode, fn) overload the old
+    // Parameters<Parameters<...>[1]>[0] trick resolves to `never`. Use the
+    // Prisma-exported TransactionClient type directly — it's what runWithTenant
+    // passes in regardless of overload.
+    type TxClient = Prisma.TransactionClient;
     const page = async (
       tx: TxClient,
       cursor: string | null,

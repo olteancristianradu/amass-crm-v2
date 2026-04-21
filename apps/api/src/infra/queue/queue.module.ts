@@ -1,7 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import IORedis from 'ioredis';
-import { loadEnv } from '../../config/env';
+import { buildRedisConnection } from '../redis/redis-connection';
 import { QUEUE_AI_CALLS, QUEUE_EMAIL, QUEUE_EXPORT, QUEUE_IMPORT, QUEUE_LEAD_SCORING, QUEUE_REMINDERS, QUEUE_WORKFLOWS } from './queue.constants';
 
 /**
@@ -18,15 +17,13 @@ import { QUEUE_AI_CALLS, QUEUE_EMAIL, QUEUE_EXPORT, QUEUE_IMPORT, QUEUE_LEAD_SCO
 @Module({
   imports: [
     BullModule.forRootAsync({
-      useFactory: () => {
-        const env = loadEnv();
-        return {
-          connection: new IORedis(env.REDIS_URL, {
-            // Required by BullMQ workers — connection is shared.
-            maxRetriesPerRequest: null,
-          }),
-        };
-      },
+      useFactory: () => ({
+        // buildRedisConnection honours REDIS_SENTINEL_HOSTS/MASTER when set
+        // so a single Sentinel pool backs all queues in prod, while dev keeps
+        // working with REDIS_URL. maxRetriesPerRequest:null is required by
+        // BullMQ workers — blocking commands must not be cancelled.
+        connection: buildRedisConnection({ maxRetriesPerRequest: null }),
+      }),
     }),
     BullModule.registerQueue({ name: QUEUE_IMPORT }),
     BullModule.registerQueue({ name: QUEUE_REMINDERS }),

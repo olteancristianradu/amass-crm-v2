@@ -16,6 +16,7 @@ import { GoogleGenAI } from '@google/genai';
 import { loadEnv } from '../../config/env';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { getBreaker } from '../../common/resilience/circuit-breaker';
 
 export interface DealSuggestion {
   action: string;
@@ -148,12 +149,15 @@ ${deal.tasks.map((t) => `- [${t.priority}] ${t.title}${t.dueAt ? ` (due ${t.dueA
       return res.text ?? '{}';
     }
     if (this.provider === 'anthropic' && this.anthropic) {
-      const msg = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 256,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: context }],
-      });
+      const anthropic = this.anthropic;
+      const msg = await getBreaker('anthropic').exec(() =>
+        anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 256,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: context }],
+        }),
+      );
       return msg.content.find((b) => b.type === 'text')?.text ?? '{}';
     }
     return '{}';

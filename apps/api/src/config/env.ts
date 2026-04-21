@@ -10,12 +10,44 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().url(),
 
+  // Optional read-replica DSN. When set, read-only transactions opened via
+  // `prisma.runWithTenant(tenantId, 'ro', fn)` are routed here. Falls back to
+  // DATABASE_URL when unset, so replica routing is purely opt-in.
+  DATABASE_REPLICA_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+
+  // Optional PgBouncer (transaction-pooling) DSN. Use this as DATABASE_URL in
+  // prod for short-lived web requests; Prisma migrations must still hit the
+  // direct Postgres URL via `DIRECT_URL` in schema.prisma.
+  PGBOUNCER_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be ≥16 chars'),
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be ≥16 chars'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
 
   REDIS_URL: z.string().url(),
+
+  // Optional Redis Sentinel hosts, comma-separated "host:port,host:port".
+  // When set (and REDIS_SENTINEL_MASTER is set), BullMQ + RedisService build
+  // a Sentinel connection instead of using REDIS_URL.
+  REDIS_SENTINEL_HOSTS: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().optional(),
+  ),
+  REDIS_SENTINEL_MASTER: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  REDIS_SENTINEL_PASSWORD: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
 
   // MinIO / S3-compatible object storage. The endpoint must be reachable
   // from BOTH the API process and any client that follows a presigned URL,
@@ -116,6 +148,18 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().min(16).optional(),
   ),
+
+  // Default SIEM webhook for audit log forwarding. Per-tenant overrides live
+  // in the DB (tenant.siemWebhookUrl); this is the fallback used by the
+  // audit-forwarder BullMQ consumer when a tenant hasn't configured their own.
+  SIEM_WEBHOOK_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+
+  // Audit log retention in days. Default 2555 (≈7 years) matches EU fiscal
+  // retention. Can be overridden per tenant in DB.
+  AUDIT_RETENTION_DAYS_DEFAULT: z.coerce.number().int().positive().default(2555),
 });
 
 /**

@@ -28,8 +28,20 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // G-prep: stable shard key precomputed once so the app can be migrated to a
+  // sharded Postgres (Citus/Vitess) without rewriting every query. Until the
+  // sharding threshold is crossed (see CLAUDE.md), this is purely advisory.
+  shardId            Int?
+  // E-compliance: SIEM webhook for audit log forwarding. NULL = use global
+  // SIEM_WEBHOOK_URL fallback. Only populated for tenants with own collector.
+  siemWebhookUrl     String?
+  // E-compliance: tenant-specific retention override (days). NULL = use
+  // AUDIT_RETENTION_DAYS_DEFAULT.
+  auditRetentionDays Int?
+
   users User[]
 
+  @@index([shardId])
   @@map("tenants")
 }
 

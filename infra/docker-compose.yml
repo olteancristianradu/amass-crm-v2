@@ -38,6 +38,35 @@ services:
       timeout: 5s
       retries: 10
 
+  # Transaction-pooling proxy in front of Postgres. For prod/scale:
+  #   DATABASE_URL       -> points at pgbouncer (6432)  — used by the app
+  #   DATABASE_DIRECT_URL-> points at postgres  (5432)  — used by Prisma migrate
+  # In dev it's optional; leave the service off by default (profile: prod).
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1
+    container_name: amass-pgbouncer
+    restart: unless-stopped
+    profiles: ["prod"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_NAME: ${POSTGRES_DB:-amass_crm}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "2000"
+      DEFAULT_POOL_SIZE: "25"
+      # Prepared statements don't work under transaction pooling.
+      # Prisma should use `?pgbouncer=true&statement_cache_size=0` on DATABASE_URL.
+      SERVER_RESET_QUERY: DISCARD ALL
+      ADMIN_USERS: ${POSTGRES_USER:-postgres}
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - "${PGBOUNCER_BIND_HOST:-127.0.0.1}:${PGBOUNCER_PORT:-6432}:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
     container_name: amass-redis

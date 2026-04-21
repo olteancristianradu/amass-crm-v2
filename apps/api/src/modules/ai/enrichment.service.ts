@@ -15,6 +15,7 @@ import { GoogleGenAI } from '@google/genai';
 import { loadEnv } from '../../config/env';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { getBreaker } from '../../common/resilience/circuit-breaker';
 
 export interface CompanyEnrichment {
   industryGuess: string;
@@ -136,21 +137,27 @@ export class EnrichmentService {
 
   private async callAI(systemPrompt: string, userMessage: string): Promise<string> {
     if (this.anthropic) {
-      const res = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 512,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }],
-      });
+      const anthropic = this.anthropic;
+      const res = await getBreaker('anthropic').exec(() =>
+        anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 512,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMessage }],
+        }),
+      );
       const block = res.content[0];
       return block.type === 'text' ? block.text : '{}';
     }
 
     if (this.gemini) {
-      const result = await this.gemini.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }],
-      });
+      const gemini = this.gemini;
+      const result = await getBreaker('gemini').exec(() =>
+        gemini.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }],
+        }),
+      );
       return result.text ?? '{}';
     }
 

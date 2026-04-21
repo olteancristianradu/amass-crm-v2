@@ -85,6 +85,14 @@ const TENANT_SCOPED_MODELS = new Set<string>([
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  /**
+   * B-scaling: optional read-replica client. Lazily instantiated when
+   * DATABASE_REPLICA_URL is set. Reads routed via `runWithTenant(id, 'ro', fn)`
+   * go here; everything else still uses the primary client. When the replica
+   * URL is unset, `readClient === this` so callers never need to branch.
+   */
+  private readonly readClient: PrismaClient;
+
   constructor() {
     super({
       datasources: {
@@ -92,14 +100,21 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           // Cap the connection pool to prevent exhausting Postgres max_connections.
           // Formula: (max_connections - 5 system slots) / (number of API replicas).
           // Default Postgres: 100 connections. Single replica → 20 app + headroom.
-          url: PrismaService.buildDatabaseUrl(),
+          url: PrismaService.buildDatabaseUrl(process.env.DATABASE_URL),
         },
       },
     });
+
+    const replicaUrl = process.env.DATABASE_REPLICA_URL;
+    this.readClient = replicaUrl
+      ? new PrismaClient({
+          datasources: { db: { url: PrismaService.buildDatabaseUrl(replicaUrl) } },
+        })
+      : (this as unknown as PrismaClient);
   }
 
-  private static buildDatabaseUrl(): string {
-    const base = process.env.DATABASE_URL ?? '';
+  private static buildDatabaseUrl(input: string | undefined): string {
+    const base = input ?? '';
     if (!base) return base;
     // Append pool params only if not already present in the URL.
     if (base.includes('connection_limit')) return base;
@@ -109,10 +124,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
+    if (this.readClient !== (this as unknown as PrismaClient)) {
+      await this.readClient.$connect();
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
+    if (this.readClient !== (this as unknown as PrismaClient)) {
+      await this.readClient.$disconnect();
+    }
   }
 
   /**
@@ -122,32 +143,40 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    *
    * Layered with the extended client below for defense in depth.
    */
-  async runWithTenant<T>(tenantId: string, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  async runWithTenant<T>(tenantId: string, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
+  async runWithTenant<T>(
+    tenantId: string,
+    mode: 'ro' | 'rw',
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T>;
+  async runWithTenant<T>(
+    tenantId: string,
+    modeOrFn: 'ro' | 'rw' | ((tx: Prisma.TransactionClient) => Promise<T>),
+    maybeFn?: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    const mode: 'ro' | 'rw' = typeof modeOrFn === 'function' ? 'rw' : modeOrFn;
+    const fn = typeof modeOrFn === 'function' ? modeOrFn : (maybeFn as (tx: Prisma.TransactionClient) => Promise<T>);
+
     // M-9: Postgres SET LOCAL does NOT accept parameter placeholders for the
-    // value — the server-side configuration protocol is text-only. So we
-    // CANNOT use $executeRaw with a tagged template (by-construction safety).
-    // Instead we enforce a strict allow-list: every tenantId must be a cuid
-    // (c[a-z0-9]{24}) or a UUID v4. Anything else is rejected BEFORE the
-    // string is interpolated — defense in depth on top of the legacy
-    // single-quote escape.
-    //
-    // This is called on every tenant-scoped request, so the regex is
-    // deliberately cheap. In practice we only ever produce cuids; UUIDs are
-    // accepted to stay compatible with seed scripts that predate the cuid
-    // default.
+    // value — the server-side configuration protocol is text-only. Strict
+    // allow-list prevents injection; see isValidTenantId below.
     if (!PrismaService.isValidTenantId(tenantId)) {
       throw new Error('runWithTenant: tenantId failed format validation');
     }
 
-    return this.$transaction(async (tx) => {
-      // SET LOCAL is rolled back at transaction end → cannot leak between
-      // requests. tenantId has been validated above.
+    // Reads go to the replica client when one is configured; writes always
+    // hit the primary. Both use the same RLS SET LOCAL dance.
+    const target =
+      mode === 'ro' && this.readClient !== (this as unknown as PrismaClient) ? this.readClient : this;
+
+    return target.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(`SET LOCAL app.tenant_id = '${tenantId}'`);
-      // Drop superuser privileges for the rest of this transaction so that
-      // RLS policies actually apply. The connection user (postgres) bypasses
-      // RLS by default — switching to app_user (NOSUPERUSER NOBYPASSRLS)
-      // makes the policies enforced. Reverted automatically at txn end.
       await tx.$executeRawUnsafe(`SET LOCAL ROLE app_user`);
+      if (mode === 'ro') {
+        // On replica this is required (host is read-only anyway); on primary
+        // it's belt-and-braces — any accidental write throws immediately.
+        await tx.$executeRawUnsafe(`SET LOCAL transaction_read_only = on`);
+      }
       return fn(tx);
     });
   }

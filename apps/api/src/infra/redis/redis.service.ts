@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import IORedis from 'ioredis';
-import { loadEnv } from '../../config/env';
+import { buildRedisConnection } from './redis-connection';
 
 /**
  * Thin Redis wrapper for non-BullMQ use-cases (lockout, caching, sessions).
@@ -12,8 +12,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   readonly client: IORedis;
 
   constructor() {
-    const env = loadEnv();
-    this.client = new IORedis(env.REDIS_URL, { lazyConnect: true });
+    this.client = buildRedisConnection({ lazyConnect: true });
   }
 
   async onModuleInit(): Promise<void> {

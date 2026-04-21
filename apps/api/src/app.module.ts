@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { TenantThrottlerGuard } from './common/guards/tenant-throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
@@ -69,6 +70,11 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
 import { TerritoriesModule } from './modules/territories/territories.module';
 import { ChatterModule } from './modules/chatter/chatter.module';
 import { EventsModule } from './modules/events/events.module';
+import { ScimModule } from './modules/scim/scim.module';
+import { WebauthnModule } from './modules/webauthn/webauthn.module';
+import { AccessControlModule } from './modules/access-control/access-control.module';
+import { SyncModule } from './modules/sync/sync.module';
+import { PushModule } from './modules/push/push.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -233,11 +239,19 @@ import { EventsModule } from './modules/events/events.module';
     HealthModule,
     MetricsModule,
     SchedulerModule,
+    // A/D/F scaffolds — see module-level comments for the roadmap.
+    ScimModule,
+    WebauthnModule,
+    AccessControlModule,
+    SyncModule,
+    PushModule,
   ],
   providers: [
-    // Apply ThrottlerGuard globally so every route is rate-limited.
-    // Auth routes use @Throttle() to override with stricter per-route limits.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // B-scaling: rate-limit per-tenant (and per-user when authed) instead of
+    // per-IP so a single noisy tenant can't starve others and co-located
+    // employees behind one NAT don't share a counter. Unauthenticated paths
+    // fall back to IP-based limiting.
+    { provide: APP_GUARD, useClass: TenantThrottlerGuard },
   ],
 })
 export class AppModule implements NestModule {

@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AuditLog } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { getTenantContext } from '../../infra/prisma/tenant-context';
+import { loadEnv } from '../../config/env';
+import { getBreaker } from '../../common/resilience/circuit-breaker';
 
 export interface AuditEntry {
   action: string;
@@ -60,8 +62,8 @@ export class AuditService {
     }
 
     try {
-      await this.prisma.runWithTenant(tenantId, async (tx) => {
-        await tx.auditLog.create({
+      const row = await this.prisma.runWithTenant(tenantId, async (tx) => {
+        return tx.auditLog.create({
           data: {
             tenantId,
             actorId: actorId ?? null,
@@ -74,8 +76,66 @@ export class AuditService {
           },
         });
       });
+      // E-SIEM: fire-and-forget forward. A slow/broken collector must never
+      // slow down the request. Errors are swallowed and surfaced through the
+      // breaker state in /health/detailed.
+      void this.forwardToSiem(tenantId, row);
     } catch (err) {
       this.logger.error(`Audit write failed: ${(err as Error).message}`);
     }
+  }
+
+  /**
+   * E-SIEM: forward an audit entry to the tenant's SIEM webhook (or the
+   * global fallback set via SIEM_WEBHOOK_URL). Wrapped in the 'siem' circuit
+   * breaker so a broken collector can't chain-fail every request thread.
+   */
+  private async forwardToSiem(tenantId: string, row: AuditLog): Promise<void> {
+    const env = loadEnv();
+    // Per-tenant override (tenant.siemWebhookUrl) beats the global env fallback.
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { siemWebhookUrl: true },
+    });
+    const url = tenant?.siemWebhookUrl ?? env.SIEM_WEBHOOK_URL;
+    if (!url) return;
+    try {
+      await getBreaker('siem', { failureThreshold: 10, resetAfterMs: 60_000 }).exec(async () => {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            tenantId,
+            id: row.id,
+            action: row.action,
+            subjectType: row.subjectType,
+            subjectId: row.subjectId,
+            actorId: row.actorId,
+            ipAddress: row.ipAddress,
+            userAgent: row.userAgent,
+            metadata: row.metadata,
+            createdAt: row.createdAt.toISOString(),
+          }),
+        });
+        if (!res.ok) throw new Error(`SIEM webhook returned HTTP ${res.status}`);
+      });
+    } catch (err) {
+      this.logger.warn(`SIEM forward failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * E-compliance: prune audit entries older than `retentionDays`. Returns
+   * the number of rows deleted. Intended to be called by MaintenanceScheduler
+   * (daily). Tenant-specific overrides live in the DB and supersede the
+   * global default.
+   */
+  async pruneExpired(retentionDays: number): Promise<number> {
+    if (retentionDays <= 0) return 0;
+    const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+    const result = await this.prisma.auditLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return result.count;
   }
 }
