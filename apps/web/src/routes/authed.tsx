@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { createRoute, Outlet, redirect } from '@tanstack/react-router';
 import { rootRoute } from './root';
 import { AppShell } from '@/components/layout/AppShell';
@@ -24,10 +25,14 @@ export const authedRoute = createRoute({
   component: AuthedLayout,
 });
 
+// L-3: Suspense boundary so heavy route components (loaded via React.lazy)
+// don't crash the tree while their chunk is fetching.
 function AuthedLayout(): JSX.Element {
   return (
     <AppShell>
-      <Outlet />
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Se încarcă…</p>}>
+        <Outlet />
+      </Suspense>
     </AppShell>
   );
 }

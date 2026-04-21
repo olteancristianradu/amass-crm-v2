@@ -31,14 +31,45 @@ function NotificationsPage(): JSX.Element {
     queryFn: () => (filter === 'unread' ? notificationsApi.listUnread() : notificationsApi.listAll(100)),
   });
 
+  // L-4: optimistic updates — row flips instantly to read state.
   const markReadMut = useMutation({
     mutationFn: (id: string) => notificationsApi.markRead(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['notifications'] });
+      const prev = qc.getQueriesData<Notification[]>({ queryKey: ['notifications'] });
+      for (const [key, list] of prev) {
+        if (!list) continue;
+        qc.setQueryData<Notification[]>(
+          key,
+          list.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, _id, ctx) => {
+      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const markAllReadMut = useMutation({
     mutationFn: () => notificationsApi.markAllRead(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['notifications'] });
+      const prev = qc.getQueriesData<Notification[]>({ queryKey: ['notifications'] });
+      for (const [key, list] of prev) {
+        if (!list) continue;
+        qc.setQueryData<Notification[]>(
+          key,
+          list.map((n) => ({ ...n, isRead: true })),
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const unreadCount = useMemo(

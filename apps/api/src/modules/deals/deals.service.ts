@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Deal, Prisma, StageType } from '@prisma/client';
+import { Deal, Prisma } from '@prisma/client';
 import {
   CreateDealDto,
   ListDealsQueryDto,
@@ -14,6 +14,7 @@ import { PipelinesService } from '../pipelines/pipelines.service';
 import { ProjectsService } from '../projects/projects.service';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
+import { aggregateForecast, stageTypeToStatus } from './deals.helpers';
 
 /**
  * DealsService — the core of the S10 kanban. Four things it has to get right:
@@ -337,31 +338,7 @@ export class DealsService {
       }),
     );
 
-    // Group by stage, compute weighted value per deal
-    const byStage = new Map<string, { stageName: string; deals: { id: string; title: string; value: number | null; currency: string; probability: number; weightedValue: number }[] }>();
-    for (const deal of deals) {
-      const prob = (deal.probability ?? deal.stage.probability ?? 0) / 100;
-      const raw = deal.value ? Number(deal.value) : 0;
-      const weighted = Math.round(raw * prob * 100) / 100;
-      const entry = byStage.get(deal.stageId) ?? { stageName: deal.stage.name, deals: [] };
-      entry.deals.push({ id: deal.id, title: deal.title, value: raw, currency: deal.currency, probability: prob * 100, weightedValue: weighted });
-      byStage.set(deal.stageId, entry);
-    }
-
-    const stages = Array.from(byStage.entries()).map(([stageId, data]) => ({
-      stageId,
-      stageName: data.stageName,
-      totalValue: data.deals.reduce((s, d) => s + (d.value ?? 0), 0),
-      weightedValue: data.deals.reduce((s, d) => s + d.weightedValue, 0),
-      dealCount: data.deals.length,
-      deals: data.deals,
-    }));
-
-    return {
-      stages,
-      totalRaw: stages.reduce((s, st) => s + st.totalValue, 0),
-      totalWeighted: stages.reduce((s, st) => s + st.weightedValue, 0),
-    };
+    return aggregateForecast(deals);
   }
 
   /**
@@ -383,13 +360,3 @@ export class DealsService {
   }
 }
 
-function stageTypeToStatus(type: StageType): 'OPEN' | 'WON' | 'LOST' {
-  switch (type) {
-    case 'OPEN':
-      return 'OPEN';
-    case 'WON':
-      return 'WON';
-    case 'LOST':
-      return 'LOST';
-  }
-}

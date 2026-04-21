@@ -17,26 +17,14 @@ import { SubjectResolver } from '../activities/subject-resolver';
 import { TwilioClient } from './twilio.client';
 import { QUEUE_AI_CALLS } from '../../infra/queue/queue.constants';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
+import {
+  TWIML_EMPTY,
+  TWIML_INBOUND_THANK_YOU,
+  mapTwilioStatus,
+  type AiCallJobPayload,
+} from './calls.helpers';
 
-/** Twilio lowercase status → our enum. */
-const TWILIO_STATUS_MAP: Partial<Record<string, CallStatus>> = {
-  queued:        'QUEUED',
-  initiated:     'QUEUED',
-  ringing:       'RINGING',
-  'in-progress': 'IN_PROGRESS',
-  completed:     'COMPLETED',
-  busy:          'BUSY',
-  'no-answer':   'NO_ANSWER',
-  failed:        'FAILED',
-  canceled:      'CANCELED',
-};
-
-export interface AiCallJobPayload {
-  callId: string;
-  tenantId: string;
-  recordingUrl: string;
-  recordingSid: string;
-}
+export type { AiCallJobPayload } from './calls.helpers';
 
 @Injectable()
 export class CallsService {
@@ -164,7 +152,7 @@ export class CallsService {
       const already = await this.redis.client.get(idempKey);
       if (already) {
         this.logger.debug(`Voice webhook ${callSid} already processed — skipping`);
-        return `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`;
+        return TWIML_EMPTY;
       }
       await this.redis.client.set(idempKey, '1', 'EX', 300);
     }
@@ -224,7 +212,7 @@ export class CallsService {
         this.logger.warn(`Inbound call to unrecognised number ${toNumber} — no tenant found`);
       }
 
-      return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="ro-RO">Apelul dvs. a fost înregistrat. Vă mulțumim.</Say><Hangup/></Response>`;
+      return TWIML_INBOUND_THANK_YOU;
     }
 
     // outbound-api: callee answered; recording is handled by record:true in createCall()
@@ -247,7 +235,7 @@ export class CallsService {
     }
 
     const twilioStatus = (params['CallStatus'] ?? '').toLowerCase();
-    const ourStatus = TWILIO_STATUS_MAP[twilioStatus];
+    const ourStatus = mapTwilioStatus(twilioStatus);
     if (!ourStatus) {
       this.logger.warn(`Unknown Twilio status "${twilioStatus}" callId=${callId}`);
       return;

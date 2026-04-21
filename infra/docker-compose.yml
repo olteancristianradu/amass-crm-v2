@@ -26,7 +26,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-amass_crm}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # L-1: bind to loopback only so a laptop on a public network
+      # (cafe wifi, co-working) doesn't expose Postgres to the outside.
+      # Override POSTGRES_BIND_HOST=0.0.0.0 if you need remote DBeaver.
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -40,7 +43,8 @@ services:
     container_name: amass-redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      # L-1: loopback-only by default; same override as Postgres.
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -58,8 +62,11 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      # L-1: loopback-only by default. The API reaches MinIO via the
+      # docker network; only local dev (browser previews, mc CLI) needs
+      # the host port, and that's always on this machine.
+      - "${MINIO_BIND_HOST:-127.0.0.1}:${MINIO_PORT:-9000}:9000"
+      - "${MINIO_BIND_HOST:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     healthcheck:

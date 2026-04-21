@@ -23,17 +23,56 @@ function TasksMinePage(): JSX.Element {
     queryFn: () => tasksApi.listMine({ status, limit: 100 }),
   });
 
+  // L-4: optimistic updates so checking / unchecking a task feels instant.
+  // Since we filter by status, flipping the status removes the row from the
+  // current tab immediately — server resync happens in the background.
   const completeMut = useMutation({
     mutationFn: (id: string) => tasksApi.complete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['tasks'] });
+      const prev = qc.getQueriesData<Task[]>({ queryKey: ['tasks'] });
+      for (const [key, list] of prev) {
+        if (!list) continue;
+        qc.setQueryData<Task[]>(key, list.filter((t) => t.id !== id));
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   });
   const reopenMut = useMutation({
     mutationFn: (id: string) => tasksApi.reopen(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['tasks'] });
+      const prev = qc.getQueriesData<Task[]>({ queryKey: ['tasks'] });
+      for (const [key, list] of prev) {
+        if (!list) continue;
+        qc.setQueryData<Task[]>(key, list.filter((t) => t.id !== id));
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   });
   const removeMut = useMutation({
     mutationFn: (id: string) => tasksApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['tasks'] });
+      const prev = qc.getQueriesData<Task[]>({ queryKey: ['tasks'] });
+      for (const [key, list] of prev) {
+        if (!list) continue;
+        qc.setQueryData<Task[]>(key, list.filter((t) => t.id !== id));
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   });
 
   return (

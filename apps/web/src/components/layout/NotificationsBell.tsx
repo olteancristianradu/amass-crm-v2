@@ -22,16 +22,49 @@ export function NotificationsBell(): JSX.Element {
     refetchInterval: 60_000,
   });
 
+  // L-4: optimistic updates so the red badge/dot vanish instantly on click.
+  // The server RTT on the shared cluster can be ~200-400 ms; without this
+  // the UI feels laggy for the most frequent action in the app.
   const markReadMut = useMutation({
     mutationFn: (id: string) => notificationsApi.markRead(id),
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['notifications'] });
+      const prev = qc.getQueriesData<Notification[]>({ queryKey: ['notifications'] });
+      for (const [key, list] of prev) {
+        if (!list) continue;
+        qc.setQueryData<Notification[]>(
+          key,
+          list.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, _id, ctx) => {
+      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 
   const markAllReadMut = useMutation({
     mutationFn: () => notificationsApi.markAllRead(),
-    onSuccess: () => {
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['notifications'] });
+      const prev = qc.getQueriesData<Notification[]>({ queryKey: ['notifications'] });
+      for (const [key, list] of prev) {
+        if (!list) continue;
+        qc.setQueryData<Notification[]>(
+          key,
+          list.map((n) => ({ ...n, isRead: true })),
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: ['notifications'] });
     },
   });

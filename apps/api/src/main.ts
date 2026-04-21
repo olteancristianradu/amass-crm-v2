@@ -146,11 +146,14 @@ async function bootstrap(): Promise<void> {
   }
 
   await app.listen(env.PORT, '0.0.0.0');
-  // eslint-disable-next-line no-console
-  console.log(`amass-api listening on http://0.0.0.0:${env.PORT}/api/v1`);
+  // M-11: use Pino (same redaction pipeline as the rest of the app).
+  app.get(Logger).log(`amass-api listening on http://0.0.0.0:${env.PORT}/api/v1`, 'Bootstrap');
 }
 
 bootstrap().catch((err) => {
+  // Bootstrap failure happens before the Nest app exists, so Pino isn't
+  // available yet. Falling back to stderr is safe: err is an internal
+  // Error with no PII, and Sentry (if configured) already has it.
   // eslint-disable-next-line no-console
   console.error('Failed to bootstrap:', err);
   process.exit(1);
