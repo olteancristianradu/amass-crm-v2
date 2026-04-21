@@ -43,3 +43,8 @@ if (!process.env.MINIO_ENDPOINT || process.env.MINIO_ENDPOINT.includes('minio:')
 process.env.ENCRYPTION_KEY ??= '0000000000000000000000000000000000000000000000000000000000000000';
 process.env.JWT_SECRET ??= 'test-secret-at-least-16chars';
 process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret-16+chars';
+
+// Force NODE_ENV=test so ThrottlerModule.skipIf disables rate limits during
+// e2e runs (auth.e2e hammers /auth/register multiple times from localhost,
+// which would otherwise trip the strict-auth throttler).
+process.env.NODE_ENV = 'test';

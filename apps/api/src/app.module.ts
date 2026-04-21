@@ -104,10 +104,15 @@ import { EventsModule } from './modules/events/events.module';
     // Global rate limiting: 60 req/min by default; auth routes override to stricter limits.
     // The `strict-auth` named throttler provides a per-IP short-window hard cap
     // usable by credential-sensitive endpoints on top of the default.
-    ThrottlerModule.forRoot([
-      { name: 'global', ttl: 60_000, limit: 60 },
-      { name: 'strict-auth', ttl: 60_000, limit: 5 },
-    ]),
+    // skipIf: e2e tests hit auth endpoints many times from localhost — skip throttling
+    // when NODE_ENV === 'test' so CI doesn't flake on 429s.
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'global', ttl: 60_000, limit: 60 },
+        { name: 'strict-auth', ttl: 60_000, limit: 5 },
+      ],
+      skipIf: () => process.env.NODE_ENV === 'test',
+    }),
     PrismaModule,
     QueueModule,
     RedisModule,
