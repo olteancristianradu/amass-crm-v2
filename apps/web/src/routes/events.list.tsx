@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const eventsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -29,7 +30,7 @@ function EventsPage(): JSX.Element {
   const [capacity, setCapacity] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { data } = useQuery({ queryKey: ['events'], queryFn: () => eventsApi.list() });
+  const { data, isError, error: queryError } = useQuery({ queryKey: ['events'], queryFn: () => eventsApi.list() });
 
   const createMut = useMutation({
     mutationFn: () => eventsApi.create({
@@ -76,18 +77,20 @@ function EventsPage(): JSX.Element {
         </CardContent>
       </Card>
 
+      <QueryError isError={isError} error={queryError} label="Nu am putut încărca evenimentele." />
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/50 text-left">
               <tr>
-                <th className="px-4 py-2">Nume</th>
-                <th className="px-4 py-2">Tip</th>
-                <th className="px-4 py-2">Start</th>
-                <th className="px-4 py-2">Sfârșit</th>
-                <th className="px-4 py-2">Locație</th>
-                <th className="px-4 py-2 text-right">Capacitate</th>
-                <th className="px-4 py-2"></th>
+                <th scope="col" className="px-4 py-2">Nume</th>
+                <th scope="col" className="px-4 py-2">Tip</th>
+                <th scope="col" className="px-4 py-2">Start</th>
+                <th scope="col" className="px-4 py-2">Sfârșit</th>
+                <th scope="col" className="px-4 py-2">Locație</th>
+                <th scope="col" className="px-4 py-2 text-right">Capacitate</th>
+                <th scope="col" className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>

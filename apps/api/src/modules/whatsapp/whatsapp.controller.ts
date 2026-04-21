@@ -2,6 +2,7 @@ import {
   Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { CreateWhatsappAccountSchema, CreateWhatsappAccountDto, SendWhatsappMessageSchema, SendWhatsappMessageDto } from '@amass/shared';
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -52,8 +53,13 @@ export class WhatsappController {
   ) { return this.svc.listMessages(subjectType, subjectId); }
 
   // ─── Meta Webhook (public) ─────────────────────────────────────────────────
+  // M-8: throttle both handlers per-IP. Meta's normal traffic is orders of
+  // magnitude below these limits; the cap exists to absorb replay floods
+  // from spoofed sources — signature validation still rejects them, but
+  // we don't want to burn CPU hashing garbage at line rate.
 
   @Get('webhook')
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
   verifyWebhook(
     @Query('hub.verify_token') verifyToken: string,
     @Query('hub.challenge') challenge: string,
@@ -68,6 +74,7 @@ export class WhatsappController {
 
   @Post('webhook')
   @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 300 } })
   async receiveWebhook(
     @Req() req: Request,
     @Query('tenantId') tenantId: string,

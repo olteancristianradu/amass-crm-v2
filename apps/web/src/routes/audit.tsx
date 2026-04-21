@@ -70,11 +70,11 @@ function AuditPage(): JSX.Element {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
-                    <th className="px-4 py-2 text-left font-medium">Acțiune</th>
-                    <th className="px-4 py-2 text-left font-medium">Actor</th>
-                    <th className="px-4 py-2 text-left font-medium">Subiect</th>
-                    <th className="px-4 py-2 text-left font-medium">IP</th>
-                    <th className="px-4 py-2 text-left font-medium">Data</th>
+                    <th scope="col" className="px-4 py-2 text-left font-medium">Acțiune</th>
+                    <th scope="col" className="px-4 py-2 text-left font-medium">Actor</th>
+                    <th scope="col" className="px-4 py-2 text-left font-medium">Subiect</th>
+                    <th scope="col" className="px-4 py-2 text-left font-medium">IP</th>
+                    <th scope="col" className="px-4 py-2 text-left font-medium">Data</th>
                   </tr>
                 </thead>
                 <tbody>

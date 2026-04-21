@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const subscriptionsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -65,7 +66,7 @@ function SubscriptionsListPage(): JSX.Element {
     queryKey: ['customer-subscriptions', 'snapshot'],
     queryFn: () => customerSubsApi.snapshot(),
   });
-  const { data } = useQuery({
+  const { data, isError, error } = useQuery({
     queryKey: ['customer-subscriptions', 'list'],
     queryFn: () => customerSubsApi.list({ limit: 100 }),
   });
@@ -116,17 +117,19 @@ function SubscriptionsListPage(): JSX.Element {
 
       {showForm && <NewSubForm onDone={() => setShowForm(false)} />}
 
+      <QueryError isError={isError} error={error} label="Nu am putut încărca abonamentele." />
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/50 text-left">
               <tr>
-                <th className="px-4 py-2 font-medium">Nume</th>
-                <th className="px-4 py-2 font-medium">Plan</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium text-right">MRR</th>
-                <th className="px-4 py-2 font-medium">Start</th>
-                <th className="px-4 py-2 font-medium"></th>
+                <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+                <th scope="col" className="px-4 py-2 font-medium">Plan</th>
+                <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                <th scope="col" className="px-4 py-2 font-medium text-right">MRR</th>
+                <th scope="col" className="px-4 py-2 font-medium">Start</th>
+                <th scope="col" className="px-4 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody>

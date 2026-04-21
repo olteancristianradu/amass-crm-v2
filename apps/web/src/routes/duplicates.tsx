@@ -193,12 +193,12 @@ function DuplicatesPage(): JSX.Element {
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/50 text-left">
                     <tr>
-                      <th className="px-4 py-2 font-medium">Supravietuitor</th>
-                      <th className="px-4 py-2 font-medium">Victimă</th>
-                      <th className="px-4 py-2 font-medium">Similaritate</th>
-                      <th className="px-4 py-2 font-medium">Nume</th>
-                      <th className="px-4 py-2 font-medium">CUI</th>
-                      <th className="px-4 py-2 font-medium">Oraș</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Supravietuitor</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Victimă</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Similaritate</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+                      <th scope="col" className="px-4 py-2 font-medium">CUI</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Oraș</th>
                     </tr>
                   </thead>
                   <tbody>

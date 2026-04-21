@@ -22,16 +22,15 @@ export function AppShell({ children }: Props): JSX.Element {
   const user = useAuthStore((s) => s.user);
   useReminderPoller();
   const clear = useAuthStore((s) => s.clear);
-  const refreshToken = useAuthStore((s) => s.refreshToken);
   const router = useRouter();
 
   const handleLogout = async (): Promise<void> => {
-    if (refreshToken) {
-      try {
-        await api.post('/auth/logout', { refreshToken });
-      } catch {
-        // Logout is fire-and-forget; even if the API call fails, wipe local state.
-      }
+    // M-10: no body — the httpOnly refresh cookie identifies the session
+    // server-side, and the backend clears it on the way out.
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Logout is fire-and-forget; even if the API call fails, wipe local state.
     }
     clear();
     await router.navigate({ to: '/login' });

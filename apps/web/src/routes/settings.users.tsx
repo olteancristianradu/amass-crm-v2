@@ -108,11 +108,11 @@ function SettingsUsersPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 font-medium">Nume</th>
-                  <th className="pb-2 font-medium">Email</th>
-                  <th className="pb-2 font-medium">Rol</th>
-                  <th className="pb-2 font-medium">Adăugat</th>
-                  {isOwnerOrAdmin && <th className="pb-2 font-medium">Acțiuni</th>}
+                  <th scope="col" className="pb-2 font-medium">Nume</th>
+                  <th scope="col" className="pb-2 font-medium">Email</th>
+                  <th scope="col" className="pb-2 font-medium">Rol</th>
+                  <th scope="col" className="pb-2 font-medium">Adăugat</th>
+                  {isOwnerOrAdmin && <th scope="col" className="pb-2 font-medium">Acțiuni</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -179,10 +179,10 @@ function SettingsUsersPage(): JSX.Element {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 font-medium">Nume</th>
-                    <th className="pb-2 font-medium">Email</th>
-                    <th className="pb-2 font-medium">Rol</th>
-                    {isOwnerOrAdmin && <th className="pb-2 font-medium">Acțiuni</th>}
+                    <th scope="col" className="pb-2 font-medium">Nume</th>
+                    <th scope="col" className="pb-2 font-medium">Email</th>
+                    <th scope="col" className="pb-2 font-medium">Rol</th>
+                    {isOwnerOrAdmin && <th scope="col" className="pb-2 font-medium">Acțiuni</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">

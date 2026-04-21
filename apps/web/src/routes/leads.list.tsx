@@ -361,14 +361,14 @@ function LeadsListPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Nume complet</th>
-                  <th className="px-4 py-2 font-medium">Email</th>
-                  <th className="px-4 py-2 font-medium">Companie</th>
-                  <th className="px-4 py-2 font-medium">Sursă</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium text-right">Scor</th>
-                  <th className="px-4 py-2 font-medium">Creat</th>
-                  <th className="px-4 py-2 font-medium">Acțiuni</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Nume complet</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Email</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Companie</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Sursă</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium text-right">Scor</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Creat</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Acțiuni</th>
                 </tr>
               </thead>
               <tbody>

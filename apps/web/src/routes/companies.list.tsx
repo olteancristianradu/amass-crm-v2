@@ -134,7 +134,7 @@ function CompaniesListPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-3 py-2 w-8">
+                  <th scope="col" className="px-3 py-2 w-8">
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -142,12 +142,12 @@ function CompaniesListPage(): JSX.Element {
                       className="rounded"
                     />
                   </th>
-                  <th className="px-4 py-2 font-medium">Nume</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">CUI</th>
-                  <th className="px-4 py-2 font-medium">Industrie</th>
-                  <th className="px-4 py-2 font-medium">Oraș</th>
-                  <th className="px-4 py-2 font-medium">Creat</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium">CUI</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Industrie</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Oraș</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Creat</th>
                 </tr>
               </thead>
               <tbody>

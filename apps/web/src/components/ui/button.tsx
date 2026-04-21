@@ -17,11 +17,16 @@ const variants: Record<Variant, string> = {
   outline: 'border border-input bg-background hover:bg-secondary',
 };
 
+// M-4 WCAG 2.1 AA — minimum touch target 44×44 CSS px (level AAA).
+// Level AA requires only 24×24 but mobile UX research (and the audit) use 44
+// as the practical floor. `default` and `icon` now meet that; `sm` is kept
+// below as an escape hatch for dense desktop tables — use sparingly, never
+// as the primary action on a mobile-facing view.
 const sizes: Record<Size, string> = {
-  default: 'h-10 px-4 py-2',
+  default: 'h-11 px-4 py-2',
   sm: 'h-9 rounded-md px-3 text-sm',
-  lg: 'h-11 rounded-md px-8',
-  icon: 'h-10 w-10',
+  lg: 'h-12 rounded-md px-8',
+  icon: 'h-11 w-11',
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(

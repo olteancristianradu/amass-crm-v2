@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { Invoice, InvoiceStatus, PaymentMethod } from '@/lib/types';
 import { downloadCsv } from '@/lib/csv';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const invoicesListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -30,7 +31,7 @@ function todayIso(): string {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function InvoicesListPage(): JSX.Element {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['invoices', 'list'],
     queryFn: () => invoicesApi.list({ limit: 50 }),
   });
@@ -57,6 +58,7 @@ function InvoicesListPage(): JSX.Element {
         <Button variant="outline" size="sm" onClick={handleExportCsv}>Export CSV</Button>
       </div>
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca facturile." />
       {data && data.data.length === 0 && (
         <p className="text-sm text-muted-foreground">
           Nicio factură emisă. Creează una din detaliul unei companii.

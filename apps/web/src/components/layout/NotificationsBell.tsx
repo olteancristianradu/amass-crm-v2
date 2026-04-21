@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { notificationsApi, type Notification } from '@/features/notifications/api';
 
 /**
@@ -100,13 +101,15 @@ export function NotificationsBell(): JSX.Element {
             ))}
           </div>
 
-          {notifications.length > 0 && (
-            <div className="border-t px-4 py-2">
-              <p className="text-xs text-muted-foreground text-center">
-                Afișând cele mai recente {notifications.length} notificări necitite
-              </p>
-            </div>
-          )}
+          <div className="border-t px-4 py-2 text-center">
+            <Link
+              to="/app/notifications"
+              onClick={() => setOpen(false)}
+              className="text-xs text-primary hover:underline"
+            >
+              Vezi toate notificările
+            </Link>
+          </div>
         </div>
       )}
     </div>

@@ -275,7 +275,8 @@ model Note {
   tenantId    String
   subjectType SubjectType
   subjectId   String
-  body        String
+  /// Cap notes at 10_000 chars. Anything longer belongs in an attachment.
+  body        String      @db.VarChar(10000)
   authorId    String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -536,9 +537,11 @@ model EmailMessage {
   toAddresses   String[]     // array of email addresses
   ccAddresses   String[]     @default([])
   bccAddresses  String[]     @default([])
-  subject       String
-  bodyHtml      String
-  bodyText      String?      // plain-text fallback
+  subject       String       @db.VarChar(998)
+  /// RFC 5322 soft-limit 998 chars/line; hard-cap HTML at 1 MiB to prevent
+  /// oversized row writes and reduce DB replication pressure.
+  bodyHtml      String       @db.VarChar(1048576)
+  bodyText      String?      @db.VarChar(262144) // plain-text fallback, 256 KiB
   status        EmailStatus  @default(QUEUED)
   sentAt        DateTime?
   errorMessage  String?
@@ -844,7 +847,7 @@ model InvoiceLine {
   invoiceId   String   @map("invoice_id")
   productId   String?  @map("product_id")
   position    Int
-  description String
+  description String   @db.VarChar(500)
   quantity    Decimal  @db.Decimal(14, 3)
   unitPrice   Decimal  @map("unit_price") @db.Decimal(14, 2)
   vatRate     Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
@@ -993,7 +996,7 @@ model QuoteLine {
   quoteId     String   @map("quote_id")
   productId   String?  @map("product_id")
   position    Int
-  description String
+  description String   @db.VarChar(500)
   quantity    Decimal  @db.Decimal(14, 3)
   unitPrice   Decimal  @map("unit_price") @db.Decimal(14, 2)
   vatRate     Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)

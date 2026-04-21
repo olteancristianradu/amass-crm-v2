@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { AiCallResultDto, AiCallResultSchema } from '@amass/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -37,6 +38,10 @@ export class CallsWebhookController {
   @Post('webhook/voice')
   @HttpCode(200)
   @Header('Content-Type', 'text/xml')
+  // M-8: per-IP caps. Twilio legitimate volume << 120/min; over that is
+  // almost certainly replay/spoof traffic. Signature check still wins,
+  // but the throttle keeps invalid-sig CPU cost bounded.
+  @Throttle({ default: { ttl: 60_000, limit: 120 } })
   async voiceWebhook(
     @Body() body: Record<string, string>,
     @Req() req: Request,
@@ -51,6 +56,7 @@ export class CallsWebhookController {
    */
   @Post('webhook/status')
   @HttpCode(204)
+  @Throttle({ default: { ttl: 60_000, limit: 240 } })
   async statusWebhook(
     @Body() body: Record<string, string>,
     @Req() req: Request,
@@ -66,6 +72,7 @@ export class CallsWebhookController {
    */
   @Post('webhook/recording')
   @HttpCode(204)
+  @Throttle({ default: { ttl: 60_000, limit: 120 } })
   async recordingWebhook(
     @Body() body: Record<string, string>,
     @Req() req: Request,

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const commissionsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -26,7 +27,7 @@ function CommissionsPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const { data: plans } = useQuery({ queryKey: ['commission-plans'], queryFn: () => commissionsApi.listPlans() });
-  const { data: commissions } = useQuery({
+  const { data: commissions, isError, error: queryError } = useQuery({
     queryKey: ['commissions', year, month],
     queryFn: () => commissionsApi.list(year, month),
   });
@@ -67,7 +68,7 @@ function CommissionsPage(): JSX.Element {
           </div>
           <table className="w-full text-sm">
             <thead className="border-b text-left">
-              <tr><th className="px-2 py-1">Nume</th><th className="px-2 py-1 text-right">%</th><th className="px-2 py-1">Activ</th></tr>
+              <tr><th scope="col" className="px-2 py-1">Nume</th><th scope="col" className="px-2 py-1 text-right">%</th><th scope="col" className="px-2 py-1">Activ</th></tr>
             </thead>
             <tbody>
               {(plans ?? []).map((p) => (
@@ -103,18 +104,20 @@ function CommissionsPage(): JSX.Element {
         </CardContent>
       </Card>
 
+      <QueryError isError={isError} error={queryError} label="Nu am putut încărca comisioanele." />
+
       <Card>
         <CardHeader><CardTitle className="text-lg">Rezultate {year}/{String(month).padStart(2, '0')}</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/50 text-left">
               <tr>
-                <th className="px-4 py-2">Agent</th>
-                <th className="px-4 py-2 text-right">Deal-uri</th>
-                <th className="px-4 py-2 text-right">Bază</th>
-                <th className="px-4 py-2 text-right">Comision</th>
-                <th className="px-4 py-2">Plătit</th>
-                <th className="px-4 py-2"></th>
+                <th scope="col" className="px-4 py-2">Agent</th>
+                <th scope="col" className="px-4 py-2 text-right">Deal-uri</th>
+                <th scope="col" className="px-4 py-2 text-right">Bază</th>
+                <th scope="col" className="px-4 py-2 text-right">Comision</th>
+                <th scope="col" className="px-4 py-2">Plătit</th>
+                <th scope="col" className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>

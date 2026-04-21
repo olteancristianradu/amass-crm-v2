@@ -4,11 +4,17 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 /**
  * Client-side auth state.
  *
- * We keep access + refresh tokens in localStorage (via zustand/persist) so a
- * page reload doesn't require re-login. This is a conscious trade-off: XSS
- * risk is present but manageable because our content is locally-authored
- * (no user-generated HTML rendered as raw HTML). If/when we ship user
- * content rendering we'll move access tokens to memory-only.
+ * M-10 — token storage posture:
+ *   • refreshToken lives ONLY in an httpOnly cookie set by the API (see
+ *     apps/api/src/modules/auth/refresh-cookie.ts). It never hits JS,
+ *     so an XSS cannot exfiltrate it, and we no longer keep it on the
+ *     client at all (no field, no localStorage entry).
+ *   • accessToken is persisted so the SPA can render authenticated UI
+ *     immediately on reload; when it expires mid-session the 401 path
+ *     in lib/api.ts silently refreshes it via the cookie.
+ *   • `user` stays in localStorage so the SPA can render the shell
+ *     immediately on reload without a blank frame. Nothing sensitive is
+ *     in there — just display name, email, role, tenantId.
  *
  * The refresh flow (in lib/api.ts) mutates this store directly via
  * `setTokens()` / `clear()` — it must not import the React hook.
@@ -23,14 +29,19 @@ export interface AuthUser {
 
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
+  /**
+   * Present on login/register/refresh responses historically; after M-10
+   * the backend sets the refresh token in an httpOnly cookie and sends
+   * an empty string in the body. Kept on the type for backward compat
+   * with any caller that still destructures it — the SPA never reads it.
+   */
+  refreshToken?: string;
   expiresIn: number;
 }
 
 interface AuthState {
   user: AuthUser | null;
   accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: () => boolean;
   setSession: (user: AuthUser, tokens: AuthTokens) => void;
   setTokens: (tokens: AuthTokens) => void;
@@ -42,29 +53,26 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       accessToken: null,
-      refreshToken: null,
       isAuthenticated: () => !!get().accessToken && !!get().user,
       setSession: (user, tokens) =>
         set({
           user,
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
         }),
       setTokens: (tokens) =>
         set({
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
         }),
-      clear: () => set({ user: null, accessToken: null, refreshToken: null }),
+      clear: () => set({ user: null, accessToken: null }),
     }),
     {
       name: 'amass-auth',
       storage: createJSONStorage(() => localStorage),
-      // Only persist these fields — never persist method references.
+      // Only persist these fields — never persist method references, and
+      // never persist the refresh token (cookie-only).
       partialize: (s) => ({
         user: s.user,
         accessToken: s.accessToken,
-        refreshToken: s.refreshToken,
       }),
     },
   ),

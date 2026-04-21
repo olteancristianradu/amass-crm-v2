@@ -47,6 +47,7 @@ import { subscriptionsListRoute } from './routes/subscriptions.list';
 import { commissionsListRoute } from './routes/commissions.list';
 import { territoriesListRoute } from './routes/territories.list';
 import { eventsListRoute } from './routes/events.list';
+import { notificationsRoute } from './routes/notifications';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -111,6 +112,7 @@ const routeTree = rootRoute.addChildren([
     commissionsListRoute,
     territoriesListRoute,
     eventsListRoute,
+    notificationsRoute,
   ]),
 ]);
 

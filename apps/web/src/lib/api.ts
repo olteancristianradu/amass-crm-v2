@@ -59,14 +59,15 @@ async function tryRefresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     const state = useAuthStore.getState();
-    if (!state.refreshToken) return false;
     try {
+      // M-10: no body — the refresh token rides along in the httpOnly
+      // `amass_rt` cookie. `credentials: 'include'` on the rawFetch below
+      // is what actually carries the cookie cross-origin.
       const res = await rawFetch('/auth/refresh', {
         method: 'POST',
-        body: { refreshToken: state.refreshToken },
         skipRefresh: true,
       });
-      const data = res as { tokens: { accessToken: string; refreshToken: string; expiresIn: number } };
+      const data = res as { tokens: { accessToken: string; expiresIn: number } };
       state.setTokens(data.tokens);
       return true;
     } catch {
@@ -101,6 +102,10 @@ async function rawFetch<T = unknown>(path: string, opts: RequestOptions = {}): P
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    // M-10: `same-origin` is enough here because the SPA and API share
+    // the origin behind Caddy. It makes the httpOnly refresh cookie
+    // ride along on /auth/refresh and /auth/logout.
+    credentials: 'same-origin',
   });
 
   if (res.status === 401 && !skipRefresh) {

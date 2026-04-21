@@ -71,11 +71,11 @@ function PhoneSettingsPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Număr</th>
-                  <th className="px-4 py-2 font-medium">Etichetă</th>
-                  <th className="px-4 py-2 font-medium">Twilio SID</th>
-                  <th className="px-4 py-2 font-medium">Implicit</th>
-                  <th className="px-4 py-2 font-medium"></th>
+                  <th scope="col" className="px-4 py-2 font-medium">Număr</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Etichetă</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Twilio SID</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Implicit</th>
+                  <th scope="col" className="px-4 py-2 font-medium"></th>
                 </tr>
               </thead>
               <tbody>

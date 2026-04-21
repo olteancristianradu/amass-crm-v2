@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { QueryError } from '@/components/ui/QueryError';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ function WorkflowsPage(): JSX.Element {
   const [showForm, setShowForm] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['workflows'],
     queryFn: () => workflowsApi.list(),
   });
@@ -113,6 +114,7 @@ function WorkflowsPage(): JSX.Element {
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca workflow-urile." />
 
       {!isLoading && workflows.length === 0 && (
         <Card>

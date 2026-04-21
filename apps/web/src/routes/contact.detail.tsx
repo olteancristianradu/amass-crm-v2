@@ -11,6 +11,7 @@ import { AttachmentsTab } from '@/features/attachments/AttachmentsTab';
 import { TasksTab } from '@/features/tasks/TasksTab';
 import { EmailTab } from '@/features/email/EmailTab';
 import { CallsTab } from '@/features/calls/CallsTab';
+import { GdprPanel } from '@/features/gdpr/GdprPanel';
 import { ApiError } from '@/lib/api';
 
 export const contactDetailRoute = createRoute({
@@ -57,19 +58,22 @@ function ContactDetailPage(): JSX.Element {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Detalii</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Field label="Prenume" value={data.firstName} />
-            <Field label="Nume" value={data.lastName} />
-            <Field label="Funcție" value={data.jobTitle} />
-            <Field label="Email" value={data.email} />
-            <Field label="Telefon" value={data.phone} />
-            <Field label="Mobil" value={data.mobile} />
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Detalii</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <Field label="Prenume" value={data.firstName} />
+              <Field label="Nume" value={data.lastName} />
+              <Field label="Funcție" value={data.jobTitle} />
+              <Field label="Email" value={data.email} />
+              <Field label="Telefon" value={data.phone} />
+              <Field label="Mobil" value={data.mobile} />
+            </CardContent>
+          </Card>
+          <GdprPanel kind="contacts" subjectId={id} />
+        </div>
 
         <Card>
           <CardContent className="pt-6">

@@ -4,6 +4,7 @@ import { authedRoute } from './authed';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const dashboardRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -52,7 +53,7 @@ function Dashboard(): JSX.Element {
   const toDate = now.toISOString().slice(0, 10);
   const fromDate = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
 
-  const { data } = useQuery({
+  const { data, isError, error } = useQuery({
     queryKey: ['reports-dashboard', fromDate, toDate],
     queryFn: () => api.get<DashboardStats>('/reports/dashboard', { from: fromDate, to: toDate }),
     staleTime: 5 * 60 * 1000,
@@ -64,6 +65,8 @@ function Dashboard(): JSX.Element {
         <h1 className="text-2xl font-semibold">Bun venit, {user?.fullName ?? '—'}</h1>
         <p className="text-sm text-muted-foreground">Ultimele 30 zile</p>
       </div>
+
+      <QueryError isError={isError} error={error} />
 
       {/* Deals KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -100,9 +103,9 @@ function Dashboard(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Etapă</th>
-                  <th className="px-4 py-2 text-right font-medium">Deals</th>
-                  <th className="px-4 py-2 text-right font-medium">Valoare (RON)</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Etapă</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">Deals</th>
+                  <th scope="col" className="px-4 py-2 text-right font-medium">Valoare (RON)</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

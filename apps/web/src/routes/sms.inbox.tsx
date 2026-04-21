@@ -74,12 +74,12 @@ function SmsInboxPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Direcție</th>
-                  <th className="px-4 py-2 font-medium">De la</th>
-                  <th className="px-4 py-2 font-medium">Către</th>
-                  <th className="px-4 py-2 font-medium">Mesaj</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Data</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Direcție</th>
+                  <th scope="col" className="px-4 py-2 font-medium">De la</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Către</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Mesaj</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Data</th>
                 </tr>
               </thead>
               <tbody>

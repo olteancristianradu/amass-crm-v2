@@ -115,11 +115,11 @@ function EntityCustomFields({ entityType }: { entityType: CustomFieldEntityType 
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/50 text-left">
             <tr>
-              <th className="px-4 py-2 font-medium">Nume câmp</th>
-              <th className="px-4 py-2 font-medium">Tip</th>
-              <th className="px-4 py-2 font-medium">Obligatoriu</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium w-24"></th>
+              <th scope="col" className="px-4 py-2 font-medium">Nume câmp</th>
+              <th scope="col" className="px-4 py-2 font-medium">Tip</th>
+              <th scope="col" className="px-4 py-2 font-medium">Obligatoriu</th>
+              <th scope="col" className="px-4 py-2 font-medium">Status</th>
+              <th scope="col" className="px-4 py-2 font-medium w-24"></th>
             </tr>
           </thead>
           <tbody>

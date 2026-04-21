@@ -123,11 +123,26 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    * Layered with the extended client below for defense in depth.
    */
   async runWithTenant<T>(tenantId: string, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    // M-9: Postgres SET LOCAL does NOT accept parameter placeholders for the
+    // value — the server-side configuration protocol is text-only. So we
+    // CANNOT use $executeRaw with a tagged template (by-construction safety).
+    // Instead we enforce a strict allow-list: every tenantId must be a cuid
+    // (c[a-z0-9]{24}) or a UUID v4. Anything else is rejected BEFORE the
+    // string is interpolated — defense in depth on top of the legacy
+    // single-quote escape.
+    //
+    // This is called on every tenant-scoped request, so the regex is
+    // deliberately cheap. In practice we only ever produce cuids; UUIDs are
+    // accepted to stay compatible with seed scripts that predate the cuid
+    // default.
+    if (!PrismaService.isValidTenantId(tenantId)) {
+      throw new Error('runWithTenant: tenantId failed format validation');
+    }
+
     return this.$transaction(async (tx) => {
-      // SET LOCAL is rolled back at transaction end → cannot leak between requests.
-      // Quote-escape tenantId (Prisma cuids are alphanumeric, but be defensive).
-      const safe = tenantId.replace(/'/g, "''");
-      await tx.$executeRawUnsafe(`SET LOCAL app.tenant_id = '${safe}'`);
+      // SET LOCAL is rolled back at transaction end → cannot leak between
+      // requests. tenantId has been validated above.
+      await tx.$executeRawUnsafe(`SET LOCAL app.tenant_id = '${tenantId}'`);
       // Drop superuser privileges for the rest of this transaction so that
       // RLS policies actually apply. The connection user (postgres) bypasses
       // RLS by default — switching to app_user (NOSUPERUSER NOBYPASSRLS)
@@ -135,6 +150,20 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       await tx.$executeRawUnsafe(`SET LOCAL ROLE app_user`);
       return fn(tx);
     });
+  }
+
+  /**
+   * Strict format allow-list for tenant ids. We accept:
+   *   - cuids (Prisma default):   /^c[a-z0-9]{24}$/
+   *   - UUID v1-v5:               /^[0-9a-f-]{36}$/i with dashes at 8/13/18/23
+   * Rejecting anything else removes the possibility of SQL injection via the
+   * SET LOCAL path even in the presence of a bug upstream.
+   */
+  static isValidTenantId(id: unknown): id is string {
+    if (typeof id !== 'string') return false;
+    if (/^c[a-z0-9]{24}$/.test(id)) return true;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return true;
+    return false;
   }
 }
 

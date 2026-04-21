@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { QueueModule } from './infra/queue/queue.module';
@@ -115,6 +116,14 @@ import { EventsModule } from './modules/events/events.module';
       pinoHttp: {
         level: process.env['LOG_LEVEL'] ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug'),
         autoLogging: { ignore: (req) => req.url === '/metrics' || req.url === '/api/v1/metrics' },
+        // M-2: derive req.id from the X-Request-Id header stamped by
+        // RequestContextMiddleware. Pino then prints it on every log line,
+        // which is how a human stitches a trace across API + worker.
+        genReqId: (req, res) => {
+          const hdr = (res.getHeader('X-Request-Id') as string | undefined)
+            ?? (req.headers['x-request-id'] as string | undefined);
+          return hdr ?? 'req_' + Math.random().toString(36).slice(2, 12);
+        },
         redact: {
           paths: [
             'req.headers.authorization',
@@ -233,10 +242,13 @@ import { EventsModule } from './modules/events/events.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    // Apply tenant context to ALL routes. Routes without auth (login,
-    // register, refresh) simply have an empty context — pre-auth Prisma
-    // calls in AuthService bypass the auto-injection by being on a
-    // non-tenant model (`tenant`) or by reading via unique secure keys.
-    consumer.apply(TenantContextMiddleware).forRoutes('*');
+    // RequestContextMiddleware runs FIRST so both tenant middleware and any
+    // controller/service sees the requestId in ALS when they run. Order is
+    // significant here: Nest applies middleware in the order they appear in
+    // a single `.apply(...)` call, so stacking them in one call keeps the
+    // order deterministic.
+    consumer
+      .apply(RequestContextMiddleware, TenantContextMiddleware)
+      .forRoutes('*');
   }
 }

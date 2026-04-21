@@ -4,6 +4,7 @@ import { authedRoute } from './authed';
 import { remindersApi } from '@/features/reminders/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const remindersMineRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -13,7 +14,7 @@ export const remindersMineRoute = createRoute({
 
 function RemindersMinePage(): JSX.Element {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['reminders', 'mine'],
     queryFn: () => remindersApi.listMine(undefined, 50),
   });
@@ -27,6 +28,7 @@ function RemindersMinePage(): JSX.Element {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Reminder-urile mele</h1>
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca remindere." />
       {data && data.data.length === 0 && (
         <p className="text-sm text-muted-foreground">Niciun reminder programat.</p>
       )}

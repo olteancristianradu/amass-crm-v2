@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const territoriesListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -23,7 +24,7 @@ function TerritoriesPage(): JSX.Element {
   const [userIdInputs, setUserIdInputs] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const { data: territories } = useQuery({ queryKey: ['territories'], queryFn: () => territoriesApi.list() });
+  const { data: territories, isError, error: queryError } = useQuery({ queryKey: ['territories'], queryFn: () => territoriesApi.list() });
 
   const createMut = useMutation({
     mutationFn: () => territoriesApi.create({
@@ -71,6 +72,8 @@ function TerritoriesPage(): JSX.Element {
           </form>
         </CardContent>
       </Card>
+
+      <QueryError isError={isError} error={queryError} label="Nu am putut încărca teritoriile." />
 
       <div className="space-y-3">
         {(territories ?? []).map((t) => (

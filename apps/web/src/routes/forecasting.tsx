@@ -239,12 +239,12 @@ function ForecastingPage(): JSX.Element {
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/50 text-left">
                     <tr>
-                      <th className="px-4 py-2 font-medium">Reprezentant</th>
-                      <th className="px-4 py-2 font-medium text-right">Deals open</th>
-                      <th className="px-4 py-2 font-medium text-right">Pipeline</th>
-                      <th className="px-4 py-2 font-medium text-right">Commit</th>
-                      <th className="px-4 py-2 font-medium text-right">Target</th>
-                      <th className="px-4 py-2 font-medium text-right">%</th>
+                      <th scope="col" className="px-4 py-2 font-medium">Reprezentant</th>
+                      <th scope="col" className="px-4 py-2 font-medium text-right">Deals open</th>
+                      <th scope="col" className="px-4 py-2 font-medium text-right">Pipeline</th>
+                      <th scope="col" className="px-4 py-2 font-medium text-right">Commit</th>
+                      <th scope="col" className="px-4 py-2 font-medium text-right">Target</th>
+                      <th scope="col" className="px-4 py-2 font-medium text-right">%</th>
                     </tr>
                   </thead>
                   <tbody>

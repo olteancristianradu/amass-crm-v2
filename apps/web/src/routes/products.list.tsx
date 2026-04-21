@@ -67,13 +67,13 @@ function ProductsListPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Nume</th>
-                  <th className="px-4 py-2 font-medium">SKU</th>
-                  <th className="px-4 py-2 font-medium">Preț unitar</th>
-                  <th className="px-4 py-2 font-medium">TVA %</th>
-                  <th className="px-4 py-2 font-medium">Categorie</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium w-24"></th>
+                  <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+                  <th scope="col" className="px-4 py-2 font-medium">SKU</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Preț unitar</th>
+                  <th scope="col" className="px-4 py-2 font-medium">TVA %</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Categorie</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium w-24"></th>
                 </tr>
               </thead>
               <tbody>

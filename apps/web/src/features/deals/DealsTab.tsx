@@ -42,10 +42,10 @@ export function DealsTab({ companyId }: Props): JSX.Element {
       <table className="w-full text-sm">
         <thead className="border-b text-left text-xs text-muted-foreground">
           <tr>
-            <th className="py-2">Titlu</th>
-            <th className="py-2">Etapă</th>
-            <th className="py-2">Valoare</th>
-            <th className="py-2">Status</th>
+            <th scope="col" className="py-2">Titlu</th>
+            <th scope="col" className="py-2">Etapă</th>
+            <th scope="col" className="py-2">Valoare</th>
+            <th scope="col" className="py-2">Status</th>
           </tr>
         </thead>
         <tbody>

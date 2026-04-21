@@ -6,6 +6,7 @@ import { tasksApi } from '@/features/tasks/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { Task, TaskStatus } from '@/lib/types';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const tasksMineRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -17,7 +18,7 @@ function TasksMinePage(): JSX.Element {
   const qc = useQueryClient();
   const [status, setStatus] = useState<TaskStatus>('OPEN');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['tasks', 'mine', { status }],
     queryFn: () => tasksApi.listMine({ status, limit: 100 }),
   });
@@ -50,6 +51,7 @@ function TasksMinePage(): JSX.Element {
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca taskurile." />
       {data && data.data.length === 0 && (
         <p className="text-sm text-muted-foreground">
           {status === 'OPEN' ? 'Niciun task deschis.' : 'Niciun task finalizat.'}

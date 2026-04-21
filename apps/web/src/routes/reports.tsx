@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { QueryError } from '@/components/ui/QueryError';
 
 interface DealStats {
   total: number; open: number; won: number; lost: number;
@@ -77,7 +78,7 @@ function ReportsPage(): JSX.Element {
 
   const { from, to } = periodDates(period, customFrom, customTo);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['reports-dashboard', from, to],
     queryFn: () => api.get<DashboardStats>('/reports/dashboard', { from, to }),
     enabled: !!from && !!to,
@@ -159,6 +160,7 @@ function ReportsPage(): JSX.Element {
       {isLoading && activeTab === 'overview' && (
         <p className="text-sm text-muted-foreground">Se încarcă rapoartele…</p>
       )}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca rapoartele." />
 
       {/* ── Overview tab ─────────────────────────────────────────────── */}
       {activeTab === 'overview' && data && (() => {
@@ -184,9 +186,9 @@ function ReportsPage(): JSX.Element {
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50">
                       <tr>
-                        <th className="text-left px-4 py-2 font-medium">Etapă</th>
-                        <th className="text-right px-4 py-2 font-medium">Deals</th>
-                        <th className="text-right px-4 py-2 font-medium">Valoare (RON)</th>
+                        <th scope="col" className="text-left px-4 py-2 font-medium">Etapă</th>
+                        <th scope="col" className="text-right px-4 py-2 font-medium">Deals</th>
+                        <th scope="col" className="text-right px-4 py-2 font-medium">Valoare (RON)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -307,12 +309,12 @@ function ForecastView({ deals }: { deals: DealForecastItem[] }): JSX.Element {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">Deal</th>
-                <th className="text-left px-4 py-2 font-medium">Etapă</th>
-                <th className="text-right px-4 py-2 font-medium">Valoare</th>
-                <th className="px-4 py-2 font-medium">Probabilitate</th>
-                <th className="text-right px-4 py-2 font-medium">Forecast</th>
-                <th className="text-left px-4 py-2 font-medium">Închidere est.</th>
+                <th scope="col" className="text-left px-4 py-2 font-medium">Deal</th>
+                <th scope="col" className="text-left px-4 py-2 font-medium">Etapă</th>
+                <th scope="col" className="text-right px-4 py-2 font-medium">Valoare</th>
+                <th scope="col" className="px-4 py-2 font-medium">Probabilitate</th>
+                <th scope="col" className="text-right px-4 py-2 font-medium">Forecast</th>
+                <th scope="col" className="text-left px-4 py-2 font-medium">Închidere est.</th>
               </tr>
             </thead>
             <tbody className="divide-y">

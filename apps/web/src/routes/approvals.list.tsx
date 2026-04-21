@@ -80,12 +80,12 @@ function ApprovalsListPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Nr. ofertă</th>
-                  <th className="px-4 py-2 font-medium">Total</th>
-                  <th className="px-4 py-2 font-medium">Solicitat la</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Nr. ofertă</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Total</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Solicitat la</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
                   {statusFilter === 'PENDING' && (
-                    <th className="px-4 py-2 font-medium w-40">Acțiuni</th>
+                    <th scope="col" className="px-4 py-2 font-medium w-40">Acțiuni</th>
                   )}
                 </tr>
               </thead>

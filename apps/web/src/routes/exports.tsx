@@ -73,11 +73,11 @@ function ExportsPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Entitate</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Rânduri</th>
-                  <th className="px-4 py-2 font-medium">Creat</th>
-                  <th className="px-4 py-2 font-medium">Acțiuni</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Entitate</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Rânduri</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Creat</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Acțiuni</th>
                 </tr>
               </thead>
               <tbody>

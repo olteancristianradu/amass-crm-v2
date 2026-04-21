@@ -4,6 +4,7 @@ import { attachmentsApi, uploadAttachment } from './api';
 import { Button } from '@/components/ui/button';
 import type { SubjectType } from '@/lib/types';
 import { ApiError } from '@/lib/api';
+import { QueryError } from '@/components/ui/QueryError';
 
 interface Props {
   subjectType: SubjectType;
@@ -62,6 +63,7 @@ export function AttachmentsTab({ subjectType, subjectId }: Props): JSX.Element {
       {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
 
       {listQ.isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={listQ.isError} error={listQ.error} label="Nu am putut încărca atașamentele." />
       {listQ.data && listQ.data.length === 0 && (
         <p className="text-sm text-muted-foreground">Niciun fișier atașat.</p>
       )}

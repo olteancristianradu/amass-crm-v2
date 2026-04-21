@@ -119,14 +119,14 @@ function ContactsListPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-3 py-2 w-8">
+                  <th scope="col" className="px-3 py-2 w-8">
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded" />
                   </th>
-                  <th className="px-4 py-2 font-medium">Nume</th>
-                  <th className="px-4 py-2 font-medium">Funcție</th>
-                  <th className="px-4 py-2 font-medium">Email</th>
-                  <th className="px-4 py-2 font-medium">Telefon</th>
-                  <th className="px-4 py-2 font-medium">Decident</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Funcție</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Email</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Telefon</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Decident</th>
                 </tr>
               </thead>
               <tbody>

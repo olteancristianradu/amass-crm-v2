@@ -10,39 +10,105 @@
 # Security headers: HSTS + XSS protection + referrer policy.
 
 {
-  email admin@YOUR_DOMAIN.com   # ACME registration email
-  admin off
+	email admin@YOUR_DOMAIN.com
+	admin off
+
+	# Global request size guard. API already caps JSON bodies at 2MB in Nest,
+	# but this stops oversized requests at the edge before they even reach
+	# the upstream. 25MB accommodates the largest legit asset (PDF quote).
+	servers {
+		max_header_size 16KB
+	}
+}
+
+# --- Rate-limit policies (M-16) ------------------------------------------
+# Caddy has no built-in rate_limit — we define named policies using the
+# community `caddy-ratelimit` plugin. The docker image in
+# infra/docker-compose.prod.yml must be built with xcaddy + this plugin:
+#   xcaddy build --with github.com/mholt/caddy-ratelimit
+#
+# If the plugin is not present, `caddy validate` will fail loudly on deploy;
+# that's by design (rate-limits are too important to silently drop).
+
+(rate_limits) {
+	rate_limit {
+		zone auth_burst {
+			key    {remote_host}
+			events 10
+			window 1m
+		}
+		zone api_burst {
+			key    {remote_host}
+			events 600
+			window 1m
+		}
+		zone portal_burst {
+			key    {remote_host}
+			events 60
+			window 1m
+		}
+	}
 }
 
 YOUR_DOMAIN.com {
-  # HSTS — tell browsers to always use HTTPS for 1 year
-  header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-  header X-Content-Type-Options "nosniff"
-  header X-Frame-Options "SAMEORIGIN"
-  header Referrer-Policy "strict-origin-when-cross-origin"
+	# Request body cap: 25MB global. Larger PUTs (file uploads) go directly
+	# to MinIO via presigned URLs and bypass this proxy entirely, so there
+	# is no legitimate reason for a 25MB+ body on the API path.
+	request_body {
+		max_size 25MB
+	}
 
-  # API
-  handle /api/* {
-    reverse_proxy api:3000
-  }
+	# Gzip + zstd on responses large enough to benefit. Skips already-compressed
+	# types (images, PDFs) via default content-type heuristics.
+	encode zstd gzip
 
-  # Prometheus metrics — restrict to internal subnet only
-  handle /metrics {
-    # Uncomment and set to your monitoring IP range:
-    # @internal remote_ip 10.0.0.0/8
-    # handle @internal { reverse_proxy api:3000 }
-    # respond "Forbidden" 403
-    reverse_proxy api:3000
-  }
+	# Security headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		Permissions-Policy        "camera=(), microphone=(), geolocation=(), payment=()"
+		# Strip server fingerprint
+		-Server
+	}
 
-  # Everything else → frontend SPA
-  handle {
-    reverse_proxy web:80
-  }
+	# ── Auth endpoints — tight rate limit ──────────────────────────────────
+	handle /api/v1/auth/* {
+		import rate_limits
+		rate_limit zone auth_burst
+		reverse_proxy api:3000
+	}
 
-  # Logs in JSON for structured log ingestion
-  log {
-    output stdout
-    format json
-  }
+	# ── Portal (public) — medium rate limit ────────────────────────────────
+	handle /api/v1/portal/* {
+		import rate_limits
+		rate_limit zone portal_burst
+		reverse_proxy api:3000
+	}
+
+	# ── Main API — generous rate limit (global throttle still applies) ────
+	handle /api/* {
+		import rate_limits
+		rate_limit zone api_burst
+		reverse_proxy api:3000
+	}
+
+	# ── Prometheus metrics — API enforces IP allow-list / Bearer token ────
+	# (see apps/api/src/main.ts H-7 fix). Proxy passes through so the API
+	# can do exact-match IP checks on req.ip instead of a Caddy CIDR guess.
+	handle /metrics {
+		reverse_proxy api:3000
+	}
+
+	# ── Everything else → SPA ──────────────────────────────────────────────
+	handle {
+		reverse_proxy web:80
+	}
+
+	# JSON access logs for structured ingestion.
+	log {
+		output stdout
+		format json
+	}
 }

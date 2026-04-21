@@ -29,4 +29,27 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
+
+  /* M-4 WCAG touch targets.
+   * WCAG 2.1 AA requires ≥24×24 CSS px for pointer targets (AAA is 44×44).
+   * Prior defaults used h-4 w-4 = 16×16 which fails even AA. We raise the
+   * minimum physical size to 20 px (closer to the AAA floor) and then make
+   * the containing label selectable with `cursor-pointer min-h-[44px]` at
+   * row level. The explicit `h-4 w-4` utilities in the existing markup no
+   * longer override these because we raise the floor, not the absolute.
+   */
+  input[type='checkbox'],
+  input[type='radio'] {
+    min-height: 1.25rem; /* 20px */
+    min-width: 1.25rem;
+    cursor: pointer;
+  }
+  /* Labels that wrap an input become the tap target. 44×44 at minimum.
+   * Opt-in via `tap-target` class to avoid breaking dense table layouts
+   * that intentionally pack rows tighter. */
+  label.tap-target {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }

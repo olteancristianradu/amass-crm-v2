@@ -6,6 +6,7 @@ import { projectsApi, type UpdateProjectInput } from '@/features/projects/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { Project, ProjectStatus } from '@/lib/types';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const projectsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -15,7 +16,7 @@ export const projectsListRoute = createRoute({
 
 function ProjectsListPage(): JSX.Element {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['projects', 'list'],
     queryFn: () => projectsApi.list({ limit: 50 }),
   });
@@ -36,6 +37,7 @@ function ProjectsListPage(): JSX.Element {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Proiecte</h1>
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca proiectele." />
       {data && data.data.length === 0 && (
         <p className="text-sm text-muted-foreground">
           Niciun proiect încă. Proiectele apar automat când un deal e marcat câștigat.

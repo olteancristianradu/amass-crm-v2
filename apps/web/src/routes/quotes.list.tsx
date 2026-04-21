@@ -101,12 +101,12 @@ function QuotesListPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Număr</th>
-                  <th className="px-4 py-2 font-medium">Titlu</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Total</th>
-                  <th className="px-4 py-2 font-medium">Valabilă până</th>
-                  <th className="px-4 py-2 font-medium">Acțiuni</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Număr</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Titlu</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Total</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Valabilă până</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Acțiuni</th>
                 </tr>
               </thead>
               <tbody>

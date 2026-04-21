@@ -26,10 +26,10 @@ export function SubsidiariesTab({ companyId }: Props): JSX.Element {
       <table className="w-full text-sm">
         <thead className="border-b bg-muted/50 text-left">
           <tr>
-            <th className="px-4 py-2 font-medium">Nume</th>
-            <th className="px-4 py-2 font-medium">Industrie</th>
-            <th className="px-4 py-2 font-medium">Oraș</th>
-            <th className="px-4 py-2 font-medium">Email</th>
+            <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+            <th scope="col" className="px-4 py-2 font-medium">Industrie</th>
+            <th scope="col" className="px-4 py-2 font-medium">Oraș</th>
+            <th scope="col" className="px-4 py-2 font-medium">Email</th>
           </tr>
         </thead>
         <tbody>

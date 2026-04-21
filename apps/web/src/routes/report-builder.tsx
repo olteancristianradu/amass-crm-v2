@@ -99,12 +99,12 @@ function ReportBuilderPage(): JSX.Element {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Nume</th>
-                  <th className="px-4 py-2 font-medium">Entitate</th>
-                  <th className="px-4 py-2 font-medium">Coloane</th>
-                  <th className="px-4 py-2 font-medium">Limit</th>
-                  <th className="px-4 py-2 font-medium">Creat</th>
-                  <th className="px-4 py-2 font-medium">Acțiuni</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Entitate</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Coloane</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Limit</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Creat</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Acțiuni</th>
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +187,7 @@ function RunResultsTable({ results }: { results: RunTemplateResponse }): JSX.Ele
             <thead className="border-b bg-muted/50 text-left">
               <tr>
                 {columns.map((col) => (
-                  <th key={col} className="px-4 py-2 font-medium">
+                  <th scope="col" key={col} className="px-4 py-2 font-medium">
                     {col}
                   </th>
                 ))}

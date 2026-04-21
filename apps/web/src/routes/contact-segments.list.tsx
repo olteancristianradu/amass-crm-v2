@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const contactSegmentsRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -58,7 +59,7 @@ function ContactSegmentsPage(): JSX.Element {
   const [showForm, setShowForm] = useState(false);
   const [previewSegId, setPreviewSegId] = useState<string | null>(null);
 
-  const { data: segments = [], isLoading } = useQuery({
+  const { data: segments = [], isLoading, isError, error } = useQuery({
     queryKey: ['contact-segments'],
     queryFn: () => contactSegmentsApi.list(),
   });
@@ -80,6 +81,7 @@ function ContactSegmentsPage(): JSX.Element {
       {showForm && <NewSegmentForm onDone={() => setShowForm(false)} />}
 
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca segmentele." />
 
       <div className="space-y-3">
         {(segments as ContactSegment[]).map((seg) => (
@@ -143,10 +145,10 @@ function SegmentPreview({ segmentId }: { segmentId: string }): JSX.Element {
       <table className="w-full text-xs">
         <thead className="bg-muted/50">
           <tr>
-            <th className="px-3 py-1 text-left font-medium">Nume</th>
-            <th className="px-3 py-1 text-left font-medium">Email</th>
-            <th className="px-3 py-1 text-left font-medium">Funcție</th>
-            <th className="px-3 py-1 text-left font-medium">Decident</th>
+            <th scope="col" className="px-3 py-1 text-left font-medium">Nume</th>
+            <th scope="col" className="px-3 py-1 text-left font-medium">Email</th>
+            <th scope="col" className="px-3 py-1 text-left font-medium">Funcție</th>
+            <th scope="col" className="px-3 py-1 text-left font-medium">Decident</th>
           </tr>
         </thead>
         <tbody>

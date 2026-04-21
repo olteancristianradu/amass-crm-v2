@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
+import { QueryError } from '@/components/ui/QueryError';
 
 export const emailSequencesRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -20,7 +21,7 @@ function EmailSequencesPage(): JSX.Element {
   const [showForm, setShowForm] = useState(false);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
 
-  const { data: sequences = [], isLoading } = useQuery({
+  const { data: sequences = [], isLoading, isError, error } = useQuery({
     queryKey: ['email-sequences'],
     queryFn: () => emailSequencesApi.list(),
   });
@@ -63,6 +64,7 @@ function EmailSequencesPage(): JSX.Element {
       {showForm && <NewSequenceForm onDone={() => setShowForm(false)} />}
 
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca secvențele de email." />
 
       <div className="space-y-3">
         {(sequences as EmailSequence[]).map((seq) => (
