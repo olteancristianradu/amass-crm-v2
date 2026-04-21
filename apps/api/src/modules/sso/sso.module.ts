@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { loadEnv } from '../../config/env';
 import { AuthModule } from '../auth/auth.module';
 import { SsoController } from './sso.controller';
 import { SsoService } from './sso.service';
@@ -9,11 +9,10 @@ import { SsoService } from './sso.service';
   imports: [
     AuthModule,
     JwtModule.registerAsync({
-      inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        secret: cfg.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '15m' },
-      }),
+      useFactory: () => {
+        const env = loadEnv();
+        return { secret: env.JWT_SECRET, signOptions: { expiresIn: env.JWT_ACCESS_TTL } };
+      },
     }),
   ],
   controllers: [SsoController],
