@@ -102,8 +102,11 @@ import { EventsModule } from './modules/events/events.module';
 @Module({
   imports: [
     // Global rate limiting: 60 req/min by default; auth routes override to stricter limits.
+    // The `strict-auth` named throttler provides a per-IP short-window hard cap
+    // usable by credential-sensitive endpoints on top of the default.
     ThrottlerModule.forRoot([
       { name: 'global', ttl: 60_000, limit: 60 },
+      { name: 'strict-auth', ttl: 60_000, limit: 5 },
     ]),
     PrismaModule,
     QueueModule,
