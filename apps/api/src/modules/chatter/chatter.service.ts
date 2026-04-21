@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ChatterPost, Prisma } from '@prisma/client';
 import {
   CreateChatterPostDto,
@@ -8,17 +8,23 @@ import {
 import { buildCursorArgs, CursorPage, makeCursorPage } from '../../common/pagination';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ChatterService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ChatterService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async create(dto: CreateChatterPostDto): Promise<ChatterPost> {
     const ctx = requireTenantContext();
     if (!ctx.userId) {
       throw new ForbiddenException({ code: 'NO_USER', message: 'Authenticated user required' });
     }
-    return this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+    const post = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.chatterPost.create({
         data: {
           tenantId: ctx.tenantId,
@@ -30,6 +36,30 @@ export class ChatterService {
         },
       }),
     );
+
+    // Fan-out notifications to mentioned users (fire-and-forget — mention failures
+    // shouldn't block the post itself; errors are logged for observability).
+    if (dto.mentions && dto.mentions.length > 0) {
+      const preview = dto.body.length > 100 ? `${dto.body.slice(0, 100)}…` : dto.body;
+      for (const userId of dto.mentions) {
+        if (userId === ctx.userId) continue;
+        this.notifications
+          .create(ctx.tenantId, {
+            userId,
+            type: 'SYSTEM',
+            title: 'Ai fost menționat într-o postare',
+            body: preview,
+            data: {
+              postId: post.id,
+              subjectType: post.subjectType,
+              subjectId: post.subjectId,
+            },
+          })
+          .catch((err) => this.logger.warn(`Failed to notify ${userId}: ${String(err)}`));
+      }
+    }
+
+    return post;
   }
 
   async list(q: ListChatterQueryDto): Promise<CursorPage<ChatterPost>> {
