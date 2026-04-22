@@ -1,13 +1,16 @@
 # Railway config for the `ai-worker` service (FastAPI).
-# Service Root Directory in Railway: `apps/ai-worker/`.
+#
+# Usage on Railway:
+#   Settings → Source → Root Directory   = (leave EMPTY / blank — repo root)
+#   Settings → Config-as-Code Path       = apps/ai-worker/railway.toml
+#   Settings → Watch Paths               = apps/ai-worker/**
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "../../apps/ai-worker/Dockerfile"
-buildContextPath = "../.."
+dockerfilePath = "apps/ai-worker/Dockerfile"
+watchPatterns = ["apps/ai-worker/**"]
 
 [deploy]
-# $PORT is injected by Railway; see CMD in the Dockerfile.
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

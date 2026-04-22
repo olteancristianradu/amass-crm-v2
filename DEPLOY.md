@@ -186,19 +186,23 @@ deci ai nevoie de 3 servicii Railway, plus Postgres + Redis + MinIO ca addon-uri
 
 #### 4.1.2 Cele 3 servicii (api, web, ai-worker)
 
-Pentru **fiecare serviciu** în Railway dashboard (New Service → GitHub repo):
+**Regula de aur:** Root Directory rămâne **gol** pe toate cele 3 servicii.
+Railway nu suportă build context custom, așa că context-ul trebuie să fie
+repo root ca Dockerfile-ul să poată `COPY packages/shared` (workspace pnpm).
+
+Pentru fiecare serviciu (New Service → GitHub repo), în **Settings**:
 
 | Setting | `api` | `web` | `ai-worker` |
 |---|---|---|---|
-| Root Directory | `apps/api` | `apps/web` | `apps/ai-worker` |
-| Builder | Dockerfile | Dockerfile | Dockerfile |
-| (auto-picked from) | `apps/api/railway.toml` | `apps/web/railway.toml` | `apps/ai-worker/railway.toml` |
+| **Root Directory** | *(gol)* | *(gol)* | *(gol)* |
+| **Config-as-Code Path** | `apps/api/railway.toml` | `apps/web/railway.toml` | `apps/ai-worker/railway.toml` |
 | Public networking | ON | ON | OFF (internal only) |
-| Healthcheck | `/api/v1/health` | (none) | `/health` |
+| (Healthcheck, Dockerfile path, Watch paths se iau din railway.toml) |
 
-`railway.toml` existente în fiecare `apps/*` setează `buildContextPath = "../.."`
-ca build-ul să pornească din rădăcina repo-ului (workspace pnpm are nevoie
-ca `@amass/shared` să se rezolve — fără asta pica `pnpm install`).
+După ce salvezi Config-as-Code Path, Railway reface deploy-ul și citește
+`dockerfilePath = "apps/api/Dockerfile"` din fișier. Dacă vezi iar
+`"/packages/shared": not found`, înseamnă că Root Directory NU e gol —
+întoarce-te la Settings și șterge-l.
 
 #### 4.1.3 Variabile de env pe Railway
 

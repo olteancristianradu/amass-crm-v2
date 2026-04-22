@@ -1,13 +1,18 @@
 # Railway config for the `api` service.
-# Used when the Railway service's Root Directory is set to `apps/api/`.
-# The dockerfilePath is relative to THAT root directory, and the `..` prefix
-# points Railway back at the repo root so the pnpm workspace is visible
-# during the build.
+#
+# Usage on Railway:
+#   Settings → Source → Root Directory   = (leave EMPTY / blank — repo root)
+#   Settings → Config-as-Code Path       = apps/api/railway.toml
+#   Settings → Watch Paths               = apps/api/**, packages/shared/**
+#
+# Railway does NOT support a custom build context path. The build context is
+# always the Root Directory. That's why Root Directory must be empty here —
+# the Dockerfile needs to COPY from `packages/shared` (pnpm workspace).
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "../../apps/api/Dockerfile"
-buildContextPath = "../.."
+dockerfilePath = "apps/api/Dockerfile"
+watchPatterns = ["apps/api/**", "packages/shared/**", "pnpm-lock.yaml"]
 
 [deploy]
 startCommand = "node dist/main.js"
