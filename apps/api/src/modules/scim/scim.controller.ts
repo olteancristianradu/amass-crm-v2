@@ -1,19 +1,22 @@
 import { All, Controller, HttpException, HttpStatus, Param } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 
 /**
  * A-scaffold: SCIM 2.0 endpoints — user/group provisioning protocol used by
  * IdPs (Okta, Azure AD, OneLogin, JumpCloud) to push directory changes into
  * SaaS apps. Target shape matches RFC 7644.
  *
- * Live endpoints arrive once we have paying customers pulled through an IdP.
- * For now every verb returns 501 with a SCIM-compliant error envelope so
- * connectors can be pointed at this endpoint and produce coherent logs.
+ * **Every verb returns 501.** The module is wired so IdP connectors get a
+ * coherent error envelope instead of a 404, but there is no actual
+ * provisioning logic. Hidden from public Swagger so we don't advertise an
+ * API surface we don't implement.
  *
  * NOTE on routing: stacking two `@All(...)` decorators on the same method
  * only registers the last one — Nest reflects decorator metadata and the
  * second write clobbers the first. Use two distinct methods so both
  * `/scim/v2/:resource` and `/scim/v2/:resource/:id` are actually served.
  */
+@ApiExcludeController()
 @Controller('scim/v2')
 export class ScimController {
   @All(':resource')

@@ -24,6 +24,18 @@ export interface JwtPayload {
 export const JWT_BLOCKLIST_PREFIX = 'auth:jwt:blocklist:';
 
 /**
+ * Bcrypt work factor for password hashing.
+ *
+ * Bumping 10 → 12 quadruples the CPU cost of a hash (~250ms on modern
+ * hardware) which materially slows down GPU-based cracking. Users with
+ * existing cost-10 hashes are seamlessly rehashed on their next successful
+ * `login()` (see the if-block after bcrypt.compare) — no forced password
+ * reset required.
+ */
+export const BCRYPT_COST = 12;
+export const LEGACY_BCRYPT_COST = 10;
+
+/**
  * Multi-tenancy note: this service deliberately bypasses `runWithTenant`
  * because it runs **before** a tenant context exists. Login, registration,
  * refresh, and slug-lookup all happen before the JWT that carries tenantId
@@ -75,7 +87,7 @@ export class AuthService {
       throw new ConflictException({ code: 'TENANT_EXISTS', message: 'Tenant slug already taken' });
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
 
     const user = await this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
@@ -161,6 +173,19 @@ export class AuthService {
     if (!ok) {
       await this.recordFailedAttempt(failKey, lockKey);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
+    }
+
+    // Seamless rehash: users created before the BCRYPT_COST bump have a
+    // cost-10 hash. Detect it (format `$2b$10$…`) and rehash with the new
+    // cost on successful login. Fire-and-forget — failure here doesn't
+    // block the login itself.
+    if (user.passwordHash.startsWith(`$2b$${LEGACY_BCRYPT_COST.toString().padStart(2, '0')}$`)) {
+      bcrypt
+        .hash(dto.password, BCRYPT_COST)
+        .then((fresh) =>
+          this.prisma.user.update({ where: { id: user.id }, data: { passwordHash: fresh } }),
+        )
+        .catch(() => {/* swallow — best-effort rehash */});
     }
 
     // If 2FA is enabled, require a valid TOTP code before issuing tokens.

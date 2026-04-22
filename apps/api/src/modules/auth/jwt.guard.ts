@@ -1,8 +1,10 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { loadEnv } from '../../config/env';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { RedisService } from '../../infra/redis/redis.service';
 import { JwtPayload, JWT_BLOCKLIST_PREFIX } from './auth.service';
 
@@ -13,9 +15,19 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // @Public() metadata on handler or class → skip auth. Enables a safer
+    // default: when JwtAuthGuard is wired globally (APP_GUARD), forgetting
+    // @UseGuards on a new controller no longer leaves the route anonymous.
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const req = context.switchToHttp().getRequest<Request & { user?: AuthenticatedUser }>();
     const auth = req.headers.authorization;
     if (!auth || !auth.startsWith('Bearer ')) {

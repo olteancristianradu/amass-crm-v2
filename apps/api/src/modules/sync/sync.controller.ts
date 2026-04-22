@@ -1,4 +1,5 @@
 import { Controller, Get, HttpException, HttpStatus, Query } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 
 /**
  * F-scaffold: delta-sync API. Mobile + offline clients call
@@ -6,10 +7,10 @@ import { Controller, Get, HttpException, HttpStatus, Query } from '@nestjs/commo
  * and receive the set of creates/updates/tombstones newer than `since`, plus
  * a fresh cursor for the next pull.
  *
- * The cursor format will be opaque base64 (tenantId + lastSeenChangeId).
- * Stub for now — returning 501 ensures we don't accidentally ship a noop
- * "everything is up to date" response that hides broken sync.
+ * Returns 501. No `changes` table, no tombstones, no cursor encoder. Hidden
+ * from public Swagger so this surface doesn't look like a feature.
  */
+@ApiExcludeController()
 @Controller('sync')
 export class SyncController {
   @Get()

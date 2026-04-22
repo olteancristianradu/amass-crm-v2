@@ -1,4 +1,5 @@
 import { Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 
 /**
  * A-scaffold: FIDO2 / WebAuthn endpoints. Target library is
@@ -8,9 +9,11 @@ import { Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
  *   POST /webauthn/authenticate/options→ PublicKeyCredentialRequestOptions
  *   POST /webauthn/authenticate/verify → mint session
  *
- * Returning 501 on every verb so the FE can hit these endpoints in staging
- * and see a clear "not ready yet" response instead of a 404.
+ * Every verb returns 501 — no credential table, no challenge store, no
+ * @simplewebauthn/server integration. Hidden from public Swagger so the
+ * API surface we don't implement isn't advertised.
  */
+@ApiExcludeController()
 @Controller('webauthn')
 export class WebauthnController {
   @Post('register/options')

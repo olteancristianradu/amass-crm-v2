@@ -14,15 +14,21 @@
  * Tokens are single-use for the sign endpoint; listing reuses the same token.
  */
 import {
-  BadRequestException, Injectable, NotFoundException, UnauthorizedException,
+  BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RequestPortalAccessDto, SignQuotePortalDto } from '@amass/shared';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class PortalService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(PortalService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   // ─── Token lifecycle ────────────────────────────────────────────────────────
 
@@ -52,14 +58,34 @@ export class PortalService {
     };
   }
 
-  async verifyToken(tenantId: string, token: string) {
-    const record = await this.prisma.runWithTenant(tenantId, (tx) =>
-      tx.portalToken.findFirst({
-        where: { tenantId, token, expiresAt: { gt: new Date() } },
-      }),
-    );
-    if (!record) throw new UnauthorizedException('Invalid or expired portal token');
-
+  async verifyToken(headerTenantId: string, token: string) {
+    // Look up the token GLOBALLY (no tenant filter). If an attacker sends a
+    // valid token for tenant A with an X-Tenant-Id of B, the row is found
+    // under A but `record.tenantId !== headerTenantId` triggers a loud
+    // audit log entry + 403. Without this guard, the endpoint would silently
+    // 401 and the attack would leave no trace.
+    //
+    // Token is `@unique` in schema so findUnique is the right primitive.
+    const record = await this.prisma.portalToken.findUnique({
+      where: { token },
+      select: { id: true, tenantId: true, email: true, companyId: true, clientId: true, expiresAt: true },
+    });
+    if (!record || record.expiresAt <= new Date()) {
+      throw new UnauthorizedException('Invalid or expired portal token');
+    }
+    if (record.tenantId !== headerTenantId) {
+      this.logger.warn(
+        `PORTAL_TENANT_MISMATCH header=${headerTenantId} real=${record.tenantId} tokenId=${record.id}`,
+      );
+      // Audit log uses the real tenantId (not the header) so the event
+      // lands on the actually-compromised tenant's trail.
+      void this.audit.log({
+        action: 'portal.tenant_mismatch',
+        tenantId: record.tenantId,
+        metadata: { headerTenantId, tokenId: record.id, email: record.email },
+      });
+      throw new ForbiddenException('Token does not match tenant');
+    }
     return {
       valid: true,
       email: record.email,
@@ -68,13 +94,27 @@ export class PortalService {
     };
   }
 
-  private async resolveToken(tenantId: string, token: string) {
-    const record = await this.prisma.runWithTenant(tenantId, (tx) =>
-      tx.portalToken.findFirst({
-        where: { tenantId, token, expiresAt: { gt: new Date() } },
-      }),
-    );
-    if (!record) throw new UnauthorizedException('Invalid or expired portal token');
+  /**
+   * Shared helper for the listing / signing endpoints. Uses the same
+   * mismatch-detection logic as verifyToken so a smuggled token is logged
+   * even on these routes.
+   */
+  private async resolveToken(headerTenantId: string, token: string) {
+    const record = await this.prisma.portalToken.findUnique({ where: { token } });
+    if (!record || record.expiresAt <= new Date()) {
+      throw new UnauthorizedException('Invalid or expired portal token');
+    }
+    if (record.tenantId !== headerTenantId) {
+      this.logger.warn(
+        `PORTAL_TENANT_MISMATCH header=${headerTenantId} real=${record.tenantId} tokenId=${record.id}`,
+      );
+      void this.audit.log({
+        action: 'portal.tenant_mismatch',
+        tenantId: record.tenantId,
+        metadata: { headerTenantId, tokenId: record.id, email: record.email },
+      });
+      throw new ForbiddenException('Token does not match tenant');
+    }
     return record;
   }
 
