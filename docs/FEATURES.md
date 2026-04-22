@@ -4,8 +4,8 @@
 > onboarding, vânzare și training. Pentru detalii tehnice vezi `README.md`.
 > Pentru manualul utilizatorului final vezi `README-CEO.md`.
 
-**Versiune:** Tier B+C complete · **Module backend:** 63 · **Pagini frontend:** 51
-**Stack:** NestJS 10 + Prisma 6 + Postgres 16 + React 19 + TanStack · **Multi-tenant:** RLS + TenantGuard
+**Versiune:** Tier B+C + post-audit remediation · **Module backend:** 64 (59 funcționale + 5 scaffolds 501) · **Pagini frontend:** ~45–49 (54 `.tsx` în `routes/`, 5 sunt lazy wrappers)
+**Stack:** NestJS 11 + Prisma 6 + Postgres 16 + React 19 + TanStack · **Multi-tenant defense-in-depth:** JWT + `RolesGuard` + `TenantContextMiddleware` (ALS) → `tenantExtension` aplicat prin Prisma `$extends` → Postgres RLS (`SET LOCAL app.tenant_id`)
 
 ---
 
@@ -42,7 +42,7 @@
 | Admin | 10 | 7 | Auth, users, RBAC, 2FA, custom fields, validation rules, formula fields, duplicates, exports, audit |
 | Variante+Bundle | 2 | – | Product variants (SKU+stoc), product bundles |
 | Abonamente | 1 | 1 | MRR/ARR tracking subscriptions |
-| **Total** | **63** | **51** | – |
+| **Total funcționale** | **59** | **~45–49** | (plus 5 module scaffold 501: SCIM, WebAuthn, Sync, Push, AccessControl) |
 
 ---
 
@@ -96,7 +96,7 @@
 - **Ce face:** Log imuabil al tuturor mutațiilor DB (CREATE/UPDATE/DELETE) + cine, ce tenant, când, snapshot before/after.
 - **De ce contează:** Conformitate GDPR, forensics, debugging.
 - **UI:** `/app/audit` (doar OWNER/ADMIN)
-- **Implementare:** Prisma middleware interceptează toate operațiile + write în `audit_logs`.
+- **Implementare:** `AuditService.log()` este apelat explicit din fiecare service care mutează date; scrie în `audit_logs` prin `runWithTenant` (Layer 2 tenantExtension + Layer 3 RLS). SIEM webhook forwarding opțional (breaker-protected). Retention cron configurabil per tenant.
 
 ---
 
@@ -484,8 +484,9 @@ Cron zilnic → CustomerSubscriptionsService.snapshotMrr() →
 |--------|------------|
 | **Multi-tenancy** | Aceeași bază de date servește mai multe companii (tenants) izolate — fiecare vede doar datele ei. |
 | **RLS (Row-Level Security)** | Postgres filtrează automat rows bazat pe `tenant_id` curent, chiar dacă dezvoltatorul uită să filtreze. |
-| **TenantGuard** | NestJS guard care extrage tenantId din JWT și-l pune în context async. |
-| **Prisma middleware** | Se interpune între codul TS și SQL — adaugă `WHERE tenantId=...` și loghează în audit. |
+| **TenantContextMiddleware** | Middleware Nest care citește `req.user.tenantId` (populat de JwtAuthGuard) și îl pune în `AsyncLocalStorage` pentru durata request-ului. Nu există un „TenantGuard" — rolul lui e împărțit între JwtAuthGuard + RolesGuard + acest middleware. |
+| **Prisma extension (`tenantExtension`)** | Înlocuitorul Prisma v5+ al vechiului `$use` middleware. Aplicat prin `$extends` în `PrismaService.onModuleInit`; `applyTenantScope()` injectează `tenantId` în `where`/`data` pe fiecare tx deschisă cu `runWithTenant`. |
+| **`runWithTenant(tenantId, mode, fn)`** | Deschide o tranzacție pe clientul extins, face `SET LOCAL app.tenant_id` + `SET LOCAL ROLE app_user` (NOSUPERUSER, NOBYPASSRLS), opțional `SET LOCAL transaction_read_only` pentru replica. Acolo lucrează cele 3 straturi de defense-in-depth simultan. |
 | **BullMQ** | Queue Redis pentru jobs async (reminders, exports, AI enrichment). |
 | **Outbox pattern** | Scriu evenimentul în DB în aceeași tranzacție cu modificarea; un worker separat îl publică spre Redis Streams. Garantează consistență. |
 | **Cursor pagination** | Paginare bazată pe ID cursor, nu offset — mai eficientă pentru date mari. |

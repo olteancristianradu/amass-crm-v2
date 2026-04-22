@@ -9,7 +9,7 @@
  * All suggestions are non-destructive — returned as JSON, not auto-applied.
  * The FE can show them as "AI suggestions" for the user to accept.
  */
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { loadEnv } from '../../config/env';
@@ -59,7 +59,6 @@ Respond ONLY with valid JSON matching exactly:
 
 @Injectable()
 export class EnrichmentService {
-  private readonly logger = new Logger(EnrichmentService.name);
   private readonly anthropic: Anthropic | null;
   private readonly gemini: GoogleGenAI | null;
 

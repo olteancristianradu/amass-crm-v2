@@ -10,7 +10,7 @@
 ```
 amass-crm-v2/
 ├── apps/
-│   ├── api/        NestJS 10 backend (the heart)
+│   ├── api/        NestJS 11 backend (the heart)
 │   └── web/        React 19 frontend (Vite + TanStack Router/Query)
 ├── packages/
 │   └── shared/     Zod schemas shared between BE+FE (build to dist/)

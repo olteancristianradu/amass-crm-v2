@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { loadEnv } from '../../config/env';
@@ -11,8 +11,6 @@ export interface SendSmsDto {
 
 @Injectable()
 export class SmsService {
-  private readonly logger = new Logger(SmsService.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
   async send(dto: SendSmsDto) {

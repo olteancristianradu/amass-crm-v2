@@ -31,7 +31,7 @@ diarization, PII redaction, AI summaries). Romanian/EU SMB. **Solo developer.**
 5. **No `any` in TypeScript.** Use `unknown` and narrow.
 6. **No scope creep.** Don't add features not in the spec without asking.
 7. **No destructive git** (force push, reset --hard, branch -D) without explicit user permission.
-8. **Tests alongside code.** Vitest unit + integration (testcontainers + real Postgres). Current reality: ~35% of modules have spec files; coverage is below the launch target. **Target: ≥80% on security-critical services (`auth`, `billing`, `calls`, `invoices`, `deals`, `audit`, `prisma`)** as a prerequisite to v1 launch; other modules ramp to ≥50% before GA. Don't claim "tested" for a module that lacks a `.spec.ts`.
+8. **Tests alongside code.** Vitest unit + integration (testcontainers + real Postgres). **Current measured reality (from `pnpm vitest --coverage` on main):** ~12% line coverage, ~34% function coverage — far below the launch target. 27/64 modules have spec files. **Target: ≥80% on security-critical services (`auth`, `billing`, `calls`, `invoices`, `deals`, `audit`, `prisma`)** as a prerequisite to v1 launch; other modules ramp to ≥50% before GA. Don't claim "tested" for a module that lacks a `.spec.ts`. Re-measure with `pnpm --filter @amass/api vitest run --config vitest.config.unit.ts --coverage` before declaring progress.
 9. **Conventional commits.**
 10. **Comment non-obvious decisions inline.** Solo dev — comments are for future-him.
 11. **Always run `pnpm lint && pnpm test` before declaring done.**
@@ -45,7 +45,7 @@ diarization, PII redaction, AI summaries). Romanian/EU SMB. **Solo developer.**
 
 ## Locked tech stack
 
-Backend: Node 22 · NestJS 10 · TypeScript 5 strict · Prisma 6 · Zod · Vitest · Pino · JWT+sessions+TOTP
+Backend: Node 22 · NestJS 11 · TypeScript 6 strict · Prisma 6 · Zod · Vitest · Pino · JWT+sessions+TOTP
 Data: Postgres 16 + pgvector · Redis 7 · BullMQ · MinIO · Postgres tsvector (no Meilisearch)
 AI: Python 3.12 + FastAPI · Whisper / whisperX · Presidio · Claude (`claude-sonnet-4-6`) · OpenAI embeddings
 Frontend: React 19 · Vite · TanStack Router/Query/Table · shadcn/ui + Tailwind · React Hook Form + Zod · Zustand · Socket.IO

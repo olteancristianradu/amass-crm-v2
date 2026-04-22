@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -15,7 +14,6 @@ import {
 } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
-import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { SubjectResolver } from '../activities/subject-resolver';
 import { EmailTrackingService } from '../email-tracking/email-tracking.service';
@@ -48,12 +46,9 @@ function sanitiseAccount(a: EmailAccount): Omit<EmailAccount, 'smtpPassEnc'> & {
 
 @Injectable()
 export class EmailService {
-  private readonly logger = new Logger(EmailService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly activities: ActivitiesService,
     private readonly subjects: SubjectResolver,
     private readonly tracking: EmailTrackingService,
     @InjectQueue(QUEUE_EMAIL) private readonly emailQueue: Queue,

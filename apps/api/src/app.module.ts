@@ -73,6 +73,7 @@ import { EventsModule } from './modules/events/events.module';
 import { ScimModule } from './modules/scim/scim.module';
 import { WebauthnModule } from './modules/webauthn/webauthn.module';
 import { AccessControlModule } from './modules/access-control/access-control.module';
+import { ConditionalAccessMiddleware } from './modules/access-control/conditional-access.middleware';
 import { SyncModule } from './modules/sync/sync.module';
 import { PushModule } from './modules/push/push.module';
 
@@ -264,5 +265,12 @@ export class AppModule implements NestModule {
     consumer
       .apply(RequestContextMiddleware, TenantContextMiddleware)
       .forRoutes('*');
+
+    // ConditionalAccessMiddleware is a no-op unless the matching env vars
+    // are set — wiring it always is safe and saves a config change when
+    // you flip the policy on. Runs after TenantContextMiddleware so
+    // `getTenantContext()` inside it returns a populated ctx on authed
+    // requests.
+    consumer.apply(ConditionalAccessMiddleware).forRoutes('*');
   }
 }

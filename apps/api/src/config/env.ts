@@ -160,6 +160,23 @@ const envSchema = z.object({
   // Audit log retention in days. Default 2555 (≈7 years) matches EU fiscal
   // retention. Can be overridden per tenant in DB.
   AUDIT_RETENTION_DAYS_DEFAULT: z.coerce.number().int().positive().default(2555),
+
+  // A-scaffold: Conditional Access policies (opt-in).
+  //
+  // `CONDITIONAL_ACCESS_ADMIN_ALLOW_IPS`: comma-separated allow-list of IPs
+  // that can hit /api/v1/{audit,users,settings,billing}*. Empty = disabled.
+  // Example: "10.0.0.1,10.0.0.2" (no CIDR support yet).
+  CONDITIONAL_ACCESS_ADMIN_ALLOW_IPS: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().optional(),
+  ),
+
+  // `CONDITIONAL_ACCESS_BUSINESS_HOURS`: "HH-HH" (server-local). When set,
+  // DELETE on admin routes outside the window returns 403. Empty = disabled.
+  CONDITIONAL_ACCESS_BUSINESS_HOURS: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().regex(/^\d{1,2}-\d{1,2}$/, 'CONDITIONAL_ACCESS_BUSINESS_HOURS must be "HH-HH"').optional(),
+  ),
 });
 
 /**

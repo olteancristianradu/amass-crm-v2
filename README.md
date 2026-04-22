@@ -33,7 +33,7 @@ CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI,
 
 ## 1. Stack complet
 
-**Backend:** Node 22 · NestJS 10 · TypeScript 5 strict · Prisma 6 · Zod · Vitest · Pino · JWT+sessions+TOTP
+**Backend:** Node 22 · NestJS 11 · TypeScript 6 strict · Prisma 6 · Zod · Vitest · Pino · JWT+sessions+TOTP
 
 **Data:** Postgres 16 + pgvector + pg_trgm · Redis 7 · BullMQ · MinIO · Postgres tsvector (NU Meilisearch)
 
