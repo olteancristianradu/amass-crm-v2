@@ -93,6 +93,7 @@ describe('Auth (e2e)', () => {
     expect(ref.body.tokens.accessToken).toBeTruthy();
     // Body still strips refreshToken; rotated value lives in the new cookie.
     expect(ref.body.tokens.refreshToken).toBe('');
+    const newAccess = ref.body.tokens.accessToken;
     const newRefresh = extractRefreshCookie(ref);
     expect(newRefresh).toBeTruthy();
     expect(newRefresh).not.toBe(refreshToken); // rotated
@@ -105,9 +106,11 @@ describe('Auth (e2e)', () => {
       .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(refreshToken)}`)
       .expect(401);
 
-    // Logout new refresh (sent via cookie)
+    // Logout requires the *access* token (JwtAuthGuard) plus the refresh
+    // cookie for the server-side session revocation.
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
+      .set('Authorization', `Bearer ${newAccess}`)
       .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(newRefresh)}`)
       .expect(204);
 
