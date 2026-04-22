@@ -16,12 +16,22 @@ diarization, PII redaction, AI summaries). Romanian/EU SMB. **Solo developer.**
 2. **Never mark "done" without proof.** Tests pass + end-to-end verified
    (curl/Postman/browser) + evidence shown to user.
 3. **Multi-tenant isolation, always.** Every Prisma query filters by
-   `tenantId`. Defense in depth: TenantGuard → Prisma middleware → Postgres RLS → audit log.
+   `tenantId`. Defense in depth:
+   (1) JwtAuthGuard + RolesGuard + `TenantContextMiddleware` populate the
+   per-request tenant ctx in AsyncLocalStorage;
+   (2) `runWithTenant(tenantId, ..., fn)` opens a transaction on a Prisma
+   client extended with `tenantExtension()` — every query inside `fn` gets
+   `tenantId` auto-injected into `where`/`data`;
+   (3) Postgres RLS policies enforced via `SET LOCAL app.tenant_id` +
+   `SET LOCAL ROLE app_user`.
+   Plus an append-only audit log.
+   Services that hit Prisma without `runWithTenant` must filter by `tenantId`
+   manually — see `docs/SCALING.md` for the short list.
 4. **No secrets in code.** Env vars validated by Zod at startup. **Fail fast** on missing required env.
 5. **No `any` in TypeScript.** Use `unknown` and narrow.
 6. **No scope creep.** Don't add features not in the spec without asking.
 7. **No destructive git** (force push, reset --hard, branch -D) without explicit user permission.
-8. **Tests alongside code.** Vitest unit + integration (testcontainers + real Postgres). Target ≥80% coverage on services.
+8. **Tests alongside code.** Vitest unit + integration (testcontainers + real Postgres). Current reality: ~35% of modules have spec files; coverage is below the launch target. **Target: ≥80% on security-critical services (`auth`, `billing`, `calls`, `invoices`, `deals`, `audit`, `prisma`)** as a prerequisite to v1 launch; other modules ramp to ≥50% before GA. Don't claim "tested" for a module that lacks a `.spec.ts`.
 9. **Conventional commits.**
 10. **Comment non-obvious decisions inline.** Solo dev — comments are for future-him.
 11. **Always run `pnpm lint && pnpm test` before declaring done.**
@@ -39,7 +49,7 @@ Backend: Node 22 · NestJS 10 · TypeScript 5 strict · Prisma 6 · Zod · Vites
 Data: Postgres 16 + pgvector · Redis 7 · BullMQ · MinIO · Postgres tsvector (no Meilisearch)
 AI: Python 3.12 + FastAPI · Whisper / whisperX · Presidio · Claude (`claude-sonnet-4-6`) · OpenAI embeddings
 Frontend: React 19 · Vite · TanStack Router/Query/Table · shadcn/ui + Tailwind · React Hook Form + Zod · Zustand · Socket.IO
-Infra: Docker compose (no k8s) · Caddy · Twilio · pnpm + Turborepo · GitHub Actions · Sentry · Pino + Prometheus + OTel
+Infra: Docker compose (no k8s) · Caddy · Twilio · pnpm + Turborepo · GitHub Actions · Sentry · Pino + Prometheus (OTel: not wired — deferred until multi-service tracing is justified)
 
 ### Deferred tech (NOT "never" — "not until metrics justify it")
 
@@ -67,7 +77,7 @@ env-var switches to flip them on.
 
 ## Architecture mandates
 
-- **Multi-tenancy:** TenantGuard + Prisma middleware + Postgres RLS + audit log.
+- **Multi-tenancy:** JwtAuthGuard + RolesGuard + TenantContextMiddleware (sets ctx in ALS) → `runWithTenant()` opens a tx on a Prisma client with `tenantExtension` applied → Postgres RLS via `SET LOCAL`. Plus audit log. Details in `docs/SCALING.md#multi-tenancy-defense-in-depth`.
 - **Events:** Outbox pattern → Redis Streams. Idempotent consumers.
 - **Validation:** Zod schemas in `packages/shared` shared between BE+FE.
 - **Errors:** Global NestJS exception filter. Response shape: `{ code, message, details, traceId, timestamp }`.

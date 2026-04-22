@@ -93,6 +93,20 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    */
   private readonly readClient: PrismaClient;
 
+  /**
+   * Defense-in-depth Layer 2: a view of the primary client with
+   * {@link tenantExtension} applied. Every query routed through this client
+   * gets `tenantId` auto-injected (read) or stamped (write) when a tenant
+   * context is present in AsyncLocalStorage.
+   *
+   * Wired by onModuleInit so `$extends()` runs after `$connect()`. The type
+   * from `$extends` is structurally broader than PrismaClient; we keep it
+   * `unknown` internally and cast at the $transaction call-site — the tx
+   * handed to callers is still a `Prisma.TransactionClient` structurally.
+   */
+  private extended!: { $transaction: PrismaClient['$transaction'] };
+  private readExtended!: { $transaction: PrismaClient['$transaction'] };
+
   constructor() {
     super({
       datasources: {
@@ -127,6 +141,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     if (this.readClient !== (this as unknown as PrismaClient)) {
       await this.readClient.$connect();
     }
+    // Apply the tenant-isolation extension. `$extends` returns a new client
+    // object; on `$transaction` the tx inherits the extension, which is how
+    // we get auto-injected tenantId on every query issued via runWithTenant.
+    this.extended = this.$extends(tenantExtension()) as unknown as typeof this.extended;
+    this.readExtended = this.readClient.$extends(tenantExtension()) as unknown as typeof this.readExtended;
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -165,9 +184,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     }
 
     // Reads go to the replica client when one is configured; writes always
-    // hit the primary. Both use the same RLS SET LOCAL dance.
+    // hit the primary. Both go through the EXTENDED client so tx gets
+    // tenantExtension wired — this is Layer 2 of defense-in-depth (Layer 1
+    // = JWT+RolesGuard+TenantContextMiddleware in ALS, Layer 3 = Postgres
+    // RLS via the SET LOCAL dance below).
     const target =
-      mode === 'ro' && this.readClient !== (this as unknown as PrismaClient) ? this.readClient : this;
+      mode === 'ro' && this.readClient !== (this as unknown as PrismaClient) ? this.readExtended : this.extended;
 
     return target.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(`SET LOCAL app.tenant_id = '${tenantId}'`);
@@ -177,8 +199,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         // it's belt-and-braces — any accidental write throws immediately.
         await tx.$executeRawUnsafe(`SET LOCAL transaction_read_only = on`);
       }
-      return fn(tx);
-    });
+      return fn(tx as unknown as Prisma.TransactionClient);
+    }) as Promise<T>;
   }
 
   /**
@@ -202,9 +224,57 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
  * forgets the WHERE clause, the extension adds it. RLS (layer 3) is the
  * last line of defense.
  *
- * Apply this in providers via `PrismaService.prototype.$extends(tenantExtension())`,
- * but for clarity we'll wire it explicitly in modules that need it.
+ * Wired globally by {@link PrismaService.onModuleInit} onto both the primary
+ * and read-replica clients. Every `runWithTenant(tenantId, ..., fn)` call
+ * opens a transaction on the extended client, so the `tx` handed to `fn`
+ * inherits this extension and filters by tenant automatically when
+ * AsyncLocalStorage holds a tenant context.
+ *
+ * When no tenant context is present (pre-auth slug lookups, seed scripts),
+ * the extension no-ops and defers to the app code / RLS for safety.
  */
+/**
+ * Pure mutation rule extracted so it can be unit-tested without spinning up
+ * Prisma. Returns a NEW args object with `tenantId` stamped on `where` or
+ * `data`, depending on the operation. No-ops when the model is not tenant
+ * scoped or when ctx is missing (pre-auth path).
+ */
+export function applyTenantScope(
+  model: string | undefined,
+  operation: string,
+  args: Record<string, unknown>,
+  ctx: { tenantId: string } | undefined | null,
+): Record<string, unknown> {
+  if (!model || !TENANT_SCOPED_MODELS.has(model)) return args;
+  if (!ctx) return args;
+  const tenantId = ctx.tenantId;
+  const a: Record<string, unknown> = { ...args };
+
+  if (
+    operation === 'findFirst' ||
+    operation === 'findMany' ||
+    operation === 'findUnique' ||
+    operation === 'count' ||
+    operation === 'aggregate' ||
+    operation === 'groupBy' ||
+    operation === 'updateMany' ||
+    operation === 'deleteMany' ||
+    operation === 'update' ||
+    operation === 'delete' ||
+    operation === 'upsert'
+  ) {
+    a.where = { ...((a.where as object | undefined) ?? {}), tenantId };
+  } else if (operation === 'create') {
+    a.data = { ...((a.data as object | undefined) ?? {}), tenantId };
+  } else if (operation === 'createMany') {
+    const data = a.data;
+    if (Array.isArray(data)) {
+      a.data = data.map((row) => ({ ...(row as object), tenantId }));
+    }
+  }
+  return a;
+}
+
 export function tenantExtension() {
   return Prisma.defineExtension({
     name: 'tenant-isolation',
@@ -219,34 +289,11 @@ export function tenantExtension() {
             // No context = pre-auth path (login, register). Allow but rely on RLS + app code.
             return query(args);
           }
-          const tenantId = ctx.tenantId;
-
-          // Inject tenantId into where / data depending on the op.
-          const a = args as Record<string, unknown>;
-          if (
-            operation === 'findFirst' ||
-            operation === 'findMany' ||
-            operation === 'findUnique' ||
-            operation === 'count' ||
-            operation === 'aggregate' ||
-            operation === 'groupBy' ||
-            operation === 'updateMany' ||
-            operation === 'deleteMany'
-          ) {
-            a.where = { ...((a.where as object | undefined) ?? {}), tenantId };
-          } else if (operation === 'update' || operation === 'delete' || operation === 'upsert') {
-            a.where = { ...((a.where as object | undefined) ?? {}), tenantId };
-          } else if (operation === 'create') {
-            a.data = { ...((a.data as object | undefined) ?? {}), tenantId };
-          } else if (operation === 'createMany') {
-            const data = a.data;
-            if (Array.isArray(data)) {
-              a.data = data.map((row) => ({ ...(row as object), tenantId }));
-            }
-          }
-          return query(a);
+          const mutated = applyTenantScope(model, operation, args as Record<string, unknown>, ctx);
+          return query(mutated);
         },
       },
     },
   });
 }
+

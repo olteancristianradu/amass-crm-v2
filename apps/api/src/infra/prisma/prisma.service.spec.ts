@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PrismaService } from './prisma.service';
+import { PrismaService, applyTenantScope } from './prisma.service';
 
 describe('PrismaService.isValidTenantId', () => {
   it('accepts a canonical cuid', () => {
@@ -35,5 +35,63 @@ describe('PrismaService.isValidTenantId', () => {
     ' 550e8400-e29b-41d4-a716-446655440000', // leading space
   ])('rejects %s', (input) => {
     expect(PrismaService.isValidTenantId(input)).toBe(false);
+  });
+});
+
+/**
+ * Layer-2 defense-in-depth: applyTenantScope is the pure mutation rule the
+ * Prisma extension delegates to. Tests drive it directly so we don't have
+ * to spin up a Prisma client or ALS context in unit tests.
+ */
+describe('applyTenantScope — Layer 2 auto-inject tenantId', () => {
+  const TENANT = 'c11112222333344445555666f';
+  const ctx = { tenantId: TENANT };
+
+  it('injects tenantId into findMany.where for a tenant-scoped model', () => {
+    const out = applyTenantScope('Company', 'findMany', { where: { name: 'acme' } }, ctx);
+    expect((out.where as { tenantId?: string; name?: string }).tenantId).toBe(TENANT);
+    expect((out.where as { name?: string }).name).toBe('acme');
+  });
+
+  it('injects tenantId into create.data', () => {
+    const out = applyTenantScope('Deal', 'create', { data: { title: 'x' } }, ctx);
+    expect((out.data as { tenantId?: string }).tenantId).toBe(TENANT);
+  });
+
+  it('injects tenantId on every row of createMany', () => {
+    const out = applyTenantScope(
+      'Contact',
+      'createMany',
+      { data: [{ email: 'a@b' }, { email: 'c@d' }] },
+      ctx,
+    );
+    for (const row of out.data as Array<{ tenantId?: string }>) {
+      expect(row.tenantId).toBe(TENANT);
+    }
+  });
+
+  it('stamps tenantId on update/delete/upsert where clauses', () => {
+    for (const op of ['update', 'delete', 'upsert'] as const) {
+      const out = applyTenantScope('Deal', op, { where: { id: 'd1' } }, ctx);
+      expect((out.where as { tenantId?: string }).tenantId).toBe(TENANT);
+    }
+  });
+
+  it('does NOT touch args when model is not tenant-scoped', () => {
+    const before = { where: { id: 'x' } };
+    const out = applyTenantScope('Tenant', 'findFirst', before, ctx);
+    expect((out.where as { tenantId?: string }).tenantId).toBeUndefined();
+  });
+
+  it('no-ops when ctx is null (pre-auth slug lookup / seed scripts)', () => {
+    const before = { where: { slug: 'acme' } };
+    const out = applyTenantScope('Company', 'findFirst', before, null);
+    expect((out.where as { tenantId?: string }).tenantId).toBeUndefined();
+  });
+
+  it('no-ops for unknown operations (extension forward-compat)', () => {
+    const before = { anything: 'goes' } as Record<string, unknown>;
+    const out = applyTenantScope('Deal', 'someFutureOp', before, ctx);
+    expect(out).toEqual(before);
   });
 });

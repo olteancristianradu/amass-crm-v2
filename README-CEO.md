@@ -49,7 +49,7 @@ Email cu link → setează parolă → login.
 ### Pas 2: Configurare inițială (OWNER/ADMIN)
 1. **Setări → Utilizatori** → invită echipa (rol + email)
 2. **Setări → Telefonie** → conectează Twilio (dacă faci apeluri din CRM)
-3. **Setări → Email** → SMTP sau SendGrid pentru trimitere email-uri
+3. **Setări → Email** → credențiale SMTP pentru trimitere email-uri (merge cu SendGrid SMTP, Mailgun, Postmark, serverul propriu etc.)
 4. **Setări → Securitate 2FA** → activează (recomandat pentru toți)
 5. **Pipeline vânzări** → setează stadiile tale personalizate
 
@@ -383,7 +383,7 @@ Toate cele 51 funcții de mai sus sunt funcționale. Vezi `STATUS.md` pentru det
 ## 7. Întrebări frecvente
 
 **Q: Pot să folosesc CRM-ul gratuit?**
-A: Da, self-hosted pe propriul VPS = zero licență. Doar costul VPS-ului (~10 EUR/lună) + Twilio/SendGrid după uzaj.
+A: Da, self-hosted pe propriul VPS = zero licență. Doar costul VPS-ului (~10 EUR/lună) + Twilio (dacă folosești apeluri) + SMTP (orice provider — SendGrid/Mailgun/self-hosted) după uzaj.
 
 **Q: Datele sunt în siguranță?**
 A: 3 straturi izolare tenant + JWT + 2FA + rate limiting + criptare la rest (MinIO) + HMAC pe webhooks. Vezi secțiunea Securitate în README.md tehnic.

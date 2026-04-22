@@ -9,6 +9,18 @@ This doc covers what's already wired and how to flip it on.
 
 ---
 
+## Multi-tenancy defense-in-depth
+
+Three layers, in order of the request lifecycle:
+
+1. **Auth + ALS context** — `JwtAuthGuard` + `RolesGuard` + `TenantContextMiddleware` populate `tenantStorage` (AsyncLocalStorage) with `{ tenantId, userId, role }`. No `TenantGuard` class exists; the three collaborators above do the job together.
+2. **`tenantExtension` Prisma extension** — wired globally in `PrismaService.onModuleInit` via `$extends`. Every tx opened through `runWithTenant(tenantId, mode, fn)` inherits the extension, which auto-injects `tenantId` into `where`/`data` for tenant-scoped models. The mutation rule is factored into pure `applyTenantScope()` and unit-tested in `prisma.service.spec.ts`.
+3. **Postgres RLS** — `runWithTenant` issues `SET LOCAL app.tenant_id = '<id>'` + `SET LOCAL ROLE app_user` (NOSUPERUSER, NOBYPASSRLS). Policies are defined per-table in migrations.
+
+**Services that bypass `runWithTenant`** (direct `this.prisma.xxx` calls): `ai/deal-ai`, `ai/embedding`, `ai/search`, `auth/auth`, `auth/totp`, `sso/sso`, `reports/reports`. Each filters by `tenantId` manually in `WHERE`. They get **Layer 1 + Layer 3 only, not Layer 2** — a bug in one of their queries skips the auto-inject safety net. Converting them is a tracked follow-up.
+
+---
+
 ## Read-replica routing
 
 `PrismaService.runWithTenant` takes an optional `'ro' | 'rw'` mode. Reads

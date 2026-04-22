@@ -39,7 +39,7 @@ CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI,
 
 **Frontend:** React 19 · Vite · TanStack Router/Query/Table · shadcn/ui + Tailwind · React Hook Form + Zod · Zustand · Socket.IO client
 
-**Infra:** Docker Compose (NU k8s) · Caddy · Twilio · pnpm + Turborepo · GitHub Actions · Sentry · Pino + Prometheus + OTel
+**Infra:** Docker Compose (NU k8s) · Caddy · Twilio · pnpm + Turborepo · GitHub Actions · Sentry · Pino + Prometheus. OpenTelemetry nu e wired — deferred până avem nevoie de distributed tracing cross-service.
 
 **Explicit NU folosim:** Kubernetes, Kafka, microservices, GraphQL, MongoDB, Meilisearch, Redux.
 
@@ -49,12 +49,30 @@ CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI,
 
 ### Principii de design
 
-1. **Monolit modular** — un singur API NestJS cu 63 module. Simplitate > microservices pentru solo dev.
+1. **Monolit modular** — un singur API NestJS cu 64 module, din care 5 sunt scaffold-uri explicite (vezi secțiunea 2.1). Simplitate > microservices pentru solo dev.
 2. **Multi-tenancy in-row** — toate tabelele au `tenant_id`. RLS + middleware garantează izolarea.
 3. **Outbox pattern** — evenimente scrise în DB în aceeași tranzacție, consumate async de Redis Streams.
 4. **Idempotent consumers** — toate jobs-urile BullMQ suportă retry fără efecte duble.
 5. **Presigned URLs** pentru binare — frontend upload direct spre MinIO, backend primește doar metadata.
 6. **Zod everywhere** — schema-uri partajate BE+FE în `packages/shared`.
+
+### 2.1 Module scaffold (NOT IMPLEMENTED — placeholder pentru roadmap)
+
+Următoarele module sunt **scheleturi** cablate în `AppModule` pentru a
+discoverable API surface-ul pe care-l vom implementa când vine cererea
+reală. NU sunt funcționale. Nu promite capabilități enterprise pe bază de
+prezența lor.
+
+| Modul | Rută | Comportament acum | Pentru când e real |
+|---|---|---|---|
+| `ScimModule` | `/api/v1/scim/v2/*` | 501 cu envelope SCIM | IdP provisioning (Okta/Azure AD/JumpCloud) |
+| `WebauthnModule` | `/api/v1/webauthn/*` | 501 | FIDO2/WebAuthn passkey auth |
+| `SyncModule` | `GET /api/v1/sync` | 501 | Mobile delta-sync |
+| `PushModule` | - (service) | `PushService.send()` e no-op log | APNs/FCM push notifications |
+| `AccessControlModule` | - (middleware) | `ConditionalAccessMiddleware` e pass-through, `CedarPolicyService.check()` default-allow | ABAC + conditional access policies |
+
+SSO (`SsoModule`, `@node-saml/passport-saml`) NU e scaffold — e
+implementat, merge.
 
 ### Diagramă componente
 
@@ -160,8 +178,12 @@ TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_PHONE_NUMBER=+40...
 
-# Email
-SENDGRID_API_KEY=
+# Email — SMTP via nodemailer (SendGrid SMTP works here too, but we don't ship
+# the @sendgrid/mail SDK; use any SMTP provider — SendGrid, Mailgun, self-hosted).
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
 EMAIL_FROM=noreply@amass.ro
 
 # AI (opțional)
@@ -237,12 +259,14 @@ amass-crm-v2/
 
 ---
 
-## 6. Multi-tenancy (3 straturi)
+## 6. Multi-tenancy — defense in depth
 
-**Defense in depth.** Dacă un strat pică, următoarele te acoperă.
+**Dacă un strat pică, următoarele te acoperă.** Nu există `TenantGuard` ca un
+guard dedicat; rolul lui e împărțit între trei piese:
 
-### Stratul 1: TenantGuard (NestJS)
-Extrage `tenantId` din JWT și-l stochează în AsyncLocalStorage.
+### Stratul 1: JwtAuthGuard + RolesGuard + `TenantContextMiddleware`
+`TenantContextMiddleware` citește `req.user.tenantId` populat de
+JwtAuthGuard și îl setează în `AsyncLocalStorage` pentru restul request-ului:
 
 ```typescript
 export const tenantStorage = new AsyncLocalStorage<TenantContext>();
@@ -253,11 +277,21 @@ export const requireTenantContext = () => {
 };
 ```
 
-### Stratul 2: Prisma middleware
-Interceptează orice query și adaugă `WHERE tenantId = <current>`.
+Toate controllerele tenant-scoped sunt decorate cu
+`@UseGuards(JwtAuthGuard, RolesGuard)`.
+
+### Stratul 2: `tenantExtension` — Prisma client extension
+Wired global în `PrismaService.onModuleInit` prin
+`this.$extends(tenantExtension())`. Orice tranzacție deschisă prin
+`runWithTenant(tenantId, mode, fn)` rulează pe clientul extins, deci tx-ul
+predat lui `fn` injectează `tenantId` pe orice `where`/`data` al modelelor
+tenant-scoped. Pure-function `applyTenantScope()` e unit-testat
+(`prisma.service.spec.ts`).
 
 ### Stratul 3: Postgres RLS
-Ultimul cordon — chiar dacă scrii raw SQL fără filtru:
+`runWithTenant` face `SET LOCAL app.tenant_id = '<id>'` +
+`SET LOCAL ROLE app_user` (NOSUPERUSER, NOBYPASSRLS). Chiar și raw SQL
+fără filtru e blocat:
 
 ```sql
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
@@ -265,8 +299,15 @@ CREATE POLICY tenant_isolation ON companies
   USING (tenant_id = current_setting('app.tenant_id')::text);
 ```
 
-### Stratul 4 (audit)
-Orice cross-tenant attempt → loggat în `audit_logs` cu level ERROR.
+### Audit log (supliment, nu strat independent)
+Orice acțiune senzitivă → `audit_logs`. Cu `SIEM_WEBHOOK_URL` setat,
+fiecare intrare e forwardată async (breaker-protected).
+
+### Servicii care ocolesc `runWithTenant` (filtrează manual)
+`ai/deal-ai`, `ai/embedding`, `ai/search`, `auth/auth`, `auth/totp`,
+`sso/sso`, `reports/reports`. Fiecare filtrează explicit după `tenantId`
+în `WHERE`. Nu au Layer 2 — un bug într-un query scapă de Stratul 2.
+Convertirea lor la `runWithTenant` e un follow-up.
 
 ---
 
@@ -300,7 +341,7 @@ Loop strict din `CLAUDE.md`:
 2. **Schema Prisma** → `pnpm prisma migrate dev --name add_my_feature`
 3. **Zod schema** în `packages/shared/src/schemas/`
 4. **Service** în `apps/api/src/modules/my-feature/`
-5. **Controller** cu `@UseGuards(JwtAuthGuard, TenantGuard)`
+5. **Controller** cu `@UseGuards(JwtAuthGuard, RolesGuard)` + toate query-urile prin `runWithTenant(tenantId, ..., fn)` ca să ia Layer 2 (`tenantExtension`) și Layer 3 (RLS).
 6. **Module** cu imports corecte
 7. Înregistrează în `app.module.ts`
 8. **Tests** Vitest (unit + integration)
@@ -447,10 +488,12 @@ curl -X POST https://api.amass.ro/api/v1/auth/register \
 3. Webhook status: `https://api.amass.ro/api/v1/calls/twilio/status`
 4. Copiază SID + AUTH_TOKEN în `.env`
 
-### 12.2 SendGrid
-1. Cont [sendgrid.com](https://sendgrid.com)
+### 12.2 Email (SMTP via nodemailer)
+Outbound email merge prin `nodemailer` cu orice provider SMTP — nu folosim
+SDK-ul `@sendgrid/mail`. Pași:
+1. Alege provider (SendGrid SMTP, Mailgun SMTP, Postmark SMTP, self-hosted Postfix etc.)
 2. Domain Authentication (DNS: DKIM + SPF) pentru `amass.ro`
-3. API Key cu `Mail Send` → `.env`
+3. Credentials → `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` în `.env`
 
 ### 12.3 Sentry
 1. [sentry.io](https://sentry.io) → proiecte separate Node.js + React
@@ -486,8 +529,9 @@ Calendar sync = consent user individual; nu config global.
 - **psql / pgAdmin** pentru prod
 
 ### Observability
-- `/metrics` expune Prometheus
-- OTel pentru distributed tracing (opțional)
+- `/metrics` expune Prometheus (IP allow-list + bearer token prin `METRICS_ALLOWED_IPS` / `METRICS_AUTH_TOKEN`).
+- Sentry pentru error tracking (`SENTRY_DSN`).
+- `X-Trace-Id` header propagat prin `RequestContextMiddleware` + exception filter — tracing local în-process, **nu distributed**. OpenTelemetry nu e wired; se va adăuga când vom avea ≥2 servicii de corelat.
 
 ---
 
@@ -502,7 +546,7 @@ Calendar sync = consent user individual; nu config global.
 **Fix:** `pnpm install --lockfile-only`, commit `pnpm-lock.yaml`.
 
 ### `No tenant context` în service
-**Fix:** verifică `@UseGuards(TenantGuard)` pe controller.
+**Fix:** verifică că `TenantContextMiddleware` e aplicat (vezi `AppModule.configure()`) și că controllerul are `@UseGuards(JwtAuthGuard, RolesGuard)`. Dacă apelezi serviciul dintr-un job de background (BullMQ, cron), trebuie să împachetezi manual în `tenantStorage.run({ tenantId }, () => ...)`.
 
 ### Migration refuză drop coloană în prod
 **Fix:** expand-contract — nullable întâi, deploy, apoi drop.
