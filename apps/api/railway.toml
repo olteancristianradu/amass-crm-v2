@@ -1,0 +1,17 @@
+# Railway config for the `api` service.
+# Used when the Railway service's Root Directory is set to `apps/api/`.
+# The dockerfilePath is relative to THAT root directory, and the `..` prefix
+# points Railway back at the repo root so the pnpm workspace is visible
+# during the build.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "../../apps/api/Dockerfile"
+buildContextPath = "../.."
+
+[deploy]
+startCommand = "node dist/main.js"
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

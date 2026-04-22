@@ -128,6 +128,13 @@ WHISPER_MODEL=off
 
 ## 4. Deploy
 
+> **Pe Railway, sari la §4.1.** Secțiunile 4/5 descriu deployul cu
+> docker-compose + Caddy pe un VPS propriu (Hetzner etc.), care îți dă cel
+> mai mult control. Railway ia costuri mai mari per GB RAM dar are DX mai
+> rapid pentru primul MVP.
+
+### 4.0 docker-compose pe VPS propriu
+
 ```bash
 cd /opt/amass
 
@@ -155,6 +162,98 @@ docker compose -f infra/docker-compose.yml --profile prod up -d pgbouncer
 # ?pgbouncer=true&statement_cache_size=0
 # și lasă un DATABASE_DIRECT_URL pe postgres:5432 pentru `prisma migrate`.
 ```
+
+### 4.1 Deploy pe Railway
+
+Railway e cea mai simplă variantă dacă nu vrei să administrezi un VPS —
+dar **monorepo-ul pnpm are 3 deployables separate** (api / web / ai-worker),
+deci ai nevoie de 3 servicii Railway, plus Postgres + Redis + MinIO ca addon-uri.
+
+> **Eroarea `Dockerfile 'Dockerfile' does not exist`** apare când Railway
+> nu știe unde e Dockerfile-ul. Root-ul repo-ului NU are `Dockerfile` —
+> fiecare app are al ei. Fix-ul e mai jos.
+
+#### 4.1.1 Addon-uri (din Railway dashboard → New → Database)
+
+1. **Postgres 16** → copiază `DATABASE_URL` în variabilele serviciului `api`.
+2. **Redis 7** → copiază `REDIS_URL` în `api` și `ai-worker`.
+3. MinIO **nu există** ca addon Railway. Alternative:
+   - Folosește **Cloudflare R2** (compatibil S3): cost zero-egress, ~0.015$/GB.
+     Setează `MINIO_ENDPOINT=https://<acct>.r2.cloudflarestorage.com`,
+     `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`.
+   - Sau **Backblaze B2** / AWS S3 — același API.
+   - Rula MinIO ca al 4-lea serviciu Railway (imagine `minio/minio`).
+
+#### 4.1.2 Cele 3 servicii (api, web, ai-worker)
+
+Pentru **fiecare serviciu** în Railway dashboard (New Service → GitHub repo):
+
+| Setting | `api` | `web` | `ai-worker` |
+|---|---|---|---|
+| Root Directory | `apps/api` | `apps/web` | `apps/ai-worker` |
+| Builder | Dockerfile | Dockerfile | Dockerfile |
+| (auto-picked from) | `apps/api/railway.toml` | `apps/web/railway.toml` | `apps/ai-worker/railway.toml` |
+| Public networking | ON | ON | OFF (internal only) |
+| Healthcheck | `/api/v1/health` | (none) | `/health` |
+
+`railway.toml` existente în fiecare `apps/*` setează `buildContextPath = "../.."`
+ca build-ul să pornească din rădăcina repo-ului (workspace pnpm are nevoie
+ca `@amass/shared` să se rezolve — fără asta pica `pnpm install`).
+
+#### 4.1.3 Variabile de env pe Railway
+
+Pune pe serviciul `api` (marchează `Secret` pe toate):
+
+```
+DATABASE_URL          ← referința la Postgres addon (Reference Variable)
+REDIS_URL             ← referința la Redis addon
+MINIO_ENDPOINT        ← URL-ul R2/B2/S3
+MINIO_ACCESS_KEY      ← secret
+MINIO_SECRET_KEY      ← secret
+MINIO_BUCKET          amass-files
+JWT_SECRET            ← 64 hex chars
+JWT_REFRESH_SECRET    ← 64 hex chars, diferit
+ENCRYPTION_KEY        ← 64 hex chars
+AI_WORKER_SECRET      ← shared cu ai-worker
+CORS_ALLOWED_ORIGINS  https://<web-domeniu-Railway-sau-al-tău>
+PUBLIC_API_BASE_URL   https://<api-domeniu-Railway-sau-al-tău>
+TWILIO_*, STRIPE_*, ANTHROPIC_API_KEY, SENTRY_DSN   (opționale — vezi §3)
+PORT                  ← NU-l seta; Railway îl injectează automat
+```
+
+Pe `web`:
+```
+VITE_API_BASE_URL=https://<api-domeniu-Railway>
+```
+(setează-l înainte de build; Vite îl inline-ează în bundle.)
+
+Pe `ai-worker`:
+```
+REDIS_URL, MINIO_*, AI_WORKER_SECRET  ← identic cu api
+WHISPER_MODEL         off (activezi mai târziu — §7)
+PRESIDIO_ENABLED      false
+ANTHROPIC_API_KEY     ← pentru sumare
+```
+
+#### 4.1.4 Deploy
+
+Odată ce cele 3 servicii sunt create + variabilele puse:
+1. Push pe `main` → Railway redeployează automat (builder trigger).
+2. După build (5-10 min prima dată), Railway atribuie URL-uri gratuite:
+   `api-production-abc.up.railway.app`. Schimbă-le în domenii proprii din
+   Settings → Domains.
+3. Rulează migrațiile manual o dată prin **Railway CLI** (vezi §6):
+   ```bash
+   railway run --service api pnpm prisma migrate deploy
+   ```
+4. Apoi înregistrează primul tenant (vezi §6 — același curl cu URL-ul Railway).
+
+#### 4.1.5 Limite de resurse Railway
+
+Whisper `small` are nevoie de **~4 GB RAM** în runtime. Planul gratuit
+Railway e 512 MB → insuficient. Pentru ai-worker cu Whisper activ ai
+nevoie minim de **Pro plan + 4 GB service** (~20$/lună doar ai-worker).
+Dacă vrei Whisper pe Railway, activează-l după ce upgradezi serviciul.
 
 ---
 

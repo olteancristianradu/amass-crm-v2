@@ -1,28 +1,29 @@
-# Railway deployment configuration.
-# https://docs.railway.app/reference/config-as-code
+# Repo-root Railway config is intentionally minimal.
 #
-# Railway alternative: use Docker Compose on a single VPS instead.
-# The docker-compose.prod.yml override is the recommended deployment path.
+# Railway's config-as-code is PER-SERVICE — the `[[services]]` table-array
+# form is not supported by the platform and will be silently ignored
+# (that is why the API service was erroring with
+#   "Dockerfile `Dockerfile` does not exist"
+# — Railway fell back to looking for ./Dockerfile at repo root).
 #
-# For Railway: this config maps each compose service to a Railway service.
-# Set environment variables in the Railway dashboard — never in this file.
+# This monorepo has 3 deployables: `api`, `web`, `ai-worker`. Each must be
+# its own Railway service. Two ways to wire them up:
+#
+# A) Per-service config files (RECOMMENDED, already in the repo):
+#      apps/api/railway.toml
+#      apps/web/railway.toml
+#      apps/ai-worker/railway.toml
+#    In the Railway dashboard, set each service's Root Directory to the
+#    matching `apps/<name>` folder. Railway will read the nested railway.toml
+#    and use the Dockerfile path it declares.
+#
+# B) Dashboard-only (no config files): for each service, set
+#      Root Directory   = /
+#      Builder          = Dockerfile
+#      Dockerfile Path  = apps/api/Dockerfile   (or apps/web/..., apps/ai-worker/...)
+#
+# The Dockerfiles themselves are written to build from the REPO ROOT as
+# their context (required for the pnpm workspace to resolve `@amass/shared`).
 
 [build]
 builder = "DOCKERFILE"
-
-[[services]]
-name = "api"
-source = "apps/api"
-dockerfile = "Dockerfile"
-startCommand = "node dist/main.js"
-
-[[services]]
-name = "web"
-source = "apps/web"
-dockerfile = "Dockerfile"
-
-[[services]]
-name = "ai-worker"
-source = "apps/ai-worker"
-dockerfile = "Dockerfile"
-startCommand = "uvicorn app.main:app --host 0.0.0.0 --port 8000"

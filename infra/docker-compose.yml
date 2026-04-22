@@ -137,8 +137,9 @@ services:
 
   api:
     build:
-      context: ../apps/api
-      dockerfile: Dockerfile
+      # Build context = repo root so pnpm workspace (`@amass/shared`) resolves.
+      context: ..
+      dockerfile: apps/api/Dockerfile
     container_name: amass-api
     restart: unless-stopped
     environment:
@@ -164,8 +165,8 @@ services:
 
   web:
     build:
-      context: ../apps/web
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/web/Dockerfile
     container_name: amass-web
     restart: unless-stopped
     ports:
@@ -175,8 +176,8 @@ services:
 
   ai-worker:
     build:
-      context: ../apps/ai-worker
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/ai-worker/Dockerfile
     container_name: amass-ai-worker
     restart: unless-stopped
     environment:
