@@ -233,3 +233,208 @@ curl -X POST https://api.crm.amass.ro/api/v1/auth/register \
 ```
 
 Autentifică-te din browser: https://crm.amass.ro → slug `amass` + email + parola.
+
+---
+
+## 7. Whisper (transcripție reală)
+
+**Default:** `WHISPER_MODEL=off` → apelurile înregistrate primesc text
+placeholder `"[stub transcript]"`. Ca să se facă transcripția reală:
+
+### 7.1 Alege modelul după resursa VPS:
+
+| Model    | RAM   | Viteză (CPU Xeon 4 cores) | Calitate | Recomandare |
+|----------|-------|---------------------------|----------|-------------|
+| `tiny`   | 1 GB  | ~5× real-time             | slabă pt RO | doar test |
+| `base`   | 2 GB  | ~3× real-time             | decentă pt RO | **default** |
+| `small`  | 4 GB  | ~1× real-time             | bună | producție CPU |
+| `medium` | 8 GB  | ~0.3× real-time (mai lent decât apelul) | f.b. | nevoie GPU |
+| `large-v3` | 16 GB | GPU obligatoriu | excelentă | Hetzner GPU |
+
+Pentru un VPS fără GPU cu 8 GB RAM recomand `small`. Pentru test, `base`.
+
+### 7.2 Activare (pe host):
+
+```bash
+cd /opt/amass/apps/ai-worker
+
+# 1. Uncomment liniile Whisper în requirements.txt
+sed -i 's/^# openai-whisper/openai-whisper/' requirements.txt
+sed -i 's/^# whisperx/whisperx/' requirements.txt
+# (opțional, diarizarea: whisperx — cere licență pyannote.audio acceptată)
+
+# 2. Actualizează env
+sed -i 's/^WHISPER_MODEL=off/WHISPER_MODEL=small/' /opt/amass/.env
+
+# 3. Rebuild doar ai-worker (pull torch + whisper + model, ~5-15 min)
+cd /opt/amass
+docker compose -f infra/docker-compose.yml build ai-worker
+docker compose -f infra/docker-compose.yml up -d ai-worker
+
+# 4. Verifică — health endpoint spune că e "real", nu "stub"
+curl http://localhost:8000/health | jq
+# {
+#   "status": "ok",
+#   "whisper_model": "small",
+#   "transcription_mode": "real",   ← asta vrei
+#   "redaction_mode": "stub",       ← Presidio în §8
+#   "degraded": true                ← devine false după Presidio
+# }
+```
+
+### 7.3 Test rapid:
+
+```bash
+# Trimite un fișier audio direct prin endpointul /process/call (admin-only)
+curl -X POST http://localhost:8000/process/call \
+  -H 'content-type: application/json' \
+  -d '{
+    "callId": "test-call-id",
+    "tenantId": "<cuid-ul-tenantului-tau>",
+    "recordingUrl": "https://filesamples.com/samples/audio/mp3/sample1.mp3",
+    "recordingSid": "RE_test"
+  }'
+# { "status": "ok", "callId": "test-call-id", "result": { "transcript": "..." } }
+```
+
+### 7.4 GPU (opțional, dacă VPS are CUDA):
+
+```bash
+# Dockerfile are doar CPU. Pentru GPU:
+# În apps/ai-worker/Dockerfile schimbă FROM python:3.12-slim →
+# FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+# + apt install python3.12 pip
+# + docker run cu --gpus all
+```
+
+---
+
+## 8. Presidio (redactare PII reală)
+
+**Default:** `PRESIDIO_ENABLED=false` → PII-ul din transcript este marcat cu
+placeholdere statice (`[REDACTED_EMAIL]`, `[REDACTED_PHONE]`). Activare:
+
+### 8.1 Instalare pe ai-worker:
+
+```bash
+cd /opt/amass/apps/ai-worker
+
+# 1. Uncomment liniile Presidio + modelul spaCy românesc în requirements.txt
+sed -i 's/^# presidio-analyzer/presidio-analyzer/' requirements.txt
+sed -i 's/^# presidio-anonymizer/presidio-anonymizer/' requirements.txt
+sed -i 's/^# ro-core-news-lg/ro-core-news-lg/' requirements.txt
+
+# 2. Activează în env
+cat >> /opt/amass/.env <<'EOF'
+PRESIDIO_ENABLED=true
+PRESIDIO_LANGUAGE=ro
+PRESIDIO_SPACY_MODEL=ro_core_news_lg
+EOF
+
+# 3. Rebuild ai-worker (+~500MB pentru spaCy RO)
+cd /opt/amass
+docker compose -f infra/docker-compose.yml build ai-worker
+docker compose -f infra/docker-compose.yml up -d ai-worker
+
+# 4. Verifică
+curl http://localhost:8000/health | jq
+# {
+#   "whisper_model": "small",
+#   "transcription_mode": "real",
+#   "redaction_mode": "real",   ← asta vrei
+#   "degraded": false           ← zero-dependency bypass dezactivat
+# }
+```
+
+### 8.2 Entități detectate (built-in + custom RO):
+
+- `EMAIL_ADDRESS`, `PHONE_NUMBER`, `CREDIT_CARD`, `IP_ADDRESS`, `URL`, `LOCATION`, `PERSON` (din spaCy RO).
+- **Custom RO (adăugate în `apps/ai-worker/src/redaction.py`):**
+  - `RO_CNP` — 13 cifre, validare checksum. Pattern: `\b[1-9]\d{12}\b` + modulo-11.
+  - `RO_IBAN` — `RO\d{2}[A-Z]{4}\d{16}`.
+  - `RO_CIF` — CUI cu/fără `RO` prefix.
+
+### 8.3 Test:
+
+```bash
+curl -X POST http://localhost:8000/process/redact \
+  -H 'content-type: application/json' \
+  -d '{
+    "text": "Salut, sunt Ion Popescu, CNP 1850101123456, sună-mă la 0722123456 sau ion@example.com",
+    "language": "ro"
+  }'
+# {
+#   "redacted": "Salut, sunt [PERSON], CNP [RO_CNP], sună-mă la [PHONE_NUMBER] sau [EMAIL_ADDRESS]",
+#   "entities": [
+#     { "type": "PERSON", "start": 12, "end": 23 },
+#     { "type": "RO_CNP", "start": 29, "end": 42 },
+#     ...
+#   ]
+# }
+```
+
+---
+
+## 9. Integrări externe
+
+### 9.1 Twilio (voice + SMS)
+
+1. **Cumpără un număr** cu capabilities **Voice + SMS** din consola Twilio
+   (Phone Numbers → Buy a number → filtru `RO` / `+40`).
+2. **Setează webhook-urile** pe numărul tău:
+   - Voice URL: `https://api.crm.amass.ro/api/v1/webhooks/twilio/voice` (HTTP POST)
+   - Status callback: `https://api.crm.amass.ro/api/v1/webhooks/twilio/status`
+   - Recording callback: `https://api.crm.amass.ro/api/v1/webhooks/twilio/recording`
+   - SMS URL: `https://api.crm.amass.ro/api/v1/webhooks/twilio/sms`
+3. Rulează `TwilioService.configureNumber()` **o dată** prin admin endpoint
+   (sau direct din consolă) — setează `statusCallbackEvent=initiated ringing answered completed`
+   și `recordingStatusCallback`.
+4. Env ([§3](#3-env-vars)): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+   `TWILIO_WEBHOOK_BASE_URL`, `TWILIO_SMS_FROM`.
+5. **Semnătură validată automat** — `TwilioSignatureGuard` verifică
+   `X-Twilio-Signature` cu `AuthToken` pe fiecare POST. Nu trece-peste.
+
+### 9.2 Stripe (billing)
+
+1. Creează 3 produse + preturi recurring (Starter, Growth, Enterprise).
+   Copiază `price_…` ID-urile în `.env` (`STRIPE_PRICE_*`).
+2. Webhook Stripe:
+   - URL: `https://api.crm.amass.ro/api/v1/webhooks/stripe`
+   - Evenimente (Settings → Webhooks → Add endpoint → Select events):
+     - `customer.subscription.created`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+     - `invoice.payment_succeeded`
+     - `invoice.payment_failed`
+   - Copy signing secret (`whsec_…`) → `STRIPE_WEBHOOK_SECRET`.
+3. **Test:**
+   ```bash
+   stripe listen --forward-to https://api.crm.amass.ro/api/v1/webhooks/stripe
+   stripe trigger customer.subscription.created
+   # verifică în DB: SELECT * FROM subscriptions WHERE stripe_subscription_id='sub_...';
+   ```
+
+### 9.3 ANAF e-factura
+
+Dacă nu facturezi către sectorul public, **sări secțiunea** — e-factura e opțională.
+
+1. Aplică pe [developer.anaf.ro](https://developer.anaf.ro) pentru OAuth2 app.
+   Callback URL: `https://api.crm.amass.ro/api/v1/anaf/oauth/callback`.
+2. Primești `Client ID` + `Client Secret` → `.env`:
+   ```
+   ANAF_CLIENT_ID=...
+   ANAF_CLIENT_SECRET=...
+   ANAF_SANDBOX=true   # lasă sandbox până confirmi că UBL-ul trece
+   ```
+3. Ai nevoie de **certificat calificat** (e.g. certSIGN, DigiSign) + token USB
+   pentru semnare. Fără el nu poți trimite e-factura în producție.
+4. Setează tenant → `Settings → ANAF → Conectare` (OAuth flow).
+5. Pentru test cu sandbox:
+   ```bash
+   # Trimite o factură în sandbox
+   curl -X POST https://api.crm.amass.ro/api/v1/invoices/<id>/submit-anaf \
+     -H "authorization: Bearer <token>"
+   # Statusul se actualizează via cron (BullMQ): IN_VALIDATION → OK/NOK
+   ```
+
+---
