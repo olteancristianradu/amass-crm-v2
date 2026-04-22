@@ -123,3 +123,113 @@ WHISPER_MODEL=off
 - `ENCRYPTION_KEY` ≠ toate zero-uri
 - `CORS_ALLOWED_ORIGINS` nu conține `*`
 - `METRICS_ALLOWED_IPS` sau `METRICS_AUTH_TOKEN` setat
+
+---
+
+## 4. Deploy
+
+```bash
+cd /opt/amass
+
+# Pornește întregul stack (dev profile; prod profile adaugă PgBouncer)
+docker compose -f infra/docker-compose.yml --env-file .env up -d
+
+# Verifică — toate trebuie healthy
+docker ps --format 'table {{.Names}}\t{{.Status}}'
+# amass-postgres     Up ... (healthy)
+# amass-redis        Up ... (healthy)
+# amass-minio        Up ... (healthy)
+# amass-api          Up ...
+# amass-web          Up ...
+# amass-ai-worker    Up ...
+# amass-caddy        Up ...
+
+# Log tail pentru primele 2 minute — cauți "amass-api listening" și zero erori
+docker compose -f infra/docker-compose.yml logs -f api ai-worker
+```
+
+Dacă vrei PgBouncer în fața Postgres:
+```bash
+docker compose -f infra/docker-compose.yml --profile prod up -d pgbouncer
+# Apoi schimbă DATABASE_URL să puncteze la pgbouncer:5432 cu
+# ?pgbouncer=true&statement_cache_size=0
+# și lasă un DATABASE_DIRECT_URL pe postgres:5432 pentru `prisma migrate`.
+```
+
+---
+
+## 5. DNS + Caddy HTTPS
+
+În DNS (la registrar sau Cloudflare):
+
+```
+A     crm.amass.ro          → IP VPS
+A     api.crm.amass.ro      → IP VPS
+A     files.crm.amass.ro    → IP VPS  (pentru presigned MinIO)
+```
+
+Editează `infra/Caddyfile` pe server:
+
+```
+crm.amass.ro {
+  reverse_proxy web:80
+}
+api.crm.amass.ro {
+  reverse_proxy api:3000
+}
+files.crm.amass.ro {
+  reverse_proxy minio:9000
+}
+```
+
+Caddy ia certificate Let's Encrypt automat la primul request. Verifică:
+
+```bash
+curl -I https://api.crm.amass.ro/api/v1/health
+# HTTP/2 200
+# content-type: application/json
+# x-request-id: req_...
+```
+
+---
+
+## 6. Migrații + seed primul tenant
+
+Aplică schema:
+
+```bash
+docker exec amass-api pnpm prisma migrate deploy
+# 29 migrations found in prisma/migrations
+# Applying migration `20260407205731_init`
+# ...
+# All migrations have been successfully applied.
+```
+
+Verifică RLS e activ pe TOATE tabelele tenant-scoped (după `20260422100000_rls_remaining_tables` ar trebui 78/79 cu RLS; tenants e self):
+
+```bash
+docker exec amass-postgres psql -U postgres -d amass_crm -c "
+SELECT tablename, rowsecurity, forcerowsecurity
+FROM pg_tables WHERE schemaname='public'
+  AND tablename NOT IN ('_prisma_migrations','tenants')
+ORDER BY tablename;
+" | head -40
+# Toate coloanele rowsecurity + forcerowsecurity = 't'
+```
+
+Creează primul tenant + owner via endpoint public:
+
+```bash
+curl -X POST https://api.crm.amass.ro/api/v1/auth/register \
+  -H 'content-type: application/json' \
+  -d '{
+    "tenantSlug": "amass",
+    "tenantName": "Amass SRL",
+    "email": "owner@amass.ro",
+    "password": "CHANGE_ME_strong_pass_12_chars",
+    "fullName": "Cristi Radu"
+  }'
+# { "user": {...}, "tenants": [...], "tokens": { "accessToken": "..." } }
+```
+
+Autentifică-te din browser: https://crm.amass.ro → slug `amass` + email + parola.
