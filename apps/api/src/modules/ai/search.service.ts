@@ -46,47 +46,52 @@ export class SearchService {
     if (!vec) return [];
     const literal = this.embedding.toVectorLiteral(vec);
 
-    const [companies, contacts, clients] = await Promise.all([
-      this.prisma.$queryRaw<RawRow[]>`
-        SELECT id,
-               name                               AS label,
-               COALESCE(industry, city, '')        AS subtitle,
-               1 - (embedding <=> ${literal}::vector) AS score
-        FROM companies
-        WHERE tenant_id = ${tenantId}
-          AND deleted_at IS NULL
-          AND embedding IS NOT NULL
-          AND 1 - (embedding <=> ${literal}::vector) > 0.5
-        ORDER BY embedding <=> ${literal}::vector
-        LIMIT ${limit}
-      `,
-      this.prisma.$queryRaw<RawRow[]>`
-        SELECT id,
-               first_name || ' ' || last_name      AS label,
-               COALESCE(job_title, email, '')       AS subtitle,
-               1 - (embedding <=> ${literal}::vector) AS score
-        FROM contacts
-        WHERE tenant_id = ${tenantId}
-          AND deleted_at IS NULL
-          AND embedding IS NOT NULL
-          AND 1 - (embedding <=> ${literal}::vector) > 0.5
-        ORDER BY embedding <=> ${literal}::vector
-        LIMIT ${limit}
-      `,
-      this.prisma.$queryRaw<RawRow[]>`
-        SELECT id,
-               first_name || ' ' || last_name      AS label,
-               COALESCE(email, city, '')            AS subtitle,
-               1 - (embedding <=> ${literal}::vector) AS score
-        FROM clients
-        WHERE tenant_id = ${tenantId}
-          AND deleted_at IS NULL
-          AND embedding IS NOT NULL
-          AND 1 - (embedding <=> ${literal}::vector) > 0.5
-        ORDER BY embedding <=> ${literal}::vector
-        LIMIT ${limit}
-      `,
-    ]);
+    // Raw SQL bypasses the Prisma extension (L2), so we keep the explicit
+    // `tenant_id = ${tenantId}` predicate AND wrap in runWithTenant('ro')
+    // for L3 (RLS via SET LOCAL) + replica routing when available.
+    const [companies, contacts, clients] = await this.prisma.runWithTenant(tenantId, 'ro', (tx) =>
+      Promise.all([
+        tx.$queryRaw<RawRow[]>`
+          SELECT id,
+                 name                               AS label,
+                 COALESCE(industry, city, '')        AS subtitle,
+                 1 - (embedding <=> ${literal}::vector) AS score
+          FROM companies
+          WHERE tenant_id = ${tenantId}
+            AND deleted_at IS NULL
+            AND embedding IS NOT NULL
+            AND 1 - (embedding <=> ${literal}::vector) > 0.5
+          ORDER BY embedding <=> ${literal}::vector
+          LIMIT ${limit}
+        `,
+        tx.$queryRaw<RawRow[]>`
+          SELECT id,
+                 first_name || ' ' || last_name      AS label,
+                 COALESCE(job_title, email, '')       AS subtitle,
+                 1 - (embedding <=> ${literal}::vector) AS score
+          FROM contacts
+          WHERE tenant_id = ${tenantId}
+            AND deleted_at IS NULL
+            AND embedding IS NOT NULL
+            AND 1 - (embedding <=> ${literal}::vector) > 0.5
+          ORDER BY embedding <=> ${literal}::vector
+          LIMIT ${limit}
+        `,
+        tx.$queryRaw<RawRow[]>`
+          SELECT id,
+                 first_name || ' ' || last_name      AS label,
+                 COALESCE(email, city, '')            AS subtitle,
+                 1 - (embedding <=> ${literal}::vector) AS score
+          FROM clients
+          WHERE tenant_id = ${tenantId}
+            AND deleted_at IS NULL
+            AND embedding IS NOT NULL
+            AND 1 - (embedding <=> ${literal}::vector) > 0.5
+          ORDER BY embedding <=> ${literal}::vector
+          LIMIT ${limit}
+        `,
+      ]),
+    );
 
     const results: SearchResult[] = [
       ...companies.map((r) => ({ ...r, type: 'company' as EntityType, score: Number(r.score) })),
@@ -105,7 +110,7 @@ export class SearchService {
     const { tenantId } = requireTenantContext();
 
     if (type === 'company') {
-      const rows = await this.prisma.$queryRaw<RawRow[]>`
+      const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<RawRow[]>`
         SELECT id,
                name                                AS label,
                COALESCE(industry, city, '')         AS subtitle,
@@ -120,12 +125,12 @@ export class SearchService {
           AND (SELECT embedding FROM companies WHERE id = ${id}) IS NOT NULL
         ORDER BY embedding <=> (SELECT embedding FROM companies WHERE id = ${id})
         LIMIT ${limit}
-      `;
+      `);
       return rows.map((r) => ({ ...r, type: 'company', score: Number(r.score) }));
     }
 
     if (type === 'contact') {
-      const rows = await this.prisma.$queryRaw<RawRow[]>`
+      const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<RawRow[]>`
         SELECT id,
                first_name || ' ' || last_name       AS label,
                COALESCE(job_title, email, '')        AS subtitle,
@@ -140,12 +145,12 @@ export class SearchService {
           AND (SELECT embedding FROM contacts WHERE id = ${id}) IS NOT NULL
         ORDER BY embedding <=> (SELECT embedding FROM contacts WHERE id = ${id})
         LIMIT ${limit}
-      `;
+      `);
       return rows.map((r) => ({ ...r, type: 'contact', score: Number(r.score) }));
     }
 
     // client
-    const rows = await this.prisma.$queryRaw<RawRow[]>`
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<RawRow[]>`
       SELECT id,
              first_name || ' ' || last_name         AS label,
              COALESCE(email, city, '')               AS subtitle,
@@ -160,7 +165,7 @@ export class SearchService {
         AND (SELECT embedding FROM clients WHERE id = ${id}) IS NOT NULL
       ORDER BY embedding <=> (SELECT embedding FROM clients WHERE id = ${id})
       LIMIT ${limit}
-    `;
+    `);
     return rows.map((r) => ({ ...r, type: 'client', score: Number(r.score) }));
   }
 }

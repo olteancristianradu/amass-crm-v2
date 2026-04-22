@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { loadEnv } from '../../config/env';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { parseTtlSeconds } from '../auth/auth.service';
 import { AuditController } from './audit.controller';
 import { AuditService } from './audit.service';
 
@@ -28,7 +29,7 @@ import { AuditService } from './audit.service';
     JwtModule.registerAsync({
       useFactory: () => {
         const env = loadEnv();
-        return { secret: env.JWT_SECRET, signOptions: { expiresIn: env.JWT_ACCESS_TTL } };
+        return { secret: env.JWT_SECRET, signOptions: { expiresIn: parseTtlSeconds(env.JWT_ACCESS_TTL) } };
       },
     }),
   ],

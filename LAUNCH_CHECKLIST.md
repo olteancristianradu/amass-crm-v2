@@ -1,9 +1,17 @@
 # LAUNCH_CHECKLIST.md
 # Citește înainte de launch / go-live.
 
-> Creat după S13 (2026-04-13). Conține toate găurile cunoscute, testele care
-> nu au rulat niciodată pe Docker real, UI-urile lipsă și lista de verificări
-> finale înainte de launch.
+> Creat după S13 (2026-04-13). Ultima actualizare majoră: 2026-04-22
+> (reconcilat cu STATUS.md după auditul extern).
+>
+> **Relația cu [STATUS.md](./STATUS.md):**
+> - **STATUS.md** = ce EXISTĂ și merge astăzi (cod implementat, teste verzi).
+> - **LAUNCH_CHECKLIST.md** = ce NU A FOST verificat încă runtime pe Docker
+>   real (smoke tests, RLS per tabelă în producție, chei `.env.production`).
+> Nu există declarații contradictorii: dacă STATUS.md spune „funcțional", codul
+> trece typecheck + lint + unit tests. Ce adaugă acest checklist e validarea
+> pe mediu real (Docker up, migrații aplicate, RLS active, webhook-uri externe
+> răspund).
 >
 > **Workflow:** parcurge fiecare secțiune în ordine. Bifează `[x]` pe măsură
 > ce termini. Nu declara aplicația gata până nu sunt bifate toate punctele

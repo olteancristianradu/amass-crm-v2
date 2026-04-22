@@ -9,6 +9,13 @@ export interface SamlProfile {
   [key: string]: unknown;
 }
 
+/**
+ * Multi-tenancy note: SsoService is reached via a SAML / OIDC callback
+ * BEFORE the local session cookie + JWT exist, so it deliberately bypasses
+ * `runWithTenant`. Tenant is resolved from the slug in the callback URL
+ * and passed explicitly to every query. Same exemption as `AuthService` —
+ * see its docstring for the full rationale.
+ */
 @Injectable()
 export class SsoService {
   constructor(
@@ -89,7 +96,7 @@ export class SsoService {
     }
 
     const payload = { sub: user.id, tenantId: tenant.id, role: user.role, slug: tenant.slug };
-    return this.jwt.sign(payload, { expiresIn: '15m' });
+    return this.jwt.sign(payload, { expiresIn: 15 * 60 });
   }
 
   private mapRole(rawRole: string | undefined): UserRole {

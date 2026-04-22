@@ -75,7 +75,7 @@ export class ReportsService {
   }
 
   private async getDealStats(tenantId: string, from: string, to: string): Promise<DealStats> {
-    const rows = await this.prisma.$queryRaw<Array<{
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{
       total: bigint; open: bigint; won: bigint; lost: bigint;
       total_value: string | null; won_value: string | null;
     }>>`
@@ -91,7 +91,7 @@ export class ReportsService {
         AND deleted_at  IS NULL
         AND created_at >= ${from}::date
         AND created_at <= ${to}::date + INTERVAL '1 day'
-    `;
+    `);
     const r = rows[0];
     const total = Number(r.total ?? 0);
     const won = Number(r.won ?? 0);
@@ -109,7 +109,7 @@ export class ReportsService {
   }
 
   private async getPipelineStats(tenantId: string, from: string, to: string): Promise<PipelineStageStats[]> {
-    return this.prisma.$queryRaw<PipelineStageStats[]>`
+    return this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<PipelineStageStats[]>`
       SELECT
         d.stage_id     AS "stageId",
         ps.name        AS "stageName",
@@ -123,11 +123,11 @@ export class ReportsService {
         AND d.created_at <= ${to}::date + INTERVAL '1 day'
       GROUP BY d.stage_id, ps.name
       ORDER BY COUNT(*) DESC
-    `;
+    `);
   }
 
   private async getActivityStats(tenantId: string, from: string, to: string): Promise<ActivityStats> {
-    const rows = await this.prisma.$queryRaw<Array<{ action: string; count: bigint }>>`
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{ action: string; count: bigint }>>`
       SELECT action, COUNT(*) AS count
       FROM activities
       WHERE tenant_id   = ${tenantId}
@@ -136,7 +136,7 @@ export class ReportsService {
       GROUP BY action
       ORDER BY COUNT(*) DESC
       LIMIT 20
-    `;
+    `);
     const total = rows.reduce((acc, r) => acc + Number(r.count), 0);
     return {
       total,
@@ -145,14 +145,14 @@ export class ReportsService {
   }
 
   private async getEmailStats(tenantId: string, from: string, to: string): Promise<EmailStats> {
-    const rows = await this.prisma.$queryRaw<Array<{ status: string; count: bigint }>>`
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{ status: string; count: bigint }>>`
       SELECT status, COUNT(*) AS count
       FROM email_messages
       WHERE tenant_id   = ${tenantId}
         AND created_at >= ${from}::date
         AND created_at <= ${to}::date + INTERVAL '1 day'
       GROUP BY status
-    `;
+    `);
     const byStatus = Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
     return {
       sent: byStatus['SENT'] ?? 0,
@@ -162,7 +162,7 @@ export class ReportsService {
   }
 
   private async getCallStats(tenantId: string, from: string, to: string): Promise<CallStats> {
-    const rows = await this.prisma.$queryRaw<Array<{
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{
       total: bigint; completed: bigint;
       total_duration: bigint | null;
     }>>`
@@ -175,7 +175,7 @@ export class ReportsService {
         AND deleted_at  IS NULL
         AND created_at >= ${from}::date
         AND created_at <= ${to}::date + INTERVAL '1 day'
-    `;
+    `);
     const r = rows[0];
     const total = Number(r.total ?? 0);
     const completed = Number(r.completed ?? 0);
@@ -206,7 +206,7 @@ export class ReportsService {
     paidCount: number;
   }[]> {
     const { tenantId } = requireTenantContext();
-    const rows = await this.prisma.$queryRaw<Array<{
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{
       currency: string;
       issued_total: string | null;
       overdue_total: string | null;
@@ -230,7 +230,7 @@ export class ReportsService {
         AND issue_date <= ${to}::date + INTERVAL '1 day'
       GROUP BY currency
       ORDER BY currency ASC
-    `;
+    `);
     return rows.map((r) => {
       const issued = parseFloat(r.issued_total ?? '0');
       const paid = parseFloat(r.paid_total ?? '0');
@@ -253,7 +253,7 @@ export class ReportsService {
     to: string,
   ): Promise<{ month: string; currency: string; revenue: number }[]> {
     const { tenantId } = requireTenantContext();
-    const rows = await this.prisma.$queryRaw<Array<{
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{
       month: Date;
       currency: string;
       revenue: string | null;
@@ -269,7 +269,7 @@ export class ReportsService {
         AND issue_date <= ${to}::date + INTERVAL '1 day'
       GROUP BY month, currency
       ORDER BY month ASC
-    `;
+    `);
     return rows.map((r) => ({
       month: r.month.toISOString().slice(0, 10),
       currency: r.currency,
@@ -284,7 +284,7 @@ export class ReportsService {
     groupBy: 'week' | 'month' = 'week',
   ): Promise<{ period: string; created: number; won: number; revenue: number }[]> {
     const { tenantId } = requireTenantContext();
-    const rows = await this.prisma.$queryRaw<Array<{
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{
       period: Date; created: bigint; won: bigint; revenue: string | null;
     }>>`
       SELECT
@@ -299,7 +299,7 @@ export class ReportsService {
         AND created_at <= ${to}::date + INTERVAL '1 day'
       GROUP BY 1
       ORDER BY 1 ASC
-    `;
+    `);
     return rows.map((r) => ({
       period: r.period.toISOString().slice(0, 10),
       created: Number(r.created),

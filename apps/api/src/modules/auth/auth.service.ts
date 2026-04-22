@@ -23,6 +23,26 @@ export interface JwtPayload {
 /** Redis key namespace for revoked access tokens (logout, force-signout). */
 export const JWT_BLOCKLIST_PREFIX = 'auth:jwt:blocklist:';
 
+/**
+ * Multi-tenancy note: this service deliberately bypasses `runWithTenant`
+ * because it runs **before** a tenant context exists. Login, registration,
+ * refresh, and slug-lookup all happen before the JWT that carries tenantId
+ * has been minted or verified.
+ *
+ * Safety compensations applied here:
+ *   - every tenant-scoped query explicitly filters by `tenantId` (passed in
+ *     from the slug lookup or token payload) — grep-able, reviewable.
+ *   - the Prisma extension (Layer 2) still runs at the client boundary and
+ *     no-ops when ALS has no context; it won't inject anything here, so
+ *     the manual filter is the only safeguard for L2.
+ *   - failed login attempts are audit-logged so cross-tenant probing is
+ *     visible.
+ *
+ * Do NOT convert these calls to `runWithTenant` without first introducing
+ * a distinct "tenant-less but auth-only" context, otherwise RLS
+ * (`SET LOCAL role app_user`) will deny the lookup itself.
+ */
+
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
@@ -247,7 +267,7 @@ export class AuthService {
 
     const accessToken = await this.jwt.signAsync(payload, {
       secret: this.env.JWT_SECRET,
-      expiresIn: this.env.JWT_ACCESS_TTL,
+      expiresIn: parseTtlSeconds(this.env.JWT_ACCESS_TTL),
     });
 
     // Refresh token is an opaque random string — we never JWT-sign it. We store its
@@ -301,7 +321,7 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function parseTtlSeconds(ttl: string): number {
+export function parseTtlSeconds(ttl: string): number {
   // Supports "15m", "1h", "30s", "2d". Returns seconds.
   const m = /^(\d+)([smhd])$/.exec(ttl);
   if (!m) return 900;

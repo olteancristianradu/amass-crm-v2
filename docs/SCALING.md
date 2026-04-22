@@ -17,7 +17,17 @@ Three layers, in order of the request lifecycle:
 2. **`tenantExtension` Prisma extension** — wired globally in `PrismaService.onModuleInit` via `$extends`. Every tx opened through `runWithTenant(tenantId, mode, fn)` inherits the extension, which auto-injects `tenantId` into `where`/`data` for tenant-scoped models. The mutation rule is factored into pure `applyTenantScope()` and unit-tested in `prisma.service.spec.ts`.
 3. **Postgres RLS** — `runWithTenant` issues `SET LOCAL app.tenant_id = '<id>'` + `SET LOCAL ROLE app_user` (NOSUPERUSER, NOBYPASSRLS). Policies are defined per-table in migrations.
 
-**Services that bypass `runWithTenant`** (direct `this.prisma.xxx` calls): `ai/deal-ai`, `ai/embedding`, `ai/search`, `auth/auth`, `auth/totp`, `sso/sso`, `reports/reports`. Each filters by `tenantId` manually in `WHERE`. They get **Layer 1 + Layer 3 only, not Layer 2** — a bug in one of their queries skips the auto-inject safety net. Converting them is a tracked follow-up.
+**Services that bypass `runWithTenant` (pre-auth path only)**:
+`auth/auth`, `auth/totp`, `sso/sso`. These run BEFORE the JWT exists so
+`runWithTenant` can't supply a tenantId, and RLS under `app_user` role would
+block the tenant/user lookup itself. Each of these services:
+  - passes `tenantId` explicitly into every query's `where`
+  - logs failed attempts to the audit log for cross-tenant probe detection
+  - is documented at the top of the file with a "Multi-tenancy note" block
+
+`ai/deal-ai`, `ai/embedding`, `ai/search`, `reports/reports` were previously
+in this list. They now all use `runWithTenant` and get Layer 1 + Layer 2 +
+Layer 3 coverage.
 
 ---
 

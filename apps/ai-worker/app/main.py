@@ -42,6 +42,22 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
         settings.API_URL,
         settings.WHISPER_MODEL,
     )
+    # Loud warnings so ops can't miss that the default deployment is
+    # transcription- and PII-redaction-disabled. Flip WHISPER_MODEL=base
+    # (plus uncomment requirements.txt) to activate the real paths.
+    if settings.WHISPER_MODEL == "off":
+        logger.warning(
+            "[STUB-MODE] Whisper transcription is OFF — every call returns a "
+            "placeholder transcript. Set WHISPER_MODEL=base/medium/large to enable.",
+        )
+    try:
+        import presidio_analyzer  # type: ignore  # noqa: F401
+    except ImportError:
+        logger.warning(
+            "[STUB-MODE] Presidio PII redaction is NOT installed — falling back "
+            "to a regex stub (Romanian CNP/phone/email only). Install "
+            "presidio-analyzer + presidio-anonymizer + spaCy models for real coverage.",
+        )
     yield
     if _worker is not None:
         try:
@@ -56,12 +72,24 @@ app = FastAPI(title="amass-ai-worker", version="0.13.0", lifespan=lifespan)
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    try:
+        import presidio_analyzer  # type: ignore  # noqa: F401
+        presidio_available = True
+    except ImportError:
+        presidio_available = False
+
+    transcription_mode = "real" if settings.WHISPER_MODEL != "off" else "stub"
+    redaction_mode = "real" if presidio_available else "stub"
     return {
         "status": "ok",
         "sprint": 13,
         "worker": _worker is not None,
         "whisper_model": settings.WHISPER_MODEL,
+        "transcription_mode": transcription_mode,
+        "redaction_mode": redaction_mode,
         "anthropic_configured": bool(settings.ANTHROPIC_API_KEY),
+        # Degraded = anything is stub. Dashboards/alerts can key on this.
+        "degraded": transcription_mode == "stub" or redaction_mode == "stub",
     }
 
 

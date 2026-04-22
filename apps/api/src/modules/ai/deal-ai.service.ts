@@ -73,33 +73,34 @@ export class DealAiService {
       };
     }
 
-    const deal = await this.prisma.deal.findFirst({
-      where: { id: dealId, tenantId, deletedAt: null },
-      include: {
-        stage: { select: { name: true } },
-        tasks: {
-          where: { status: 'OPEN', deletedAt: null },
-          select: { title: true, dueAt: true, priority: true },
-          take: 10,
+    // One tenant-scoped read tx for all three lookups — L2 (tenantExtension)
+    // + L3 (RLS) apply to every query inside the callback.
+    const { deal, company, contact } = await this.prisma.runWithTenant(tenantId, 'ro', async (tx) => {
+      const deal = await tx.deal.findFirst({
+        where: { id: dealId, deletedAt: null },
+        include: {
+          stage: { select: { name: true } },
+          tasks: {
+            where: { status: 'OPEN', deletedAt: null },
+            select: { title: true, dueAt: true, priority: true },
+            take: 10,
+          },
         },
-      },
+      });
+      if (!deal) throw new NotFoundException({ code: 'DEAL_NOT_FOUND' });
+      const [company, contact] = await Promise.all([
+        deal.companyId
+          ? tx.company.findFirst({ where: { id: deal.companyId }, select: { name: true, industry: true } })
+          : null,
+        deal.contactId
+          ? tx.contact.findFirst({
+              where: { id: deal.contactId },
+              select: { firstName: true, lastName: true, jobTitle: true, email: true },
+            })
+          : null,
+      ]);
+      return { deal, company, contact };
     });
-    if (!deal) throw new NotFoundException({ code: 'DEAL_NOT_FOUND' });
-
-    const [company, contact] = await Promise.all([
-      deal.companyId
-        ? this.prisma.company.findFirst({
-            where: { id: deal.companyId, tenantId },
-            select: { name: true, industry: true },
-          })
-        : null,
-      deal.contactId
-        ? this.prisma.contact.findFirst({
-            where: { id: deal.contactId, tenantId },
-            select: { firstName: true, lastName: true, jobTitle: true, email: true },
-          })
-        : null,
-    ]);
 
     const context = `
 Deal: ${deal.title}

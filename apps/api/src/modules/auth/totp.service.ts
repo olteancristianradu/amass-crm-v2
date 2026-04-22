@@ -6,6 +6,13 @@ import { encrypt, decrypt } from '../../common/crypto/encryption';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
+/**
+ * Multi-tenancy note: TotpService runs partially pre-authentication (the
+ * second factor verification during login, before the session JWT is
+ * minted), so it deliberately bypasses `runWithTenant`. Every query below
+ * filters by the userId resolved from the first-factor step. Same pattern
+ * as `AuthService` — see its docstring for the full rationale.
+ */
 @Injectable()
 export class TotpService {
   constructor(

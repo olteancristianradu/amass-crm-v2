@@ -84,51 +84,62 @@ export class EmbeddingService {
     return `[${vec.join(',')}]`;
   }
 
+  /**
+   * All three update methods wrap the raw pgvector UPDATE in `runWithTenant`
+   * so Layer 3 (RLS) enforces `tenant_id = current_setting('app.tenant_id')`
+   * on the affected row. Called as fire-and-forget from request handlers
+   * that already have a tenant context in ALS.
+   */
   async updateCompany(id: string, text: string): Promise<void> {
     const vec = await this.embed(text);
     if (!vec) return;
     const literal = this.toVectorLiteral(vec);
-    await this.prisma.$executeRaw`
+    const { tenantId } = requireTenantContext();
+    await this.prisma.runWithTenant(tenantId, (tx) => tx.$executeRaw`
       UPDATE companies SET embedding = ${literal}::vector WHERE id = ${id}
-    `;
+    `);
   }
 
   async updateContact(id: string, text: string): Promise<void> {
     const vec = await this.embed(text);
     if (!vec) return;
     const literal = this.toVectorLiteral(vec);
-    await this.prisma.$executeRaw`
+    const { tenantId } = requireTenantContext();
+    await this.prisma.runWithTenant(tenantId, (tx) => tx.$executeRaw`
       UPDATE contacts SET embedding = ${literal}::vector WHERE id = ${id}
-    `;
+    `);
   }
 
   async updateClient(id: string, text: string): Promise<void> {
     const vec = await this.embed(text);
     if (!vec) return;
     const literal = this.toVectorLiteral(vec);
-    await this.prisma.$executeRaw`
+    const { tenantId } = requireTenantContext();
+    await this.prisma.runWithTenant(tenantId, (tx) => tx.$executeRaw`
       UPDATE clients SET embedding = ${literal}::vector WHERE id = ${id}
-    `;
+    `);
   }
 
   async reindexAll(): Promise<{ companies: number; contacts: number; clients: number }> {
     if (this.provider === 'none') return { companies: 0, contacts: 0, clients: 0 };
     const { tenantId } = requireTenantContext();
 
-    const [companies, contacts, clients] = await Promise.all([
-      this.prisma.company.findMany({
-        where: { tenantId, deletedAt: null },
-        select: { id: true, name: true, industry: true, city: true, notes: true },
-      }),
-      this.prisma.contact.findMany({
-        where: { tenantId, deletedAt: null },
-        select: { id: true, firstName: true, lastName: true, jobTitle: true, email: true, notes: true },
-      }),
-      this.prisma.client.findMany({
-        where: { tenantId, deletedAt: null },
-        select: { id: true, firstName: true, lastName: true, email: true, city: true, notes: true },
-      }),
-    ]);
+    const [companies, contacts, clients] = await this.prisma.runWithTenant(tenantId, 'ro', (tx) =>
+      Promise.all([
+        tx.company.findMany({
+          where: { deletedAt: null },
+          select: { id: true, name: true, industry: true, city: true, notes: true },
+        }),
+        tx.contact.findMany({
+          where: { deletedAt: null },
+          select: { id: true, firstName: true, lastName: true, jobTitle: true, email: true, notes: true },
+        }),
+        tx.client.findMany({
+          where: { deletedAt: null },
+          select: { id: true, firstName: true, lastName: true, email: true, city: true, notes: true },
+        }),
+      ]),
+    );
 
     let companyCount = 0;
     for (const c of companies) {

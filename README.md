@@ -2,6 +2,8 @@
 
 CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI, redactare PII). Construit pentru IMM-uri românești și EU.
 
+> ⚠️ **Stare transcrierii + redactării PII (secțiunea AI):** default `WHISPER_MODEL=off` (stub) și Presidio neinstalat (fallback regex). Pipeline-ul complet e opt-in — vezi secțiunea **AI** de mai jos și `apps/ai-worker/requirements.txt`.
+
 **Versiune:** Tier B+C complete · **Stack:** NestJS + Prisma + Postgres + React · **Solo developer.**
 
 > Pentru manualul utilizatorului final (conducere companie), vezi **[README-CEO.md](./README-CEO.md)**.
@@ -35,7 +37,10 @@ CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI,
 
 **Data:** Postgres 16 + pgvector + pg_trgm · Redis 7 · BullMQ · MinIO · Postgres tsvector (NU Meilisearch)
 
-**AI:** Python 3.12 + FastAPI · Whisper / whisperX · Presidio · Claude `claude-sonnet-4-6` · OpenAI embeddings (text-embedding-3-small)
+**AI:** Python 3.12 + FastAPI · Claude `claude-sonnet-4-6` · OpenAI / Gemini embeddings.
+  - **Whisper (transcription)** — opt-in, default OFF. Set `WHISPER_MODEL=base` (or medium/large) AND uncomment whisper lines in `apps/ai-worker/requirements.txt` AND rebuild the image. Default deployment returns `"[stub transcript]"`.
+  - **Presidio (PII redaction)** — opt-in. Install `presidio-analyzer + presidio-anonymizer + spaCy models` (commented out in `requirements.txt`). Until then, a regex stub redacts Romanian CNP / phone / email only.
+  - `GET /health` on the AI worker returns `degraded: true` when either is in stub mode, so dashboards can alert on it.
 
 **Frontend:** React 19 · Vite · TanStack Router/Query/Table · shadcn/ui + Tailwind · React Hook Form + Zod · Zustand · Socket.IO client
 
@@ -303,11 +308,17 @@ CREATE POLICY tenant_isolation ON companies
 Orice acțiune senzitivă → `audit_logs`. Cu `SIEM_WEBHOOK_URL` setat,
 fiecare intrare e forwardată async (breaker-protected).
 
-### Servicii care ocolesc `runWithTenant` (filtrează manual)
-`ai/deal-ai`, `ai/embedding`, `ai/search`, `auth/auth`, `auth/totp`,
-`sso/sso`, `reports/reports`. Fiecare filtrează explicit după `tenantId`
-în `WHERE`. Nu au Layer 2 — un bug într-un query scapă de Stratul 2.
-Convertirea lor la `runWithTenant` e un follow-up.
+### Servicii care ocolesc `runWithTenant` (pre-auth, prin design)
+`auth/auth`, `auth/totp`, `sso/sso`. Toate rulează ÎNAINTE de a exista un
+JWT — `runWithTenant` nu are ce `tenantId` să injecteze, iar RLS sub
+`app_user` ar bloca chiar lookup-ul tenantului. Fiecare astfel de serviciu:
+  - pasează `tenantId` explicit în fiecare `where`;
+  - loghează încercările eșuate în audit log (detectare de probe-uri cross-tenant);
+  - are un bloc de comentarii "Multi-tenancy note" la începutul fișierului.
+
+`ai/deal-ai`, `ai/embedding`, `ai/search`, `reports/reports` ERAU în lista
+asta până la commit-ul care adresează auditul — acum toate folosesc
+`runWithTenant` și sunt acoperite de L1 + L2 + L3.
 
 ---
 

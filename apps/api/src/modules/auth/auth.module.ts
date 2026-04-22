@@ -4,7 +4,7 @@ import { loadEnv } from '../../config/env';
 import { AuditModule } from '../audit/audit.module';
 import { RedisModule } from '../../infra/redis/redis.module';
 import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
+import { AuthService, parseTtlSeconds } from './auth.service';
 import { JwtAuthGuard } from './jwt.guard';
 import { TotpController } from './totp.controller';
 import { TotpService } from './totp.service';
@@ -42,7 +42,9 @@ import { TotpService } from './totp.service';
     JwtModule.registerAsync({
       useFactory: () => {
         const env = loadEnv();
-        return { secret: env.JWT_SECRET, signOptions: { expiresIn: env.JWT_ACCESS_TTL } };
+        // v11 @nestjs/jwt tightened expiresIn typing: string is only accepted
+        // in `ms`-compatible form, so we convert once to seconds (number).
+        return { secret: env.JWT_SECRET, signOptions: { expiresIn: parseTtlSeconds(env.JWT_ACCESS_TTL) } };
       },
     }),
   ],
