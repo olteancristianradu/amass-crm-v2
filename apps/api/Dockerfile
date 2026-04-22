@@ -31,6 +31,13 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 RUN pnpm install --frozen-lockfile --prod --filter @amass/api... --filter @amass/shared
+# Prisma Client enums (UserRole, etc.) are generated code — they live inside
+# node_modules/@prisma/client AFTER `prisma generate` runs against the schema.
+# Without this, dist/modules/*/.controller.js explodes at require-time with
+#   TypeError: Cannot read properties of undefined (reading 'OWNER')
+# because the fresh `--prod` install brings a stub client with no enums.
+COPY apps/api/prisma apps/api/prisma
+RUN cd apps/api && pnpm exec prisma generate
 
 FROM node:22-alpine AS runtime
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
