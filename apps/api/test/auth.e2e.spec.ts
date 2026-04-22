@@ -5,6 +5,26 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { PrismaService } from '../src/infra/prisma/prisma.service';
+import { REFRESH_COOKIE_NAME } from '../src/modules/auth/refresh-cookie';
+
+/**
+ * Integration test against a REAL Postgres (the one in docker-compose).
+ * Run `docker compose up -d postgres` before invoking `pnpm test`.
+ *
+ * Post M-10 the refresh token lives in an httpOnly `amass_rt` cookie; the
+ * response body carries `refreshToken: ""` deliberately. Helper below
+ * extracts the cookie value from Set-Cookie so tests can drive /refresh
+ * and /logout with the real token.
+ */
+function extractRefreshCookie(res: request.Response): string {
+  const header = res.headers['set-cookie'];
+  const cookies = Array.isArray(header) ? header : header ? [header] : [];
+  for (const line of cookies) {
+    const match = new RegExp(`${REFRESH_COOKIE_NAME}=([^;]+)`).exec(line);
+    if (match) return decodeURIComponent(match[1]);
+  }
+  return '';
+}
 
 /**
  * Integration test against a REAL Postgres (the one in docker-compose).
@@ -46,9 +66,12 @@ describe('Auth (e2e)', () => {
     expect(reg.body.user.email).toBe('admin@test.local');
     expect(reg.body.user.role).toBe('OWNER');
     expect(reg.body.tokens.accessToken).toBeTruthy();
-    expect(reg.body.tokens.refreshToken).toBeTruthy();
+    // M-10: refreshToken is stripped from body and moved to httpOnly cookie.
+    expect(reg.body.tokens.refreshToken).toBe('');
+    const refreshToken = extractRefreshCookie(reg);
+    expect(refreshToken).toBeTruthy();
 
-    const { accessToken, refreshToken } = reg.body.tokens;
+    const { accessToken } = reg.body.tokens;
 
     // /me with token
     const me = await request(app.getHttpServer())
@@ -61,35 +84,37 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer()).get('/api/v1/auth/me').expect(401);
 
     // Refresh — must return the SAME `{ tokens }` shape as register/login.
-    // (Bug fixed S6.5: refresh used to return bare AuthTokens, breaking client parsing.)
+    // We drive it via the cookie (primary path); body is an accepted fallback
+    // but the cookie path is what real clients use post M-10.
     const ref = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
-      .send({ refreshToken })
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(refreshToken)}`)
       .expect(200);
     expect(ref.body.tokens.accessToken).toBeTruthy();
-    expect(ref.body.tokens.refreshToken).toBeTruthy();
-    expect(ref.body.tokens.refreshToken).not.toBe(refreshToken); // rotated
+    // Body still strips refreshToken; rotated value lives in the new cookie.
+    expect(ref.body.tokens.refreshToken).toBe('');
+    const newRefresh = extractRefreshCookie(ref);
+    expect(newRefresh).toBeTruthy();
+    expect(newRefresh).not.toBe(refreshToken); // rotated
     // Refresh response must NOT include `user` (only register/login do).
     expect(ref.body.user).toBeUndefined();
-
-    const newRefresh = ref.body.tokens.refreshToken;
 
     // Old refresh token must now fail (single-use)
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
-      .send({ refreshToken })
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(refreshToken)}`)
       .expect(401);
 
-    // Logout new refresh
+    // Logout new refresh (sent via cookie)
     await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
-      .send({ refreshToken: newRefresh })
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(newRefresh)}`)
       .expect(204);
 
     // After logout, refresh fails
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
-      .send({ refreshToken: newRefresh })
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(newRefresh)}`)
       .expect(401);
   });
 
