@@ -8,16 +8,29 @@ import { All, Controller, HttpException, HttpStatus, Param } from '@nestjs/commo
  * Live endpoints arrive once we have paying customers pulled through an IdP.
  * For now every verb returns 501 with a SCIM-compliant error envelope so
  * connectors can be pointed at this endpoint and produce coherent logs.
+ *
+ * NOTE on routing: stacking two `@All(...)` decorators on the same method
+ * only registers the last one — Nest reflects decorator metadata and the
+ * second write clobbers the first. Use two distinct methods so both
+ * `/scim/v2/:resource` and `/scim/v2/:resource/:id` are actually served.
  */
 @Controller('scim/v2')
 export class ScimController {
   @All(':resource')
+  collection(@Param('resource') resource: string) {
+    return this.notImplemented(resource);
+  }
+
   @All(':resource/:id')
-  any(@Param('resource') resource: string, @Param('id') id?: string) {
+  item(@Param('resource') resource: string, @Param('id') id: string) {
+    return this.notImplemented(`${resource}/${id}`);
+  }
+
+  private notImplemented(endpoint: string): never {
     throw new HttpException(
       {
         schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-        detail: `SCIM endpoint ${resource}${id ? '/' + id : ''} is scaffolded but not implemented yet`,
+        detail: `SCIM endpoint ${endpoint} is scaffolded but not implemented yet`,
         status: '501',
       },
       HttpStatus.NOT_IMPLEMENTED,

@@ -17,6 +17,7 @@ import { GoogleGenAI } from '@google/genai';
 import { loadEnv } from '../../config/env';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { getBreaker } from '../../common/resilience/circuit-breaker';
 
 type Provider = 'gemini' | 'openai' | 'none';
 
@@ -50,20 +51,26 @@ export class EmbeddingService {
     const input = text.slice(0, 8192);
     try {
       if (this.provider === 'gemini' && this.gemini) {
-        const res = await this.gemini.models.embedContent({
-          model: 'gemini-embedding-001',
-          contents: [input],
-          config: { outputDimensionality: this.dims },
-        });
+        const gemini = this.gemini;
+        const res = await getBreaker('gemini').exec(() =>
+          gemini.models.embedContent({
+            model: 'gemini-embedding-001',
+            contents: [input],
+            config: { outputDimensionality: this.dims },
+          }),
+        );
         const values = res.embeddings?.[0]?.values;
         return values ?? null;
       }
       if (this.provider === 'openai' && this.openai) {
-        const res = await this.openai.embeddings.create({
-          model: 'text-embedding-3-small',
-          input,
-          dimensions: this.dims,
-        });
+        const openai = this.openai;
+        const res = await getBreaker('openai').exec(() =>
+          openai.embeddings.create({
+            model: 'text-embedding-3-small',
+            input,
+            dimensions: this.dims,
+          }),
+        );
         return res.data[0].embedding;
       }
     } catch (err) {

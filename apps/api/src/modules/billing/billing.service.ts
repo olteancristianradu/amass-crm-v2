@@ -6,6 +6,7 @@ import { BadRequestException, Injectable, Logger, RawBodyRequest } from '@nestjs
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { loadEnv } from '../../config/env';
+import { getBreaker } from '../../common/resilience/circuit-breaker';
 import type { Request } from 'express';
 
 // Lazy-load Stripe — avoids startup failures when STRIPE_SECRET_KEY is not set
@@ -83,23 +84,29 @@ export class BillingService {
     const priceId = PRICE_IDS[plan];
     if (!priceId) throw new BadRequestException(`Unknown plan: ${plan}`);
 
+    // C-ops: wrap every outbound Stripe REST call in a shared breaker so a
+    // Stripe outage doesn't chain-fail every checkout attempt.
+    const client = this.client;
+    const breaker = getBreaker('stripe');
     let customerId = sub.stripeCustomerId ?? undefined;
     if (!customerId) {
-      const customer = await this.client.customers.create({ metadata: { tenantId } });
+      const customer = await breaker.exec(() => client.customers.create({ metadata: { tenantId } }));
       customerId = customer.id;
       await this.prisma.runWithTenant(tenantId, (tx) =>
         tx.billingSubscription.update({ where: { tenantId }, data: { stripeCustomerId: customerId } }),
       );
     }
 
-    const session = await this.client.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: { tenantId },
-    });
+    const session = await breaker.exec(() =>
+      client.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: { tenantId },
+      }),
+    );
 
     return { url: session.url! };
   }
@@ -107,10 +114,13 @@ export class BillingService {
   async createBillingPortalSession(returnUrl: string): Promise<{ url: string }> {
     const sub = await this.getSubscription();
     if (!sub.stripeCustomerId) throw new BadRequestException('No Stripe customer linked');
-    const session = await this.client.billingPortal.sessions.create({
-      customer: sub.stripeCustomerId,
-      return_url: returnUrl,
-    });
+    const client = this.client;
+    const session = await getBreaker('stripe').exec(() =>
+      client.billingPortal.sessions.create({
+        customer: sub.stripeCustomerId!,
+        return_url: returnUrl,
+      }),
+    );
     return { url: session.url };
   }
 

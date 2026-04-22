@@ -8,6 +8,7 @@
  * API docs: https://static.anaf.ro/static/10/Anaf/Informatii_R/API_e-factura.pdf
  */
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { getBreaker } from '../../common/resilience/circuit-breaker';
 import { AnafSubmissionStatus } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
@@ -53,14 +54,19 @@ export class AnafService {
     const cif = config.vatNumber.replace(/^RO/i, '');
     const url = `${this.baseUrl(config.sandbox)}/upload?standard=UBL&cif=${cif}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/xml',
-      },
-      body: xml,
-    });
+    // C-ops: wrap outbound ANAF calls in a breaker — SPV is notoriously
+    // flaky near fiscal deadlines and we don't want to chain-fail the whole
+    // invoice queue on their downtime.
+    const res = await getBreaker('anaf').exec(() =>
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/xml',
+        },
+        body: xml,
+      }),
+    );
 
     const data = await res.json() as { index_incarcare?: string; Errors?: { errorMessage: string }[] };
 
@@ -94,7 +100,9 @@ export class AnafService {
     const token = await this.getAccessToken(config);
     const url = `${this.baseUrl(config.sandbox)}/stareMesaj?id_incarcare=${sub.uploadIndex}`;
 
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await getBreaker('anaf').exec(() =>
+      fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
+    );
     const data = await res.json() as { stare?: string; id_descarcare?: string; Errors?: unknown[] };
 
     const statusMap: Record<string, AnafSubmissionStatus> = {
@@ -205,15 +213,17 @@ export class AnafService {
     const base = config.sandbox
       ? 'https://logincert.anaf.ro/anaf-oauth2/v1'
       : 'https://logincert.anaf.ro/anaf-oauth2/v1';
-    const res = await fetch(`${base}/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
+    const res = await getBreaker('anaf').exec(() =>
+      fetch(`${base}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
+        }),
       }),
-    });
+    );
     const data = await res.json() as { access_token?: string };
     if (!data.access_token) throw new Error('Failed to get ANAF access token');
     return data.access_token;

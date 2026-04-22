@@ -58,6 +58,11 @@ When a threshold is hit: open an ADR in `docs/adr/`, link the evidence, get
 explicit user sign-off, then unblock. Until then: do not scaffold speculative
 integrations for these.
 
+Scaling primitives already wired into the monolith (read replicas, PgBouncer,
+Redis Sentinel, per-tenant throttler, circuit breakers, SIEM forwarding,
+shard key) are documented in [`docs/SCALING.md`](./docs/SCALING.md) with
+env-var switches to flip them on.
+
 **Permanent no (architectural):** GraphQL, MongoDB, Redux.
 
 ## Architecture mandates
