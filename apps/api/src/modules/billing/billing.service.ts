@@ -7,6 +7,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { loadEnv } from '../../config/env';
 import { getBreaker } from '../../common/resilience/circuit-breaker';
+import { extractSubscriptionPatch, StripeSubscriptionShape } from './billing.helpers';
 import type { Request } from 'express';
 
 // Lazy-load Stripe — avoids startup failures when STRIPE_SECRET_KEY is not set
@@ -22,17 +23,6 @@ interface StripeInstanceType {
 }
 
 type StripeInstance = StripeInstanceType;
-
-interface StripeSub {
-  id: string;
-  status: string;
-  cancel_at_period_end: boolean;
-  current_period_start: number;
-  current_period_end: number;
-  customer: string | { id: string };
-  metadata?: Record<string, string>;
-  items: { data: Array<{ price: { metadata?: Record<string, string> } }> };
-}
 
 @Injectable()
 export class BillingService {
@@ -140,45 +130,32 @@ export class BillingService {
     await this.processStripeEvent(event);
   }
 
-  private async processStripeEvent(event: { type: string; data: { object: unknown } }): Promise<void> {
+  async processStripeEvent(event: { type: string; data: { object: unknown } }): Promise<void> {
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        const stripeSub = event.data.object as StripeSub;
+        const stripeSub = event.data.object as StripeSubscriptionShape;
         const tenantId = stripeSub.metadata?.['tenantId'];
         if (!tenantId) return;
-
-        const status = this.mapStripeStatus(stripeSub.status);
-        const plan = (stripeSub.items.data[0]?.price.metadata?.['plan']) ?? 'starter';
-        const customerId = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id;
-
+        const patch = extractSubscriptionPatch(stripeSub);
         await this.prisma.runWithTenant(tenantId, (tx) =>
           tx.billingSubscription.upsert({
             where: { tenantId },
-            create: {
-              tenantId,
-              stripeCustomerId: customerId,
-              stripeSubscriptionId: stripeSub.id,
-              plan,
-              status,
-              currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
-              currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
-              cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-            },
+            create: { tenantId, ...patch },
             update: {
-              stripeSubscriptionId: stripeSub.id,
-              plan,
-              status,
-              currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
-              currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
-              cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+              stripeSubscriptionId: patch.stripeSubscriptionId,
+              plan: patch.plan,
+              status: patch.status,
+              currentPeriodStart: patch.currentPeriodStart,
+              currentPeriodEnd: patch.currentPeriodEnd,
+              cancelAtPeriodEnd: patch.cancelAtPeriodEnd,
             },
           }),
         );
         break;
       }
       case 'customer.subscription.deleted': {
-        const stripeSub = event.data.object as StripeSub;
+        const stripeSub = event.data.object as StripeSubscriptionShape;
         const tenantId = stripeSub.metadata?.['tenantId'];
         if (!tenantId) return;
         await this.prisma.runWithTenant(tenantId, (tx) =>
@@ -189,18 +166,5 @@ export class BillingService {
       default:
         this.logger.debug(`Unhandled Stripe event: ${event.type}`);
     }
-  }
-
-  private mapStripeStatus(stripeStatus: string): 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'UNPAID' {
-    const map: Record<string, 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'UNPAID'> = {
-      trialing: 'TRIALING',
-      active: 'ACTIVE',
-      past_due: 'PAST_DUE',
-      canceled: 'CANCELED',
-      unpaid: 'UNPAID',
-      incomplete: 'PAST_DUE',
-      incomplete_expired: 'CANCELED',
-    };
-    return map[stripeStatus] ?? 'ACTIVE';
   }
 }

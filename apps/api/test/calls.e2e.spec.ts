@@ -24,7 +24,6 @@ describe('Calls (e2e)', () => {
   const slugA = `s12-a-${Date.now()}`;
   const slugB = `s12-b-${Date.now()}`;
   let ownerTokenA = '';
-  let viewerTokenA = '';
   let ownerTokenB = '';
   let companyId = '';
   let phoneNumberId = '';
@@ -57,11 +56,10 @@ describe('Calls (e2e)', () => {
     ownerTokenA = regA.body.tokens.accessToken;
 
     // Add a viewer user for tenant A
-    const viewerRes = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post('/api/v1/auth/register')
       .send({ tenantSlug: `${slugA}-viewer`, email: 'viewer@a.com', password: 'password123', fullName: 'Viewer A' })
       .expect(201);
-    viewerTokenA = viewerRes.body.tokens.accessToken;
 
     // Register tenant B
     const regB = await request(app.getHttpServer())

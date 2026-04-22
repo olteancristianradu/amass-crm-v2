@@ -184,7 +184,7 @@ describe('Email (e2e)', () => {
   });
 
   it('cross-tenant: B cannot see A\'s messages', async () => {
-    const res = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .get(`/api/v1/email/messages/${messageId}`)
       .set('Authorization', `Bearer ${tokenB}`)
       .expect(404);

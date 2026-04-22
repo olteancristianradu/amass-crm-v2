@@ -21,8 +21,44 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 
-const ANON = '[ANONYMISED]';
-const ANON_EMAIL = 'anonymised@deleted.invalid';
+export const ANON = '[ANONYMISED]';
+export const ANON_EMAIL = 'anonymised@deleted.invalid';
+
+/**
+ * Pure helper: which contact/client columns are reset to an anonymised
+ * value (vs. simply `null`) when a GDPR erasure is issued. Exposed so the
+ * test suite can assert we don't accidentally forget to redact a new PII
+ * column when someone adds one to the schema.
+ */
+export const CONTACT_PII_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'mobile', 'notes', 'jobTitle'] as const;
+export const CLIENT_PII_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'mobile', 'notes'] as const;
+
+/** Build the anonymisation patch applied inside the tx. Kept pure so
+ *  tests can assert the shape without DB. */
+export function buildContactAnonymisationPatch(now: Date = new Date()): Record<string, unknown> {
+  return {
+    firstName: ANON,
+    lastName: ANON,
+    email: ANON_EMAIL,
+    phone: null,
+    mobile: null,
+    notes: null,
+    jobTitle: null,
+    deletedAt: now,
+  };
+}
+
+export function buildClientAnonymisationPatch(now: Date = new Date()): Record<string, unknown> {
+  return {
+    firstName: ANON,
+    lastName: ANON,
+    email: ANON_EMAIL,
+    phone: null,
+    mobile: null,
+    notes: null,
+    deletedAt: now,
+  };
+}
 
 @Injectable()
 export class GdprService {

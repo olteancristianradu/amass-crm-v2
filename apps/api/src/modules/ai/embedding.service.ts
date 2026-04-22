@@ -15,6 +15,7 @@ import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
 
 import { loadEnv } from '../../config/env';
+import { toVectorLiteral } from './embedding.helpers';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { getBreaker } from '../../common/resilience/circuit-breaker';
@@ -79,9 +80,9 @@ export class EmbeddingService {
     return null;
   }
 
-  /** @internal — exposed for SearchService use */
+  /** @internal — exposed for SearchService use. Delegates to the pure helper. */
   toVectorLiteral(vec: number[]): string {
-    return `[${vec.join(',')}]`;
+    return toVectorLiteral(vec);
   }
 
   /**
