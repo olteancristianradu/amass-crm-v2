@@ -438,3 +438,141 @@ Dacă nu facturezi către sectorul public, **sări secțiunea** — e-factura e 
    ```
 
 ---
+
+## 10. Verificare post-deploy
+
+Checklist rapidă după ce ai pornit stack-ul. Dacă vreun punct cade, vezi §12.
+
+### 10.1 Healthchecks
+
+```bash
+# API
+curl -s https://api.crm.amass.ro/api/v1/health | jq
+# { "status": "ok", "uptime": 42, "db": "ok", "redis": "ok", "minio": "ok" }
+
+# AI worker (din VPS — nu e expus public)
+docker exec amass-api curl -s http://ai-worker:8000/health | jq
+# { "status": "ok", "transcription_mode": "real", "redaction_mode": "real" }
+
+# Web
+curl -I https://crm.amass.ro
+# HTTP/2 200
+```
+
+### 10.2 RLS + tenant isolation (foarte important)
+
+```bash
+docker exec amass-postgres psql -U postgres -d amass_crm -c "
+SELECT
+  COUNT(*) FILTER (WHERE rowsecurity AND forcerowsecurity) AS rls_on,
+  COUNT(*) FILTER (WHERE NOT rowsecurity) AS rls_off,
+  COUNT(*) AS total
+FROM pg_tables
+WHERE schemaname='public' AND tablename NOT IN ('_prisma_migrations','tenants');
+"
+# rls_on trebuie să fie egal cu total - (excluded). Orice rls_off > 0 = BUG CRITIC.
+```
+
+### 10.3 Smoke test flow complet
+
+```bash
+# Login
+TOKEN=$(curl -s -X POST https://api.crm.amass.ro/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenantSlug":"amass","email":"owner@amass.ro","password":"..."}' \
+  | jq -r '.tokens.accessToken')
+
+# Create company
+curl -X POST https://api.crm.amass.ro/api/v1/companies \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"ACME SRL","cui":"RO12345678"}' | jq '.id'
+
+# Create deal
+curl -X POST https://api.crm.amass.ro/api/v1/deals \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"title":"Test","value":1000,"currency":"RON","pipelineId":"..."}' | jq
+
+# Presigned upload (attachment)
+curl -X POST https://api.crm.amass.ro/api/v1/attachments/presign \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"filename":"test.pdf","mimeType":"application/pdf","size":1024}' | jq
+# { "uploadUrl": "https://files.crm.amass.ro/...", "storageKey": "..." }
+```
+
+### 10.4 Metrics + Sentry
+
+```bash
+# Prometheus metrics (allow-list IP sau token conform METRICS_*)
+curl -s -H "authorization: Bearer $METRICS_AUTH_TOKEN" \
+  https://api.crm.amass.ro/metrics | head -20
+
+# Sentry: aruncă intenționat o 500 și verifică că ajunge în dashboard
+curl https://api.crm.amass.ro/api/v1/__debug_force_500  # doar dacă e expus
+```
+
+---
+
+## 11. Ce pot testa EU (Claude) odată ce e live
+
+Ca să pot verifica Whisper + Presidio + fluxul de call real fără să ai tu
+niciun număr Twilio activ, am nevoie de **un admin token cu rol OWNER** și
+să-mi dai public (peste SSH / ngrok / domeniu public) accesul la:
+
+- `https://api.crm.amass.ro/api/v1/*` (API-ul)
+- `https://crm.amass.ro` (web — opțional, pot merge pe API-only)
+- Portul AI worker `8000` (opțional, dacă vrei să fac test direct pe transcripție)
+
+### 11.1 Ce îmi dai
+
+```bash
+# 1. Creează un user OWNER pentru mine (sau folosește-l pe al tău)
+curl -X POST https://api.crm.amass.ro/api/v1/auth/register \
+  -H 'content-type: application/json' \
+  -d '{
+    "tenantSlug":"amass",
+    "email":"claude@amass.ro",
+    "password":"<parola_lunga_16_chars>",
+    "fullName":"Claude Test"
+  }'
+
+# 2. Îmi dai într-un mesaj:
+#    - URL-ul API (https://api.crm.amass.ro)
+#    - Slug tenant (`amass`)
+#    - Email + parola userului de test
+#    - (opțional) IP-ul VPS-ului pentru dacă ai METRICS_ALLOWED_IPS setat
+```
+
+### 11.2 Ce pot face cu asta
+
+| Test | Cum îl fac | Ce verific |
+|---|---|---|
+| **Login + refresh** | `POST /auth/login` → iau access+refresh token | JWT-ul e valid, `amass_rt` cookie e `HttpOnly; Secure` |
+| **Tenant isolation** | Creez o companie; încerc s-o citesc cu token de la alt tenant | Trebuie 404 (nu 403!) — RLS o ascunde complet |
+| **Upload attachment** | `POST /attachments/presign` → PUT pe MinIO → `POST /attachments/confirm` | Fișierul e în MinIO + rând în `attachments`, presigned GET funcționează 15 min |
+| **Deal pipeline** | Creez deal, îl mut prin stages, verific `deal_stage_history` | Audit log are entries |
+| **Simulez call** | `POST /process/call` direct pe ai-worker cu URL audio mostră | Whisper returnează text RO decent; Presidio înlocuiește PII |
+| **Twilio replay** | Trimit POST ca Twilio pe `/webhooks/twilio/voice` cu `X-Twilio-Signature` valid | TwiML răspuns corect (`<Response><Dial…>…`) |
+| **Stripe sim** | `stripe trigger customer.subscription.created` (tu rulezi local) | DB primește `Subscription` row |
+| **GDPR export** | `POST /gdpr/export-request` + aștept job BullMQ | ZIP cu CSV-urile apare în MinIO, link presigned 1h |
+| **Rate limiting** | 100 req/s pe `/auth/login` cu parolă greșită | Al 11-lea primește 429 |
+
+### 11.3 Ce NU pot face
+
+- **Apel real Twilio end-to-end** (nu pot răspunde telefonic). Dacă vrei să
+  validez transcripția pe recording real, tu dai tu un call de test cu
+  recording activat, iar eu fac re-run pe recording-ul salvat în MinIO
+  (`POST /calls/<id>/retranscribe`).
+- **Plată Stripe reală** — doar `stripe trigger` simulări. Pentru card real
+  trebuie să treci tu prin flow.
+- **ANAF production submit** — sandbox e ok, dar production submit are
+  nevoie de certificat USB fizic.
+
+### 11.4 Cum îmi dai acces
+
+Cea mai sigură variantă:
+1. Pune credențialele într-un chat privat (nu le pune în GitHub issues!).
+2. După ce termin de testat, **șterge userul** `claude@amass.ro` sau
+   schimbă-i parola.
+3. Activează **rate-limit strict** pe IP-ul meu dacă vrei paranoia în plus.
+
+---
