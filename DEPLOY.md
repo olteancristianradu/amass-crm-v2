@@ -576,3 +576,96 @@ Cea mai sigură variantă:
 3. Activează **rate-limit strict** pe IP-ul meu dacă vrei paranoia în plus.
 
 ---
+
+## 12. Rollback + troubleshooting
+
+### 12.1 Rollback la versiunea anterioară
+
+```bash
+cd /opt/amass
+
+# Ultimele 5 commits pe main
+git log --oneline -5
+
+# Rollback la commit X (soft — păstrează DB intactă, revine la codul vechi)
+git checkout <commit-sha>
+docker compose -f infra/docker-compose.yml build api web ai-worker
+docker compose -f infra/docker-compose.yml up -d api web ai-worker
+
+# Dacă o migrație nouă stricat ceva:
+docker exec amass-api pnpm prisma migrate resolve --rolled-back <migration_name>
+# Apoi rulează manual SQL-ul invers dintr-un backup. NU există `migrate down`.
+```
+
+### 12.2 Backup DB
+
+```bash
+# Backup zilnic (pune în cron la 03:00)
+docker exec amass-postgres pg_dump -U postgres -Fc amass_crm \
+  > /opt/backups/amass_$(date +%F).dump
+
+# Restore (pe DB goală)
+docker exec -i amass-postgres pg_restore -U postgres -d amass_crm --clean --if-exists \
+  < /opt/backups/amass_2026-04-22.dump
+```
+
+### 12.3 Probleme frecvente
+
+| Simptom | Cauză probabilă | Fix |
+|---|---|---|
+| `amass-api` nu pornește, `loadEnv` throw | Secret <32 chars / origin `*` / `minioadmin` default | Regenerează cu `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `prisma migrate deploy` eșuează cu `tenant_id does not exist` | Migrație aplicată pe DB mai veche | Rulează `prisma migrate resolve --applied <pre-migration>` sau restore backup |
+| Requesturile cad cu 500 + `RLS violation` | Lipsește `SET LOCAL app.tenant_id` — vreun serviciu ocolește `runWithTenant` | Caută în cod `this.prisma.` direct fără wrap; adaugă `runWithTenant()` sau filtrează manual `tenantId` |
+| `ai-worker` consumă 100% CPU și OOM | Whisper `medium`/`large` pe VPS cu <8GB RAM | Downgrade la `small` sau adaugă GPU |
+| Caddy nu emite TLS | DNS nu propagat încă / portul 80 blocat | `dig +short api.crm.amass.ro` + `sudo ufw status` |
+| 401 infinit loop pe FE | Refresh cookie `amass_rt` nu ajunge la API | Verifică `credentials: 'include'` + origini pe același domeniu |
+| Twilio webhook primește 401 | Signature mismatch — `TWILIO_WEBHOOK_BASE_URL` greșit | Trebuie să fie **exact** URL-ul public pe care Twilio îl POST-uie |
+| MinIO presigned PUT → 403 | `MINIO_ENDPOINT` intern ≠ cel public | Setează `MINIO_PUBLIC_ENDPOINT=https://files.crm.amass.ro` |
+| Whisper `transcription_mode` rămâne `stub` | `WHISPER_MODEL=off` sau `openai-whisper` neinstalat | Vezi §7 |
+| Presidio `redaction_mode` rămâne `stub` | `PRESIDIO_ENABLED=false` sau modelul spaCy RO lipsește | `python -c "import spacy; spacy.load('ro_core_news_lg')"` în container |
+
+### 12.4 Loguri utile
+
+```bash
+# Top 20 erori din ultima oră pe API
+docker logs --since 1h amass-api 2>&1 | grep -E '"level":50|ERROR' | tail -20
+
+# Queue BullMQ — joburi failed
+docker exec amass-api pnpm ts-node -e "
+  import { Queue } from 'bullmq';
+  const q = new Queue('ai-jobs', { connection: { host: 'redis', port: 6379 }});
+  q.getFailed(0, 20).then(console.log).finally(() => process.exit());
+"
+
+# pgvector health
+docker exec amass-postgres psql -U postgres -d amass_crm -c \
+  "SELECT extname, extversion FROM pg_extension WHERE extname='vector';"
+```
+
+---
+
+## Pași exacți (TL;DR pentru live)
+
+Dacă vrei calea rapidă, fără să citești tot:
+
+```bash
+# 1. VPS Ubuntu 22.04 cu 8 GB RAM, ssh-ul configurat.
+# 2.
+curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER && newgrp docker
+git clone https://github.com/olteancristianradu/amass-crm-v2.git /opt/amass && cd /opt/amass
+cp .env.example .env
+# 3. Editează .env — completează secretele (vezi §3).
+# 4.
+docker compose -f infra/docker-compose.yml --env-file .env up -d
+# 5. DNS A records pentru crm.amass.ro + api.crm.amass.ro + files.crm.amass.ro → IP VPS.
+# 6. Editează infra/Caddyfile cu domeniile tale, apoi:
+docker compose -f infra/docker-compose.yml restart caddy
+# 7.
+docker exec amass-api pnpm prisma migrate deploy
+curl -X POST https://api.crm.amass.ro/api/v1/auth/register \
+  -H 'content-type: application/json' \
+  -d '{"tenantSlug":"amass","tenantName":"Amass","email":"owner@amass.ro","password":"CHANGE_ME_16_chars","fullName":"Cristi"}'
+# 8. Deschide https://crm.amass.ro, login, vezi că merge.
+# 9. (opțional) Activează Whisper §7 + Presidio §8.
+# 10. (opțional) Dă-mi credentialele conform §11 și încep testele.
+```
