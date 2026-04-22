@@ -25,6 +25,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { InvoicesService } from './invoices.service';
 
 /**
@@ -37,7 +39,7 @@ import { InvoicesService } from './invoices.service';
  *   DELETE /invoices/:id         soft delete (DRAFT/CANCELLED only)
  */
 @Controller('invoices')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class InvoicesController {
   constructor(private readonly invoices: InvoicesService) {}
 
@@ -71,6 +73,7 @@ export class InvoicesController {
   @Post(':id/status')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({ action: 'invoice::change-status', resource: (req) => `Invoice::${(req as { params: { id: string } }).params.id}` })
   changeStatus(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(ChangeInvoiceStatusSchema)) dto: ChangeInvoiceStatusDto,
@@ -87,6 +90,7 @@ export class InvoicesController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({ action: 'invoice::delete', resource: (req) => `Invoice::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.invoices.remove(id);
   }

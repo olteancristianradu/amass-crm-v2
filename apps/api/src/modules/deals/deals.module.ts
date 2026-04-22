@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { AuthModule } from '../auth/auth.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { WorkflowsModule } from '../workflows/workflows.module';
@@ -12,7 +13,7 @@ import { DealsService } from './deals.service';
  * is needed for them.
  */
 @Module({
-  imports: [AuthModule, WorkflowsModule, ProjectsModule],
+  imports: [AuthModule, WorkflowsModule, ProjectsModule, AccessControlModule],
   controllers: [DealsController],
   providers: [DealsService],
   exports: [DealsService],

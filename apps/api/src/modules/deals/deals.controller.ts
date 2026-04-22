@@ -25,6 +25,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { DealsService } from './deals.service';
 
 /**
@@ -37,7 +39,7 @@ import { DealsService } from './deals.service';
  *   DELETE /deals/:id         soft delete
  */
 @Controller('deals')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class DealsController {
   constructor(private readonly deals: DealsService) {}
 
@@ -87,6 +89,7 @@ export class DealsController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({ action: 'deal::delete', resource: (req) => `Deal::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.deals.remove(id);
   }
