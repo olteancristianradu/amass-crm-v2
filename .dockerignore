@@ -1,0 +1,71 @@
+# Keep docker build context small + safe.
+#
+# Applies to all Dockerfiles that build with context = repo root
+# (api, web, ai-worker). Without this, `docker build` uploads the entire
+# ~1GB repo (node_modules, .git, .turbo cache, .env secrets) to the daemon,
+# slowing builds and risking .env leakage into image layers.
+
+# ── Dependencies / caches ────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+.pnpm-store/
+.turbo/
+**/.turbo/
+dist/
+**/dist/
+build/
+**/build/
+coverage/
+**/coverage/
+.pytest_cache/
+**/__pycache__/
+*.pyc
+
+# ── Version control ──────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── Secrets & local env ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+**/.env.production
+
+# ── IDE / editor ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ── CI / docs (not needed at runtime) ────────────────────────────────────
+.github/
+docs/
+*.md
+!README.md
+!apps/ai-worker/README.md
+
+# ── Test fixtures / mocks that balloon the context ───────────────────────
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/test/
+**/tests/
+**/__tests__/
+**/__mocks__/
+**/test-fixtures/
+
+# ── Railway / deployment configs (not needed in image) ───────────────────
+railway.toml
+**/railway.toml
+
+# ── Temporary / log files ────────────────────────────────────────────────
+*.log
+tmp/
+temp/
+
+# ── Docker files themselves (except the one building) ────────────────────
+# (Docker automatically ignores the Dockerfile being used; we don't need
+# to ignore them here.)
