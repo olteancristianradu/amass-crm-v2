@@ -200,6 +200,14 @@ export class WorkflowsService {
   /**
    * Execute steps from `stepIndex`. Stops at WAIT_DAYS (enqueues delayed job).
    * Called on initial trigger and on BullMQ job resume.
+   *
+   * SECURITY — tenant isolation:
+   *   This function runs from BullMQ when a WAIT_DAYS step fires, which is
+   *   OUTSIDE any request AsyncLocalStorage context. That means tenantExtension
+   *   (Prisma layer 2) no-ops AND Postgres RLS (layer 3) is inactive.
+   *   Every query MUST go through runWithTenant(tenantId, ...) so SET LOCAL
+   *   app.tenant_id is applied. We also filter by tenantId explicitly on the
+   *   first lookup as defense-in-depth.
    */
   async executeFromStep(
     runId: string,
@@ -207,17 +215,24 @@ export class WorkflowsService {
     stepIndex: number,
     steps?: WorkflowStep[],
   ): Promise<void> {
-    const run = await this.prisma.workflowRun.findFirst({ where: { id: runId } });
-    if (!run || run.status !== 'RUNNING') return;
-
-    const allSteps = steps ?? (await this.prisma.workflowStep.findMany({
-      where: { workflowId: run.workflowId },
-      orderBy: { order: 'asc' },
-    }));
+    const { run, allSteps } = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const run = await tx.workflowRun.findFirst({ where: { id: runId, tenantId } });
+      if (!run || run.status !== 'RUNNING') return { run: null, allSteps: [] };
+      const allSteps =
+        steps ??
+        (await tx.workflowStep.findMany({
+          where: { workflowId: run.workflowId },
+          orderBy: { order: 'asc' },
+        }));
+      return { run, allSteps };
+    });
+    if (!run) return;
 
     for (let i = stepIndex; i < allSteps.length; i++) {
       const step = allSteps[i];
-      await this.prisma.workflowRun.update({ where: { id: runId }, data: { currentStep: i } });
+      await this.prisma.runWithTenant(tenantId, (tx) =>
+        tx.workflowRun.update({ where: { id: runId }, data: { currentStep: i } }),
+      );
 
       if (step.actionType === 'WAIT_DAYS') {
         const cfg = step.actionConfig as Record<string, unknown>;
@@ -230,10 +245,12 @@ export class WorkflowsService {
       await this.executeStep(run, step, tenantId);
     }
 
-    await this.prisma.workflowRun.update({
-      where: { id: runId },
-      data: { status: 'COMPLETED', completedAt: new Date() },
-    });
+    await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.workflowRun.update({
+        where: { id: runId },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      }),
+    );
   }
 
   private async executeStep(run: WorkflowRun, step: WorkflowStep, tenantId: string): Promise<void> {
@@ -243,39 +260,44 @@ export class WorkflowsService {
         const body = typeof cfg.body === 'string' ? cfg.body : '[Workflow note]';
         const validSubjectTypes = ['COMPANY', 'CONTACT', 'CLIENT'];
         if (validSubjectTypes.includes(run.subjectType)) {
-          await this.prisma.note.create({
-            data: {
-              tenantId,
-              subjectType: run.subjectType as 'COMPANY' | 'CONTACT' | 'CLIENT',
-              subjectId: run.subjectId,
-              body,
-            },
-          });
+          await this.prisma.runWithTenant(tenantId, (tx) =>
+            tx.note.create({
+              data: {
+                tenantId,
+                subjectType: run.subjectType as 'COMPANY' | 'CONTACT' | 'CLIENT',
+                subjectId: run.subjectId,
+                body,
+              },
+            }),
+          );
         }
       } else if (step.actionType === 'CREATE_TASK') {
         const title = typeof cfg.title === 'string' ? cfg.title : 'Workflow task';
         const priority = typeof cfg.priority === 'string' ? cfg.priority : 'NORMAL';
         const dueInDays = typeof cfg.dueInDays === 'number' ? cfg.dueInDays : 0;
-        const dueAt = dueInDays > 0
-          ? new Date(Date.now() + dueInDays * 86400000)
-          : undefined;
-        await this.prisma.task.create({
-          data: {
-            tenantId,
-            dealId: run.subjectType === 'DEAL' ? run.subjectId : undefined,
-            subjectType: run.subjectType !== 'DEAL'
-              ? (run.subjectType as 'COMPANY' | 'CONTACT' | 'CLIENT')
-              : undefined,
-            subjectId: run.subjectType !== 'DEAL' ? run.subjectId : undefined,
-            title,
-            priority: priority as 'LOW' | 'NORMAL' | 'HIGH',
-            dueAt,
-          },
-        });
+        const dueAt = dueInDays > 0 ? new Date(Date.now() + dueInDays * 86400000) : undefined;
+        await this.prisma.runWithTenant(tenantId, (tx) =>
+          tx.task.create({
+            data: {
+              tenantId,
+              dealId: run.subjectType === 'DEAL' ? run.subjectId : undefined,
+              subjectType:
+                run.subjectType !== 'DEAL' ? (run.subjectType as 'COMPANY' | 'CONTACT' | 'CLIENT') : undefined,
+              subjectId: run.subjectType !== 'DEAL' ? run.subjectId : undefined,
+              title,
+              priority: priority as 'LOW' | 'NORMAL' | 'HIGH',
+              dueAt,
+            },
+          }),
+        );
       } else if (step.actionType === 'SEND_EMAIL') {
-        // MVP stub — SEND_EMAIL step is logged only.
-        // Full implementation would inject EmailService + look up subject email.
-        this.logger.log('SEND_EMAIL step for run %s — enqueue email delivery here in S15+', run.id);
+        // SEND_EMAIL is intentionally NOT implemented — the workflow engine
+        // does not ship email delivery in this version. Mark the run as
+        // FAILED with a clear error so users see the step skipped instead
+        // of believing it "worked" (previous behaviour logged-and-ignored).
+        const msg = `SEND_EMAIL workflow step is not implemented — configure SEND_CAMPAIGN or an external webhook instead`;
+        this.logger.warn(`${msg} (run=${run.id})`);
+        throw new Error(msg);
       } else if (step.actionType === 'SEND_CAMPAIGN') {
         const campaignId = typeof cfg.campaignId === 'string' ? cfg.campaignId : null;
         if (!campaignId) {
@@ -287,10 +309,12 @@ export class WorkflowsService {
       }
     } catch (err) {
       this.logger.error('Step execution failed for run %s step %s: %o', run.id, step.id, err);
-      await this.prisma.workflowRun.update({
-        where: { id: run.id },
-        data: { status: 'FAILED', error: String(err), completedAt: new Date() },
-      });
+      await this.prisma.runWithTenant(tenantId, (tx) =>
+        tx.workflowRun.update({
+          where: { id: run.id },
+          data: { status: 'FAILED', error: String(err), completedAt: new Date() },
+        }),
+      );
       throw err;
     }
   }

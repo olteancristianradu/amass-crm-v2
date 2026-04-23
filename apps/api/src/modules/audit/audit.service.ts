@@ -113,17 +113,20 @@ export class AuditService {
   }
 
   /**
-   * E-compliance: prune audit entries older than `retentionDays`. Returns
-   * the number of rows deleted. Intended to be called by MaintenanceScheduler
-   * (daily). Tenant-specific overrides live in the DB and supersede the
-   * global default.
+   * E-compliance: prune audit entries older than `retentionDays` for ONE
+   * tenant. Tenant-scoped via runWithTenant so both the tenantExtension
+   * (Prisma layer 2) and RLS (layer 3) filter the DELETE to the active
+   * tenant — even if someone calls this with the wrong retention value
+   * from a random endpoint, they cannot wipe another tenant's log.
+   *
+   * The maintenance scheduler iterates tenants and invokes this per-tenant.
    */
-  async pruneExpired(retentionDays: number): Promise<number> {
+  async pruneExpiredForTenant(tenantId: string, retentionDays: number): Promise<number> {
     const cutoff = computeRetentionCutoff(retentionDays);
     if (!cutoff) return 0;
-    const result = await this.prisma.auditLog.deleteMany({
-      where: { createdAt: { lt: cutoff } },
-    });
+    const result = await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.auditLog.deleteMany({ where: { tenantId, createdAt: { lt: cutoff } } }),
+    );
     return result.count;
   }
 }

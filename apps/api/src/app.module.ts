@@ -75,7 +75,6 @@ import { WebauthnModule } from './modules/webauthn/webauthn.module';
 import { AccessControlModule } from './modules/access-control/access-control.module';
 import { ConditionalAccessMiddleware } from './modules/access-control/conditional-access.middleware';
 import { SyncModule } from './modules/sync/sync.module';
-import { PushModule } from './modules/push/push.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -245,7 +244,6 @@ import { PushModule } from './modules/push/push.module';
     WebauthnModule,
     AccessControlModule,
     SyncModule,
-    PushModule,
   ],
   providers: [
     // B-scaling: rate-limit per-tenant (and per-user when authed) instead of

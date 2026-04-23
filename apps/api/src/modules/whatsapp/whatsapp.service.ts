@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { SubjectType, WhatsappMessageDirection, WhatsappMessageStatus } from '@prisma/client';
 import { CreateWhatsappAccountDto, SendWhatsappMessageDto } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
+import { decrypt as decryptSecret, encrypt as encryptSecret } from '../../common/crypto/encryption';
 
 const META_API_VERSION = 'v19.0';
 const META_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
@@ -20,15 +21,16 @@ export class WhatsappService {
 
   async createAccount(dto: CreateWhatsappAccountDto) {
     const { tenantId } = requireTenantContext();
-    // accessToken stored encrypted — reuse existing email encryption pattern
-    const enc = Buffer.from(dto.accessToken).toString('base64');
+    // AES-256-GCM at rest. The field was previously stored as base64 which
+    // is an encoding, not encryption — a DB dump leaked live Meta access
+    // tokens usable to send WhatsApp messages + read webhooks.
     return this.prisma.runWithTenant(tenantId, (tx) =>
       tx.whatsappAccount.create({
         data: {
           tenantId,
           phoneNumberId: dto.phoneNumberId,
           displayPhoneNumber: dto.displayPhoneNumber,
-          accessTokenEnc: enc,
+          accessTokenEnc: encryptSecret(dto.accessToken),
           webhookVerifyToken: dto.webhookVerifyToken,
         },
       }),
@@ -62,7 +64,7 @@ export class WhatsappService {
     if (!account) throw new NotFoundException('No active WhatsApp account configured');
     if (!dto.body) throw new BadRequestException('Message body is required');
 
-    const accessToken = Buffer.from(account.accessTokenEnc, 'base64').toString('utf8');
+    const accessToken = decryptSecret(account.accessTokenEnc);
 
     const payload = {
       messaging_product: 'whatsapp',
@@ -119,14 +121,27 @@ export class WhatsappService {
   }
 
   async handleWebhook(tenantId: string, body: unknown, signature: string): Promise<void> {
-    const account = await this.prisma.whatsappAccount.findFirst({
-      where: { tenantId, isActive: true, deletedAt: null },
-    });
+    const account = await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappAccount.findFirst({
+        where: { tenantId, isActive: true, deletedAt: null },
+      }),
+    );
     if (!account) return;
 
-    const accessToken = Buffer.from(account.accessTokenEnc, 'base64').toString('utf8');
-    const expected = `sha256=${createHmac('sha256', accessToken).update(JSON.stringify(body)).digest('hex')}`;
-    if (signature !== expected) throw new UnauthorizedException('Invalid HMAC signature');
+    // HMAC secret for inbound-webhook verification is `webhookVerifyToken`,
+    // which is a Meta-provided secret distinct from the access token used
+    // for outbound API calls. Reusing accessToken was an anti-pattern —
+    // a leaked access token should not also let an attacker forge inbound
+    // webhooks. See https://developers.facebook.com/docs/graph-api/webhooks
+    const expected = `sha256=${createHmac('sha256', account.webhookVerifyToken)
+      .update(JSON.stringify(body))
+      .digest('hex')}`;
+    // timingSafeEqual to prevent timing oracles on the signature check.
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+      throw new UnauthorizedException('Invalid HMAC signature');
+    }
 
     const parsed = body as {
       entry?: Array<{ changes?: Array<{ value?: { messages?: Array<{ id: string; from: string; text?: { body: string }; timestamp: string }> } }> }>
@@ -134,24 +149,29 @@ export class WhatsappService {
     const messages = parsed.entry?.[0]?.changes?.[0]?.value?.messages ?? [];
 
     for (const m of messages) {
+      // externalId is globally-unique (Meta-assigned) so findUnique
+      // without tenant filter is by-design — the subsequent create runs
+      // inside runWithTenant so the row inherits the correct tenantId.
       const existing = await this.prisma.whatsappMessage.findUnique({ where: { externalId: m.id } });
       if (existing) continue;
 
-      await this.prisma.whatsappMessage.create({
-        data: {
-          tenantId,
-          accountId: account.id,
-          subjectType: SubjectType.CLIENT,
-          subjectId: m.from,
-          direction: WhatsappMessageDirection.INBOUND,
-          status: WhatsappMessageStatus.DELIVERED,
-          fromNumber: m.from,
-          toNumber: account.displayPhoneNumber,
-          body: m.text?.body ?? null,
-          externalId: m.id,
-          sentAt: new Date(Number(m.timestamp) * 1000),
-        },
-      });
+      await this.prisma.runWithTenant(tenantId, (tx) =>
+        tx.whatsappMessage.create({
+          data: {
+            tenantId,
+            accountId: account.id,
+            subjectType: SubjectType.CLIENT,
+            subjectId: m.from,
+            direction: WhatsappMessageDirection.INBOUND,
+            status: WhatsappMessageStatus.DELIVERED,
+            fromNumber: m.from,
+            toNumber: account.displayPhoneNumber,
+            body: m.text?.body ?? null,
+            externalId: m.id,
+            sentAt: new Date(Number(m.timestamp) * 1000),
+          },
+        }),
+      );
     }
   }
 

@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { ImportType, Prisma } from '@prisma/client';
 import Papa from 'papaparse';
+import { sanitizeCsvRow } from '../../common/utils/csv-safe';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { QUEUE_IMPORT } from '../../infra/queue/queue.constants';
@@ -71,7 +72,10 @@ export class ImportProcessor extends WorkerHost {
       if (parsed.errors.length > 0) {
         this.logger.warn(`Parse warnings: ${parsed.errors.length}`);
       }
-      rows = parsed.data;
+      // CSV formula-injection defence: any cell starting with =/+/-/@/tab/CR
+      // gets a leading tick so Excel/LibreOffice/Sheets treats it as text
+      // when someone re-exports the data. See common/utils/csv-safe.ts.
+      rows = parsed.data.map((r) => sanitizeCsvRow(r as Record<string, unknown>)) as RawRow[];
     } catch (err) {
       await this.markFailed(tenantId, jobId, [
         { row: 0, message: `Failed to parse file: ${(err as Error).message}` },

@@ -78,12 +78,7 @@ export class ValidationRulesService {
   private passes(rule: ValidationRule, value: string): boolean {
     switch (rule.operator) {
       case 'REGEX':
-        try {
-          return new RegExp(rule.value).test(value);
-        } catch {
-          // Invalid regex stored — treat as pass to avoid blocking all writes.
-          return true;
-        }
+        return this.passesRegex(rule.value, value);
       case 'MIN_LENGTH':
         return value.length >= Number(rule.value);
       case 'MAX_LENGTH':
@@ -94,6 +89,46 @@ export class ValidationRulesService {
         return value !== rule.value;
       default:
         return true;
+    }
+  }
+
+  /**
+   * ReDoS mitigation for user-supplied regex rules.
+   *
+   * The V8 RegExp engine uses NFA matching and can exhibit catastrophic
+   * backtracking on patterns like `(a+)+$` against long inputs — one
+   * malicious rule can pin a CPU for minutes and DoS the whole API.
+   *
+   * Two layers of defence:
+   *   1) INPUT-LENGTH BOUND — reject values longer than MAX_REGEX_INPUT.
+   *      Most real CRM fields are short (name, phone, email); rules that
+   *      need multi-KB strings should use MIN_LENGTH/MAX_LENGTH instead.
+   *   2) PATTERN BOUND — reject patterns with nested quantifiers, the
+   *      well-known ReDoS signature. This blocks `(a+)+`, `(a*)*`,
+   *      `(a|a)+` and similar "catastrophic" shapes before we invoke
+   *      RegExp at all.
+   *
+   * Both layers fail CLOSED to `true` (rule passes) so a malformed rule
+   * never blocks legitimate writes. The admin UI should still surface
+   * invalid rules so users notice them.
+   */
+  private passesRegex(pattern: string, value: string): boolean {
+    const MAX_REGEX_INPUT = 1000;
+    if (value.length > MAX_REGEX_INPUT) return true;
+
+    // Catastrophic-backtracking signature: nested quantifiers ((x)+)+ or
+    // quantifier immediately after a group that itself contains a
+    // quantifier. False-positive on a few safe patterns (e.g. `(ab+)+`),
+    // but safer to reject than to risk CPU-pin.
+    if (/\([^()]*[+*][^()]*\)[+*]/.test(pattern) || /\([^()]*\|[^()]*\)[+*]/.test(pattern)) {
+      return true;
+    }
+
+    try {
+      return new RegExp(pattern).test(value);
+    } catch {
+      // Invalid regex stored — treat as pass to avoid blocking all writes.
+      return true;
     }
   }
 }

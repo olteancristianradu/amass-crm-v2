@@ -174,7 +174,13 @@ export class ExportsService {
     if (rows.length === 0) return '';
     const headers = Object.keys(rows[0]);
     const escape = (v: unknown): string => {
-      const s = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      let s = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      // CSV formula-injection defence on OUTPUT as well: prefix cells that
+      // start with =/+/-/@/tab/CR with a single tick so spreadsheet apps
+      // display them as text. Defense-in-depth with the importer's
+      // sanitizer (a row that was stored before the sanitizer shipped
+      // still comes out safe through this path).
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
       return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers.join(','), ...rows.map((r) => headers.map((h) => escape(r[h])).join(','))];

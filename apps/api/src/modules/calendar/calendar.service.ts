@@ -15,6 +15,7 @@ import { CalendarEvent, CalendarProvider, Prisma, SubjectType } from '@prisma/cl
 import { CreateCalendarEventDto, ListCalendarEventsQueryDto } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { decrypt as decryptSecret, encrypt as encryptSecret } from '../../common/crypto/encryption';
 
 @Injectable()
 export class CalendarService {
@@ -93,7 +94,10 @@ export class CalendarService {
     expiresAt: Date,
   ) {
     const { tenantId, userId } = requireTenantContext();
-    const enc = (s: string) => Buffer.from(s).toString('base64');
+    // AES-256-GCM at rest — same primitive we use for SMTP passwords.
+    // Previously these were stored as base64 which is an encoding, NOT
+    // encryption, so any DB-dump leaked live OAuth tokens.
+    const enc = (s: string) => encryptSecret(s);
     return this.prisma.runWithTenant(tenantId, (tx) =>
       tx.calendarIntegration.upsert({
         where: { tenantId_userId_provider: { tenantId, userId: userId!, provider: provider as CalendarProvider } },
@@ -141,7 +145,7 @@ export class CalendarService {
     );
     if (!integration) throw new NotFoundException('Integration not found');
 
-    const accessToken = Buffer.from(integration.accessTokenEnc, 'base64').toString('utf8');
+    const accessToken = decryptSecret(integration.accessTokenEnc);
     const events = integration.provider === 'GOOGLE'
       ? await this.fetchGoogleEvents(accessToken)
       : await this.fetchOutlookEvents(accessToken);
@@ -220,7 +224,7 @@ export class CalendarService {
     );
     if (!integration) throw new NotFoundException('Integration not found');
 
-    const accessToken = Buffer.from(integration.accessTokenEnc, 'base64').toString('utf8');
+    const accessToken = decryptSecret(integration.accessTokenEnc);
 
     // Write to provider
     let externalId: string;
