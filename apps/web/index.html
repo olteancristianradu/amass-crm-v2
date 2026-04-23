@@ -13,11 +13,15 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Register service worker for offline shell + installability. Only in production.
-      if ('serviceWorker' in navigator && location.protocol === 'https:') {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => { /* non-fatal */ });
-        });
+      // Service worker DISABLED. A registered SW aggressively caches the
+      // app shell (index.html + referenced JS chunks) and, when a deploy
+      // changes hashed filenames, serves a stale HTML pointing at missing
+      // chunks → blank page that Ctrl+F5 can't clear. For the demo we
+      // unregister any previously installed SW + clear its caches so
+      // users on old builds recover automatically.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+        if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k)));
       }
     </script>
   </body>
