@@ -5,7 +5,9 @@ import { AuditModule } from '../audit/audit.module';
 import { RedisModule } from '../../infra/redis/redis.module';
 import { AuthController } from './auth.controller';
 import { AuthService, parseTtlSeconds } from './auth.service';
+import { EmailVerificationService } from './email-verification.service';
 import { JwtAuthGuard } from './jwt.guard';
+import { PasswordResetService } from './password-reset.service';
 import { TotpController } from './totp.controller';
 import { TotpService } from './totp.service';
 
@@ -49,7 +51,7 @@ import { TotpService } from './totp.service';
     }),
   ],
   controllers: [AuthController, TotpController],
-  providers: [AuthService, JwtAuthGuard, TotpService],
-  exports: [AuthService, JwtAuthGuard, JwtModule, TotpService],
+  providers: [AuthService, JwtAuthGuard, TotpService, PasswordResetService, EmailVerificationService],
+  exports: [AuthService, JwtAuthGuard, JwtModule, TotpService, PasswordResetService, EmailVerificationService],
 })
 export class AuthModule {}

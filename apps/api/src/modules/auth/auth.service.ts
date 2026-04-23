@@ -1,6 +1,6 @@
 import { ConflictException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserRole } from '@prisma/client';
+import { Prisma, User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'node:crypto';
 import { loadEnv } from '../../config/env';
@@ -34,6 +34,7 @@ import {
   isLegacyBcryptHash,
   lockoutMessage,
 } from './auth.helpers';
+import { consumeBackupCode } from './totp-backup-codes.helpers';
 
 /**
  * Multi-tenancy note: this service deliberately bypasses `runWithTenant`
@@ -186,13 +187,37 @@ export class AuthService {
     // If 2FA is enabled, require a valid TOTP code before issuing tokens.
     // We return a specific code so the FE can show the TOTP input instead of
     // a generic error (the FE knows the password was correct at this point).
+    //
+    // Users who lost their authenticator can submit one of their 10 backup
+    // codes in the `totpCode` field instead. Backup codes are stored as
+    // SHA-256 digests in user.totpBackupCodes and are single-use — the
+    // matched hash is spliced out of the array on consumption.
     if (user.totpEnabled && user.totpSecret) {
       if (!dto.totpCode) {
         throw new UnauthorizedException({ code: 'TOTP_REQUIRED', message: 'Two-factor authentication code required' });
       }
-      if (!(await this.totpSvc.verify(user.totpSecret, dto.totpCode))) {
-        await this.recordFailedAttempt(failKey, lockKey);
-        throw new UnauthorizedException({ code: 'INVALID_TOTP', message: 'Invalid authenticator code' });
+      const totpOk = await this.totpSvc.verify(user.totpSecret, dto.totpCode);
+      if (!totpOk) {
+        // Fall back to backup code. Format diverges enough (8 alphanum vs
+        // 6 digits) that we can try both safely without ambiguity.
+        const stored = (user.totpBackupCodes as string[] | null) ?? [];
+        const consumed = consumeBackupCode(dto.totpCode, stored);
+        if (!consumed.matched) {
+          await this.recordFailedAttempt(failKey, lockKey);
+          throw new UnauthorizedException({ code: 'INVALID_TOTP', message: 'Invalid authenticator code' });
+        }
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { totpBackupCodes: consumed.remaining as Prisma.InputJsonValue },
+        });
+        await this.audit.log({
+          tenantId: user.tenantId,
+          actorId: user.id,
+          action: 'auth.totp.backup_code_used',
+          subjectType: 'User',
+          subjectId: user.id,
+          metadata: { remaining: consumed.remaining.length },
+        });
       }
     }
 

@@ -22,3 +22,21 @@ export const RefreshSchema = z.object({
   refreshToken: z.string().min(10),
 });
 export type RefreshDto = z.infer<typeof RefreshSchema>;
+
+export const RequestPasswordResetSchema = z.object({
+  tenantSlug: z.string().min(2).max(64),
+  email: z.string().email(),
+});
+export type RequestPasswordResetDto = z.infer<typeof RequestPasswordResetSchema>;
+
+export const ConfirmPasswordResetSchema = z.object({
+  // Raw token (b64url) — NEVER log this.
+  token: z.string().min(32).max(128),
+  newPassword: z.string().min(8).max(128),
+});
+export type ConfirmPasswordResetDto = z.infer<typeof ConfirmPasswordResetSchema>;
+
+export const ConfirmEmailVerificationSchema = z.object({
+  token: z.string().min(32).max(128),
+});
+export type ConfirmEmailVerificationDto = z.infer<typeof ConfirmEmailVerificationSchema>;

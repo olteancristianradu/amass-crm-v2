@@ -15,8 +15,23 @@ import { loadEnv } from '../../config/env';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AuthService, AuthTokens } from './auth.service';
-import { LoginDto, LoginSchema, RefreshDto, RefreshSchema, RegisterDto, RegisterSchema } from './dto';
+import {
+  ConfirmEmailVerificationDto,
+  ConfirmEmailVerificationSchema,
+  ConfirmPasswordResetDto,
+  ConfirmPasswordResetSchema,
+  LoginDto,
+  LoginSchema,
+  RefreshDto,
+  RefreshSchema,
+  RegisterDto,
+  RegisterSchema,
+  RequestPasswordResetDto,
+  RequestPasswordResetSchema,
+} from './dto';
+import { EmailVerificationService } from './email-verification.service';
 import { JwtAuthGuard } from './jwt.guard';
+import { PasswordResetService } from './password-reset.service';
 import { clearRefreshCookie, readRefreshCookie, setRefreshCookie } from './refresh-cookie';
 
 @Controller('auth')
@@ -24,7 +39,11 @@ export class AuthController {
   private readonly env = loadEnv();
   private readonly isProd = this.env.NODE_ENV === 'production';
 
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly passwordReset: PasswordResetService,
+    private readonly emailVerification: EmailVerificationService,
+  ) {}
 
   /**
    * M-10 — mint the refresh token to an httpOnly cookie and STRIP it from
@@ -129,5 +148,48 @@ export class AuthController {
   @SkipThrottle()
   async me(@CurrentUser() user: AuthenticatedUser) {
     return this.auth.me(user.userId);
+  }
+
+  /**
+   * Password reset — REQUEST. Always returns 204 regardless of whether the
+   * email exists, so an attacker cannot probe the user database.
+   */
+  @Post('password-reset/request')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async requestPasswordReset(
+    @Body(new ZodValidationPipe(RequestPasswordResetSchema)) dto: RequestPasswordResetDto,
+    @Req() req: Request,
+  ): Promise<void> {
+    const ipAddress = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.ip;
+    const { resetUrl } = await this.passwordReset.request(dto.email, dto.tenantSlug, ipAddress);
+    // In production the raw token is only sent via email — never surfaced.
+    // In dev we return it on the header for manual testing.
+    if (!this.isProd && resetUrl) {
+      // Visible in the response header so devs can copy/paste the token.
+      // Not surfaced in production builds.
+      // eslint-disable-next-line no-console
+      console.log(`[DEV] password reset token for ${dto.email}: ${resetUrl}`);
+    }
+  }
+
+  /** Password reset — CONFIRM. Consumes token + rotates password + revokes sessions. */
+  @Post('password-reset/confirm')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async confirmPasswordReset(
+    @Body(new ZodValidationPipe(ConfirmPasswordResetSchema)) dto: ConfirmPasswordResetDto,
+  ): Promise<void> {
+    await this.passwordReset.confirm(dto.token, dto.newPassword);
+  }
+
+  /** Email verification — CONFIRM. Sets User.emailVerifiedAt atomically. */
+  @Post('email/verify')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async verifyEmail(
+    @Body(new ZodValidationPipe(ConfirmEmailVerificationSchema)) dto: ConfirmEmailVerificationDto,
+  ): Promise<void> {
+    await this.emailVerification.confirm(dto.token);
   }
 }
