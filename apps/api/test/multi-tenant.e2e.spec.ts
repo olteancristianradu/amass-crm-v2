@@ -70,9 +70,9 @@ describe('Multi-tenant isolation (e2e)', () => {
   });
 
   it('RLS: a query inside runWithTenant(A) cannot see tenant B users', async () => {
-    const visibleFromA = await prisma.runWithTenant(tenantIdA, (tx) =>
+    const visibleFromA = (await prisma.runWithTenant(tenantIdA, (tx) =>
       tx.user.findMany({ where: {} }), // intentionally NO tenantId filter to test RLS
-    );
+    )) as { tenantId: string; email: string }[];
     expect(visibleFromA.every((u) => u.tenantId === tenantIdA)).toBe(true);
     expect(visibleFromA.find((u) => u.email === 'b@b.com')).toBeUndefined();
   });
@@ -95,9 +95,9 @@ describe('Multi-tenant isolation (e2e)', () => {
   });
 
   it('audit_logs were written for register', async () => {
-    const logs = await prisma.runWithTenant(tenantIdA, (tx) =>
+    const logs = (await prisma.runWithTenant(tenantIdA, (tx) =>
       tx.auditLog.findMany({ where: { action: 'auth.register' } }),
-    );
+    )) as { tenantId: string }[];
     expect(logs.length).toBeGreaterThanOrEqual(1);
     expect(logs.every((l) => l.tenantId === tenantIdA)).toBe(true);
   });

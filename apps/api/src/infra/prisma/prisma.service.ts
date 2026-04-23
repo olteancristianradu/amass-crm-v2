@@ -176,9 +176,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const mode: 'ro' | 'rw' = typeof modeOrFn === 'function' ? 'rw' : modeOrFn;
     const fn = typeof modeOrFn === 'function' ? modeOrFn : (maybeFn as (tx: Prisma.TransactionClient) => Promise<T>);
 
-    // M-9: Postgres SET LOCAL does NOT accept parameter placeholders for the
-    // value — the server-side configuration protocol is text-only. Strict
-    // allow-list prevents injection; see isValidTenantId below.
+    // Defense in depth — the tenantId SHOULD always come from ALS context,
+    // populated by TenantContextMiddleware from a JWT that we signed, so it is
+    // not user-controlled in practice. But this function is exported and
+    // could be called from code that bypassed the middleware, so we enforce
+    // a strict format allow-list as the first line of defense.
     if (!PrismaService.isValidTenantId(tenantId)) {
       throw new Error('runWithTenant: tenantId failed format validation');
     }
@@ -187,12 +189,20 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // hit the primary. Both go through the EXTENDED client so tx gets
     // tenantExtension wired — this is Layer 2 of defense-in-depth (Layer 1
     // = JWT+RolesGuard+TenantContextMiddleware in ALS, Layer 3 = Postgres
-    // RLS via the SET LOCAL dance below).
+    // RLS via set_config() below).
     const target =
       mode === 'ro' && this.readClient !== (this as unknown as PrismaClient) ? this.readExtended : this.extended;
 
     return target.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`SET LOCAL app.tenant_id = '${tenantId}'`);
+      // `set_config(name, value, is_local=true)` is the parameter-bindable
+      // equivalent of `SET LOCAL name = value`. Prefer this over the old
+      // `$executeRawUnsafe(`SET LOCAL ... = '${tenantId}'`)` path because
+      // Prisma's tagged-template `$executeRaw` binds the placeholder, so
+      // even if `isValidTenantId` above ever regressed, the value cannot
+      // break out of the SQL string literal.
+      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+      // SET ROLE has no parameter-bindable form, but 'app_user' is a
+      // hardcoded identifier (not user input) so it is injection-proof.
       await tx.$executeRawUnsafe(`SET LOCAL ROLE app_user`);
       if (mode === 'ro') {
         // On replica this is required (host is read-only anyway); on primary

@@ -199,9 +199,9 @@ describe('Reminders + BullMQ (e2e)', () => {
     let fired = false;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 200));
-      const row = await prisma.runWithTenant(tenantA!.id, (tx) =>
+      const row = (await prisma.runWithTenant(tenantA!.id, (tx) =>
         tx.reminder.findFirst({ where: { id, tenantId: tenantA!.id } }),
-      );
+      )) as { status: string; firedAt: Date | null } | null;
       if (row?.status === 'FIRED') {
         fired = true;
         expect(row.firedAt).not.toBeNull();
@@ -211,7 +211,7 @@ describe('Reminders + BullMQ (e2e)', () => {
     expect(fired).toBe(true);
 
     // Activity row should be written too.
-    const acts = await prisma.runWithTenant(tenantA!.id, (tx) =>
+    const acts = (await prisma.runWithTenant(tenantA!.id, (tx) =>
       tx.activity.findMany({
         where: {
           tenantId: tenantA!.id,
@@ -220,7 +220,7 @@ describe('Reminders + BullMQ (e2e)', () => {
           action: 'reminder.fired',
         },
       }),
-    );
+    )) as unknown[];
     expect(acts.length).toBeGreaterThanOrEqual(1);
   }, 15000);
 

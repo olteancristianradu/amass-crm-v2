@@ -1,6 +1,6 @@
 # STATUS.md — Stadiul Proiectului Amass CRM v2
 
-> Actualizat: 2026-04-22 | Sprint curent: post-audit remediation (circuit breakers, tenantExtension wiring, CVE reduction, NestJS v11 upgrade).
+> Actualizat: 2026-04-23 | Sprint curent: post-audit remediation — CedarGuard wired on gdpr/deals/invoices, test coverage expanded (195→257 API + 1→30 web), `.dockerignore` added, all 6 prod-deps vulnerabilities patched via overrides (4 HIGH `@xmldom/xmldom` CVEs + 1 HIGH `fast-xml-parser` + 1 moderate `uuid`), raw SQL tenant-id path hardened with parameter-bound `set_config()`.
 
 **Acest fișier e ONEST. Ceea ce e „implementat complet" e cu adevărat funcțional; ceea ce e parțial sau stub e marcat ca atare. Coordonează cu [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md) pentru punctele care mai necesită verificare runtime pe Docker real.**
 
@@ -14,14 +14,16 @@
 | Module backend funcționale | **59** | subtract SCIM/WebAuthn/Sync/Push/AccessControl scaffolds |
 | Modele Prisma (tabele) | **80+** | `grep -c '^model ' apps/api/prisma/schema.prisma` |
 | Pagini frontend | **45–49** | `find apps/web/src/routes -name '*.tsx' \| wc -l` — minus 5 lazy wrappers |
-| Unit tests API | **195 passing** în 27 fișiere | `pnpm --dir apps/api vitest run --exclude 'test/**'` |
+| Unit tests API | **257 passing** în 36 fișiere | `pnpm --filter @amass/api test` |
 | E2e tests API | **13 fișiere** (necesită Docker: Postgres + Redis + MinIO) | în `apps/api/test/` |
-| Web tests | **1** spec file | de extins |
+| Web tests | **30 passing** în 6 fișiere | `pnpm --filter @amass/web test` |
 | TypeScript errors | **0** (api + web) | `pnpm typecheck` |
 | Lint errors | **0** | `pnpm lint` |
-| Vulnerabilități deps | **2 moderate** (esbuild + vite, dev-time only) | `pnpm audit` — 27 → 2 după audit fix |
+| Vulnerabilități `--prod` | **0** (patchuite prin `pnpm.overrides` în `package.json`) | `pnpm audit --prod` — 6 (4 HIGH + 2 moderate) → 0 |
+| Vulnerabilități dev-only | **0** | `pnpm audit` (include devDependencies) |
 | NestJS | **v11.1.19** (upgradat de la v10.4.x) | `grep @nestjs/core apps/api/package.json` |
 | PWA installable | ✅ (manifest + service worker) | `apps/web/public/manifest.webmanifest` |
+| Test coverage security-critical | ⚠️ **sub țintă 80%** (CLAUDE.md #8) — vezi §Tech debt | `pnpm --filter @amass/api vitest run --config vitest.config.unit.ts --coverage` |
 
 ---
 
@@ -140,10 +142,14 @@ Vezi **[LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)** pentru lista completă. Pu
 |-----|----------|
 | `ai-worker/app/transcription.py` | Whisper dezactivat default (stub) — feature opt-in |
 | `ai-worker/app/redaction.py` | Presidio dezactivat (regex stub) — feature opt-in |
-| `apps/api/test/` | 13 e2e specs necesită Docker up; 17 failing TS pe e2e după Dependabot merges (issue pre-existent, nu blocant pe unit tests) |
+| `apps/api/test/` | 13 e2e specs necesită Docker up (Postgres + Redis + MinIO live) |
 | `apps/web` | Bundle > 500KB — code splitting parțial (lazy routes pentru Tier 2/3) |
 | 5 module scaffold | SCIM/WebAuthn/Sync/Push/CA — marcate explicit ca nu-implementate |
-| Web tests | 1 spec — de extins înainte de launch |
+| Test coverage security-critical | **Sub ținta 80% din CLAUDE.md #8** — măsurare curentă: overall ~15% linii / ~34% funcții, cu module critice notabil sub ținta (auth.service ~13%, audit.service ~2%, calls.service ~0% unit, deals.service ~0% unit, invoices.service ~0% unit, billing.service ~18%). Target pentru v1 launch: ≥80% pe auth/billing/calls/invoices/deals/audit/prisma. Plan: helper-extraction pattern (pattern deja folosit pentru billing/anaf/reports/calls/gdpr/embedding) + spec-uri noi. |
+| CedarGuard policy coverage | **3/64 controllere** (`gdpr`, `deals`, `invoices`) au `@RequireCedar` metadata. Restul sunt protejate doar prin RolesGuard — Cedar e scaffold până se scriu policies reale. |
+| 6 modele fără `tenantId` explicit | `Tenant` (self-scope OK), `WebhookDelivery`, `OrderItem`, `ProductBundleItem`, `TerritoryAssignment`, `EventAttendee` — toate sub-resurse cu `onDelete: Cascade` + RLS pe parent. Nu e leak direct dar e fragilitate dacă rol `app_user` vreodată nu-i activ. |
+| 45/79 modele fără `onDelete: Cascade` | Risc orfani la ștergere. De auditat relațiile — schema necesită review dedicat. |
+| `prisma.service.ts` SET LOCAL ROLE | `$executeRawUnsafe("SET LOCAL ROLE app_user")` — identifier hardcodat, nu user input. Acceptabil (injection-proof prin natura valorii). Pentru `app.tenant_id` s-a migrat la `set_config()` parametrizat. |
 
 ---
 
