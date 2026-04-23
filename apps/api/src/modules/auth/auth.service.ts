@@ -23,17 +23,17 @@ export interface JwtPayload {
 /** Redis key namespace for revoked access tokens (logout, force-signout). */
 export const JWT_BLOCKLIST_PREFIX = 'auth:jwt:blocklist:';
 
-/**
- * Bcrypt work factor for password hashing.
- *
- * Bumping 10 → 12 quadruples the CPU cost of a hash (~250ms on modern
- * hardware) which materially slows down GPU-based cracking. Users with
- * existing cost-10 hashes are seamlessly rehashed on their next successful
- * `login()` (see the if-block after bcrypt.compare) — no forced password
- * reset required.
- */
-export const BCRYPT_COST = 12;
-export const LEGACY_BCRYPT_COST = 10;
+// Bcrypt work factor + lockout policy live in auth.helpers so they're
+// unit-testable without spinning up the full auth stack. The re-exports
+// here preserve historical import paths.
+export { BCRYPT_COST, LEGACY_BCRYPT_COST } from './auth.helpers';
+import {
+  BCRYPT_COST,
+  LOCKOUT_TTL_SECONDS,
+  MAX_LOGIN_ATTEMPTS,
+  isLegacyBcryptHash,
+  lockoutMessage,
+} from './auth.helpers';
 
 /**
  * Multi-tenancy note: this service deliberately bypasses `runWithTenant`
@@ -60,11 +60,6 @@ export interface AuthTokens {
   refreshToken: string;
   expiresIn: number;
 }
-
-/** Max consecutive failed logins before the account is temporarily locked. */
-const MAX_LOGIN_ATTEMPTS = 10;
-/** Lockout duration in seconds (15 minutes). */
-const LOCKOUT_TTL_SECONDS = 15 * 60;
 
 @Injectable()
 export class AuthService {
@@ -149,7 +144,7 @@ export class AuthService {
     const lockTtl = await this.redis.ttl(lockKey);
     if (lockTtl > 0) {
       throw new HttpException(
-        { code: 'ACCOUNT_LOCKED', message: `Too many failed login attempts. Try again in ${Math.ceil(lockTtl / 60)} minute(s).` },
+        { code: 'ACCOUNT_LOCKED', message: lockoutMessage(lockTtl) },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -179,7 +174,7 @@ export class AuthService {
     // cost-10 hash. Detect it (format `$2b$10$…`) and rehash with the new
     // cost on successful login. Fire-and-forget — failure here doesn't
     // block the login itself.
-    if (user.passwordHash.startsWith(`$2b$${LEGACY_BCRYPT_COST.toString().padStart(2, '0')}$`)) {
+    if (isLegacyBcryptHash(user.passwordHash)) {
       bcrypt
         .hash(dto.password, BCRYPT_COST)
         .then((fresh) =>

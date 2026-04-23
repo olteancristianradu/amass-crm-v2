@@ -4,6 +4,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { getTenantContext } from '../../infra/prisma/tenant-context';
 import { loadEnv } from '../../config/env';
 import { getBreaker } from '../../common/resilience/circuit-breaker';
+import { buildSiemPayload, computeRetentionCutoff, sliceCursorPage } from './audit.helpers';
 
 export interface AuditEntry {
   action: string;
@@ -42,9 +43,7 @@ export class AuditService {
       ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
     });
 
-    const hasMore = rows.length > opts.limit;
-    const data = hasMore ? rows.slice(0, opts.limit) : rows;
-    return { data, nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null };
+    return sliceCursorPage(rows, opts.limit);
   }
 
   /**
@@ -104,18 +103,7 @@ export class AuditService {
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            tenantId,
-            id: row.id,
-            action: row.action,
-            subjectType: row.subjectType,
-            subjectId: row.subjectId,
-            actorId: row.actorId,
-            ipAddress: row.ipAddress,
-            userAgent: row.userAgent,
-            metadata: row.metadata,
-            createdAt: row.createdAt.toISOString(),
-          }),
+          body: JSON.stringify(buildSiemPayload(tenantId, row)),
         });
         if (!res.ok) throw new Error(`SIEM webhook returned HTTP ${res.status}`);
       });
@@ -131,8 +119,8 @@ export class AuditService {
    * global default.
    */
   async pruneExpired(retentionDays: number): Promise<number> {
-    if (retentionDays <= 0) return 0;
-    const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+    const cutoff = computeRetentionCutoff(retentionDays);
+    if (!cutoff) return 0;
     const result = await this.prisma.auditLog.deleteMany({
       where: { createdAt: { lt: cutoff } },
     });
