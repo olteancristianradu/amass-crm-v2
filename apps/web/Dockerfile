@@ -21,15 +21,15 @@ RUN pnpm --filter @amass/shared build || true
 RUN pnpm --filter @amass/web build
 
 # ---- runtime: nginx static, $PORT-aware (Railway injects PORT) ----
+#
+# The official nginx:alpine image runs `envsubst` over files in
+# /etc/nginx/templates/ at container start, writing the result to
+# /etc/nginx/conf.d/default.conf. We ship the template as a file (cleaner
+# than a heredoc inside RUN, which broke under BuildKit escaping).
 FROM nginx:alpine AS runtime
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
-
-# nginx TEMPLATE — the official image runs `envsubst` over files in
-# /etc/nginx/templates/ at start, writing the result to /etc/nginx/conf.d/,
-# which lets us honour $PORT from Railway and fall back to 80 for compose.
-RUN printf 'server {\n  listen       ${PORT};\n  server_name  _;\n  root         /usr/share/nginx/html;\n  index        index.html;\n  location / { try_files $uri $uri/ /index.html; }\n}\n' \
-    > /etc/nginx/templates/default.conf.template \
- && rm -f /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx-default.conf.template /etc/nginx/templates/default.conf.template
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 ENV PORT=80
 EXPOSE 80
