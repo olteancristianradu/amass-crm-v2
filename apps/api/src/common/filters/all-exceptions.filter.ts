@@ -45,10 +45,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
     }
 
+    // Don't leak internal error messages (Prisma stack traces, constraint
+    // names, raw SQL) to the client on 5xx. The full message is still
+    // logged + reported to Sentry below — the client just gets a generic
+    // string they can quote alongside the traceId.
+    const safeMessage = status >= 500 ? 'Internal server error' : message;
+
     const body: ErrorResponseBody = {
       code,
-      message,
-      details,
+      message: safeMessage,
+      details: status >= 500 ? undefined : details,
       traceId,
       timestamp: new Date().toISOString(),
     };

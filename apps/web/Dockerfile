@@ -22,14 +22,17 @@ RUN pnpm --filter @amass/web build
 
 # ---- runtime: nginx static, $PORT-aware (Railway injects PORT) ----
 #
-# The official nginx:alpine image runs `envsubst` over files in
-# /etc/nginx/templates/ at container start, writing the result to
-# /etc/nginx/conf.d/default.conf. We ship the template as a file (cleaner
-# than a heredoc inside RUN, which broke under BuildKit escaping).
-FROM nginx:alpine AS runtime
+# nginxinc/nginx-unprivileged runs as UID 101 (non-root) and binds to
+# $PORT (default 8080) — eliminates container-escape → root on host.
+# The same template + envsubst behaviour from the official image applies.
+FROM nginxinc/nginx-unprivileged:alpine AS runtime
+USER root
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx-default.conf.template /etc/nginx/templates/default.conf.template
-RUN rm -f /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/conf.d/default.conf && chown -R 101:101 /usr/share/nginx/html
+USER 101
 
-ENV PORT=80
-EXPOSE 80
+# Default to 8080 (non-privileged) so nginx can run as UID 101. Railway /
+# compose map host->container port, so external 80 still works.
+ENV PORT=8080
+EXPOSE 8080

@@ -11,6 +11,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { getBreaker } from '../../common/resilience/circuit-breaker';
 import { AnafSubmissionStatus } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 
 interface AnafConfig {
@@ -26,7 +27,10 @@ interface AnafConfig {
 
 @Injectable()
 export class AnafService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   private baseUrl(sandbox: boolean) {
     return sandbox
@@ -49,7 +53,7 @@ export class AnafService {
 
     const config = await this.getAnafConfig(tenantId);
     const xml = this.buildUblXml(invoice as Parameters<typeof this.buildUblXml>[0], config);
-    const token = await this.getAccessToken(config);
+    const token = await this.getAccessToken(config, tenantId);
 
     const cif = config.vatNumber.replace(/^RO/i, '');
     const url = `${this.baseUrl(config.sandbox)}/upload?standard=UBL&cif=${cif}`;
@@ -97,7 +101,7 @@ export class AnafService {
     if (!sub.uploadIndex) return sub;
 
     const config = await this.getAnafConfig(tenantId);
-    const token = await this.getAccessToken(config);
+    const token = await this.getAccessToken(config, tenantId);
     const url = `${this.baseUrl(config.sandbox)}/stareMesaj?id_incarcare=${sub.uploadIndex}`;
 
     const res = await getBreaker('anaf').exec(() =>
@@ -209,7 +213,14 @@ export class AnafService {
 
   // ─── OAuth2 token ──────────────────────────────────────────────────────────
 
-  private async getAccessToken(config: AnafConfig): Promise<string> {
+  private async getAccessToken(config: AnafConfig, tenantId: string): Promise<string> {
+    // ANAF access tokens last 1h; we cache per-tenant for 50 minutes to
+    // avoid burning the client-credentials flow (and ANAF rate limits)
+    // on every single invoice submission.
+    const cacheKey = `anaf:token:${tenantId}:${config.sandbox ? 'sbx' : 'prod'}`;
+    const cached = await this.redis.client.get(cacheKey);
+    if (cached) return cached;
+
     const base = config.sandbox
       ? 'https://logincert.anaf.ro/anaf-oauth2/v1'
       : 'https://logincert.anaf.ro/anaf-oauth2/v1';
@@ -224,8 +235,9 @@ export class AnafService {
         }),
       }),
     );
-    const data = await res.json() as { access_token?: string };
+    const data = (await res.json()) as { access_token?: string };
     if (!data.access_token) throw new Error('Failed to get ANAF access token');
+    await this.redis.client.set(cacheKey, data.access_token, 'EX', 3000);
     return data.access_token;
   }
 

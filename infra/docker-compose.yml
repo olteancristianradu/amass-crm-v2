@@ -198,7 +198,7 @@ services:
     container_name: amass-web
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-5173}:80"
+      - "${WEB_PORT:-5173}:8080"
     depends_on:
       - api
 

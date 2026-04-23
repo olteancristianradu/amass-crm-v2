@@ -1,22 +1,14 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
-import { loadEnv } from '../../config/env';
-import { AuthModule } from '../auth/auth.module';
-import { parseTtlSeconds } from '../auth/auth.service';
 import { SsoController } from './sso.controller';
-import { SsoService } from './sso.service';
 
+/**
+ * SSO is intentionally disabled in this build — see sso.controller.ts.
+ * Keeping the module + controller around so the /sso/* routes cleanly
+ * return 410 GONE rather than 404 (which would be indistinguishable
+ * from a typo). Re-add SsoService + JwtModule when the feature is
+ * properly reimplemented.
+ */
 @Module({
-  imports: [
-    AuthModule,
-    JwtModule.registerAsync({
-      useFactory: () => {
-        const env = loadEnv();
-        return { secret: env.JWT_SECRET, signOptions: { expiresIn: parseTtlSeconds(env.JWT_ACCESS_TTL) } };
-      },
-    }),
-  ],
   controllers: [SsoController],
-  providers: [SsoService],
 })
 export class SsoModule {}

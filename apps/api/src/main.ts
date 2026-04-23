@@ -27,6 +27,12 @@ async function bootstrap(): Promise<void> {
   // PII-redaction config from LoggerModule.forRoot().
   app.useLogger(app.get(Logger));
 
+  // Behind Caddy / any reverse proxy: trust the single hop in front of us so
+  // req.ip returns the real client IP (from X-Forwarded-For) instead of the
+  // proxy's loopback. Without this, per-IP rate limits become useless —
+  // every request looks like it came from 127.0.0.1.
+  app.getHttpAdapter().getInstance().set?.('trust proxy', 1);
+
   // ── CORS ──────────────────────────────────────────────────────────────────
   // Restrict browsers to the configured allow-list. '*' is only ever valid in
   // dev/test; env validation blocks it in production.

@@ -172,7 +172,14 @@ import { SyncModule } from './modules/sync/sync.module';
         { name: 'global', ttl: 60_000, limit: 60 },
         { name: 'strict-auth', ttl: 60_000, limit: 5 },
       ],
-      skipIf: () => process.env.NODE_ENV === 'test',
+      // Bypass throttling ONLY in test environment, AND only when we are
+      // NOT running in a production-labeled context. Belt-and-braces so
+      // a deploy that accidentally ships NODE_ENV=test doesn't silently
+      // disable rate limiting in prod.
+      skipIf: () =>
+        process.env['NODE_ENV'] === 'test' &&
+        process.env['RAILWAY_ENVIRONMENT'] !== 'production' &&
+        process.env['APP_ENV'] !== 'production',
     }),
     PrismaModule,
     QueueModule,

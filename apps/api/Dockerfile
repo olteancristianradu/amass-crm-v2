@@ -50,4 +50,11 @@ WORKDIR /repo/apps/api
 # Railway injects PORT. Nest reads PORT from env via loadEnv().
 ENV PORT=3000
 EXPOSE 3000
+
+# Run as non-root. Container escape = unprivileged user on host, which
+# limits blast radius dramatically vs. the default root. The `node` user
+# (UID 1000) ships with node:22-alpine.
+RUN chown -R node:node /repo
+USER node
+
 CMD ["node", "dist/main.js"]

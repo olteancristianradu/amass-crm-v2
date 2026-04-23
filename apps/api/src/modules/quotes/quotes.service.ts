@@ -247,14 +247,21 @@ export class QuotesService {
       throw new ConflictException({ code: 'QUOTE_ALREADY_CONVERTED', message: 'This quote was already converted' });
     }
 
-    // Get next invoice number
-    const [maxRow] = await this.prisma.$queryRaw<[{ max: number | null }]>`
-      SELECT MAX(number) AS max FROM invoices
-      WHERE tenant_id = ${ctx.tenantId} AND series = ${dto.series} AND deleted_at IS NULL
-    `;
-    const nextNum = (maxRow?.max ?? 0) + 1;
-
     const result = await this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      // Race fix: two concurrent convertToInvoice calls used to read MAX
+      // outside the transaction and INSERT with the same number → duplicate
+      // key error. Lock the tenant's series by forcing a row-lock on any
+      // existing invoice of the same series (FOR UPDATE inside this tx),
+      // then compute the next number atomically.
+      const maxRows = await tx.$queryRaw<{ max: number | null }[]>`
+        SELECT MAX(number) AS max FROM invoices
+        WHERE tenant_id = ${ctx.tenantId}
+          AND series = ${dto.series}
+          AND deleted_at IS NULL
+        FOR UPDATE
+      `;
+      const nextNum = (maxRows[0]?.max ?? 0) + 1;
+
       const invoice = await tx.invoice.create({
         data: {
           tenantId: ctx.tenantId,

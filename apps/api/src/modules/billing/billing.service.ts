@@ -4,6 +4,7 @@
  */
 import { BadRequestException, Injectable, Logger, RawBodyRequest } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { loadEnv } from '../../config/env';
 import { getBreaker } from '../../common/resilience/circuit-breaker';
@@ -29,7 +30,10 @@ export class BillingService {
   private readonly logger = new Logger(BillingService.name);
   private stripe: StripeInstance | null = null;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {
     const env = loadEnv();
     if (env.STRIPE_SECRET_KEY) {
       this.stripe = new StripeLib(env.STRIPE_SECRET_KEY, { apiVersion: '2026-03-25.dahlia' });
@@ -130,12 +134,25 @@ export class BillingService {
     await this.processStripeEvent(event);
   }
 
-  async processStripeEvent(event: { type: string; data: { object: unknown } }): Promise<void> {
+  async processStripeEvent(event: { id?: string; type: string; data: { object: unknown } }): Promise<void> {
+    // Idempotency: Stripe retries webhooks on any 5xx, and a network blip
+    // during our own DB write can result in a retry for an event we've
+    // already processed. Gate on event.id with SETNX TTL 24h so the same
+    // event is a no-op on re-delivery.
+    if (event.id) {
+      const key = `stripe:event:${event.id}`;
+      const acquired = await this.redis.client.set(key, '1', 'EX', 86_400, 'NX');
+      if (acquired !== 'OK') {
+        this.logger.debug(`Stripe event ${event.id} already processed, skipping`);
+        return;
+      }
+    }
+
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const stripeSub = event.data.object as StripeSubscriptionShape;
-        const tenantId = stripeSub.metadata?.['tenantId'];
+        const tenantId = await this.resolveTenantForStripeSub(stripeSub);
         if (!tenantId) return;
         const patch = extractSubscriptionPatch(stripeSub);
         await this.prisma.runWithTenant(tenantId, (tx) =>
@@ -156,7 +173,7 @@ export class BillingService {
       }
       case 'customer.subscription.deleted': {
         const stripeSub = event.data.object as StripeSubscriptionShape;
-        const tenantId = stripeSub.metadata?.['tenantId'];
+        const tenantId = await this.resolveTenantForStripeSub(stripeSub);
         if (!tenantId) return;
         await this.prisma.runWithTenant(tenantId, (tx) =>
           tx.billingSubscription.update({ where: { tenantId }, data: { status: 'CANCELED' } }),
@@ -166,5 +183,44 @@ export class BillingService {
       default:
         this.logger.debug(`Unhandled Stripe event: ${event.type}`);
     }
+  }
+
+  /**
+   * Derive the tenantId for an incoming Stripe subscription object.
+   *
+   * SECURITY: previously we read `stripeSub.metadata.tenantId` directly —
+   * that field is mutable by anyone with the Stripe API key. A leaked key
+   * could be used to set metadata.tenantId = <victim tenant> and corrupt
+   * the victim's subscription via our webhook.
+   *
+   * The source of truth is our DB: look up which tenant owns the Stripe
+   * customer id (stripeCustomerId is on the BillingSubscription row we
+   * created at checkout). Metadata is accepted only as a fallback when
+   * we haven't seen the customer yet (e.g. newly-created subscription in
+   * a migration scenario) — and even then we cross-check against our DB.
+   */
+  private async resolveTenantForStripeSub(sub: StripeSubscriptionShape): Promise<string | null> {
+    const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+    const byCustomer = await this.prisma.billingSubscription.findFirst({
+      where: { stripeCustomerId: customerId },
+      select: { tenantId: true },
+    });
+    if (byCustomer) return byCustomer.tenantId;
+
+    const claimed = sub.metadata?.['tenantId'];
+    if (!claimed) return null;
+    // Fallback: ensure the claimed tenant actually exists and has no
+    // other subscription wired to a different Stripe customer.
+    const existing = await this.prisma.billingSubscription.findUnique({
+      where: { tenantId: claimed },
+      select: { stripeCustomerId: true },
+    });
+    if (existing?.stripeCustomerId && existing.stripeCustomerId !== customerId) {
+      this.logger.warn(
+        `Stripe metadata tenantId=${claimed} does not match existing customer ${existing.stripeCustomerId} — refusing`,
+      );
+      return null;
+    }
+    return claimed;
   }
 }

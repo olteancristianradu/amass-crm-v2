@@ -63,20 +63,32 @@ export class ConditionalAccessMiddleware implements NestMiddleware {
       }
     }
 
-    // Policy 2: business-hours window for DELETE on admin routes
+    // Policy 2: business-hours window for DELETE on admin routes.
+    // Evaluate the "hour of day" in the tenant's timezone, not the host's.
+    // Default to Europe/Bucharest for Romanian customers — matches where
+    // most of AMASS's prospective tenants operate and also happens to be
+    // the server's usual deploy region (Hetzner DE/FI). Override via the
+    // CONDITIONAL_ACCESS_TIMEZONE env var if a client is elsewhere.
     const hoursRaw = env.CONDITIONAL_ACCESS_BUSINESS_HOURS;
     if (hoursRaw && req.method === 'DELETE') {
       const match = /^(\d{1,2})-(\d{1,2})$/.exec(hoursRaw);
       if (match) {
         const from = Number(match[1]);
         const to = Number(match[2]);
-        const now = new Date().getHours();
+        const tz = process.env['CONDITIONAL_ACCESS_TIMEZONE'] ?? 'Europe/Bucharest';
+        const hourStr = new Intl.DateTimeFormat('en-GB', {
+          timeZone: tz,
+          hour: '2-digit',
+          hour12: false,
+        }).format(new Date());
+        const now = parseInt(hourStr, 10);
         if (now < from || now >= to) {
           const ctx = getTenantContext();
           throw new ForbiddenException({
             code: 'CONDITIONAL_ACCESS_BLOCKED',
             reason: 'outside_business_hours',
             window: hoursRaw,
+            timezone: tz,
             tenantId: ctx?.tenantId,
           });
         }

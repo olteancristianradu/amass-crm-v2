@@ -69,6 +69,14 @@ async def process_call(job_data: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+# Hard cap on a single recording download. Twilio recordings are rarely
+# larger than ~50MB for a 1-hour call at 64kbps mono. 500MB is a generous
+# upper bound that still stops OOM attacks (a malicious webhook could
+# point at a 50GB endpoint and kill the worker).
+MAX_RECORDING_BYTES = 500 * 1024 * 1024
+DOWNLOAD_TIMEOUT_SECONDS = 120.0
+
+
 async def _download_recording(recording_url: str) -> bytes:
     """
     Download audio from a Twilio recording URL.
@@ -87,11 +95,31 @@ async def _download_recording(recording_url: str) -> bytes:
         if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
             auth = (settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.get(url, auth=auth, follow_redirects=True)
-            resp.raise_for_status()
-            logger.info("Downloaded recording %d bytes", len(resp.content))
-            return resp.content
+        # STREAM the body so we can bail out on oversized downloads without
+        # buffering them in memory first.
+        async with httpx.AsyncClient(timeout=DOWNLOAD_TIMEOUT_SECONDS) as client:
+            async with client.stream("GET", url, auth=auth, follow_redirects=True) as resp:
+                resp.raise_for_status()
+                declared = resp.headers.get("content-length")
+                if declared and int(declared) > MAX_RECORDING_BYTES:
+                    logger.error(
+                        "Recording too large (declared %s bytes > cap %s) — refusing",
+                        declared, MAX_RECORDING_BYTES,
+                    )
+                    return b""
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in resp.aiter_bytes():
+                    total += len(chunk)
+                    if total > MAX_RECORDING_BYTES:
+                        logger.error(
+                            "Recording exceeded cap during streaming (>%s bytes) — refusing",
+                            MAX_RECORDING_BYTES,
+                        )
+                        return b""
+                    chunks.append(chunk)
+                logger.info("Downloaded recording %d bytes", total)
+                return b"".join(chunks)
     except Exception as exc:
         logger.error("Recording download failed: %s", exc)
         return b""

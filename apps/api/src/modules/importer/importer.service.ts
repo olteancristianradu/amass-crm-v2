@@ -71,6 +71,16 @@ export class ImporterService {
       }),
     );
 
+    // Fair-queue defence: if this tenant already has N+ jobs queued, push
+    // new ones to a lower priority so a tenant bulk-uploading 100 CSVs
+    // cannot starve others. BullMQ priority: LOWER = runs first.
+    const tenantQueueDepth = await this.queue.getJobCounts('waiting', 'active');
+    const perTenantPending = await this.queue
+      .getJobs(['waiting', 'active'])
+      .then((jobs) => jobs.filter((j) => j.data?.tenantId === ctx.tenantId).length)
+      .catch(() => 0);
+    const priority = perTenantPending > 5 || tenantQueueDepth.active > 20 ? 10 : 1;
+
     await this.queue.add(
       'process',
       {
@@ -83,6 +93,7 @@ export class ImporterService {
       {
         // Idempotent on jobId so accidental double-enqueues collapse.
         jobId: job.id,
+        priority,
         removeOnComplete: { age: 3600, count: 1000 },
         removeOnFail: { age: 24 * 3600 },
         attempts: 1,

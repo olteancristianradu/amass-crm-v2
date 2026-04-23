@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { RedisModule } from '../../infra/redis/redis.module';
 import { AnafController } from './anaf.controller';
 import { AnafService } from './anaf.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, RedisModule],
   controllers: [AnafController],
   providers: [AnafService],
   exports: [AnafService],
