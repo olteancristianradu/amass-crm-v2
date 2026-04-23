@@ -124,6 +124,14 @@ services:
     image: caddy:2-alpine
     container_name: amass-caddy
     restart: unless-stopped
+    # Explicit upstream DNS — some host configurations (Ubuntu with
+    # systemd-resolved listening on 127.0.0.53) leak a loopback resolver
+    # into the container's /etc/resolv.conf, which the container cannot
+    # reach. That breaks ACME (Caddy can't look up letsencrypt.org) and
+    # leaves :443 never bound.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     ports:
       - "80:80"
       - "443:443"
