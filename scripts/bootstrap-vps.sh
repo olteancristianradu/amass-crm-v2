@@ -9,27 +9,16 @@
 #   5) pornește întregul stack prin docker-compose
 #   6) rulează migrațiile Prisma
 #   7) creează primul tenant + owner
-#
-# Cerințe minime:
-#   - Ubuntu 22.04/24.04, 8GB RAM recomandat (4GB minim fără Whisper)
-#   - rulat ca root sau cu sudo fără parolă
-#   - un domeniu cu A-records deja pointate la IP-ul VPS-ului (3 records):
-#       crm.<domeniu>       → IP
-#       api.crm.<domeniu>   → IP
-#       files.crm.<domeniu> → IP
-#
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/olteancristianradu/amass-crm-v2/main/scripts/bootstrap-vps.sh | bash -s -- \
-#     --domain=example.com \
-#     --email=owner@example.com \
-#     --tenant=amass \
-#     --tenant-name="Amass SRL" \
-#     --full-name="Cristi Radu"
-#
-# Sau local, după `git clone`:
-#   sudo bash scripts/bootstrap-vps.sh --domain=example.com --email=owner@example.com ...
 
-set -euo pipefail
+set -eu
+# NOTE: we intentionally do NOT enable `pipefail` here — several common
+# one-liners below (openssl | head -c N, tr -dc | head -c N) trigger
+# SIGPIPE on the upstream command, which with pipefail silently aborts
+# the script. Each individual command is checked by `set -e` already.
+
+# Early banner so users see immediate feedback — previous versions exited
+# silently at the password-gen pipeline before reaching any `log` line.
+printf '\n\033[1;36m▶ bootstrap starting — installing Docker + deploying AMASS-CRM...\033[0m\n\n'
 
 # ── Args ──────────────────────────────────────────────────────────────────
 DOMAIN=""
@@ -66,7 +55,11 @@ EOF
 fi
 
 if [[ -z "$OWNER_PASSWORD" ]]; then
-  OWNER_PASSWORD="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)"
+  # 24-char base64url string. Using openssl here (vs the older
+  # `tr -dc < /dev/urandom | head -c 24` idiom) because that pipeline
+  # SIGPIPEs `tr` when head closes early, which trips `set -o pipefail`
+  # and kills the whole script.
+  OWNER_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-24)"
   GENERATED_PASSWORD="yes"
 else
   GENERATED_PASSWORD="no"
@@ -127,7 +120,9 @@ if [[ ! -f .env ]]; then
   log "Generating .env with random secrets"
 
   hex() { openssl rand -hex 32; }
-  b64() { openssl rand -base64 24 | tr -d '/+=' | head -c "${1:-32}"; }
+  # `cut -c1-N` instead of `head -c N` — head-c closes the pipe early and
+  # SIGPIPEs the upstream openssl; cut reads the whole line first.
+  b64() { openssl rand -base64 48 | tr -d '/+=' | cut -c1-"${1:-32}"; }
 
   JWT_SECRET=$(hex)
   JWT_REFRESH_SECRET=$(hex)
