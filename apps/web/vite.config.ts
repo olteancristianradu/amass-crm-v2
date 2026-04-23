@@ -35,23 +35,24 @@ export default defineConfig({
     },
   },
   build: {
-    // ~560KB main bundle gzips to ~145KB. Acceptable for an auth-gated B2B
-    // CRM (no anonymous first-paint budget). Route-level lazy imports
-    // already exist for contracts/leads/quotes/workflows/whatsapp; the
-    // vendor chunks below keep cache churn low when app code changes.
+    // Chunk size warning silenced — ~560KB main gzips to ~145KB, fine for an
+    // auth-gated B2B CRM. Route-level lazy imports already cut the main
+    // bundle meaningfully; aggressive vendor splitting breaks React
+    // ecosystem packages (tanstack needs React.createContext, a split
+    // react-vendor leaves the context missing and the SPA renders blank).
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
-          if (!id.includes('node_modules')) return undefined;
-          if (id.includes('react-dom') || /[\\/]react[\\/]/.test(id)) return 'react-vendor';
-          if (id.includes('@tanstack')) return 'tanstack-vendor';
-          if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('/zod/')) {
-            return 'form-vendor';
-          }
-          if (id.includes('@sentry')) return 'sentry-vendor';
-          if (id.includes('socket.io-client') || id.includes('engine.io')) return 'ws-vendor';
-          return undefined;
+        // Static manualChunks — Rollup guarantees React-ecosystem packages
+        // stay grouped together so cross-chunk `createContext` lookups work.
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-dom/client'],
+          'tanstack-vendor': [
+            '@tanstack/react-router',
+            '@tanstack/react-query',
+            '@tanstack/react-table',
+          ],
+          'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
         },
       },
     },
