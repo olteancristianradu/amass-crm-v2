@@ -35,19 +35,23 @@ export default defineConfig({
     },
   },
   build: {
-    // Split vendor chunks to keep app chunk < 500KB and improve HTTP caching.
-    // When libs update you still ship a fresh vendor chunk, but app changes
-    // don't bust the vendor cache.
+    // ~560KB main bundle gzips to ~145KB. Acceptable for an auth-gated B2B
+    // CRM (no anonymous first-paint budget). Route-level lazy imports
+    // already exist for contracts/leads/quotes/workflows/whatsapp; the
+    // vendor chunks below keep cache churn low when app code changes.
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'tanstack-vendor': [
-            '@tanstack/react-router',
-            '@tanstack/react-query',
-            '@tanstack/react-table',
-          ],
-          'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
+        manualChunks: (id) => {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('react-dom') || /[\\/]react[\\/]/.test(id)) return 'react-vendor';
+          if (id.includes('@tanstack')) return 'tanstack-vendor';
+          if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('/zod/')) {
+            return 'form-vendor';
+          }
+          if (id.includes('@sentry')) return 'sentry-vendor';
+          if (id.includes('socket.io-client') || id.includes('engine.io')) return 'ws-vendor';
+          return undefined;
         },
       },
     },

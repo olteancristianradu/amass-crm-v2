@@ -8,6 +8,8 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { BillingService } from './billing.service';
 
 const CheckoutSchema = z.object({
@@ -32,16 +34,18 @@ export class BillingController {
   }
 
   @Post('checkout')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
   @Roles(UserRole.OWNER)
+  @RequireCedar({ action: 'billing::checkout', resource: 'BillingSubscription::self' })
   checkout(@Body(new ZodValidationPipe(CheckoutSchema)) dto: { plan: string; successUrl: string; cancelUrl: string }) {
     return this.svc.createCheckoutSession(dto.plan, dto.successUrl, dto.cancelUrl);
   }
 
   @Post('portal')
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
   @Roles(UserRole.OWNER)
+  @RequireCedar({ action: 'billing::portal', resource: 'BillingSubscription::self' })
   portal(@Body(new ZodValidationPipe(PortalSchema)) dto: { returnUrl: string }) {
     return this.svc.createBillingPortalSession(dto.returnUrl);
   }

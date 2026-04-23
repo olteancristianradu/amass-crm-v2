@@ -5,11 +5,13 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { InviteUserDto, InviteUserSchema, UpdateUserRoleDto, UpdateUserRoleSchema } from './users.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
@@ -38,6 +40,7 @@ export class UsersController {
   /** Change a user's role. OWNER-only for OWNER assignment. */
   @Patch(':id/role')
   @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequireCedar({ action: 'user::update-role', resource: (req) => `User::${(req as { params: { id: string } }).params.id}` })
   async updateRole(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateUserRoleSchema)) dto: UpdateUserRoleDto,
@@ -50,6 +53,7 @@ export class UsersController {
   @Delete(':id')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequireCedar({ action: 'user::deactivate', resource: (req) => `User::${(req as { params: { id: string } }).params.id}` })
   async deactivate(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
     return this.users.deactivate(id, actor.role as UserRole, actor.userId);
   }
