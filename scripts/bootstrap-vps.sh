@@ -202,10 +202,14 @@ else
 fi
 
 # ── 6. Caddyfile with real domain ─────────────────────────────────────────
-CADDY_FILE="$INSTALL_DIR/infra/caddy/Caddyfile.prod"
-if ! grep -q "crm.$DOMAIN " "$CADDY_FILE" 2>/dev/null; then
-  log "Writing Caddyfile for crm.$DOMAIN"
-  cat > "$CADDY_FILE" <<EOF
+CADDY_FILE="$INSTALL_DIR/infra/caddy/Caddyfile"
+# ALWAYS rewrite — docker-compose bind-mounts this exact path, and we must
+# make sure it reflects the user's real domain (not the `localhost` stub
+# that ships in git for dev). Previous bug: the script wrote to
+# Caddyfile.prod, compose mounted Caddyfile — Caddy served the dev config
+# with auto_https disabled on :80 only, nothing on :443.
+log "Writing Caddyfile for crm.$DOMAIN"
+cat > "$CADDY_FILE" <<EOF
 {
   email admin@$DOMAIN
   admin off
@@ -243,7 +247,6 @@ files.crm.$DOMAIN {
   reverse_proxy minio:9000
 }
 EOF
-fi
 
 # ── 7. Start the stack ────────────────────────────────────────────────────
 log "docker compose up -d (this can take 5-10 minutes first time)"
