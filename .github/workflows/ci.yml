@@ -85,13 +85,18 @@ jobs:
       # OSV-Scanner covers transitive deps more aggressively than pnpm audit
       # (same advisory DB as GitHub Dependabot, runs offline against the
       # lockfile). Non-blocking for now — prints findings so we can triage.
+      # We install the binary directly instead of using the marketplace
+      # action wrapper: the wrapper's repo path / tagging has been flaky
+      # and a one-line curl is more predictable.
+      - name: Install OSV-Scanner
+        run: |
+          set -euo pipefail
+          curl -sSL -o /tmp/osv-scanner \
+            https://github.com/google/osv-scanner/releases/download/v2.0.1/osv-scanner_linux_amd64
+          chmod +x /tmp/osv-scanner
       - name: OSV-Scanner (transitive CVEs)
-        uses: google/osv-scanner-action/osv-scanner-action@7f81dc00a9cb86a7fab9b0e8e2b60e4b3f58ce73 # v2.0.1
         continue-on-error: true
-        with:
-          scan-args: |-
-            --lockfile=pnpm-lock.yaml
-            --skip-git
+        run: /tmp/osv-scanner --lockfile=pnpm-lock.yaml --skip-git .
 
   # ── 3b. Static analysis — Semgrep SAST ────────────────────────────────────
   sast-semgrep:
@@ -138,6 +143,23 @@ jobs:
   prisma-drift:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      # `prisma migrate diff --from-migrations` needs a real database to
+      # materialise the migration chain against (Prisma calls it the
+      # shadow DB). We provide a throwaway Postgres instance for that.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shadow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
@@ -154,11 +176,13 @@ jobs:
         # produce — forces the author to generate the missing migration.
         working-directory: apps/api
         env:
-          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shadow?schema=public
+          SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shadow?schema=public
         run: |
           pnpm exec prisma migrate diff \
             --from-migrations prisma/migrations \
             --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
             --exit-code || { echo "::error::Schema drift detected — run 'pnpm exec prisma migrate dev' to generate the missing migration" ; exit 1; }
 
   # ── 4. API e2e tests (needs Postgres + Redis + MinIO) ─────────────────────

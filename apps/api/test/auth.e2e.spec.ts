@@ -86,9 +86,12 @@ describe('Auth (e2e)', () => {
     // Refresh — must return the SAME `{ tokens }` shape as register/login.
     // We drive it via the cookie (primary path); body is an accepted fallback
     // but the cookie path is what real clients use post M-10.
+    // X-Requested-With header required by CsrfHeaderMiddleware — real SPA
+    // sets it on every mutative call; tests must mimic that.
     const ref = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(refreshToken)}`)
+      .set('X-Requested-With', 'amass-web')
       .expect(200);
     expect(ref.body.tokens.accessToken).toBeTruthy();
     // Body still strips refreshToken; rotated value lives in the new cookie.
@@ -104,6 +107,7 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(refreshToken)}`)
+      .set('X-Requested-With', 'amass-web')
       .expect(401);
 
     // Logout requires the *access* token (JwtAuthGuard) plus the refresh
@@ -112,12 +116,14 @@ describe('Auth (e2e)', () => {
       .post('/api/v1/auth/logout')
       .set('Authorization', `Bearer ${newAccess}`)
       .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(newRefresh)}`)
+      .set('X-Requested-With', 'amass-web')
       .expect(204);
 
     // After logout, refresh fails
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set('Cookie', `${REFRESH_COOKIE_NAME}=${encodeURIComponent(newRefresh)}`)
+      .set('X-Requested-With', 'amass-web')
       .expect(401);
   });
 
