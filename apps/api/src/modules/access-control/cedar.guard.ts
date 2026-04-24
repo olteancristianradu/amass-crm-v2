@@ -26,7 +26,7 @@ export class CedarGuard implements CanActivate {
     private readonly reflector: Reflector,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request & { user?: AuthenticatedUser }>();
     const requirement = this.reflector.getAllAndOverride<CedarRequirement>(CEDAR_METADATA_KEY, [
       context.getHandler(),
@@ -50,7 +50,9 @@ export class CedarGuard implements CanActivate {
         ? requirement.resource(req)
         : requirement.resource;
 
-    const extra = requirement.context ? requirement.context(req) : {};
+    // Await so async context callbacks (e.g. DB ownership lookup) work.
+    // Empty-object default keeps the synchronous path identical to before.
+    const extra = requirement.context ? await requirement.context(req) : {};
     const decision = this.cedar.check({
       principal: `User::${user.userId}`,
       action: requirement.action,

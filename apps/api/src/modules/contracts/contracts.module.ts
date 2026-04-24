@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { AuthModule } from '../auth/auth.module';
 import { ContractsController } from './contracts.controller';
 import { ContractsService } from './contracts.service';
@@ -14,7 +15,7 @@ import { ContractsService } from './contracts.service';
  *   DELETE /contracts/:id      soft delete
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AccessControlModule],
   controllers: [ContractsController],
   providers: [ContractsService],
   exports: [ContractsService],

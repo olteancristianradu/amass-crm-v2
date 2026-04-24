@@ -3,6 +3,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { TenantThrottlerGuard } from './common/guards/tenant-throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { CsrfHeaderMiddleware } from './common/middleware/csrf-header.middleware';
 import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
 import { PrismaModule } from './infra/prisma/prisma.module';
@@ -277,5 +278,13 @@ export class AppModule implements NestModule {
     // `getTenantContext()` inside it returns a populated ctx on authed
     // requests.
     consumer.apply(ConditionalAccessMiddleware).forRoutes('*');
+
+    // CSRF defence for cookie-authenticated mutative routes. /auth/refresh
+    // and /auth/logout rely on the httpOnly `amass_rt` cookie, which is
+    // SameSite=Lax but still technically attackable from a state-changing
+    // top-level navigation from another site. CsrfHeaderMiddleware requires
+    // a custom X-Requested-With header which browsers refuse to send
+    // cross-origin without a CORS preflight — closing that gap.
+    consumer.apply(CsrfHeaderMiddleware).forRoutes('auth/refresh', 'auth/logout');
   }
 }

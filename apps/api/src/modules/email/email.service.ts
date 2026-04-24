@@ -236,6 +236,56 @@ export class EmailService {
     return message;
   }
 
+  /**
+   * System-level transactional send — used by BullMQ processors and
+   * schedulers (email sequences, workflows) that run outside a request
+   * ALS context. Skips the per-user account validation of send() and
+   * uses the tenant's default email account (first active one). Caller
+   * passes tenantId explicitly.
+   */
+  async sendTransactional(
+    tenantId: string,
+    opts: {
+      to: string;
+      subject: string;
+      bodyHtml: string;
+      bodyText?: string;
+      subjectType?: 'COMPANY' | 'CONTACT' | 'CLIENT';
+      subjectId?: string;
+    },
+  ): Promise<EmailMessage | null> {
+    return this.prisma.runWithTenant(tenantId, async (tx) => {
+      const account = await tx.emailAccount.findFirst({
+        where: { tenantId, isActive: true, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!account) {
+        // Silently skip if tenant has no configured email account — this
+        // is called from schedulers where noop-on-miss is the right default.
+        return null;
+      }
+      const msg = await tx.emailMessage.create({
+        data: {
+          tenantId,
+          accountId: account.id,
+          subjectType: opts.subjectType ?? 'CONTACT',
+          subjectId: opts.subjectId ?? account.id,
+          toAddresses: [opts.to],
+          ccAddresses: [],
+          bccAddresses: [],
+          subject: opts.subject,
+          bodyHtml: opts.bodyHtml,
+          bodyText: opts.bodyText ?? null,
+          status: 'QUEUED',
+          createdById: null,
+        },
+      });
+      const payload: EmailJobPayload = { emailMessageId: msg.id, tenantId };
+      await this.emailQueue.add('send', payload, { jobId: msg.id });
+      return msg;
+    });
+  }
+
   async listMessages(q: ListEmailsQueryDto): Promise<CursorPage<EmailMessage>> {
     const ctx = requireTenantContext();
     const where: Prisma.EmailMessageWhereInput = {

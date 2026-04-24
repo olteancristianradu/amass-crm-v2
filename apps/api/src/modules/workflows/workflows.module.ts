@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { PrismaModule } from '../../infra/prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
+import { EmailModule } from '../email/email.module';
 import { WorkflowsService } from './workflows.service';
 import { WorkflowsController } from './workflows.controller';
 import { WorkflowRunProcessor } from './workflow-run.processor';
@@ -13,7 +14,7 @@ import { WorkflowRunProcessor } from './workflow-run.processor';
  */
 @Global()
 @Module({
-  imports: [PrismaModule, AuthModule, CampaignsModule],
+  imports: [PrismaModule, AuthModule, CampaignsModule, EmailModule],
   providers: [WorkflowsService, WorkflowRunProcessor],
   controllers: [WorkflowsController],
   exports: [WorkflowsService],

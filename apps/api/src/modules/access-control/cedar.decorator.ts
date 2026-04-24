@@ -29,9 +29,14 @@ export const CEDAR_METADATA_KEY = 'cedar:requirement';
 export interface CedarRequirement {
   action: string;
   resource: string | ((req: unknown) => string);
-  /** Additional context merged into the decision input. Defaults to
-   *  `{ role, isOwner }` resolved from `req.user`. */
-  context?: (req: unknown) => Record<string, unknown>;
+  /**
+   * Additional context merged into the decision input. May be sync or async
+   * — async is needed for ownership lookups (e.g. `Deal.ownerId` check) that
+   * require a DB read. The guard awaits the result before calling Cedar.
+   * The returned object is merged with `{ role }` from `req.user`; keys in
+   * the returned object win on conflict.
+   */
+  context?: (req: unknown) => Record<string, unknown> | Promise<Record<string, unknown>>;
 }
 
 export const RequireCedar = (req: CedarRequirement): ReturnType<typeof SetMetadata> =>

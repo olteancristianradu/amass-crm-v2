@@ -22,6 +22,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { QUEUE_WORKFLOWS } from '../../infra/queue/queue.constants';
 import { CampaignsService } from '../campaigns/campaigns.service';
+import { EmailService } from '../email/email.service';
 import {
   CreateWorkflowDto,
   ListWorkflowsQueryDto,
@@ -52,6 +53,7 @@ export class WorkflowsService {
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_WORKFLOWS) private readonly queue: Queue,
     private readonly campaigns: CampaignsService,
+    private readonly emails: EmailService,
   ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -291,13 +293,26 @@ export class WorkflowsService {
           }),
         );
       } else if (step.actionType === 'SEND_EMAIL') {
-        // SEND_EMAIL is intentionally NOT implemented — the workflow engine
-        // does not ship email delivery in this version. Mark the run as
-        // FAILED with a clear error so users see the step skipped instead
-        // of believing it "worked" (previous behaviour logged-and-ignored).
-        const msg = `SEND_EMAIL workflow step is not implemented — configure SEND_CAMPAIGN or an external webhook instead`;
-        this.logger.warn(`${msg} (run=${run.id})`);
-        throw new Error(msg);
+        // Dispatches a transactional email via EmailService. cfg shape:
+        //   { to: 'contact@x.ro', subject: '...', bodyHtml: '...', bodyText?: '...' }
+        // The send runs in the tenant's context so EmailService picks up
+        // the default active email account + audit log hits the right tenant.
+        const to = typeof cfg.to === 'string' ? cfg.to : null;
+        const subject = typeof cfg.subject === 'string' ? cfg.subject : null;
+        const bodyHtml = typeof cfg.bodyHtml === 'string' ? cfg.bodyHtml : null;
+        if (!to || !subject || !bodyHtml) {
+          this.logger.warn(
+            `SEND_EMAIL step for run ${run.id} missing to/subject/bodyHtml — skipping`,
+          );
+          return;
+        }
+        await this.emails.sendTransactional(tenantId, {
+          to,
+          subject,
+          bodyHtml,
+          bodyText: typeof cfg.bodyText === 'string' ? cfg.bodyText : undefined,
+        });
+        this.logger.log(`SEND_EMAIL step queued for run ${run.id} to ${to}`);
       } else if (step.actionType === 'SEND_CAMPAIGN') {
         const campaignId = typeof cfg.campaignId === 'string' ? cfg.campaignId : null;
         if (!campaignId) {

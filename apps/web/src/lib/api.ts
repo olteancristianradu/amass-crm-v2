@@ -93,6 +93,11 @@ async function rawFetch<T = unknown>(path: string, opts: RequestOptions = {}): P
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
+    // Custom header that cannot be forged cross-origin without CORS
+    // preflight — used by the API's CsrfHeaderMiddleware to reject
+    // CSRF attempts on cookie-authenticated routes (/auth/refresh,
+    // /auth/logout).
+    'X-Requested-With': 'amass-web',
   };
   const token = useAuthStore.getState().accessToken;
   if (token) headers.Authorization = `Bearer ${token}`;
