@@ -55,10 +55,40 @@ export class StorageService implements OnModuleInit {
   /**
    * Presigned PUT URL for direct browser → MinIO upload. The FE PUTs the raw
    * bytes to this URL with `Content-Type` matching what was used at sign time.
+   *
+   * When `mimeType` is provided, MinIO's presigned URL binds that Content-Type
+   * into the signed policy — a client that PUTs with a different CT gets
+   * a 403 SignatureDoesNotMatch. This closes the attack where an attacker
+   * asks for a presign for "document.pdf" and uploads `text/html` bytes.
    */
-  presignPut(storageKey: string): Promise<string> {
-    return this.client.presignedPutObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS);
+  presignPut(storageKey: string, mimeType?: string): Promise<string> {
+    if (!mimeType) {
+      return this.client.presignedPutObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS);
+    }
+    // Some MinIO SDK versions support passing request headers as a 4th arg.
+    // Cast defensively so we don't break if the type only lists 3 args.
+    return (this.client.presignedPutObject as unknown as (
+      bucket: string,
+      key: string,
+      ttl: number,
+      reqHeaders: Record<string, string>,
+    ) => Promise<string>)(this.bucket, storageKey, PRESIGN_TTL_SECONDS, { 'Content-Type': mimeType });
   }
+
+  /**
+   * Read the first N bytes of a stored object. Used by the attachments
+   * service to run a magic-byte check on a just-uploaded file before we
+   * accept its client-declared mime type.
+   */
+  async getObjectHead(storageKey: string, bytes = 4100): Promise<Buffer> {
+    const stream = await this.client.getPartialObject(this.bucket, storageKey, 0, bytes);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream as AsyncIterable<Buffer>) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
 
   /**
    * Presigned GET URL for download. 15-minute window.

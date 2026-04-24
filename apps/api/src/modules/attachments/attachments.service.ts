@@ -51,7 +51,10 @@ export class AttachmentsService {
     await this.subjects.assertExists(subjectType, subjectId);
     const ctx = requireTenantContext();
     const storageKey = this.buildStorageKey(ctx.tenantId, subjectType, subjectId, dto.fileName);
-    const uploadUrl = await this.storage.presignPut(storageKey);
+    // Bind Content-Type into the presign signature so the browser is forced
+    // to upload bytes matching the declared mime — uploading `text/html`
+    // under an `application/pdf` presign now fails with 403 at MinIO.
+    const uploadUrl = await this.storage.presignPut(storageKey, dto.mimeType);
     return { storageKey, uploadUrl, expiresIn: PRESIGN_TTL_SECONDS };
   }
 
@@ -80,6 +83,52 @@ export class AttachmentsService {
         code: 'UPLOAD_NOT_FOUND',
         message: 'Object not found in storage — did the PUT complete?',
       });
+    }
+
+    // Magic-byte / content-sniff validation: the client told us it was
+    // uploading `application/pdf` — confirm by reading the first 4KB and
+    // running `file-type` against the real bytes. Refuses e.g. HTML bytes
+    // masquerading as PDFs (stored XSS vector via "save as" + rename).
+    // Skipped for types that `file-type` cannot fingerprint reliably
+    // (plain-text CSV, .txt — no magic bytes to check).
+    const SNIFFABLE_MIMES = new Set([
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/zip',
+      'application/x-rar-compressed',
+      'audio/mpeg',
+      'audio/wav',
+      'video/mp4',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ]);
+    if (SNIFFABLE_MIMES.has(dto.mimeType)) {
+      try {
+        const head = await this.storage.getObjectHead(dto.storageKey, 4100);
+        // Lazy-import file-type (ESM-only) to avoid top-level CJS/ESM pain.
+        const { fileTypeFromBuffer } = await import('file-type');
+        const detected = await fileTypeFromBuffer(head);
+        if (!detected || detected.mime !== dto.mimeType) {
+          // Roll back — dangerous bytes don't stay in the bucket.
+          await this.storage.remove(dto.storageKey);
+          throw new BadRequestException({
+            code: 'MIME_MISMATCH',
+            message: `Uploaded file magic bytes (${detected?.mime ?? 'unknown'}) do not match declared mimeType ${dto.mimeType}`,
+          });
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+        // file-type itself failed (corrupt stream etc.) — treat as mismatch.
+        await this.storage.remove(dto.storageKey);
+        throw new BadRequestException({
+          code: 'MIME_CHECK_FAILED',
+          message: 'Unable to verify uploaded file integrity',
+        });
+      }
     }
 
     const attachment = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>

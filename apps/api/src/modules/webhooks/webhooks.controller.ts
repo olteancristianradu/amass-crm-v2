@@ -7,6 +7,8 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { WebhooksService } from './webhooks.service';
 
 const WebhookEventSchema = z.nativeEnum(WebhookEvent);
@@ -23,12 +25,13 @@ const UpdateEndpointSchema = z.object({
 });
 
 @Controller('webhooks')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 @Roles(UserRole.OWNER, UserRole.ADMIN)
 export class WebhooksController {
   constructor(private readonly svc: WebhooksService) {}
 
   @Post('endpoints')
+  @RequireCedar({ action: 'webhook::create', resource: 'WebhookEndpoint::new' })
   create(@Body(new ZodValidationPipe(CreateEndpointSchema)) dto: { url: string; events: WebhookEvent[] }) {
     return this.svc.create(dto);
   }
@@ -46,6 +49,7 @@ export class WebhooksController {
   }
 
   @Patch('endpoints/:id')
+  @RequireCedar({ action: 'webhook::update', resource: (req) => `WebhookEndpoint::${(req as { params: { id: string } }).params.id}` })
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateEndpointSchema)) dto: { url?: string; events?: WebhookEvent[]; isActive?: boolean },
@@ -55,6 +59,7 @@ export class WebhooksController {
 
   @Delete('endpoints/:id')
   @HttpCode(204)
+  @RequireCedar({ action: 'webhook::delete', resource: (req) => `WebhookEndpoint::${(req as { params: { id: string } }).params.id}` })
   delete(@Param('id') id: string) {
     return this.svc.delete(id);
   }
