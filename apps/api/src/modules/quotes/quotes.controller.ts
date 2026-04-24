@@ -27,6 +27,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { QuotesService } from './quotes.service';
 
 /**
@@ -40,7 +42,7 @@ import { QuotesService } from './quotes.service';
  *   DELETE /quotes/:id                soft delete DRAFT/REJECTED/EXPIRED
  */
 @Controller('quotes')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class QuotesController {
   constructor(private readonly quotes: QuotesService) {}
 
@@ -82,6 +84,7 @@ export class QuotesController {
 
   @Post(':id/convert')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({ action: 'quote::convert-to-invoice', resource: (req) => `Quote::${(req as { params: { id: string } }).params.id}` })
   convertToInvoice(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(ConvertQuoteToInvoiceSchema)) dto: ConvertQuoteToInvoiceDto,
@@ -92,6 +95,7 @@ export class QuotesController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({ action: 'quote::delete', resource: (req) => `Quote::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.quotes.remove(id);
   }

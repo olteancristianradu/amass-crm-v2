@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { AuditModule } from '../audit/audit.module';
 import { LeadsController } from './leads.controller';
 import { LeadsService } from './leads.service';
@@ -16,7 +17,7 @@ import { LeadsService } from './leads.service';
  *   DELETE /leads/:id          soft delete
  */
 @Module({
-  imports: [AuthModule, AuditModule],
+  imports: [AuthModule, AuditModule, AccessControlModule],
   controllers: [LeadsController],
   providers: [LeadsService],
   exports: [LeadsService],

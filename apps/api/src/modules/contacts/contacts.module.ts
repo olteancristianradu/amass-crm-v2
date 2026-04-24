@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { ContactsController } from './contacts.controller';
 import { ContactsService } from './contacts.service';
 
@@ -14,7 +15,7 @@ import { ContactsService } from './contacts.service';
  * Activities are logged with action = "contact.created" etc.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AccessControlModule],
   controllers: [ContactsController],
   providers: [ContactsService],
 })

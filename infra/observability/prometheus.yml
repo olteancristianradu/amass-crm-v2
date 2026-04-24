@@ -1,0 +1,31 @@
+# Prometheus config for AMASS-CRM. Scrapes the Nest /metrics endpoint
+# (protected by METRICS_AUTH_TOKEN in prod — see apps/api/src/main.ts).
+# Only runs when the `observability` compose profile is enabled.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    service: amass-crm
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: amass-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:3000"]
+    # When METRICS_AUTH_TOKEN is set, Prometheus must carry it as a Bearer.
+    # This file is rendered into the container read-only; to supply a token
+    # on a real deploy, mount an override that sets:
+    #   authorization: { type: Bearer, credentials: <token> }
+
+  - job_name: amass-ai-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ai-worker:8000"]
+
+# Alerting rules live alongside this file — keep minimal for now.
+rule_files: []

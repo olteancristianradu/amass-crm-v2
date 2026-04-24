@@ -27,6 +27,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
+import { CedarContextService } from '../access-control/cedar-context.service';
 import { DealsService } from './deals.service';
 
 /**
@@ -89,7 +90,14 @@ export class DealsController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
-  @RequireCedar({ action: 'deal::delete', resource: (req) => `Deal::${(req as { params: { id: string } }).params.id}` })
+  // AGENT users can only delete deals they own — the async context
+  // callback looks up Deal.ownerId and Cedar's policy rejects a write
+  // from AGENT when isOwner !== true.
+  @RequireCedar({
+    action: 'deal::delete',
+    resource: (req) => `Deal::${(req as { params: { id: string } }).params.id}`,
+    context: CedarContextService.ownerOf('deal'),
+  })
   remove(@Param('id') id: string) {
     return this.deals.remove(id);
   }

@@ -23,6 +23,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { TasksService } from './tasks.service';
 
@@ -38,7 +40,7 @@ import { TasksService } from './tasks.service';
  *   DELETE /tasks/:id          soft delete
  */
 @Controller('tasks')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class TasksController {
   constructor(private readonly tasks: TasksService) {}
 
@@ -102,6 +104,7 @@ export class TasksController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({ action: "task::delete", resource: (req) => `Task::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.tasks.remove(id);
   }

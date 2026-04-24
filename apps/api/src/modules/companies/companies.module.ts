@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { CompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
 
@@ -22,7 +23,7 @@ import { CompaniesService } from './companies.service';
  * come from their @Global modules — no explicit import needed.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AccessControlModule],
   controllers: [CompaniesController],
   providers: [CompaniesService],
 })

@@ -235,9 +235,49 @@ services:
       minio:
         condition: service_healthy
 
+  # ── Observability stack ────────────────────────────────────────────────
+  # Opt-in via `--profile observability`. Off by default so a cold deploy
+  # doesn't pay the ~800MB image cost + RAM for Prometheus+Grafana until
+  # there's traffic worth scraping.
+  #   docker compose --profile observability up -d prometheus grafana
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: amass-prometheus
+    restart: unless-stopped
+    profiles: ["observability"]
+    # Loopback-bind: /metrics is proxied via Caddy + auth in Nest.
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: amass-grafana
+    restart: unless-stopped
+    profiles: ["observability"]
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-in-env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana-provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
   caddy_data:
   caddy_config:
+  prometheus_data:
+  grafana_data:

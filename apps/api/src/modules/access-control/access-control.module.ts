@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { CedarContextService } from './cedar-context.service';
 import { CedarGuard } from './cedar.guard';
 import { CedarPolicyService } from './cedar-policy.service';
 import { ConditionalAccessMiddleware } from './conditional-access.middleware';
@@ -13,7 +14,7 @@ import { ConditionalAccessMiddleware } from './conditional-access.middleware';
  */
 @Global()
 @Module({
-  providers: [CedarPolicyService, CedarGuard, ConditionalAccessMiddleware],
-  exports: [CedarPolicyService, CedarGuard, ConditionalAccessMiddleware],
+  providers: [CedarPolicyService, CedarGuard, CedarContextService, ConditionalAccessMiddleware],
+  exports: [CedarPolicyService, CedarGuard, CedarContextService, ConditionalAccessMiddleware],
 })
 export class AccessControlModule {}

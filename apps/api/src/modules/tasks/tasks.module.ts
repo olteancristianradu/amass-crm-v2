@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 
@@ -9,7 +10,7 @@ import { TasksService } from './tasks.service';
  * SubjectResolver are @Global so no explicit imports are needed.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AccessControlModule],
   controllers: [TasksController],
   providers: [TasksService],
   exports: [TasksService],

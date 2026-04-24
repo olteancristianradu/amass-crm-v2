@@ -23,10 +23,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { ContactsService } from './contacts.service';
 
 @Controller('contacts')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class ContactsController {
   constructor(private readonly contacts: ContactsService) {}
 
@@ -60,6 +62,7 @@ export class ContactsController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({ action: "contact::delete", resource: (req) => `Contact::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.contacts.remove(id);
   }

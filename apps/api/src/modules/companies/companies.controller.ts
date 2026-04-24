@@ -23,10 +23,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { CompaniesService } from './companies.service';
 
 @Controller('companies')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class CompaniesController {
   constructor(private readonly companies: CompaniesService) {}
 
@@ -66,6 +68,7 @@ export class CompaniesController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({ action: "company::delete", resource: (req) => `Company::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.companies.remove(id);
   }

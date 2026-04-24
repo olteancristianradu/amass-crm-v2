@@ -19,12 +19,14 @@ import {
 } from '@amass/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { LeadsService } from './leads.service';
 
 @Controller('leads')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class LeadsController {
   constructor(private readonly leads: LeadsService) {}
 
@@ -67,6 +69,7 @@ export class LeadsController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({ action: "lead::delete", resource: (req) => `Lead::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.leads.remove(id);
   }
