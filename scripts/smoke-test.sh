@@ -46,13 +46,13 @@ pass "api healthy"
 
 # ── 2. Register tenant A + B ──────────────────────────────────────────────
 head "Register two tenants"
-REG_A=$(req POST /api/v1/auth/register "$(printf '{"tenantSlug":"%s","tenantName":"A","email":"%s","password":"%s","fullName":"A"}' "$TENANT_A" "$EMAIL_A" "$PASSWORD")")
+REG_A=$(req POST /api/v1/auth/register "$(printf '{"tenantSlug":"%s","tenantName":"Smoke Test A","email":"%s","password":"%s","fullName":"Smoke A"}' "$TENANT_A" "$EMAIL_A" "$PASSWORD")")
 TOKEN_A=$(json "$REG_A" '.tokens.accessToken')
 TENANT_A_ID=$(json "$REG_A" '.user.tenantId')
 [[ -n "$TOKEN_A" && "$TOKEN_A" != "null" ]] || fail "tenant A register failed: $REG_A"
 pass "tenant A registered (id=$TENANT_A_ID)"
 
-REG_B=$(req POST /api/v1/auth/register "$(printf '{"tenantSlug":"%s","tenantName":"B","email":"%s","password":"%s","fullName":"B"}' "$TENANT_B" "$EMAIL_B" "$PASSWORD")")
+REG_B=$(req POST /api/v1/auth/register "$(printf '{"tenantSlug":"%s","tenantName":"Smoke Test B","email":"%s","password":"%s","fullName":"Smoke B"}' "$TENANT_B" "$EMAIL_B" "$PASSWORD")")
 TOKEN_B=$(json "$REG_B" '.tokens.accessToken')
 TENANT_B_ID=$(json "$REG_B" '.user.tenantId')
 [[ -n "$TOKEN_B" && "$TOKEN_B" != "null" ]] || fail "tenant B register failed: $REG_B"
