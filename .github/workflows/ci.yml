@@ -146,9 +146,11 @@ jobs:
     services:
       # `prisma migrate diff --from-migrations` needs a real database to
       # materialise the migration chain against (Prisma calls it the
-      # shadow DB). We provide a throwaway Postgres instance for that.
+      # shadow DB). We use pgvector/pgvector:pg16 (not plain postgres)
+      # because the first migration does CREATE EXTENSION "vector" —
+      # plain alpine postgres doesn't ship that extension.
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
