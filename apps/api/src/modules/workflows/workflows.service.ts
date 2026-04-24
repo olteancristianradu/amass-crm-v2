@@ -154,13 +154,25 @@ export class WorkflowsService {
   /**
    * Called by domain services when a trigger event occurs. Fire-and-forget
    * — errors are caught and logged so they never bubble up to the API response.
+   *
+   * SECURITY — tenant isolation:
+   *   `trigger()` is called from inside a request handler (so ALS has the
+   *   right tenant context) but ALSO from the BullMQ workflow processor
+   *   when a WAIT_DAYS step resumes — that path has NO ALS context, so
+   *   the Prisma extension (Layer 2) and RLS (Layer 3) both no-op. We
+   *   therefore wrap every query in `runWithTenant(event.tenantId, ...)`
+   *   so `SET LOCAL app.tenant_id` is applied unconditionally. Each query
+   *   also keeps its explicit `tenantId: event.tenantId` filter as a
+   *   fourth layer of defense.
    */
   async trigger(event: WorkflowTriggerEvent): Promise<void> {
     try {
-      const workflows = await this.prisma.workflow.findMany({
-        where: { tenantId: event.tenantId, trigger: event.trigger, isActive: true, deletedAt: null },
-        include: { steps: { orderBy: { order: 'asc' } } },
-      });
+      const workflows = await this.prisma.runWithTenant(event.tenantId, (tx) =>
+        tx.workflow.findMany({
+          where: { tenantId: event.tenantId, trigger: event.trigger, isActive: true, deletedAt: null },
+          include: { steps: { orderBy: { order: 'asc' } } },
+        }),
+      );
 
       for (const workflow of workflows) {
         // For DEAL_STAGE_CHANGED, check that triggerConfig.stageId matches if specified
@@ -170,27 +182,31 @@ export class WorkflowsService {
         }
 
         // Skip if already running for this subject
-        const existing = await this.prisma.workflowRun.findFirst({
-          where: {
-            tenantId: event.tenantId,
-            workflowId: workflow.id,
-            subjectType: event.subjectType,
-            subjectId: event.subjectId,
-            status: 'RUNNING',
-          },
-        });
+        const existing = await this.prisma.runWithTenant(event.tenantId, (tx) =>
+          tx.workflowRun.findFirst({
+            where: {
+              tenantId: event.tenantId,
+              workflowId: workflow.id,
+              subjectType: event.subjectType,
+              subjectId: event.subjectId,
+              status: 'RUNNING',
+            },
+          }),
+        );
         if (existing) continue;
 
-        const run = await this.prisma.workflowRun.create({
-          data: {
-            tenantId: event.tenantId,
-            workflowId: workflow.id,
-            subjectType: event.subjectType,
-            subjectId: event.subjectId,
-            status: 'RUNNING',
-            currentStep: 0,
-          },
-        });
+        const run = await this.prisma.runWithTenant(event.tenantId, (tx) =>
+          tx.workflowRun.create({
+            data: {
+              tenantId: event.tenantId,
+              workflowId: workflow.id,
+              subjectType: event.subjectType,
+              subjectId: event.subjectId,
+              status: 'RUNNING',
+              currentStep: 0,
+            },
+          }),
+        );
 
         await this.executeFromStep(run.id, event.tenantId, 0, workflow.steps);
       }

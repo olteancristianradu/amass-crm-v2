@@ -1,0 +1,26 @@
+# Code ownership for AMASS-CRM v2.
+#
+# GitHub uses the LAST matching pattern, so put broader patterns at the top
+# and narrower ones (or specific paths) further down to override them.
+# Owners listed here are auto-requested on PR creation and required to
+# approve the merge if branch protection is configured to enforce it.
+#
+# Solo project: the repo owner reviews everything by default. When more
+# maintainers join, add @<github-handle> next to the relevant scope.
+
+# Default — every file requires the owner's review unless overridden below.
+*                                       @olteancristianradu
+
+# Security-sensitive surface — explicit pattern so a future co-maintainer
+# can't silently land a change here without owner sign-off.
+/apps/api/src/modules/auth/             @olteancristianradu
+/apps/api/src/modules/billing/          @olteancristianradu
+/apps/api/src/modules/audit/            @olteancristianradu
+/apps/api/src/infra/prisma/             @olteancristianradu
+/apps/api/src/common/middleware/        @olteancristianradu
+/apps/api/prisma/migrations/            @olteancristianradu
+
+# CI / infra / deploy scripts — drift here breaks every PR.
+/.github/                               @olteancristianradu
+/infra/                                 @olteancristianradu
+/scripts/                               @olteancristianradu

@@ -54,7 +54,18 @@ services:
   redis:
     restart: always
     ports: []
+    # M-07: enforce a password in production. The `:?` substitution makes
+    # `docker compose up` fail loudly if REDIS_PASSWORD is missing in
+    # .env.production. The API connects via REDIS_URL which must include
+    # the same password (e.g. redis://default:${REDIS_PASSWORD}@redis:6379).
+    command: >-
+      redis-server --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD required in production}"
 
   minio:
     restart: always
     ports: []   # presigned URLs use the public MINIO_ENDPOINT env var
+    # M-05: in production the MinIO root credentials MUST be supplied via
+    # .env.production. Refuse to start with the dev defaults.
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER required in production}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD required in production}
