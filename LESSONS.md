@@ -34,6 +34,34 @@
 
 ## Entries
 
+### 2026-04-25 — Schema drift: prisma migrate diff is correct, generate USING casts by hand
+- **Sprint / area:** infra / prisma
+- **Symptom:** CI `prisma-drift` job failed on `main` with ~100 diff entries — 14 missing enum types, dozens of TEXT→enum conversions, index renames, and FK redefinitions.
+- **Root cause:** A previous session edited `schema.prisma` (commit `150d50d` "refactor: close remaining tech debt") without running `prisma migrate dev`, so the schema declared things that no migration created. CI runs `prisma migrate diff --from-migrations --to-schema-datamodel` which correctly detected the gap.
+- **Fix:** `pnpm exec prisma migrate diff --script` produces a draft, but its `DROP COLUMN + ADD COLUMN` for enum conversions DESTROYS DATA. Hand-craft the migration replacing each pair with `ALTER COLUMN <col> TYPE <Enum> USING (<col>::text::<Enum>)`. Tested on a real Postgres+pgvector shadow DB with seed data — every row survived. Migration: `20260424100000_schema_catchup`.
+- **Lesson:** (1) Never edit `schema.prisma` without immediately running `prisma migrate dev` — drift compounds quickly. (2) When generating a catch-up migration, always start from `--script`, then audit for destructive `DROP COLUMN` + replace with `ALTER COLUMN ... TYPE ... USING`. Postgres TEXT→enum casts via USING preserve data when values match enum variants; if they don't, the migration fails loud (correct behaviour, not silent data loss).
+
+### 2026-04-25 — Prisma `UNIQUE(...)` constraint vs UNIQUE INDEX — Prisma diff treats them as different
+- **Sprint / area:** infra / prisma
+- **Symptom:** Catch-up migration applied cleanly but rerunning `prisma migrate diff` still flagged `[+] Added unique index` on `forecast_quotas` and `formula_fields`.
+- **Root cause:** Earlier hand-written migrations declared `UNIQUE(tenant_id, ...)` as a TABLE CONSTRAINT inside `CREATE TABLE`. Postgres exposes this as a `CONSTRAINT` object plus an auto-generated index. Prisma's `@@unique([...])` schema annotation expects a standalone `UNIQUE INDEX`; even though the column list and name match, Prisma's diff sees them as different object kinds.
+- **Fix:** In the catch-up migration, drop the constraint and recreate as a unique INDEX with the same name: `ALTER TABLE x DROP CONSTRAINT x_..._key; CREATE UNIQUE INDEX x_..._key ON x(...)`.
+- **Lesson:** Never use inline `UNIQUE(col1, col2)` in a `CREATE TABLE` for columns that have a Prisma `@@unique([...])` annotation. Always emit `CREATE UNIQUE INDEX <name> ON <table>(...)` so Prisma's view of the DB matches its view of the schema.
+
+### 2026-04-25 — vi.mocked() doesn't infer types when the wrapped object is cast to PrismaService
+- **Sprint / area:** testing / vitest
+- **Symptom:** `vi.mocked(h.prisma).call.findFirst.mockResolvedValue(...)` failed typecheck with "Property 'mockResolvedValue' does not exist" on the Prisma delegate.
+- **Root cause:** `h.prisma` is built as a plain object literal cast to `PrismaService` via `as unknown as ConstructorParameters<...>[0]`. `vi.mocked()` only re-types objects that came directly from a `vi.mock()` factory — when the input is a cast, it sees the static Prisma client type, not the underlying mock.
+- **Fix:** Hold separate references to the mock objects in the test helper (`prismaPhone = { findFirst: vi.fn() }`) and assign them onto the prisma stub. Test code drives `h.prismaPhone.findFirst.mockResolvedValue(...)` directly — typed as `Mock`, no `vi.mocked()` needed.
+- **Lesson:** When stubbing PrismaService for unit tests, expose the mock spies at the top level of the build helper. Don't try to reach through `vi.mocked(svc)` into a deeply-typed Prisma delegate.
+
+### 2026-04-25 — Adding a new middleware breaks every existing supertest call that didn't know about it
+- **Sprint / area:** testing / e2e
+- **Symptom:** `auth.e2e.spec.ts` started returning 403 CSRF_HEADER_MISSING on `/auth/refresh` and `/auth/logout` after `CsrfHeaderMiddleware` shipped.
+- **Root cause:** The new middleware required `X-Requested-With: amass-web` on mutative cookie-authenticated requests. Existing supertest calls didn't set the header.
+- **Fix:** Add `.set('X-Requested-With', 'amass-web')` to every mutative call in the affected spec, mirroring what the real SPA does.
+- **Lesson:** When adding a guard or middleware that requires a new request header, immediately grep the test suite for handlers under that route and fix them in the same commit. Otherwise the next CI run is red and the cause looks unrelated.
+
 ### 2026-04-19 — Formula evaluator: use recursive descent, never eval/new Function
 - **Sprint / area:** Tier B / formula-fields
 - **Symptom:** Nevoie de expresii calculate definite de tenant ("MRR * 12", "CONCAT(firstName, ' ', lastName)") fără risc de code injection.
