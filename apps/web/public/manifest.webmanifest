@@ -3,7 +3,7 @@
   "short_name": "AMASS",
   "description": "CRM B2B+B2C cu inteligență vocală pentru SMB-urile din România.",
   "start_url": "/app",
-  "scope": "/",
+  "scope": "/app",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",

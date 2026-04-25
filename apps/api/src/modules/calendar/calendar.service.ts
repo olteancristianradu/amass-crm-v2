@@ -8,9 +8,11 @@
  *   4. POST /calendar/events (create)         → write event to provider + save locally
  *
  * Tokens are AES-256-GCM encrypted at rest (same helper as email accounts).
- * Refresh tokens are used automatically on 401 responses.
+ * Refresh tokens are used automatically on 401 responses, AND a cron-driven
+ * sweep proactively refreshes tokens that expire within the next hour so
+ * `sync` calls don't randomly fail with 401 mid-day. See `refreshExpiring`.
  */
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CalendarEvent, CalendarProvider, Prisma, SubjectType } from '@prisma/client';
 import { CreateCalendarEventDto, ListCalendarEventsQueryDto } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -19,6 +21,8 @@ import { decrypt as decryptSecret, encrypt as encryptSecret } from '../../common
 
 @Injectable()
 export class CalendarService {
+  private readonly logger = new Logger(CalendarService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   // ─── OAuth helpers ─────────────────────────────────────────────────────────
@@ -274,5 +278,100 @@ export class CalendarService {
         take: 500,
       }),
     );
+  }
+
+  // ─── Token refresh sweep ──────────────────────────────────────────────────
+  //
+  // Called by CalendarRefreshScheduler every 15 minutes. Finds every active
+  // integration whose tokenExpiresAt falls inside the next hour AND has a
+  // refresh token, calls the provider's refresh endpoint, and persists the
+  // new access token + expiry. Bypasses RLS by using the raw client — this
+  // is a privileged service-level job, same pattern as gdpr.sweepAllTenants.
+
+  async refreshExpiring(now: Date = new Date()): Promise<{ refreshed: number; failed: number }> {
+    const horizon = new Date(now.getTime() + 60 * 60 * 1000); // 1h ahead
+    const candidates = await this.prisma.calendarIntegration.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+        refreshTokenEnc: { not: null },
+        tokenExpiresAt: { lt: horizon },
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        provider: true,
+        refreshTokenEnc: true,
+      },
+    });
+
+    let refreshed = 0;
+    let failed = 0;
+    for (const c of candidates) {
+      try {
+        const refreshToken = decryptSecret(c.refreshTokenEnc!);
+        const fresh = await this.refreshOne(c.provider as 'GOOGLE' | 'OUTLOOK', refreshToken);
+        await this.prisma.runWithTenant(c.tenantId, (tx) =>
+          tx.calendarIntegration.update({
+            where: { id: c.id },
+            data: {
+              accessTokenEnc: encryptSecret(fresh.accessToken),
+              ...(fresh.refreshToken ? { refreshTokenEnc: encryptSecret(fresh.refreshToken) } : {}),
+              tokenExpiresAt: fresh.expiresAt,
+            },
+          }),
+        );
+        refreshed++;
+      } catch (err) {
+        failed++;
+        this.logger.warn(
+          `Calendar token refresh failed integration=${c.id} provider=${c.provider}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+    if (refreshed > 0 || failed > 0) {
+      this.logger.log(
+        `Calendar refresh sweep: refreshed=${refreshed} failed=${failed} candidates=${candidates.length}`,
+      );
+    }
+    return { refreshed, failed };
+  }
+
+  private async refreshOne(
+    provider: 'GOOGLE' | 'OUTLOOK',
+    refreshToken: string,
+  ): Promise<{ accessToken: string; refreshToken?: string; expiresAt: Date }> {
+    const tokenUrl =
+      provider === 'GOOGLE'
+        ? 'https://oauth2.googleapis.com/token'
+        : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+    const clientId =
+      provider === 'GOOGLE' ? process.env['GOOGLE_CLIENT_ID'] : process.env['OUTLOOK_CLIENT_ID'];
+    const clientSecret =
+      provider === 'GOOGLE' ? process.env['GOOGLE_CLIENT_SECRET'] : process.env['OUTLOOK_CLIENT_SECRET'];
+    if (!clientId || !clientSecret) {
+      throw new Error(`${provider} OAuth client credentials not configured`);
+    }
+    const res = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`${provider} refresh ${res.status}: ${await res.text()}`);
+    }
+    const data = (await res.json()) as { access_token: string; refresh_token?: string; expires_in: number };
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token, // Google sometimes rotates; Outlook usually keeps the same
+      expiresAt: new Date(Date.now() + data.expires_in * 1000),
+    };
   }
 }

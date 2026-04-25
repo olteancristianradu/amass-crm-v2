@@ -23,11 +23,20 @@ import { JwtPayload, JWT_BLOCKLIST_PREFIX } from '../../modules/auth/auth.servic
  *     '*' is rejected at load time in production by env validation.
  *   - JWT is verified on connection AND the jti is checked against the
  *     Redis revocation blocklist so a logged-out user's socket is closed.
+ *   - L-03 handshake rate limit: each source IP may open at most
+ *     `WS_HANDSHAKE_LIMIT` connections per `WS_HANDSHAKE_WINDOW` seconds.
+ *     Counter lives in Redis (per-IP key, TTL = window) so multiple API
+ *     replicas share the same view. Defends against an unauthenticated
+ *     attacker spamming `io(url, { auth: { token: '...' } })` to burn
+ *     CPU on JWT verifies + Redis lookups.
  */
 const env = loadEnv();
 const allowedOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+const WS_HANDSHAKE_LIMIT = 30;
+const WS_HANDSHAKE_WINDOW_SECONDS = 60;
 
 @WebSocketGateway({
   path: '/ws',
@@ -46,6 +55,19 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   async handleConnection(client: Socket): Promise<void> {
+    // Rate-limit handshakes per source IP BEFORE any JWT/Redis work so an
+    // attacker can't burn CPU by spamming connections with bad tokens.
+    const ip = this.clientIp(client);
+    if (ip) {
+      const key = `ws:handshake:${ip}`;
+      const count = await this.redis.incr(key, WS_HANDSHAKE_WINDOW_SECONDS);
+      if (count > WS_HANDSHAKE_LIMIT) {
+        this.logger.warn(`WS rejected — handshake rate limit hit for ip=${ip} count=${count}`);
+        client.disconnect(true);
+        return;
+      }
+    }
+
     const token =
       (client.handshake.auth as Record<string, string | undefined>).token ??
       (client.handshake.headers.authorization ?? '').replace('Bearer ', '');
@@ -73,6 +95,17 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleDisconnect(client: Socket): void {
     this.logger.debug(`WS disconnected id=${client.id}`);
+  }
+
+  /**
+   * Resolve the source IP of the handshake. We prefer the value Express
+   * already parsed via `trust proxy = 1` (set in main.ts), which honours
+   * `X-Forwarded-For` from Caddy. Falls back to the raw socket address.
+   */
+  private clientIp(client: Socket): string | null {
+    const req = client.request as { ip?: string };
+    if (typeof req.ip === 'string' && req.ip.length > 0) return req.ip;
+    return client.handshake.address || null;
   }
 
   /** Emit a reminder:fired event to everyone in the tenant room. */

@@ -25,6 +25,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
+import { CedarContextService } from '../access-control/cedar-context.service';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { TasksService } from './tasks.service';
 
@@ -104,7 +105,14 @@ export class TasksController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
-  @RequireCedar({ action: "task::delete", resource: (req) => `Task::${(req as { params: { id: string } }).params.id}` })
+  // AGENT users can only delete tasks assigned to them — the async context
+  // callback looks up Task.assigneeId and Cedar's policy rejects a write
+  // from AGENT when isOwner !== true. OWNER/ADMIN/MANAGER bypass via role.
+  @RequireCedar({
+    action: 'task::delete',
+    resource: (req) => `Task::${(req as { params: { id: string } }).params.id}`,
+    context: CedarContextService.ownerOf('task'),
+  })
   remove(@Param('id') id: string) {
     return this.tasks.remove(id);
   }
