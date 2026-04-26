@@ -2,25 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design system v2 — "frosted glass + black accents"
+ *
+ * Inspired by the SugarCRM "Customer Journeys" mock the user picked as
+ * reference. Vocabulary:
+ *   - background    : light-cool gray canvas (NOT pure white)
+ *   - surface       : translucent white card on top of the canvas, with
+ *                     a soft 1px border + a faint outer shadow
+ *   - surface-elev  : same idea but slightly stronger blur (modals, popovers)
+ *   - primary       : black on white — used for selected nav, primary CTAs,
+ *                     "Cmd-K" hot-key indicators. Inverts to white on black
+ *   - accent-pink / accent-blue / accent-amber: tiny dots for status badges
+ *   - radius        : large (1rem default) — every card visibly rounded
+ *
+ * The glass effect is achieved with `backdrop-filter: blur(20px)` plus a
+ * semi-transparent white background. Browsers without backdrop-filter
+ * (older Firefox releases) gracefully fall back to a flat opaque white.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    /* Canvas — cool light gray (think macOS Big Sur "translucent" wallpaper). */
+    --background: 220 16% 92%;
     --foreground: 222 47% 11%;
+
+    /* Surfaces (cards, panels). Translucent white over the canvas. */
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
+    --surface-alpha: 0.65;        /* opacity of glass surfaces */
+    --surface-blur: 20px;         /* backdrop-filter blur radius */
+
+    /* Black-on-white primary for selected/active states + main CTAs. */
+    --primary: 222 47% 11%;       /* near-black */
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary — muted cool gray, used for inactive nav items. */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 30%;
+
+    /* Muted text + dividers. Lighter than secondary. */
+    --muted: 220 14% 96%;
     --muted-foreground: 215 16% 47%;
+
+    /* Destructive stays vivid red (delete confirmations, errors). */
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-    --radius: 0.5rem;
+
+    /* Hairline borders sit at low contrast — the shadow does the heavy
+     * lifting for surface elevation. */
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 222 47% 11%;
+
+    /* Status accent dots (avatars, kanban column tags, badges). */
+    --accent-blue: 217 91% 60%;
+    --accent-pink: 339 90% 67%;
+    --accent-amber: 38 92% 50%;
+    --accent-green: 142 71% 45%;
+
+    /* Larger radius across the board — cards are visibly rounded. */
+    --radius: 1rem;
   }
+
+  /* Dark mode is OFF for now — design system locked to light glass. The
+   * dark variant ships in a follow-up so we don't ship two unfinished
+   * themes. The base scope still respects @media prefers-color-scheme
+   * via the `dark` class for opt-in pages.
+   */
 
   * {
     @apply border-border;
@@ -28,6 +76,17 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Subtle ambient gradient on the canvas so frosted glass cards have
+   * something to refract. Keep it gentle — anything with high contrast
+   * makes the glass effect look noisy. */
+  body {
+    background-image:
+      radial-gradient(at 0% 0%, hsl(217 91% 60% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(339 90% 67% / 0.06) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.4) 0px, transparent 60%);
+    background-attachment: fixed;
   }
 
   /* M-4 WCAG touch targets.
@@ -52,4 +111,68 @@
     display: inline-flex;
     align-items: center;
   }
+}
+
+/*
+ * Component-layer utilities. Use these on top of plain Tailwind to build
+ * the glass-card aesthetic without re-typing 8 properties everywhere.
+ *
+ *   <div class="glass-card p-6">…</div>           → standard panel
+ *   <div class="glass-card glass-elev p-6">…</div> → modal / popover
+ *   <button class="glass-pill">…</button>          → toolbar pill
+ *   <span class="status-dot status-dot--blue" />  → status indicator
+ */
+@layer components {
+  .glass-card {
+    background-color: hsl(var(--card) / var(--surface-alpha));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
+    backdrop-filter: blur(var(--surface-blur));
+    border: 1px solid hsl(var(--border) / 0.7);
+    border-radius: var(--radius);
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.5) inset,
+      0 8px 24px hsl(220 30% 30% / 0.06),
+      0 1px 2px hsl(220 30% 30% / 0.04);
+  }
+
+  /* Stronger glass for modals/popovers floating above other glass cards. */
+  .glass-elev {
+    background-color: hsl(var(--card) / 0.85);
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.6) inset,
+      0 24px 64px hsl(220 30% 30% / 0.18),
+      0 4px 12px hsl(220 30% 30% / 0.08);
+  }
+
+  /* Pill button used in toolbars + sidebar (icon + optional label). */
+  .glass-pill {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors;
+    background-color: hsl(var(--card) / 0.7);
+    border: 1px solid hsl(var(--border) / 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .glass-pill:hover {
+    background-color: hsl(var(--card) / 0.95);
+  }
+  .glass-pill[aria-current='page'],
+  .glass-pill[data-active='true'] {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-color: transparent;
+  }
+
+  /* 8px coloured dot — status indicators, kanban column tags. */
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+  .status-dot--blue   { color: hsl(var(--accent-blue));  }
+  .status-dot--pink   { color: hsl(var(--accent-pink));  }
+  .status-dot--amber  { color: hsl(var(--accent-amber)); }
+  .status-dot--green  { color: hsl(var(--accent-green)); }
+  .status-dot--muted  { color: hsl(var(--muted-foreground) / 0.5); }
 }

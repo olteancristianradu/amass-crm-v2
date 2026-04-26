@@ -48,6 +48,7 @@ import { commissionsListRoute } from './routes/commissions.list';
 import { territoriesListRoute } from './routes/territories.list';
 import { eventsListRoute } from './routes/events.list';
 import { notificationsRoute } from './routes/notifications';
+import { designPreviewRoute } from './routes/design-preview';
 import { useAuthStore } from './stores/auth';
 
 /**
@@ -113,6 +114,7 @@ const routeTree = rootRoute.addChildren([
     territoriesListRoute,
     eventsListRoute,
     notificationsRoute,
+    designPreviewRoute,
   ]),
 ]);
 
