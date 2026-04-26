@@ -34,7 +34,7 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
  * NOT have an ownerId/assigneeId will TS-fail loudly at the `switch`
  * below — intentional, so we don't silently return `{ isOwner: false }`.
  */
-type ResourceKind = 'deal' | 'task';
+type ResourceKind = 'deal' | 'task' | 'lead' | 'quote';
 
 @Injectable()
 export class CedarContextService {
@@ -57,6 +57,12 @@ export class CedarContextService {
    * given resource kind + id. Uses runWithTenant so RLS still applies:
    * if the resource isn't in the caller's tenant we silently return
    * false (the lookup sees no row).
+   *
+   * Mapping kind → ownership column:
+   *   deal  → ownerId    (Deal.ownerId)
+   *   task  → assigneeId (Task.assigneeId)
+   *   lead  → ownerId    (Lead.ownerId)
+   *   quote → createdById (Quote.createdById — closest thing to ownership)
    */
   async isOwnerOf(
     user: AuthenticatedUser,
@@ -65,13 +71,24 @@ export class CedarContextService {
   ): Promise<{ isOwner: boolean }> {
     try {
       const ownerId = await this.prisma.runWithTenant(user.tenantId, async (tx) => {
-        if (kind === 'deal') {
-          const row = await tx.deal.findFirst({ where: { id: resourceId }, select: { ownerId: true } });
-          return row?.ownerId ?? null;
+        switch (kind) {
+          case 'deal': {
+            const row = await tx.deal.findFirst({ where: { id: resourceId }, select: { ownerId: true } });
+            return row?.ownerId ?? null;
+          }
+          case 'task': {
+            const row = await tx.task.findFirst({ where: { id: resourceId }, select: { assigneeId: true } });
+            return row?.assigneeId ?? null;
+          }
+          case 'lead': {
+            const row = await tx.lead.findFirst({ where: { id: resourceId }, select: { ownerId: true } });
+            return row?.ownerId ?? null;
+          }
+          case 'quote': {
+            const row = await tx.quote.findFirst({ where: { id: resourceId }, select: { createdById: true } });
+            return row?.createdById ?? null;
+          }
         }
-        // kind === 'task'
-        const row = await tx.task.findFirst({ where: { id: resourceId }, select: { assigneeId: true } });
-        return row?.assigneeId ?? null;
       });
       if (!ownerId) return { isOwner: false };
       return { isOwner: ownerId === user.userId };

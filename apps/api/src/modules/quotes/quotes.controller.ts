@@ -29,6 +29,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
+import { CedarContextService } from '../access-control/cedar-context.service';
 import { QuotesService } from './quotes.service';
 
 /**
@@ -66,6 +67,13 @@ export class QuotesController {
 
   @Patch(':id')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  // AGENT users can only update quotes they created (Quote.createdById).
+  // OWNER/ADMIN/MANAGER bypass via role.
+  @RequireCedar({
+    action: 'quote::update',
+    resource: (req) => `Quote::${(req as { params: { id: string } }).params.id}`,
+    context: CedarContextService.ownerOf('quote'),
+  })
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateQuoteSchema)) dto: UpdateQuoteDto,
@@ -95,7 +103,11 @@ export class QuotesController {
   @Delete(':id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
-  @RequireCedar({ action: 'quote::delete', resource: (req) => `Quote::${(req as { params: { id: string } }).params.id}` })
+  @RequireCedar({
+    action: 'quote::delete',
+    resource: (req) => `Quote::${(req as { params: { id: string } }).params.id}`,
+    context: CedarContextService.ownerOf('quote'),
+  })
   remove(@Param('id') id: string) {
     return this.quotes.remove(id);
   }

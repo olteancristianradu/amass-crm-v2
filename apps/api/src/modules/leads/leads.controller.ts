@@ -21,6 +21,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
+import { CedarContextService } from '../access-control/cedar-context.service';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { LeadsService } from './leads.service';
@@ -50,6 +51,13 @@ export class LeadsController {
 
   @Patch(':id')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  // AGENT can only update leads they own (Lead.ownerId).
+  // OWNER/ADMIN/MANAGER bypass via role.
+  @RequireCedar({
+    action: 'lead::update',
+    resource: (req) => `Lead::${(req as { params: { id: string } }).params.id}`,
+    context: CedarContextService.ownerOf('lead'),
+  })
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateLeadSchema)) body: Parameters<LeadsService['update']>[1],

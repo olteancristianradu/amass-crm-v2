@@ -93,7 +93,11 @@ export class CedarPolicyService {
       case 'AGENT': {
         if (verb === 'read') return this.allow('agent_read_all');
         const ownerMatch = input.context?.isOwner === true;
-        if (['Deal', 'Contact', 'Task'].includes(resourceType) && ownerMatch) {
+        // Resources where AGENT may write its OWN rows. The decorator
+        // must pass `context: CedarContextService.ownerOf(<kind>)` so
+        // `isOwner` is populated by a real DB lookup; without it,
+        // `ownerMatch` defaults to false and the request is denied.
+        if (['Deal', 'Task', 'Lead', 'Quote', 'Contact'].includes(resourceType) && ownerMatch) {
           return this.allow('agent_write_own');
         }
         return this.deny(`agent_no_${verb}_on_${resourceType}`);
