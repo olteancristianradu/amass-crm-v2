@@ -1,9 +1,10 @@
 import { createRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Users } from 'lucide-react';
 import { authedRoute } from './authed';
 import { clientsApi } from '@/features/clients/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
 import { RemindersTab } from '@/features/reminders/RemindersTab';
@@ -20,8 +21,21 @@ export const clientDetailRoute = createRoute({
   component: ClientDetailPage,
 });
 
+type TabKey = 'timeline' | 'notes' | 'tasks' | 'reminders' | 'email' | 'calls' | 'attachments';
+
+const TABS: { value: TabKey; label: string }[] = [
+  { value: 'timeline', label: 'Cronologie' },
+  { value: 'calls', label: 'Apeluri' },
+  { value: 'notes', label: 'Note' },
+  { value: 'tasks', label: 'Task-uri' },
+  { value: 'reminders', label: 'Reminder-uri' },
+  { value: 'email', label: 'Email' },
+  { value: 'attachments', label: 'Fișiere' },
+];
+
 function ClientDetailPage(): JSX.Element {
   const { id } = clientDetailRoute.useParams();
+  const [tab, setTab] = useState<TabKey>('timeline');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['clients', 'detail', id],
@@ -35,96 +49,63 @@ function ClientDetailPage(): JSX.Element {
         <p className="text-sm text-destructive">
           Eroare: {error instanceof ApiError ? error.message : 'necunoscută'}
         </p>
-        <Link to="/app/clients" className="text-sm text-primary hover:underline">
+        <Link to="/app/clients" className="text-sm text-foreground underline-offset-4 hover:underline">
           ← Înapoi la Clienți
         </Link>
       </div>
     );
   }
-  if (!data) return <p className="text-sm text-muted-foreground">Nu există.</p>;
+  if (!data) return <p className="text-sm text-muted-foreground">Clientul nu există.</p>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link to="/app/clients" className="text-xs text-muted-foreground hover:underline">
-          ← Clienți
-        </Link>
-        <h1 className="text-2xl font-semibold">
+    <DetailLayout
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Users size={20} className="text-muted-foreground" />
           {data.firstName} {data.lastName}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {data.email ?? '—'} · {data.city ?? '—'}
-        </p>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Detalii</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Field label="Prenume" value={data.firstName} />
-              <Field label="Nume" value={data.lastName} />
-              <Field label="Email" value={data.email} />
-              <Field label="Telefon" value={data.phone} />
-              <Field label="Mobil" value={data.mobile} />
-              <Field label="Adresă" value={data.addressLine} />
-              <Field label="Oraș" value={data.city} />
-              <Field label="Județ" value={data.county} />
-              <Field label="Cod poștal" value={data.postalCode} />
-              <Field label="Țară" value={data.country} />
-            </CardContent>
-          </Card>
+        </span>
+      }
+      subtitle={
+        <>
+          {data.email ?? 'Fără email'}
+          {' · '}
+          {data.city ?? 'Oraș nespecificat'}
+        </>
+      }
+      backHref="/app/clients"
+      backLabel="Clienți"
+      sidebar={
+        <>
+          <DetailFields title="Persoană">
+            <DetailField label="Prenume" value={data.firstName} />
+            <DetailField label="Nume" value={data.lastName} />
+          </DetailFields>
+          <DetailFields title="Contact">
+            <DetailField label="Email" value={data.email} />
+            <DetailField label="Telefon" value={data.phone} copyable />
+            <DetailField label="Mobil" value={data.mobile} copyable />
+          </DetailFields>
+          <DetailFields title="Adresă">
+            <DetailField label="Stradă" value={data.addressLine} />
+            <DetailField label="Oraș" value={data.city} />
+            <DetailField label="Județ" value={data.county} />
+            <DetailField label="Cod poștal" value={data.postalCode} copyable />
+            <DetailField label="Țară" value={data.country} />
+          </DetailFields>
           <GdprPanel kind="clients" subjectId={id} />
-        </div>
-
-        <Card>
-          <CardContent className="pt-6">
-            <Tabs defaultValue="timeline">
-              <TabsList>
-                <TabsTrigger value="timeline">Cronologie</TabsTrigger>
-                <TabsTrigger value="notes">Note</TabsTrigger>
-                <TabsTrigger value="tasks">Task-uri</TabsTrigger>
-                <TabsTrigger value="reminders">Reminder-uri</TabsTrigger>
-                <TabsTrigger value="email">Email</TabsTrigger>
-                <TabsTrigger value="calls">Apeluri</TabsTrigger>
-                <TabsTrigger value="attachments">Fișiere</TabsTrigger>
-              </TabsList>
-              <TabsContent value="timeline">
-                <TimelineTab subjectType="CLIENT" subjectId={id} />
-              </TabsContent>
-              <TabsContent value="notes">
-                <NotesTab subjectType="CLIENT" subjectId={id} />
-              </TabsContent>
-              <TabsContent value="tasks">
-                <TasksTab subjectType="CLIENT" subjectId={id} />
-              </TabsContent>
-              <TabsContent value="reminders">
-                <RemindersTab subjectType="CLIENT" subjectId={id} />
-              </TabsContent>
-              <TabsContent value="email">
-                <EmailTab subjectType="CLIENT" subjectId={id} />
-              </TabsContent>
-              <TabsContent value="calls">
-                <CallsTab subjectType="CLIENT" subjectId={id} />
-              </TabsContent>
-              <TabsContent value="attachments">
-                <AttachmentsTab subjectType="CLIENT" subjectId={id} />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+        </>
+      }
+    >
+      <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      <div>
+        {tab === 'timeline' && <TimelineTab subjectType="CLIENT" subjectId={id} />}
+        {tab === 'notes' && <NotesTab subjectType="CLIENT" subjectId={id} />}
+        {tab === 'tasks' && <TasksTab subjectType="CLIENT" subjectId={id} />}
+        {tab === 'reminders' && <RemindersTab subjectType="CLIENT" subjectId={id} />}
+        {tab === 'email' && <EmailTab subjectType="CLIENT" subjectId={id} />}
+        {tab === 'calls' && <CallsTab subjectType="CLIENT" subjectId={id} />}
+        {tab === 'attachments' && <AttachmentsTab subjectType="CLIENT" subjectId={id} />}
       </div>
-    </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value?: string | null }): JSX.Element {
-  return (
-    <div className="flex justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value ?? '—'}</span>
-    </div>
+    </DetailLayout>
   );
 }

@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Phone } from 'lucide-react';
 import { callsApi, phoneNumbersApi } from './api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { CallStatus, SubjectType, TranscriptionStatus } from '@/lib/types';
+import { CallCard, type CallCardData } from '@/components/ui/call-card';
+import { GlassCard } from '@/components/ui/glass-card';
+import { EmptyState } from '@/components/ui/page-header';
+import type { Call, SubjectType } from '@/lib/types';
 
 interface Props {
   subjectType: SubjectType;
@@ -13,7 +17,18 @@ interface Props {
 
 /**
  * Calls tab for Company/Contact/Client detail pages.
- * Shows a click-to-call form and the call history list with status + transcript.
+ *
+ * Layout:
+ *   [ click-to-call form (top) ]
+ *   [ CallCard 1 — most recent ]
+ *   [ CallCard 2 ]
+ *   [ ... ]
+ *
+ * Each CallCard is the v2 voice-intelligence primitive: shows AI summary,
+ * action items (with → Task buttons), expandable transcript with chat
+ * bubbles, and PII redaction pills. Wraps callsApi so action items can
+ * be turned into tasks inline (TODO once tasksApi.create accepts a
+ * subjectType + body string in this UI flow).
  */
 export function CallsTab({ subjectType, subjectId }: Props): JSX.Element {
   const qc = useQueryClient();
@@ -45,143 +60,100 @@ export function CallsTab({ subjectType, subjectId }: Props): JSX.Element {
   const hasPhones = phoneNumbers && phoneNumbers.length > 0;
 
   return (
-    <div className="space-y-4 pt-4">
+    <div className="space-y-4">
+      {/* Click-to-call form */}
       {!hasPhones ? (
-        <p className="text-sm text-muted-foreground">
-          Nu există numere de telefon configurate. Adaugă un număr Twilio via{' '}
-          <code className="font-mono text-xs">/phone-numbers</code> (ADMIN).
-        </p>
+        <GlassCard className="px-5 py-3 text-sm text-muted-foreground">
+          Nu există numere de telefon configurate. Adaugă un număr Twilio din{' '}
+          <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">/phone-numbers</code>{' '}
+          (rol ADMIN).
+        </GlassCard>
       ) : (
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (toNumber.trim()) callMut.mutate();
-          }}
-        >
-          <div className="flex-1 space-y-1">
-            <Label htmlFor="call-to" className="sr-only">
-              Număr destinatar
-            </Label>
-            <Input
-              id="call-to"
-              placeholder="Număr E.164 (+40712345678)"
-              value={toNumber}
-              onChange={(e) => setToNumber(e.target.value)}
-            />
-          </div>
+        <GlassCard className="px-5 py-3">
+          <form
+            className="flex items-end gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (toNumber.trim()) callMut.mutate();
+            }}
+          >
+            <div className="min-w-0 flex-1 space-y-1">
+              <Label htmlFor="call-to" className="sr-only">
+                Număr destinatar
+              </Label>
+              <Input
+                id="call-to"
+                placeholder="Număr E.164 (+40712345678)"
+                value={toNumber}
+                onChange={(e) => setToNumber(e.target.value)}
+                className="tabular-nums"
+              />
+            </div>
+            <Button
+              type="submit"
+              disabled={callMut.isPending || !toNumber.trim()}
+            >
+              <Phone size={14} className="mr-1.5" />
+              {callMut.isPending ? 'Se apelează…' : 'Apelează'}
+            </Button>
+          </form>
+          {defaultPhone && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              De la: <span className="font-medium">{defaultPhone.label ?? defaultPhone.number}</span>
+              {' '}({defaultPhone.number})
+            </p>
+          )}
           {callMut.isError && (
-            <p className="col-span-full text-xs text-destructive">
+            <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
               {callMut.error instanceof Error ? callMut.error.message : 'Eroare necunoscută'}
             </p>
           )}
-          <Button
-            type="submit"
-            disabled={callMut.isPending || !toNumber.trim()}
-          >
-            {callMut.isPending ? 'Se apelează…' : 'Apelează'}
-          </Button>
-        </form>
+        </GlassCard>
       )}
 
-      {defaultPhone && (
-        <p className="text-xs text-muted-foreground">
-          De la: {defaultPhone.label ?? defaultPhone.number} ({defaultPhone.number})
-        </p>
+      {/* Call history */}
+      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {calls && calls.data.length === 0 && (
+        <GlassCard className="overflow-hidden">
+          <EmptyState
+            icon={Phone}
+            title="Niciun apel încă"
+            description="Apelează numărul folosind formularul de mai sus. Apelurile vor avea transcriere automată + sumar AI după conversie."
+          />
+        </GlassCard>
       )}
-
-      <div className="border-t pt-4">
-        <h3 className="mb-2 text-sm font-medium">Istoricul apelurilor</h3>
-        {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
-        {calls && calls.data.length === 0 && (
-          <p className="text-sm text-muted-foreground">Niciun apel înregistrat.</p>
-        )}
-        <ul className="divide-y">
-          {calls?.data.map((call) => (
-            <li key={call.id} className="space-y-1 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <DirectionBadge direction={call.direction} />
-                  <span className="text-sm font-medium">
-                    {call.direction === 'OUTBOUND' ? call.toNumber : call.fromNumber}
-                  </span>
-                </div>
-                <StatusBadge status={call.status} />
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{new Date(call.createdAt).toLocaleString('ro-RO')}</span>
-                {call.durationSec != null && (
-                  <span>· {formatDuration(call.durationSec)}</span>
-                )}
-                <TranscriptionBadge status={call.transcriptionStatus} />
-              </div>
-              {/* Show AI summary if available */}
-              {call.transcript?.summary && (
-                <p className="rounded bg-muted p-2 text-xs">{call.transcript.summary}</p>
-              )}
-              {/* Show action items if available */}
-              {call.transcript?.actionItems && call.transcript.actionItems.length > 0 && (
-                <ul className="ml-4 list-disc text-xs text-muted-foreground">
-                  {call.transcript.actionItems.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
+      <div className="space-y-3">
+        {calls?.data.map((call) => (
+          <CallCard key={call.id} call={toCallCardData(call)} />
+        ))}
       </div>
     </div>
   );
 }
 
-function DirectionBadge({ direction }: { direction: 'INBOUND' | 'OUTBOUND' }): JSX.Element {
-  return (
-    <span className={`text-xs ${direction === 'OUTBOUND' ? 'text-primary' : 'text-muted-foreground'}`}>
-      {direction === 'OUTBOUND' ? '↗' : '↙'}
-    </span>
-  );
-}
-
-function StatusBadge({ status }: { status: CallStatus }): JSX.Element {
-  const base = 'rounded-sm px-2 py-0.5 text-xs font-medium';
-  const cls: Record<CallStatus, string> = {
-    QUEUED:      `${base} bg-secondary text-foreground`,
-    RINGING:     `${base} bg-yellow-100 text-yellow-800`,
-    IN_PROGRESS: `${base} bg-blue-100 text-blue-800`,
-    COMPLETED:   `${base} bg-green-100 text-green-800`,
-    BUSY:        `${base} bg-orange-100 text-orange-800`,
-    NO_ANSWER:   `${base} bg-orange-100 text-orange-800`,
-    FAILED:      `${base} bg-destructive/10 text-destructive`,
-    CANCELED:    `${base} bg-secondary text-muted-foreground`,
+/**
+ * Adapt the API `Call` shape to the `CallCardData` shape the primitive
+ * expects. Keeping this conversion at the boundary means the primitive
+ * stays product-neutral and easy to re-use on a future "all calls"
+ * feed page.
+ */
+function toCallCardData(call: Call): CallCardData {
+  const counterparty = call.direction === 'OUTBOUND' ? call.toNumber : call.fromNumber;
+  const t = call.transcript;
+  return {
+    id: call.id,
+    direction: call.direction,
+    counterparty,
+    startedAt: call.createdAt,
+    durationSec: call.durationSec ?? null,
+    status: call.status,
+    transcriptionStatus: call.transcriptionStatus,
+    summary: t?.summary ?? null,
+    actionItems: t?.actionItems ?? undefined,
+    sentiment: t?.sentiment ?? null,
+    // Transcript segments not surfaced via the current API yet — the
+    // CallCard renders a "Transcript" toggle only when the segments
+    // array is non-empty, so this gracefully falls back to "no toggle".
+    transcript: undefined,
   };
-  const labels: Record<CallStatus, string> = {
-    QUEUED:      'În așteptare',
-    RINGING:     'Sună',
-    IN_PROGRESS: 'În curs',
-    COMPLETED:   'Finalizat',
-    BUSY:        'Ocupat',
-    NO_ANSWER:   'Fără răspuns',
-    FAILED:      'Eșuat',
-    CANCELED:    'Anulat',
-  };
-  return <span className={cls[status]}>{labels[status]}</span>;
-}
-
-function TranscriptionBadge({ status }: { status: TranscriptionStatus }): JSX.Element | null {
-  if (status === 'NONE') return null;
-  const labels: Record<TranscriptionStatus, string> = {
-    NONE:        '',
-    PENDING:     '· Transcriere în așteptare',
-    IN_PROGRESS: '· Se transcrie…',
-    COMPLETED:   '· Transcris',
-    FAILED:      '· Transcriere eșuată',
-  };
-  return <span className="text-muted-foreground">{labels[status]}</span>;
-}
-
-function formatDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
