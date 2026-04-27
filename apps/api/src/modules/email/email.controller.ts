@@ -25,6 +25,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { EmailService } from './email.service';
 
 /**
@@ -43,13 +45,14 @@ import { EmailService } from './email.service';
  *   GET    /email/messages/:id   single message
  */
 @Controller('email')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class EmailController {
   constructor(private readonly email: EmailService) {}
 
   // ─── Accounts ───────────────────────────────────────────────────
 
   @Post('accounts')
+  @RequireCedar({ action: 'email::create', resource: 'EmailAccount::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   createAccount(
     @Body(new ZodValidationPipe(CreateEmailAccountSchema)) dto: CreateEmailAccountDto,
@@ -71,6 +74,10 @@ export class EmailController {
   }
 
   @Patch('accounts/:id')
+  @RequireCedar({
+    action: 'email::update',
+    resource: (req) => `EmailAccount::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   updateAccount(
     @Param('id') id: string,
@@ -81,6 +88,10 @@ export class EmailController {
 
   @Delete('accounts/:id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'email::delete',
+    resource: (req) => `EmailAccount::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   removeAccount(@Param('id') id: string) {
     return this.email.removeAccount(id);
@@ -89,6 +100,7 @@ export class EmailController {
   // ─── Messages ───────────────────────────────────────────────────
 
   @Post('send')
+  @RequireCedar({ action: 'email::send', resource: 'EmailMessage::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   send(@Body(new ZodValidationPipe(SendEmailSchema)) dto: SendEmailDto) {
     return this.email.send(dto);

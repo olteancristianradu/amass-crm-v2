@@ -1,6 +1,8 @@
 import { Controller, Get, Header, Param, Post, HttpCode, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AnafService } from './anaf.service';
@@ -12,13 +14,17 @@ import { AnafService } from './anaf.service';
  *   GET  /anaf/invoices/:id/xml     — download generated XML
  */
 @Controller('anaf')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class AnafController {
   constructor(private readonly svc: AnafService) {}
 
   @Post('invoices/:id/submit')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({
+    action: 'invoice::anaf-submit',
+    resource: (req) => `Invoice::${(req as { params: { id: string } }).params.id}`,
+  })
   submit(@Param('id') id: string) {
     return this.svc.submitInvoice(id);
   }

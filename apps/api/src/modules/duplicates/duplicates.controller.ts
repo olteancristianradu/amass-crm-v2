@@ -4,6 +4,8 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { DuplicatesService } from './duplicates.service';
 import { z } from 'zod';
 
@@ -13,7 +15,7 @@ const MergeSchema = z.object({
 });
 
 @Controller('duplicates')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class DuplicatesController {
   constructor(private readonly svc: DuplicatesService) {}
 
@@ -37,6 +39,7 @@ export class DuplicatesController {
 
   @Post('companies/merge')
   @HttpCode(200)
+  @RequireCedar({ action: 'duplicate::merge', resource: 'Duplicate::companies' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   mergeCompanies(@Body(new ZodValidationPipe(MergeSchema)) body: z.infer<typeof MergeSchema>) {
     return this.svc.mergeCompanies(body.survivorId, body.victimIds);
@@ -44,6 +47,7 @@ export class DuplicatesController {
 
   @Post('contacts/merge')
   @HttpCode(200)
+  @RequireCedar({ action: 'duplicate::merge', resource: 'Duplicate::contacts' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   mergeContacts(@Body(new ZodValidationPipe(MergeSchema)) body: z.infer<typeof MergeSchema>) {
     return this.svc.mergeContacts(body.survivorId, body.victimIds);
@@ -51,6 +55,7 @@ export class DuplicatesController {
 
   @Post('clients/merge')
   @HttpCode(200)
+  @RequireCedar({ action: 'duplicate::merge', resource: 'Duplicate::clients' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   mergeClients(@Body(new ZodValidationPipe(MergeSchema)) body: z.infer<typeof MergeSchema>) {
     return this.svc.mergeClients(body.survivorId, body.victimIds);

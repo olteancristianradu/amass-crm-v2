@@ -20,14 +20,17 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { CampaignsService } from './campaigns.service';
 
 @Controller('campaigns')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class CampaignsController {
   constructor(private readonly campaigns: CampaignsService) {}
 
   @Post()
+  @RequireCedar({ action: 'campaign::create', resource: 'Campaign::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   create(@Body(new ZodValidationPipe(CreateCampaignSchema)) body: Parameters<CampaignsService['create']>[0]) {
     return this.campaigns.create(body);
@@ -46,6 +49,10 @@ export class CampaignsController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'campaign::update',
+    resource: (req) => `Campaign::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   update(
     @Param('id') id: string,
@@ -56,6 +63,10 @@ export class CampaignsController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'campaign::delete',
+    resource: (req) => `Campaign::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   remove(@Param('id') id: string) {
     return this.campaigns.remove(id);

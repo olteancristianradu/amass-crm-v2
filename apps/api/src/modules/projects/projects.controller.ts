@@ -23,14 +23,17 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { ProjectsService } from './projects.service';
 
 @Controller('projects')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
   @Post()
+  @RequireCedar({ action: 'project::create', resource: 'Project::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   create(@Body(new ZodValidationPipe(CreateProjectSchema)) dto: CreateProjectDto) {
     return this.projects.create(dto);
@@ -49,6 +52,10 @@ export class ProjectsController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'project::update',
+    resource: (req) => `Project::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   update(
     @Param('id') id: string,
@@ -59,6 +66,10 @@ export class ProjectsController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'project::delete',
+    resource: (req) => `Project::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   remove(@Param('id') id: string) {
     return this.projects.remove(id);

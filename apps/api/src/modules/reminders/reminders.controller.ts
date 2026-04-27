@@ -23,6 +23,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { RemindersService } from './reminders.service';
 
 /**
@@ -38,7 +40,7 @@ import { RemindersService } from './reminders.service';
  *   DELETE /reminders/:id                         soft delete + cancel job
  */
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class RemindersController {
   constructor(private readonly reminders: RemindersService) {}
 
@@ -48,6 +50,10 @@ export class RemindersController {
 
   @Post(':subjectType/:subjectId/reminders')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'reminder::create',
+    resource: (req) => `${(req as { params: { subjectType: string } }).params.subjectType}::${(req as { params: { subjectId: string } }).params.subjectId}`,
+  })
   create(
     @Param('subjectType') subjectType: string,
     @Param('subjectId') subjectId: string,
@@ -79,6 +85,10 @@ export class RemindersController {
 
   @Patch('reminders/:id')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'reminder::update',
+    resource: (req) => `Reminder::${(req as { params: { id: string } }).params.id}`,
+  })
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateReminderSchema)) dto: UpdateReminderDto,
@@ -89,6 +99,10 @@ export class RemindersController {
   @Post('reminders/:id/dismiss')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'reminder::update',
+    resource: (req) => `Reminder::${(req as { params: { id: string } }).params.id}`,
+  })
   dismiss(@Param('id') id: string) {
     return this.reminders.dismiss(id);
   }
@@ -96,6 +110,10 @@ export class RemindersController {
   @Delete('reminders/:id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'reminder::delete',
+    resource: (req) => `Reminder::${(req as { params: { id: string } }).params.id}`,
+  })
   remove(@Param('id') id: string) {
     return this.reminders.remove(id);
   }

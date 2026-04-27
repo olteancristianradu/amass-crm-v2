@@ -9,6 +9,8 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { WhatsappService } from './whatsapp.service';
 
 @Controller('whatsapp')
@@ -18,12 +20,13 @@ export class WhatsappController {
   // ─── Account management (authenticated) ───────────────────────────────────
 
   @Get('accounts')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   listAccounts() { return this.svc.listAccounts(); }
 
   @Post('accounts')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
+  @RequireCedar({ action: 'whatsapp::create', resource: 'WhatsappAccount::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   createAccount(@Body(new ZodValidationPipe(CreateWhatsappAccountSchema)) dto: CreateWhatsappAccountDto) {
     return this.svc.createAccount(dto);
@@ -31,21 +34,26 @@ export class WhatsappController {
 
   @Delete('accounts/:id')
   @HttpCode(204)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
+  @RequireCedar({
+    action: 'whatsapp::delete',
+    resource: (req) => `WhatsappAccount::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   removeAccount(@Param('id') id: string) { return this.svc.removeAccount(id); }
 
   // ─── Send ──────────────────────────────────────────────────────────────────
 
   @Post('messages')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
+  @RequireCedar({ action: 'whatsapp::send', resource: 'WhatsappMessage::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   send(@Body(new ZodValidationPipe(SendWhatsappMessageSchema)) dto: SendWhatsappMessageDto) {
     return this.svc.send(dto);
   }
 
   @Get('messages')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   listMessages(
     @Query('subjectType') subjectType: string,

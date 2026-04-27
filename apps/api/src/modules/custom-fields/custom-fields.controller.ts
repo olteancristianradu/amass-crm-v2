@@ -12,10 +12,12 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { CustomFieldsService } from './custom-fields.service';
 
 @Controller('custom-fields')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class CustomFieldsController {
   constructor(private readonly svc: CustomFieldsService) {}
 
@@ -28,12 +30,17 @@ export class CustomFieldsController {
   }
 
   @Post('defs')
+  @RequireCedar({ action: 'custom-field::create', resource: 'CustomField::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   createDef(@Body(new ZodValidationPipe(CreateCustomFieldDefSchema)) dto: CreateCustomFieldDefDto) {
     return this.svc.createDef(dto);
   }
 
   @Patch('defs/:id')
+  @RequireCedar({
+    action: 'custom-field::update',
+    resource: (req) => `CustomField::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   updateDef(
     @Param('id') id: string,
@@ -42,6 +49,10 @@ export class CustomFieldsController {
 
   @Delete('defs/:id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'custom-field::delete',
+    resource: (req) => `CustomField::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   removeDef(@Param('id') id: string) { return this.svc.removeDef(id); }
 
@@ -55,6 +66,10 @@ export class CustomFieldsController {
 
   @Post('values/:entityId')
   @HttpCode(200)
+  @RequireCedar({
+    action: 'custom-field::update',
+    resource: (req) => `Entity::${(req as { params: { entityId: string } }).params.entityId}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   bulkSetValues(
     @Param('entityId') entityId: string,
@@ -63,6 +78,10 @@ export class CustomFieldsController {
 
   @Delete('values/:entityId/:fieldDefId')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'custom-field::delete',
+    resource: (req) => `Entity::${(req as { params: { entityId: string } }).params.entityId}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   deleteValue(@Param('entityId') entityId: string, @Param('fieldDefId') fieldDefId: string) {
     return this.svc.deleteValue(entityId, fieldDefId);

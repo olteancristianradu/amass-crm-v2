@@ -10,14 +10,17 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { ContactSegmentsService } from './contact-segments.service';
 
 @Controller('contact-segments')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class ContactSegmentsController {
   constructor(private readonly svc: ContactSegmentsService) {}
 
   @Post()
+  @RequireCedar({ action: 'contact-segment::create', resource: 'ContactSegment::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   create(@Body(new ZodValidationPipe(CreateContactSegmentSchema)) dto: CreateContactSegmentDto) {
     return this.svc.create(dto);
@@ -42,6 +45,10 @@ export class ContactSegmentsController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'contact-segment::update',
+    resource: (req) => `ContactSegment::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   update(
     @Param('id') id: string,
@@ -52,6 +59,10 @@ export class ContactSegmentsController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'contact-segment::delete',
+    resource: (req) => `ContactSegment::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   remove(@Param('id') id: string) {
     return this.svc.remove(id);

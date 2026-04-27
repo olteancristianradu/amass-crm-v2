@@ -4,6 +4,8 @@ import {
 import { UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -15,13 +17,17 @@ const RequestExportSchema = z.object({
 });
 
 @Controller('exports')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
 export class ExportsController {
   constructor(private readonly svc: ExportsService) {}
 
   @Post()
   @HttpCode(202)
+  @RequireCedar({
+    action: 'export::request',
+    resource: (req) => `Export::${(req as { body: { entityType: string } }).body.entityType}`,
+  })
   request(@Body(new ZodValidationPipe(RequestExportSchema)) body: { entityType: string; filters?: Record<string, unknown> }) {
     return this.svc.requestExport(body.entityType, body.filters);
   }

@@ -23,6 +23,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { NotesService } from './notes.service';
 
 /**
@@ -37,7 +39,7 @@ import { NotesService } from './notes.service';
  *  - /notes/:noteId                      (update / delete a single note by id)
  */
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class NotesController {
   constructor(private readonly notes: NotesService) {}
 
@@ -48,6 +50,10 @@ export class NotesController {
 
   @Post(':subjectType/:subjectId/notes')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'note::create',
+    resource: (req) => `${(req as { params: { subjectType: string } }).params.subjectType}::${(req as { params: { subjectId: string } }).params.subjectId}`,
+  })
   create(
     @Param('subjectType') subjectType: string,
     @Param('subjectId') subjectId: string,
@@ -76,6 +82,10 @@ export class NotesController {
 
   @Patch('notes/:noteId')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'note::update',
+    resource: (req) => `Note::${(req as { params: { noteId: string } }).params.noteId}`,
+  })
   update(
     @Param('noteId') noteId: string,
     @Body(new ZodValidationPipe(UpdateNoteSchema)) dto: UpdateNoteDto,
@@ -86,6 +96,10 @@ export class NotesController {
   @Delete('notes/:noteId')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'note::delete',
+    resource: (req) => `Note::${(req as { params: { noteId: string } }).params.noteId}`,
+  })
   remove(@Param('noteId') noteId: string) {
     return this.notes.remove(noteId);
   }

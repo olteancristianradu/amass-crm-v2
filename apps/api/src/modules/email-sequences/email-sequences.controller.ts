@@ -11,14 +11,17 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { EmailSequencesService } from './email-sequences.service';
 
 @Controller('email-sequences')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class EmailSequencesController {
   constructor(private readonly svc: EmailSequencesService) {}
 
   @Post()
+  @RequireCedar({ action: 'email-sequence::create', resource: 'EmailSequence::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   create(@Body(new ZodValidationPipe(CreateEmailSequenceSchema)) dto: CreateEmailSequenceDto) {
     return this.svc.create(dto);
@@ -37,6 +40,10 @@ export class EmailSequencesController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'email-sequence::update',
+    resource: (req) => `EmailSequence::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   update(
     @Param('id') id: string,
@@ -46,12 +53,20 @@ export class EmailSequencesController {
   }
 
   @Post(':id/activate')
+  @RequireCedar({
+    action: 'email-sequence::update',
+    resource: (req) => `EmailSequence::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   activate(@Param('id') id: string) {
     return this.svc.activate(id);
   }
 
   @Post(':id/pause')
+  @RequireCedar({
+    action: 'email-sequence::update',
+    resource: (req) => `EmailSequence::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   pause(@Param('id') id: string) {
     return this.svc.pause(id);
@@ -59,12 +74,20 @@ export class EmailSequencesController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'email-sequence::delete',
+    resource: (req) => `EmailSequence::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   archive(@Param('id') id: string) {
     return this.svc.archive(id);
   }
 
   @Post(':id/enroll')
+  @RequireCedar({
+    action: 'email-sequence::enroll',
+    resource: (req) => `EmailSequence::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   enroll(
     @Param('id') _id: string,
@@ -81,6 +104,10 @@ export class EmailSequencesController {
 
   @Delete('enrollments/:enrollmentId')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'email-sequence::unenroll',
+    resource: (req) => `EmailSequenceEnrollment::${(req as { params: { enrollmentId: string } }).params.enrollmentId}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   unenroll(@Param('enrollmentId') enrollmentId: string) {
     return this.svc.unenroll(enrollmentId);

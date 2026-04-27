@@ -20,14 +20,17 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { CasesService } from './cases.service';
 
 @Controller('cases')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class CasesController {
   constructor(private readonly cases: CasesService) {}
 
   @Post()
+  @RequireCedar({ action: 'case::create', resource: 'Case::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   create(@Body(new ZodValidationPipe(CreateCaseSchema)) body: Parameters<CasesService['create']>[0]) {
     return this.cases.create(body);
@@ -46,6 +49,10 @@ export class CasesController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'case::update',
+    resource: (req) => `Case::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   update(
     @Param('id') id: string,
@@ -56,6 +63,10 @@ export class CasesController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'case::delete',
+    resource: (req) => `Case::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   remove(@Param('id') id: string) {
     return this.cases.remove(id);

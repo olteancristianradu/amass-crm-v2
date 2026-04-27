@@ -23,6 +23,8 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { WorkflowsService } from './workflows.service';
 
 /**
@@ -37,11 +39,12 @@ import { WorkflowsService } from './workflows.service';
  *   DELETE /workflows/runs/:runId  cancel a running run
  */
 @Controller('workflows')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class WorkflowsController {
   constructor(private readonly workflows: WorkflowsService) {}
 
   @Post()
+  @RequireCedar({ action: 'workflow::create', resource: 'Workflow::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   create(@Body(new ZodValidationPipe(CreateWorkflowSchema)) dto: CreateWorkflowDto) {
     return this.workflows.create(dto);
@@ -66,6 +69,10 @@ export class WorkflowsController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'workflow::update',
+    resource: (req) => `Workflow::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   update(
     @Param('id') id: string,
@@ -76,6 +83,10 @@ export class WorkflowsController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'workflow::delete',
+    resource: (req) => `Workflow::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   remove(@Param('id') id: string) {
     return this.workflows.remove(id);
@@ -83,6 +94,10 @@ export class WorkflowsController {
 
   @Delete('runs/:runId/cancel')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'workflow::cancel',
+    resource: (req) => `WorkflowRun::${(req as { params: { runId: string } }).params.runId}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   cancelRun(@Param('runId') runId: string) {
     return this.workflows.cancelRun(runId);

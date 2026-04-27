@@ -12,14 +12,17 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { CommissionsService } from './commissions.service';
 
 @Controller('commissions')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class CommissionsController {
   constructor(private readonly commissions: CommissionsService) {}
 
   @Post('plans')
+  @RequireCedar({ action: 'commission::create', resource: 'CommissionPlan::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   createPlan(@Body(new ZodValidationPipe(CreateCommissionPlanSchema)) body: Parameters<CommissionsService['createPlan']>[0]) {
     return this.commissions.createPlan(body);
@@ -38,6 +41,10 @@ export class CommissionsController {
   }
 
   @Patch('plans/:id')
+  @RequireCedar({
+    action: 'commission::update',
+    resource: (req) => `CommissionPlan::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   updatePlan(
     @Param('id') id: string,
@@ -48,12 +55,17 @@ export class CommissionsController {
 
   @Delete('plans/:id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'commission::delete',
+    resource: (req) => `CommissionPlan::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   deletePlan(@Param('id') id: string) {
     return this.commissions.deletePlan(id);
   }
 
   @Post('compute')
+  @RequireCedar({ action: 'commission::compute', resource: 'Commission::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   compute(@Body(new ZodValidationPipe(ComputeCommissionsSchema)) body: Parameters<CommissionsService['compute']>[0]) {
     return this.commissions.compute(body);
@@ -72,6 +84,10 @@ export class CommissionsController {
   }
 
   @Post(':id/mark-paid')
+  @RequireCedar({
+    action: 'commission::update',
+    resource: (req) => `Commission::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   markPaid(
     @Param('id') id: string,
