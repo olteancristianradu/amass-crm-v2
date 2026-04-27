@@ -11,7 +11,7 @@ anthropic>=0.34.0
 bullmq>=2.0.0
 
 # Redis client
-redis>=5.0.0
+redis>=7.4.0
 
 # MinIO / S3-compatible storage
 minio>=7.2.0
