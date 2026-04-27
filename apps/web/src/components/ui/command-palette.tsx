@@ -61,7 +61,7 @@ import { cn } from '@/lib/cn';
 
 // ─── nav catalog ──────────────────────────────────────────────────────────
 
-interface NavCommand {
+export interface NavCommand {
   id: string;
   label: string;
   group: string;
@@ -71,7 +71,8 @@ interface NavCommand {
   adminOnly?: boolean;
 }
 
-const NAV_COMMANDS: NavCommand[] = [
+// Exported for unit tests.
+export const NAV_COMMANDS: NavCommand[] = [
   // Lucru
   { id: 'dashboard', label: 'Dashboard', group: 'Lucru', to: '/app', keywords: 'home start brief acasa', icon: LayoutDashboard },
   { id: 'tasks', label: 'Task-uri', group: 'Lucru', to: '/app/tasks', keywords: 'todo de facut', icon: CheckSquare },
@@ -126,8 +127,15 @@ const NAV_COMMANDS: NavCommand[] = [
 ];
 
 // Diacritic-insensitive match: "căutați" should match "cautat".
-function normalize(s: string): string {
+// Exported for unit testing — keep usage internal otherwise.
+export function normalizeForCommand(s: string): string {
   return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+}
+
+const normalize = normalizeForCommand;
+
+export function rankNavCommands(query: string, items: NavCommand[]): NavCommand[] {
+  return rankNav(query, items);
 }
 
 function rankNav(query: string, items: NavCommand[]): NavCommand[] {
