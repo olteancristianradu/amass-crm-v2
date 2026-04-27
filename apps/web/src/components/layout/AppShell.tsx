@@ -33,6 +33,7 @@ import {
   Phone,
   Receipt,
   Rows3,
+  Search,
   Send,
   Settings2,
   ShoppingBag,
@@ -46,8 +47,9 @@ import {
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/stores/auth';
 import { useUiPreferencesStore } from '@/stores/ui-preferences';
+import { useCommandPaletteStore } from '@/stores/command-palette';
 import { api } from '@/lib/api';
-import { SearchBar } from '@/features/search/SearchBar';
+import { CommandPalette } from '@/components/ui/command-palette';
 import { Toaster } from '@/components/ui/Toaster';
 import { useReminderPoller } from '@/hooks/useReminderPoller';
 import { NotificationsBell } from './NotificationsBell';
@@ -85,7 +87,31 @@ export function AppShell({ children }: Props): JSX.Element {
   const clear = useAuthStore((s) => s.clear);
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const paletteOpen = useCommandPaletteStore((s) => s.isOpen);
+  const setPaletteOpen = useCommandPaletteStore((s) => s.set);
+  const togglePalette = useCommandPaletteStore((s) => s.toggle);
   useReminderPoller();
+
+  // Global ⌘K / Ctrl+K toggle, "/" to focus when not already typing in a form.
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        togglePalette();
+        return;
+      }
+      if (e.key === '/' && !paletteOpen) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        const editable = target?.isContentEditable;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [togglePalette, setPaletteOpen, paletteOpen]);
 
   const handleLogout = async (): Promise<void> => {
     try {
@@ -143,9 +169,11 @@ export function AppShell({ children }: Props): JSX.Element {
           user={user}
           onLogout={handleLogout}
           onMenu={() => setDrawerOpen(true)}
+          onSearch={() => setPaletteOpen(true)}
         />
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Toaster />
     </div>
   );
@@ -336,11 +364,15 @@ function Topbar({
   user,
   onLogout,
   onMenu,
+  onSearch,
 }: {
   user: { fullName: string; email: string; role: string } | null;
   onLogout: () => void;
   onMenu: () => void;
+  onSearch: () => void;
 }): JSX.Element {
+  const isMac =
+    typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   return (
     <header className="sticky top-0 z-30 px-4 pt-3 md:px-8">
       <div className="glass-card flex h-14 items-center gap-3 px-4">
@@ -354,10 +386,20 @@ function Topbar({
           <Menu size={18} />
         </button>
 
-        {/* Search — flex-1 so it stretches */}
-        <div className="min-w-0 flex-1">
-          <SearchBar />
-        </div>
+        {/* Search trigger → opens Cmd-K palette */}
+        <button
+          type="button"
+          onClick={onSearch}
+          className="group flex h-9 min-w-0 flex-1 max-w-md items-center gap-2.5 rounded-md border border-border/70 bg-card/60 px-3 text-left text-sm text-muted-foreground transition-colors hover:bg-card"
+          aria-label="Deschide căutarea"
+          title="Caută (⌘K)"
+        >
+          <Search size={14} />
+          <span className="min-w-0 flex-1 truncate">Caută pagini, companii, contacte…</span>
+          <kbd className="hidden items-center gap-0.5 rounded border border-border/70 bg-secondary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide sm:inline-flex">
+            {isMac ? '⌘' : 'Ctrl'}K
+          </kbd>
+        </button>
 
         {/* Right cluster */}
         <DensityToggle />
