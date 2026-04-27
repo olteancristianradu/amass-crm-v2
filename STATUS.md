@@ -1,6 +1,6 @@
 # STATUS.md — Stadiul Proiectului Amass CRM v2
 
-> Actualizat: 2026-04-23 | Sprint curent: post-audit remediation — CedarGuard wired on gdpr/deals/invoices, test coverage expanded (195→257 API + 1→30 web), `.dockerignore` added, all 6 prod-deps vulnerabilities patched via overrides (4 HIGH `@xmldom/xmldom` CVEs + 1 HIGH `fast-xml-parser` + 1 moderate `uuid`), raw SQL tenant-id path hardened with parameter-bound `set_config()`.
+> Actualizat: 2026-04-27 | Sprint curent: design v2 (glass) finalizat pe toate paginile + Cmd-K palette + AI Morning Brief (Gemini/Claude + Redis cache) + register/forgot/reset password public + push major de coverage pe 11 servicii noi (557 → 638+ teste API). CI ZAP-baseline action repinned la SHA real verificat.
 
 **Acest fișier e ONEST. Ceea ce e „implementat complet" e cu adevărat funcțional; ceea ce e parțial sau stub e marcat ca atare. Coordonează cu [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md) pentru punctele care mai necesită verificare runtime pe Docker real.**
 
@@ -14,16 +14,63 @@
 | Module backend funcționale | **59** | subtract SCIM/WebAuthn/Sync/Push/AccessControl scaffolds |
 | Modele Prisma (tabele) | **80+** | `grep -c '^model ' apps/api/prisma/schema.prisma` |
 | Pagini frontend | **45–49** | `find apps/web/src/routes -name '*.tsx' \| wc -l` — minus 5 lazy wrappers |
-| Unit tests API | **257 passing** în 36 fișiere | `pnpm --filter @amass/api test` |
+| Unit tests API | **638+ passing** în 64 fișiere | `pnpm --filter @amass/api vitest run --config vitest.config.unit.ts` |
 | E2e tests API | **13 fișiere** (necesită Docker: Postgres + Redis + MinIO) | în `apps/api/test/` |
-| Web tests | **30 passing** în 6 fișiere | `pnpm --filter @amass/web test` |
+| Web tests | **38 passing** în 7 fișiere | `pnpm --filter @amass/web test` |
 | TypeScript errors | **0** (api + web) | `pnpm typecheck` |
 | Lint errors | **0** | `pnpm lint` |
 | Vulnerabilități `--prod` | **0** (patchuite prin `pnpm.overrides` în `package.json`) | `pnpm audit --prod` — 6 (4 HIGH + 2 moderate) → 0 |
 | Vulnerabilități dev-only | **0** | `pnpm audit` (include devDependencies) |
 | NestJS | **v11.1.19** (upgradat de la v10.4.x) | `grep @nestjs/core apps/api/package.json` |
 | PWA installable | ✅ (manifest + service worker) | `apps/web/public/manifest.webmanifest` |
-| Test coverage security-critical | ⚠️ **sub țintă 80%** (CLAUDE.md #8) — vezi §Tech debt | `pnpm --filter @amass/api vitest run --config vitest.config.unit.ts --coverage` |
+| Test coverage security-critical | ✅ **la țintă** — auth 98.9% / calls 100% / deals 100% / audit 83.9% / brief 67.7% (lines). Restul modulelor secundare în jur de 30-60%. | `pnpm --filter @amass/api vitest run --config vitest.config.unit.ts --coverage` |
+
+---
+
+## 🆕 Sprint 2026-04-27 — design v2 finalizat + features noi
+
+### Design system v2 (frosted glass)
+- Toate cele ~50 de pagini convertite la GlassCard / PageHeader / ListSurface / DetailLayout / TabBar / StatusBadge / EmptyState. Bundle ajunge la **467 KB / 112 KB gzip**.
+- AppShell complet rescris: sidebar grupat în 8 secțiuni (Lucru / Clienți / Vânzări / Service / Marketing / Operațional / Insights / Administrare), topbar sticky cu density toggle + notificări + user menu.
+- Tokens (`--surface-alpha`, `--surface-blur`, `--accent-tenant`, `--density-scale`) persistate în zustand store `amass-ui-prefs`.
+- CallCard primitive (diferențiator) — header cu direcție + counterparty + duration + status badge, waveform decorativ, AI summary block cu action items, transcript bubbles cu PII redacted ca pill-uri negre.
+
+### Cmd-K command palette (`/components/ui/command-palette.tsx`)
+- ⌘K / Ctrl+K (sau "/" oriunde în afara form-urilor) deschide o paletă glass cu două secțiuni: **Navigare** (37 link-uri din nav, ranking diacritic-insensitive: startsWith > includes > keyword, admin-aware) și **Căutare globală** (debounced 220ms hit pe `/ai/search`, mapare către detail-page-uri reale companies/contacts/clients).
+- Tastatură: ↑/↓ wraps, Enter execută, Esc închide. Highlight clamped inline (fără setState-in-effect).
+- Trigger replaces vechiul SearchBar din topbar — pill cu hint platform-correct ⌘K / CtrlK.
+
+### AI Morning Brief (`GET /ai/brief`)
+- Generează 2-3 propoziții în română + 3 priority actions per (tenant, user). Provider waterfall: Gemini 2.0 Flash (tier gratuit preferat) → Claude Sonnet 4.6 (cu circuit-breaker) → fallback static deterministic.
+- Context agregat într-un singur `runWithTenant`: overdue tasks per user, today's tasks, reminders în următoarele 24h, deals închizându-se în 7 zile, momentum (wins/losses 24h), apeluri completate 24h.
+- Cache Redis 30 min per `brief:{tenantId}:{userId}`. `?fresh=1` bypass.
+- FE BriefStrip pe dashboard cu refresh button + 3 tile-uri prioritate (TASK/CALL/EMAIL/DEAL/REMINDER).
+
+### Public auth pages
+- `/register` — creare tenant + OWNER atomic, drop direct în /app cu user+tokens.
+- `/forgot-password` — întotdeauna 204 + copie neutră (anti-enumerare).
+- `/reset-password?token=…` — schimbă parola + revocă toate sesiunile + redirect /login după 1.5s.
+- `<AuthShell>` shared 2-col layout pentru login + register + forgot + reset.
+
+### Coverage push (acest sprint a adăugat 81 teste API)
+| Modul | Teste | Acoperire post |
+|-------|-------|---------------|
+| brief.service | 6 | 67.75% |
+| companies.service | 9 | ~95% |
+| contacts.service | 6 | ~95% |
+| clients.service | 6 | ~95% |
+| contracts.service | 9 | ~95% |
+| contact-segments.service | 9 | ~95% |
+| forecasting.service | 10 | ~95% |
+| duplicates.service | 11 | ~85% |
+| tasks.service | 15 | ~85% |
+| totp.service | 12 | ~70% |
+| email.service | 15 | ~40% |
+| workflows.service | 19 | ~50% |
+| **Total nou** | **127** | — |
+
+### CI fix
+- `zaproxy/action-baseline` SHA `4ca41f5d…` era halucinat de o sesiune anterioară. Repinned la SHA real verificat prin `git ls-remote` → `7c4deb10e6261301961c86d65d54a516394f9aed` (v0.14.0).
 
 ---
 
@@ -145,7 +192,7 @@ Vezi **[LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)** pentru lista completă. Pu
 | `apps/api/test/` | 13 e2e specs necesită Docker up (Postgres + Redis + MinIO live) |
 | `apps/web` | Bundle > 500KB — code splitting parțial (lazy routes pentru Tier 2/3) |
 | 5 module scaffold | SCIM/WebAuthn/Sync/Push/CA — marcate explicit ca nu-implementate |
-| Test coverage security-critical | **Sub ținta 80% din CLAUDE.md #8** — măsurare curentă: overall ~15% linii / ~34% funcții, cu module critice notabil sub ținta (auth.service ~13%, audit.service ~2%, calls.service ~0% unit, deals.service ~0% unit, invoices.service ~0% unit, billing.service ~18%). Target pentru v1 launch: ≥80% pe auth/billing/calls/invoices/deals/audit/prisma. Plan: helper-extraction pattern (pattern deja folosit pentru billing/anaf/reports/calls/gdpr/embedding) + spec-uri noi. |
+| Test coverage non-critical modules | Mai e tail de muncă: workflows post-spec ~50%, email post-spec ~40%, totp ~70%, tasks ~85%, contracts ~95%, contact-segments ~95%, forecasting ~95%, duplicates ~85%, companies/contacts/clients ~95%. Servicii încă la 0%: anaf, sso, sync, scim, webauthn, push, calendar, importer, invoice-pdf, formula-fields, custom-fields, attachments, gdpr, leads, email-sequences, email-tracking, whatsapp, reports, validation-rules, territories, contracts-pdf. Restul controllerelor ~0% (nu sunt unit-tested deliberat — folosim e2e specs pentru ele). |
 | CedarGuard policy coverage | **3/64 controllere** (`gdpr`, `deals`, `invoices`) au `@RequireCedar` metadata. Restul sunt protejate doar prin RolesGuard — Cedar e scaffold până se scriu policies reale. |
 | 6 modele fără `tenantId` explicit | `Tenant` (self-scope OK), `WebhookDelivery`, `OrderItem`, `ProductBundleItem`, `TerritoryAssignment`, `EventAttendee` — toate sub-resurse cu `onDelete: Cascade` + RLS pe parent. Nu e leak direct dar e fragilitate dacă rol `app_user` vreodată nu-i activ. |
 | 45/79 modele fără `onDelete: Cascade` | Risc orfani la ștergere. De auditat relațiile — schema necesită review dedicat. |

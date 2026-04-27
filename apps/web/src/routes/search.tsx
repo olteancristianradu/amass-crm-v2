@@ -30,8 +30,8 @@ function SearchPage(): JSX.Element {
 
   const handleClick = (r: SearchResult): void => {
     if (r.type === 'company') void navigate({ to: '/app/companies/$id', params: { id: r.id } });
-    else if (r.type === 'contact') void navigate({ to: '/app/contacts' });    // detail pages TBD §2.1
-    else void navigate({ to: '/app/clients' });                               // detail pages TBD §2.2
+    else if (r.type === 'contact') void navigate({ to: '/app/contacts/$id', params: { id: r.id } });
+    else void navigate({ to: '/app/clients/$id', params: { id: r.id } });
   };
 
   const typeLabel: Record<SearchResult['type'], string> = {

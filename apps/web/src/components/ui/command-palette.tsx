@@ -239,8 +239,8 @@ function PaletteBody({
       const typeIcons = { company: Building2, contact: Contact2, client: Users };
       const typeRoutes = {
         company: '/app/companies/$id' as const,
-        contact: '/app/contacts' as const,
-        client: '/app/clients' as const,
+        contact: '/app/contacts/$id' as const,
+        client: '/app/clients/$id' as const,
       };
       for (const r of remote.data.results) {
         out.push({
@@ -252,12 +252,7 @@ function PaletteBody({
           group: 'Căutare globală',
           onSelect: () => {
             close();
-            if (r.type === 'company') {
-              void navigate({ to: typeRoutes.company, params: { id: r.id } });
-            } else {
-              // Detail pages for contact/client are still generic; fall back.
-              void navigate({ to: typeRoutes[r.type] });
-            }
+            void navigate({ to: typeRoutes[r.type], params: { id: r.id } });
           },
         });
       }

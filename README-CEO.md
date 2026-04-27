@@ -370,6 +370,14 @@ Setări tenant → Policy → "Require 2FA for ADMIN/OWNER" — la login refuză
 
 Toate cele 51 funcții de mai sus sunt funcționale. Vezi `STATUS.md` pentru detalii.
 
+### 🆕 Adăugat 2026-04-27 (sprint design + AI)
+
+- **Design v2 (frosted glass)** pe toate paginile — aspect modern, calm, "enterprise quiet", densitate ajustabilă (Confortabilă / Compactă), accent de brand per tenant (variabilă HSL persistată în browser).
+- **Cmd-K (paletă de comenzi)** — apasă **⌘K** sau **Ctrl+K** (sau "/" dacă nu scrii într-un câmp) și deschizi un dialog rapid: tasta câteva litere și sari direct la pagini sau la rezultate de căutare globală pe companii / contacte / clienți. Funcționează și fără diacritice ("cautari" găsește "Căutări").
+- **AI Morning Brief** pe Dashboard — un rezumat în 2-3 propoziții, în română, despre ce ai de făcut azi (task-uri restante, deal-uri pe închidere, win-uri și loss-uri în ultimele 24h), plus 3 acțiuni prioritare. Generat automat de AI (Gemini gratuit, fallback Claude); dacă nu există cheie AI configurată, sistemul calculează totuși un sumar deterministic din datele tale.
+- **Auto-înregistrare cont nou** — pagina publică `/register` permite crearea unui tenant nou + cont OWNER fără invitație de la admin. La fel, pagina `/forgot-password` permite resetarea parolei prin email; link-ul expiră în 30 minute și revocă toate sesiunile vechi.
+- **Pagini de detaliu pentru Contacte și Clienți** — înainte se redirecționa la lista generică; acum fiecare contact și client are propria pagină cu cronologie, apeluri, note, task-uri, reminder-uri, email-uri, fișiere, plus panoul GDPR (export / dezactivare).
+
 ### Planificat (rămase nice-to-have)
 
 **1. Gantt view Proiecte** — diagramă vizuală task-uri cu bare orizontale pe axă timp, dependențe, drum critic. Necesită biblioteca `gantt-task-react`. Efort estimat: 3-5 zile.

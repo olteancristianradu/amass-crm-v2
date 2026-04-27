@@ -34,6 +34,59 @@
 
 ## Entries
 
+### 2026-04-27 — Hallucinated GitHub Action SHA broke CI
+- **Sprint / area:** CI / dependency hygiene
+- **Symptom:** Daily workflow failed with `Unable to resolve action zaproxy/action-baseline@4ca41f5d416ba7c0a5e1c84a3ff9ec8efd34ee3a, unable to find version`. The pin claimed to be `# v0.12.0` but the SHA didn't exist in the upstream repo.
+- **Root cause:** A previous session inserted a fabricated 40-char hex SHA next to a real version tag comment. Reviewers see `# v0.12.0`, trust the comment, miss that the hash is wrong. GitHub Actions only fetches by SHA, so the comment is documentation only — there is no verification step.
+- **Fix:** `git ls-remote https://github.com/zaproxy/action-baseline.git` lists every real ref (`refs/tags/v0.14.0` → `7c4deb10e6261301961c86d65d54a516394f9aed`). Repinned to that verified SHA + bumped to v0.14.0 since we touched the line anyway.
+- **Lesson:** When pinning third-party Actions to a SHA, verify the SHA exists upstream — never type one in from memory or trust a "v0.x.x" comment without `git ls-remote` proof. The real SHA after `^{}` (dereferenced tag) is the canonical commit hash to pin.
+
+### 2026-04-27 — `react-hooks/set-state-in-effect` blocks `setX()` inside useEffect
+- **Sprint / area:** web / lint
+- **Symptom:** ESLint flagged `setQuery('')`, `setDebounced('')`, `setHighlighted(0)` inside a `useEffect(() => { if (open) {...} }, [open])` reset block, and `setHighlighted(0)` inside a clamp effect.
+- **Root cause:** React 19 + the `react-hooks` plugin now treats `setState()` calls in an effect body as a code smell — they cause cascading re-renders that the effect was supposed to avoid.
+- **Fix:** Two patterns:
+  1. **Mount-time reset:** split `<CommandPalette>` (gates on `open`) from `<PaletteBody>` (owns the state). When `open` flips false→true the outer remounts the body fresh, so default state is automatic — no reset effect needed.
+  2. **Clamp inline:** instead of an effect that clamps `highlighted` when rows shrink, derive the clamped value on every render: `const highlighted = rows.length === 0 ? 0 : Math.min(highlightedRaw, rows.length - 1)`.
+- **Lesson:** Don't reach for `useEffect(() => setState(default), [trigger])` — either remount via a parent gate or derive inline. Effects are for syncing with external systems; React state should be derived or initialised directly.
+
+### 2026-04-27 — `vi.fn()` cast to a real interface loses `.mock` access
+- **Sprint / area:** api / tests
+- **Symptom:** `Property 'mock' does not exist on type '(entry: AuditEntry) => Promise<void>'` when reading `h.audit.log.mock.calls[0]` in a service spec.
+- **Root cause:** The test stub is `{ log: vi.fn() } as unknown as ConstructorParameters<typeof Service>[1]`. The cast erases the `vi.Mock` wrapper from the type — TS sees only the real signature, which doesn't have `.mock`.
+- **Fix:** Wrap with `vi.mocked(h.audit.log).mock.calls[0][0]`. Vitest's `vi.mocked()` is exactly this: it asserts at the type level that the function is a mock without changing runtime behaviour.
+- **Lesson:** When you cast a mock to a typed constructor parameter, you give up direct `.mock` introspection on that handle. Reach for `vi.mocked()` whenever you need to inspect call args after a cast.
+
+### 2026-04-27 — Prisma model FK without inverse relation: tx.deal.company doesn't exist
+- **Sprint / area:** api / prisma
+- **Symptom:** `tx.deal.findMany({ select: { ..., company: { select: { name: true } } } })` typechecked at runtime but TS errored: `Property 'name' does not exist on type 'never'`.
+- **Root cause:** `Deal` has `companyId String?` but no `company Company? @relation(...)` inverse — only `pipeline` and `stage` relations are declared. Prisma generates `companyId` as a foreign-key column without the navigation property, so `select: { company: ... }` resolves to `never`.
+- **Fix:** Two-step query — fetch `companyId` on the deal, then `tx.company.findMany({ where: { id: { in: companyIds } } })` and join in JS via a `Map`.
+- **Lesson:** When adding a Prisma include/select for a relation, double-check that the inverse exists in `schema.prisma`. A bare FK column without `@relation(...)` won't surface as a navigable property even if the column itself is queryable.
+
+### 2026-04-27 — Coverage push: the right unit-spec skeleton for service-level tests
+- **Sprint / area:** api / test patterns
+- **Symptom:** Inconsistency across early specs — some used `runWithTenant(tenantId, fn)` (2-arg), some `runWithTenant(tenantId, level, fn)` (3-arg), some forgot to mock side-effect deps (audit, embedding, workflows).
+- **Fix / pattern:** Every new service spec uses this `build()` skeleton:
+  ```ts
+  vi.mock('../../infra/prisma/tenant-context', () => ({
+    requireTenantContext: vi.fn(() => ({ tenantId: 'tenant-1', userId: 'user-1' })),
+  }));
+  function build() {
+    const tx = { /* every Prisma model the service touches */ };
+    const prisma = {
+      runWithTenant: vi.fn(async (
+        _id: string,
+        levelOrFn: string | ((t: typeof tx) => unknown),
+        fn?: (t: typeof tx) => unknown,
+      ) => (typeof levelOrFn === 'function' ? levelOrFn : fn!)(tx)),
+    } as unknown as ConstructorParameters<typeof Service>[0];
+    // …mock audit / activities / embedding / workflows / queue identically
+  }
+  ```
+  The dual-overload `runWithTenant` mock means tests work whether the service calls the 2-arg or 3-arg form. Pattern shipped: `companies`, `contacts`, `clients`, `contracts`, `contact-segments`, `forecasting`, `duplicates`, `tasks`, `email`, `workflows`, `totp`, `brief`.
+- **Lesson:** Standardise the spec scaffold across services so coverage rounds compose without rewriting boilerplate; keep the dual-arity `runWithTenant` mock so a service refactor between read-only and read-write paths doesn't break specs.
+
 ### 2026-04-25 — Schema drift: prisma migrate diff is correct, generate USING casts by hand
 - **Sprint / area:** infra / prisma
 - **Symptom:** CI `prisma-drift` job failed on `main` with ~100 diff entries — 14 missing enum types, dozens of TEXT→enum conversions, index renames, and FK redefinitions.
