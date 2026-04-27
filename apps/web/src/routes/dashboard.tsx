@@ -2,9 +2,13 @@ import { createRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowUpRight,
+  Bell,
   Briefcase,
+  ClipboardList,
+  Handshake,
   Mail,
   PhoneCall,
+  RefreshCw,
   Sparkles,
   Trophy,
 } from 'lucide-react';
@@ -43,6 +47,20 @@ interface DashboardStats {
   period: { from: string; to: string };
 }
 
+type BriefIcon = 'TASK' | 'CALL' | 'EMAIL' | 'DEAL' | 'REMINDER';
+interface BriefPriority {
+  action: string;
+  context?: string;
+  icon: BriefIcon;
+}
+interface MorningBrief {
+  summary: string;
+  priorities: BriefPriority[];
+  generatedAt: string;
+  cached: boolean;
+  source: 'ai' | 'static';
+}
+
 function Dashboard(): JSX.Element {
   const user = useAuthStore((s) => s.user);
 
@@ -54,6 +72,12 @@ function Dashboard(): JSX.Element {
     queryKey: ['reports-dashboard', fromDate, toDate],
     queryFn: () => api.get<DashboardStats>('/reports/dashboard', { from: fromDate, to: toDate }),
     staleTime: 5 * 60 * 1000,
+  });
+
+  const brief = useQuery({
+    queryKey: ['ai-brief'],
+    queryFn: () => api.get<MorningBrief>('/ai/brief'),
+    staleTime: 25 * 60 * 1000, // backend caches 30min; refresh slightly under
   });
 
   // Greeting based on local time-of-day. Backend AI Brief endpoint
@@ -73,10 +97,19 @@ function Dashboard(): JSX.Element {
 
       <QueryError isError={isError} error={error} />
 
-      {/* AI Brief — hero strip. Static copy until /dashboard/brief endpoint
-          ships in a follow-up. The card already lives where the real Claude
-          paragraph will land, so when it arrives no layout shifts. */}
-      <BriefStrip data={data} />
+      {/* AI Brief — hero strip. Backed by /ai/brief (Gemini/Claude with
+          static fallback, cached 30min in Redis). When the call is in
+          flight or fails we fall back to a deterministic summary derived
+          from the dashboard stats so the layout never collapses. */}
+      <BriefStrip
+        data={data}
+        brief={brief.data}
+        isLoading={brief.isPending}
+        onRefresh={() => {
+          void brief.refetch();
+        }}
+        isRefreshing={brief.isFetching}
+      />
 
       {/* KPI grid */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -208,52 +241,112 @@ function Dashboard(): JSX.Element {
 }
 
 /**
- * Hero "AI brief" strip at the top of the dashboard. Today renders a
- * static, deterministic copy derived from the dashboard stats; once
- * /dashboard/brief lands in the API (Claude-generated 2-3 sentence
- * morning summary, cached 1h per tenant+user), this component will
- * swap to the live endpoint without changing the layout.
+ * Hero "AI brief" strip at the top of the dashboard. Backed by /ai/brief.
+ * While the request is in flight (or if it errors out) it falls back to a
+ * deterministic summary built from the dashboard reports payload so the
+ * layout never shifts.
  */
-function BriefStrip({ data }: { data: DashboardStats | undefined }): JSX.Element {
-  let body: React.ReactNode;
-  if (!data) {
-    body = (
-      <p className="text-sm text-muted-foreground">Se încarcă rezumatul…</p>
-    );
-  } else {
-    const open = data.deals.open;
-    const won = data.deals.won;
-    const wonValue = data.deals.wonValue.toLocaleString('ro-RO', { maximumFractionDigits: 0 });
-    const calls = data.calls.completed;
-    const emails = data.emails.sent;
-    body = (
-      <p className="text-sm leading-relaxed text-foreground">
-        În ultimele 30 de zile au fost <strong>{won}</strong> deal-uri câștigate (
-        <span className="tabular-nums">{wonValue} RON</span>) și <strong>{open}</strong>{' '}
-        rămase deschise. Echipa ta a avut <strong className="tabular-nums">{calls}</strong> apeluri
-        finalizate și a trimis <strong className="tabular-nums">{emails}</strong> email-uri.{' '}
-        <span className="text-muted-foreground">
-          Rezumatul AI complet (urgențe, blocaje, recomandări) ajunge aici curând.
-        </span>
-      </p>
-    );
-  }
+const BRIEF_ICONS: Record<BriefPriority['icon'], React.ComponentType<{ size?: number }>> = {
+  TASK: ClipboardList,
+  CALL: PhoneCall,
+  EMAIL: Mail,
+  DEAL: Handshake,
+  REMINDER: Bell,
+};
+
+function BriefStrip({
+  data,
+  brief,
+  isLoading,
+  onRefresh,
+  isRefreshing,
+}: {
+  data: DashboardStats | undefined;
+  brief: MorningBrief | undefined;
+  isLoading: boolean;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+}): JSX.Element {
+  const summary = brief?.summary ?? buildFallbackSummary(data);
+  const priorities = brief?.priorities ?? [];
+  const showSummary = isLoading && !brief ? null : summary;
 
   return (
     <GlassCard elevation="elevated" className="mb-6 overflow-hidden p-5">
       <div className="flex items-start gap-4">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <span
+          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+            brief?.source === 'static'
+              ? 'bg-secondary text-muted-foreground'
+              : 'bg-primary text-primary-foreground'
+          }`}
+        >
           <Sparkles size={16} />
         </span>
-        <div className="flex-1">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Brief AI
-          </p>
-          {body}
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Brief AI
+              {brief?.source === 'static' && (
+                <span className="ml-2 normal-case tracking-normal text-muted-foreground/70">
+                  (rezumat deterministic — adaugă cheia AI pentru sumar generat)
+                </span>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-1 rounded-md p-1 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+              aria-label="Reîmprospătează brief-ul"
+              title="Reîmprospătează"
+            >
+              <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
+          </div>
+
+          {isLoading && !brief && (
+            <p className="text-sm text-muted-foreground">Se încarcă rezumatul…</p>
+          )}
+          {showSummary && (
+            <p className="text-sm leading-relaxed text-foreground">{showSummary}</p>
+          )}
+
+          {priorities.length > 0 && (
+            <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+              {priorities.map((p, i) => {
+                const Icon = BRIEF_ICONS[p.icon] ?? ClipboardList;
+                return (
+                  <li
+                    key={`${i}-${p.action}`}
+                    className="flex min-w-0 items-start gap-2 rounded-md border border-border/60 bg-card/40 px-3 py-2"
+                  >
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+                      <Icon size={12} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium leading-snug">{p.action}</p>
+                      {p.context && (
+                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                          {p.context}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </div>
     </GlassCard>
   );
+}
+
+function buildFallbackSummary(data: DashboardStats | undefined): string | null {
+  if (!data) return null;
+  const wonValue = data.deals.wonValue.toLocaleString('ro-RO', { maximumFractionDigits: 0 });
+  return `În ultimele 30 de zile au fost ${data.deals.won} deal-uri câștigate (${wonValue} RON) și ${data.deals.open} rămase deschise. ${data.calls.completed} apeluri finalizate, ${data.emails.sent} email-uri trimise.`;
 }
 
 interface KpiTileProps {
