@@ -4,13 +4,23 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState } from 'react';
+import { Building2, Download, Plus, Search, Trash2 } from 'lucide-react';
 import { authedRoute } from './authed';
 import { companiesApi } from '@/features/companies/api';
 import { CreateCompanySchema, type CreateCompanyDto, type RelationshipStatus } from '@amass/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { GlassCard } from '@/components/ui/glass-card';
+import {
+  BulkActionsBar,
+  EmptyState,
+  ListSurface,
+  PageHeader,
+  StatusBadge,
+  type StatusBadgeTone,
+  Toolbar,
+} from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -59,13 +69,19 @@ function CompaniesListPage(): JSX.Element {
   function toggleOne(id: string): void {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
   function handleBulkDelete(): void {
-    if (!confirm(`Ștergi ${selected.size} compani${selected.size === 1 ? 'e' : 'i'}? Acțiunea este ireversibilă.`)) return;
+    if (
+      !confirm(
+        `Ștergi ${selected.size} compani${selected.size === 1 ? 'e' : 'i'}? Acțiunea este ireversibilă.`,
+      )
+    )
+      return;
     bulkDeleteMut.mutate([...selected]);
   }
 
@@ -85,43 +101,63 @@ function CompaniesListPage(): JSX.Element {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Companii</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportCsv}>
-            Export CSV {selected.size > 0 ? `(${selected.size})` : '(toate)'}
-          </Button>
-          <Button onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Anulează' : '+ Companie nouă'}
-          </Button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Companii"
+        subtitle="Toate organizațiile B2B din portofoliul tău."
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={handleExportCsv}>
+              <Download size={14} className="mr-1.5" />
+              Export {selected.size > 0 ? `(${selected.size})` : ''}
+            </Button>
+            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+              <Plus size={14} className="mr-1.5" />
+              {showForm ? 'Anulează' : 'Companie nouă'}
+            </Button>
+          </>
+        }
+      />
 
-      <div className="flex items-center gap-2">
-        <Input
-          placeholder="Caută după nume, CUI, email…"
-          defaultValue={q ?? ''}
-          onChange={(e) => {
-            void navigate({ search: { q: e.target.value || undefined } });
-          }}
-          className="max-w-sm"
-        />
-        {selected.size > 0 && (
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={bulkDeleteMut.isPending}
-            onClick={handleBulkDelete}
-          >
-            Șterge {selected.size} selectate
-          </Button>
-        )}
-      </div>
+      <Toolbar>
+        <div className="relative flex-1 sm:max-w-sm">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            placeholder="Caută după nume, CUI, email…"
+            defaultValue={q ?? ''}
+            onChange={(e) => {
+              void navigate({ search: { q: e.target.value || undefined } });
+            }}
+            className="pl-9"
+          />
+        </div>
+      </Toolbar>
+
+      <BulkActionsBar
+        count={selected.size}
+        onClear={() => setSelected(new Set())}
+      >
+        <Button
+          variant="destructive"
+          size="sm"
+          disabled={bulkDeleteMut.isPending}
+          onClick={handleBulkDelete}
+        >
+          <Trash2 size={14} className="mr-1.5" />
+          {bulkDeleteMut.isPending ? 'Se șterge…' : 'Șterge'}
+        </Button>
+      </BulkActionsBar>
 
       {showForm && <NewCompanyForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <Card><TableSkeleton rows={6} cols={5} /></Card>}
+      {isLoading && (
+        <ListSurface>
+          <TableSkeleton rows={6} cols={6} />
+        </ListSurface>
+      )}
       {isError && (
         <p className="text-sm text-destructive">
           Eroare: {error instanceof ApiError ? error.message : 'necunoscută'}
@@ -129,72 +165,93 @@ function CompaniesListPage(): JSX.Element {
       )}
 
       {data && (
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/50 text-left">
-                <tr>
-                  <th scope="col" className="px-3 py-2 w-8">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleAll}
-                      className="rounded"
-                    />
-                  </th>
-                  <th scope="col" className="px-4 py-2 font-medium">Nume</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
-                  <th scope="col" className="px-4 py-2 font-medium">CUI</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Industrie</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Oraș</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Creat</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      Nicio companie. Adaugă prima companie folosind butonul de mai sus.
-                    </td>
-                  </tr>
-                )}
-                {rows.map((c) => (
-                  <tr
-                    key={c.id}
-                    className={`border-b last:border-0 hover:bg-muted/30 ${selected.has(c.id) ? 'bg-primary/5' : ''}`}
-                  >
-                    <td className="px-3 py-2">
+        <ListSurface>
+          {rows.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              title={q ? 'Nicio companie găsită' : 'Nicio companie încă'}
+              description={
+                q
+                  ? `Nu există companii care să se potrivească cu "${q}". Încearcă alți termeni sau adaugă o companie nouă.`
+                  : 'Adaugă prima companie folosind butonul din dreapta sus, sau importă un CSV din meniul Operațional.'
+              }
+              action={
+                !q && (
+                  <Button size="sm" onClick={() => setShowForm(true)}>
+                    <Plus size={14} className="mr-1.5" />
+                    Companie nouă
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/70 bg-secondary/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th scope="col" className="w-10 px-3 py-3">
                       <input
                         type="checkbox"
-                        checked={selected.has(c.id)}
-                        onChange={() => toggleOne(c.id)}
+                        checked={allSelected}
+                        onChange={toggleAll}
                         className="rounded"
+                        aria-label="Selectează tot"
                       />
-                    </td>
-                    <td className="px-4 py-2">
-                      <Link
-                        to="/app/companies/$id"
-                        params={{ id: c.id }}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {c.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2">
-                      <RelationshipBadge status={(c as { relationshipStatus?: RelationshipStatus }).relationshipStatus} />
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs">{c.vatNumber ?? '—'}</td>
-                    <td className="px-4 py-2">{c.industry ?? '—'}</td>
-                    <td className="px-4 py-2">{c.city ?? '—'}</td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground">
-                      {new Date(c.createdAt).toLocaleDateString('ro-RO')}
-                    </td>
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">Nume</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Status</th>
+                    <th scope="col" className="px-4 py-3 font-medium">CUI</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Industrie</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Oraș</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Creat</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+                </thead>
+                <tbody>
+                  {rows.map((c) => (
+                    <tr
+                      key={c.id}
+                      className={`border-b border-border/40 last:border-0 transition-colors hover:bg-secondary/40 ${
+                        selected.has(c.id) ? 'bg-primary/[0.03]' : ''
+                      }`}
+                    >
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(c.id)}
+                          onChange={() => toggleOne(c.id)}
+                          className="rounded"
+                          aria-label={`Selectează ${c.name}`}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          to="/app/companies/$id"
+                          params={{ id: c.id }}
+                          className="font-medium text-foreground underline-offset-4 hover:underline"
+                        >
+                          {c.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <RelationshipBadge
+                          status={(c as { relationshipStatus?: RelationshipStatus }).relationshipStatus}
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground">
+                        {c.vatNumber ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{c.industry ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{c.city ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs tabular-nums text-muted-foreground">
+                        {new Date(c.createdAt).toLocaleDateString('ro-RO')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </ListSurface>
       )}
     </div>
   );
@@ -221,84 +278,85 @@ function NewCompanyForm({ onDone }: { onDone: () => void }): JSX.Element {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Companie nouă</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form
-          onSubmit={handleSubmit((v) => createMut.mutate(v))}
-          className="grid gap-3 md:grid-cols-2"
-        >
-          <div className="space-y-1">
-            <Label htmlFor="name">Nume *</Label>
-            <Input id="name" {...register('name')} />
-            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="vatNumber">CUI</Label>
-            <Input id="vatNumber" {...register('vatNumber')} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="industry">Industrie</Label>
-            <Input id="industry" {...register('industry')} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="relationshipStatus">Status relație</Label>
-            <select
-              id="relationshipStatus"
-              {...register('relationshipStatus')}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              <option value="">— selectează —</option>
-              <option value="LEAD">Lead</option>
-              <option value="PROSPECT">Prospect</option>
-              <option value="ACTIVE">Activ</option>
-              <option value="INACTIVE">Inactiv</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="leadSource">Sursă lead</Label>
-            <select
-              id="leadSource"
-              {...register('leadSource')}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              <option value="">— selectează —</option>
-              <option value="REFERRAL">Recomandare</option>
-              <option value="WEB">Website</option>
-              <option value="COLD_CALL">Apel rece</option>
-              <option value="EVENT">Eveniment</option>
-              <option value="PARTNER">Partener</option>
-              <option value="SOCIAL">Social media</option>
-              <option value="OTHER">Altele</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" {...register('email')} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="phone">Telefon</Label>
-            <Input id="phone" {...register('phone')} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="city">Oraș</Label>
-            <Input id="city" {...register('city')} />
-          </div>
-          <div className="md:col-span-2">
-            {createMut.isError && (
-              <p className="mb-2 text-sm text-destructive">
-                {createMut.error instanceof ApiError ? createMut.error.message : 'Eroare'}
-              </p>
-            )}
+    <GlassCard className="mb-4 p-6">
+      <h2 className="mb-4 text-lg font-medium">Companie nouă</h2>
+      <form
+        onSubmit={handleSubmit((v) => createMut.mutate(v))}
+        className="grid gap-4 md:grid-cols-2"
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="name">Nume *</Label>
+          <Input id="name" {...register('name')} />
+          {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="vatNumber">CUI</Label>
+          <Input id="vatNumber" {...register('vatNumber')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="industry">Industrie</Label>
+          <Input id="industry" {...register('industry')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="relationshipStatus">Status relație</Label>
+          <select
+            id="relationshipStatus"
+            {...register('relationshipStatus')}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="">— selectează —</option>
+            <option value="LEAD">Lead</option>
+            <option value="PROSPECT">Prospect</option>
+            <option value="ACTIVE">Activ</option>
+            <option value="INACTIVE">Inactiv</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="leadSource">Sursă lead</Label>
+          <select
+            id="leadSource"
+            {...register('leadSource')}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="">— selectează —</option>
+            <option value="REFERRAL">Recomandare</option>
+            <option value="WEB">Website</option>
+            <option value="COLD_CALL">Apel rece</option>
+            <option value="EVENT">Eveniment</option>
+            <option value="PARTNER">Partener</option>
+            <option value="SOCIAL">Social media</option>
+            <option value="OTHER">Altele</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" {...register('email')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="phone">Telefon</Label>
+          <Input id="phone" {...register('phone')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="city">Oraș</Label>
+          <Input id="city" {...register('city')} />
+        </div>
+        <div className="md:col-span-2">
+          {createMut.isError && (
+            <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {createMut.error instanceof ApiError ? createMut.error.message : 'Eroare'}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Anulează
+            </Button>
             <Button type="submit" disabled={isSubmitting || createMut.isPending}>
               {createMut.isPending ? 'Se salvează…' : 'Salvează'}
             </Button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </form>
+    </GlassCard>
   );
 }
 
@@ -309,18 +367,22 @@ const RELATIONSHIP_LABELS: Record<RelationshipStatus, string> = {
   INACTIVE: 'Inactiv',
 };
 
-const RELATIONSHIP_COLORS: Record<RelationshipStatus, string> = {
-  LEAD: 'bg-blue-100 text-blue-800',
-  PROSPECT: 'bg-yellow-100 text-yellow-800',
-  ACTIVE: 'bg-green-100 text-green-800',
-  INACTIVE: 'bg-gray-100 text-gray-600',
+const RELATIONSHIP_TONES: Record<RelationshipStatus, StatusBadgeTone> = {
+  LEAD: 'blue',
+  PROSPECT: 'amber',
+  ACTIVE: 'green',
+  INACTIVE: 'neutral',
 };
 
-export function RelationshipBadge({ status }: { status: RelationshipStatus | null | undefined }): JSX.Element {
+export function RelationshipBadge({
+  status,
+}: {
+  status: RelationshipStatus | null | undefined;
+}): JSX.Element {
   if (!status) return <span className="text-muted-foreground">—</span>;
   return (
-    <span className={`rounded px-2 py-0.5 text-xs font-medium ${RELATIONSHIP_COLORS[status]}`}>
+    <StatusBadge tone={RELATIONSHIP_TONES[status]}>
       {RELATIONSHIP_LABELS[status]}
-    </span>
+    </StatusBadge>
   );
 }
