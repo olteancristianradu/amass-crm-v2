@@ -87,10 +87,10 @@ export class ReportsService {
         SUM(value)                               AS total_value,
         SUM(value) FILTER (WHERE status = 'WON') AS won_value
       FROM deals
-      WHERE tenant_id   = ${tenantId}
-        AND deleted_at  IS NULL
-        AND created_at >= ${from}::date
-        AND created_at <= ${to}::date + INTERVAL '1 day'
+      WHERE "tenantId"   = ${tenantId}
+        AND "deletedAt"  IS NULL
+        AND "createdAt" >= ${from}::date
+        AND "createdAt" <= ${to}::date + INTERVAL '1 day'
     `);
     const r = rows[0];
     const total = Number(r.total ?? 0);
@@ -111,17 +111,17 @@ export class ReportsService {
   private async getPipelineStats(tenantId: string, from: string, to: string): Promise<PipelineStageStats[]> {
     return this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<PipelineStageStats[]>`
       SELECT
-        d.stage_id     AS "stageId",
+        d."stageId"    AS "stageId",
         ps.name        AS "stageName",
         COUNT(*)       AS count,
         COALESCE(SUM(d.value), 0) AS "totalValue"
       FROM deals d
-      JOIN pipeline_stages ps ON ps.id = d.stage_id
-      WHERE d.tenant_id   = ${tenantId}
-        AND d.deleted_at  IS NULL
-        AND d.created_at >= ${from}::date
-        AND d.created_at <= ${to}::date + INTERVAL '1 day'
-      GROUP BY d.stage_id, ps.name
+      JOIN pipeline_stages ps ON ps.id = d."stageId"
+      WHERE d."tenantId"   = ${tenantId}
+        AND d."deletedAt"  IS NULL
+        AND d."createdAt" >= ${from}::date
+        AND d."createdAt" <= ${to}::date + INTERVAL '1 day'
+      GROUP BY d."stageId", ps.name
       ORDER BY COUNT(*) DESC
     `);
   }
@@ -130,9 +130,9 @@ export class ReportsService {
     const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{ action: string; count: bigint }>>`
       SELECT action, COUNT(*) AS count
       FROM activities
-      WHERE tenant_id   = ${tenantId}
-        AND created_at >= ${from}::date
-        AND created_at <= ${to}::date + INTERVAL '1 day'
+      WHERE "tenantId"   = ${tenantId}
+        AND "createdAt" >= ${from}::date
+        AND "createdAt" <= ${to}::date + INTERVAL '1 day'
       GROUP BY action
       ORDER BY COUNT(*) DESC
       LIMIT 20
@@ -148,9 +148,9 @@ export class ReportsService {
     const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{ status: string; count: bigint }>>`
       SELECT status, COUNT(*) AS count
       FROM email_messages
-      WHERE tenant_id   = ${tenantId}
-        AND created_at >= ${from}::date
-        AND created_at <= ${to}::date + INTERVAL '1 day'
+      WHERE "tenantId"   = ${tenantId}
+        AND "createdAt" >= ${from}::date
+        AND "createdAt" <= ${to}::date + INTERVAL '1 day'
       GROUP BY status
     `);
     const byStatus = Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
@@ -169,12 +169,12 @@ export class ReportsService {
       SELECT
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed,
-        SUM(duration_sec)                             AS total_duration
+        SUM("durationSec")                            AS total_duration
       FROM calls
-      WHERE tenant_id   = ${tenantId}
-        AND deleted_at  IS NULL
-        AND created_at >= ${from}::date
-        AND created_at <= ${to}::date + INTERVAL '1 day'
+      WHERE "tenantId"   = ${tenantId}
+        AND "deletedAt"  IS NULL
+        AND "createdAt" >= ${from}::date
+        AND "createdAt" <= ${to}::date + INTERVAL '1 day'
     `);
     const r = rows[0];
     const total = Number(r.total ?? 0);
@@ -288,15 +288,15 @@ export class ReportsService {
       period: Date; created: bigint; won: bigint; revenue: string | null;
     }>>`
       SELECT
-        date_trunc(${groupBy}, created_at)            AS period,
+        date_trunc(${groupBy}, "createdAt")           AS period,
         COUNT(*)                                      AS created,
         COUNT(*) FILTER (WHERE status = 'WON')        AS won,
         SUM(value) FILTER (WHERE status = 'WON')      AS revenue
       FROM deals
-      WHERE tenant_id   = ${tenantId}
-        AND deleted_at  IS NULL
-        AND created_at >= ${from}::date
-        AND created_at <= ${to}::date + INTERVAL '1 day'
+      WHERE "tenantId"   = ${tenantId}
+        AND "deletedAt"  IS NULL
+        AND "createdAt" >= ${from}::date
+        AND "createdAt" <= ${to}::date + INTERVAL '1 day'
       GROUP BY 1
       ORDER BY 1 ASC
     `);
