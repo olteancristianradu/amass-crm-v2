@@ -1,6 +1,7 @@
 import { createRoute } from '@tanstack/react-router';
 import { authedRoute } from './authed';
 import { GlassCard, GlassPill, StatusDot, type StatusTone } from '@/components/ui/glass-card';
+import { useUiPreferencesStore } from '@/stores/ui-preferences';
 
 /**
  * Living style guide for the v2 frosted-glass design system. Used during
@@ -68,6 +69,14 @@ function DesignPreview() {
         </GlassCard>
       </Section>
 
+      <Section title="Density toggle">
+        <DensityDemo />
+      </Section>
+
+      <Section title="Tenant accent">
+        <AccentDemo />
+      </Section>
+
       <Section title="Layout — Kanban-style flow (mockup reference)">
         <GlassCard className="p-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -101,6 +110,91 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground">{title}</h2>
       {children}
     </section>
+  );
+}
+
+function DensityDemo() {
+  const density = useUiPreferencesStore((s) => s.density);
+  const setDensity = useUiPreferencesStore((s) => s.setDensity);
+  return (
+    <GlassCard className="p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm">Densitate curentă:</span>
+        <GlassPill active={density === 'comfortable'} onClick={() => setDensity('comfortable')}>
+          Confortabil
+        </GlassPill>
+        <GlassPill active={density === 'compact'} onClick={() => setDensity('compact')}>
+          Compact
+        </GlassPill>
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">
+        Modifică <code className="rounded bg-secondary px-1 py-0.5 text-xs">--density-scale</code>{' '}
+        global. Lista de mai jos folosește <code className="rounded bg-secondary px-1 py-0.5 text-xs">.dense-px</code>,{' '}
+        <code className="rounded bg-secondary px-1 py-0.5 text-xs">.dense-py</code>,{' '}
+        <code className="rounded bg-secondary px-1 py-0.5 text-xs">.dense-h</code> pentru a se strânge cu ~15%.
+      </p>
+      <ul className="mt-4 dense-gap-y space-y-px">
+        {['Apel ratat — Cristian Olteanu', 'Reminder: follow-up ACME', 'Deal won: Magnetic SRL', 'Quote v2 trimisă'].map((t) => (
+          <li
+            key={t}
+            className="dense-h dense-px flex items-center gap-3 rounded-md border border-border/50 bg-card/60 text-sm"
+          >
+            <StatusDot tone="blue" />
+            {t}
+          </li>
+        ))}
+      </ul>
+    </GlassCard>
+  );
+}
+
+const ACCENT_PRESETS: { label: string; hsl: string }[] = [
+  { label: 'Default (negru)', hsl: '222 47% 11%' },
+  { label: 'Albastru',         hsl: '217 91% 60%' },
+  { label: 'Verde',            hsl: '142 71% 45%' },
+  { label: 'Roz',              hsl: '339 90% 67%' },
+  { label: 'Chihlimbar',       hsl: '38 92% 50%' },
+];
+
+function AccentDemo() {
+  const accent = useUiPreferencesStore((s) => s.accentTenant);
+  const setAccent = useUiPreferencesStore((s) => s.setAccentTenant);
+  return (
+    <GlassCard className="p-6">
+      <p className="mb-3 text-sm">
+        Per-tenant accent. Se aplică pe focus rings, status dots tematici și unele butoane (în viitor).
+        Default = aceeași valoare ca <code className="rounded bg-secondary px-1 py-0.5 text-xs">--primary</code>.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {ACCENT_PRESETS.map((p) => (
+          <button
+            key={p.hsl}
+            type="button"
+            onClick={() => setAccent(p.hsl)}
+            className="flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1.5 text-xs hover:bg-card"
+            data-active={accent === p.hsl ? 'true' : undefined}
+          >
+            <span
+              className="inline-block h-3 w-3 rounded-full"
+              style={{ backgroundColor: `hsl(${p.hsl})` }}
+            />
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <span className="text-xs text-muted-foreground">Demo focus ring:</span>
+        <input
+          type="text"
+          placeholder="Click + Tab pentru focus"
+          className="rounded-md border border-border bg-card/70 px-3 py-1.5 text-sm outline-none focus-visible:ring-2"
+          style={{ outlineColor: 'transparent', boxShadow: undefined }}
+        />
+        <span className="text-[11px] text-muted-foreground">
+          (HSL curent: <code>{accent}</code>)
+        </span>
+      </div>
+    </GlassCard>
   );
 }
 

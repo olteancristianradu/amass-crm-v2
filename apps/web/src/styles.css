@@ -62,6 +62,15 @@
 
     /* Larger radius across the board — cards are visibly rounded. */
     --radius: 1rem;
+
+    /* Density scale — multiplied into utility classes that read it
+     * (`.dense-pad`, `.dense-h`). Default 1; compact mode sets 0.85.
+     * Driven by `useUiPreferencesStore` writing to <html data-density>. */
+    --density-scale: 1;
+
+    /* Per-tenant accent. Defaults to --primary near-black; tenant
+     * branding override is applied at runtime by the same store. */
+    --accent-tenant: 222 47% 11%;
   }
 
   /* Dark mode is OFF for now — design system locked to light glass. The
@@ -175,4 +184,11 @@
   .status-dot--amber  { color: hsl(var(--accent-amber)); }
   .status-dot--green  { color: hsl(var(--accent-green)); }
   .status-dot--muted  { color: hsl(var(--muted-foreground) / 0.5); }
+
+  /* Density-aware spacing helpers. Use on container rows / nav items
+   * that should tighten in compact mode. Reads --density-scale. */
+  .dense-px { padding-left: calc(0.75rem * var(--density-scale)); padding-right: calc(0.75rem * var(--density-scale)); }
+  .dense-py { padding-top:  calc(0.5rem  * var(--density-scale)); padding-bottom: calc(0.5rem  * var(--density-scale)); }
+  .dense-h  { height:        calc(2.25rem * var(--density-scale)); }
+  .dense-gap-y > * + * { margin-top: calc(0.25rem * var(--density-scale)); }
 }

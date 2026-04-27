@@ -20,6 +20,7 @@
     "@tanstack/react-router": "^1.168.23",
     "@tanstack/react-table": "^8.20.5",
     "clsx": "^2.1.1",
+    "lucide-react": "^1.11.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.53.0",
