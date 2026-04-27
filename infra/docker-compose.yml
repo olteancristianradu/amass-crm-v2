@@ -300,6 +300,61 @@ services:
     depends_on:
       - prometheus
 
+  # ── Mock services for local verification ───────────────────────────
+  # All under `--profile mocks`, so a normal `docker compose up` doesn't
+  # boot them. Used by pnpm mocks:up + the verification suite.
+
+  # Fake SMTP server with a web UI inbox at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: amass-mailpit
+    profiles: ["mocks"]
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "5000"
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    volumes:
+      - mailpit_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8025/api/v1/info"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Official Stripe API mock — supports the full Stripe REST surface
+  # against fixtures. We point STRIPE clients at it via `host: stripe-mock`.
+  stripe-mock:
+    image: stripe/stripe-mock:v0.193.0
+    container_name: amass-stripe-mock
+    profiles: ["mocks"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:12111:12111"
+      - "127.0.0.1:12112:12112"
+
+  # Custom Express container exposing Twilio, Meta WhatsApp, Google OAuth,
+  # Microsoft OAuth, ANAF e-Factura and a generic webhook listener.
+  mock-services:
+    build:
+      context: ../apps/mock-services
+      dockerfile: Dockerfile
+    container_name: amass-mocks
+    profiles: ["mocks"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001" # twilio
+      - "127.0.0.1:3002:3002" # meta-whatsapp
+      - "127.0.0.1:3003:3003" # google-oauth
+      - "127.0.0.1:3004:3004" # microsoft-oauth
+      - "127.0.0.1:3005:3005" # anaf
+      - "127.0.0.1:3006:3006" # webhook listener
+      - "127.0.0.1:3007:3007" # ai (openai/gemini fallback)
+
 volumes:
   postgres_data:
   redis_data:
@@ -308,3 +363,4 @@ volumes:
   caddy_config:
   prometheus_data:
   grafana_data:
+  mailpit_data:

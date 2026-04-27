@@ -19,7 +19,9 @@
 	}
 
 	# Everything else → frontend
+	# web container runs nginx-unprivileged on 8080 (apps/web/Dockerfile),
+	# not 80 — hitting :80 here used to 502 on every non-/api request.
 	handle {
-		reverse_proxy web:80
+		reverse_proxy web:8080
 	}
 }

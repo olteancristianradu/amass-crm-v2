@@ -14,7 +14,10 @@
     "typecheck": "turbo run typecheck",
     "docker:up": "docker compose -f infra/docker-compose.yml up -d",
     "docker:down": "docker compose -f infra/docker-compose.yml down",
-    "docker:logs": "docker compose -f infra/docker-compose.yml logs -f"
+    "docker:logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "mocks:up": "docker compose -f infra/docker-compose.yml --profile mocks up -d mailpit stripe-mock mock-services",
+    "mocks:down": "docker compose -f infra/docker-compose.yml --profile mocks rm -fsv mailpit stripe-mock mock-services",
+    "mocks:logs": "docker compose -f infra/docker-compose.yml --profile mocks logs -f mailpit stripe-mock mock-services"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
