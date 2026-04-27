@@ -1,10 +1,12 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
+import { CheckSquare, Trash2 } from 'lucide-react';
 import { authedRoute } from './authed';
 import { tasksApi } from '@/features/tasks/api';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { GlassCard } from '@/components/ui/glass-card';
+import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import type { Task, TaskStatus } from '@/lib/types';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -23,78 +25,78 @@ function TasksMinePage(): JSX.Element {
     queryFn: () => tasksApi.listMine({ status, limit: 100 }),
   });
 
-  // L-4: optimistic updates so checking / unchecking a task feels instant.
-  // Since we filter by status, flipping the status removes the row from the
-  // current tab immediately — server resync happens in the background.
-  const completeMut = useMutation({
-    mutationFn: (id: string) => tasksApi.complete(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ['tasks'] });
-      const prev = qc.getQueriesData<Task[]>({ queryKey: ['tasks'] });
-      for (const [key, list] of prev) {
-        if (!list) continue;
-        qc.setQueryData<Task[]>(key, list.filter((t) => t.id !== id));
-      }
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => {
-      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
-  });
-  const reopenMut = useMutation({
-    mutationFn: (id: string) => tasksApi.reopen(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ['tasks'] });
-      const prev = qc.getQueriesData<Task[]>({ queryKey: ['tasks'] });
-      for (const [key, list] of prev) {
-        if (!list) continue;
-        qc.setQueryData<Task[]>(key, list.filter((t) => t.id !== id));
-      }
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => {
-      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
-  });
-  const removeMut = useMutation({
-    mutationFn: (id: string) => tasksApi.remove(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ['tasks'] });
-      const prev = qc.getQueriesData<Task[]>({ queryKey: ['tasks'] });
-      for (const [key, list] of prev) {
-        if (!list) continue;
-        qc.setQueryData<Task[]>(key, list.filter((t) => t.id !== id));
-      }
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => {
-      for (const [key, list] of ctx?.prev ?? []) qc.setQueryData(key, list);
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
-  });
+  // Optimistic mutations — checking/unchecking flips the row out instantly.
+  // Each mutation does the same thing (remove the matching row from every
+  // ['tasks', ...] cache, refetch on settle) but rules-of-hooks forbids
+  // factoring into a helper, so we inline.
+  function optimisticRemove<TVars>(
+    fn: (vars: TVars) => Promise<unknown>,
+    pickId: (vars: TVars) => string,
+  ) {
+    return {
+      mutationFn: fn,
+      onMutate: async (vars: TVars) => {
+        const id = pickId(vars);
+        await qc.cancelQueries({ queryKey: ['tasks'] });
+        const prev = qc.getQueriesData<Task[]>({ queryKey: ['tasks'] });
+        for (const [key, list] of prev) {
+          if (!list) continue;
+          qc.setQueryData<Task[]>(key, list.filter((t) => t.id !== id));
+        }
+        return { prev };
+      },
+      onError: (_e: unknown, _v: TVars, ctx: { prev: [unknown, Task[] | undefined][] } | undefined) => {
+        for (const [key, list] of ctx?.prev ?? []) {
+          qc.setQueryData(key as readonly unknown[], list);
+        }
+      },
+      onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    };
+  }
+  const completeMut = useMutation(
+    optimisticRemove((id: string) => tasksApi.complete(id), (id) => id),
+  );
+  const reopenMut = useMutation(
+    optimisticRemove((id: string) => tasksApi.reopen(id), (id) => id),
+  );
+  const removeMut = useMutation(
+    optimisticRemove((id: string) => tasksApi.remove(id), (id) => id),
+  );
+
+  const pending = completeMut.isPending || reopenMut.isPending || removeMut.isPending;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Task-urile mele</h1>
-        <div className="flex gap-1 rounded-md border p-1">
-          <TabButton active={status === 'OPEN'} onClick={() => setStatus('OPEN')}>
-            Deschise
-          </TabButton>
-          <TabButton active={status === 'DONE'} onClick={() => setStatus('DONE')}>
-            Finalizate
-          </TabButton>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Task-urile mele"
+        subtitle="Sarcinile asignate ție — comută între deschise și finalizate."
+        actions={
+          <div className="flex gap-1 rounded-md border border-border/70 bg-card/70 p-1">
+            <TabButton active={status === 'OPEN'} onClick={() => setStatus('OPEN')}>
+              Deschise
+            </TabButton>
+            <TabButton active={status === 'DONE'} onClick={() => setStatus('DONE')}>
+              Finalizate
+            </TabButton>
+          </div>
+        }
+      />
 
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
       <QueryError isError={isError} error={error} label="Nu am putut încărca taskurile." />
+
       {data && data.data.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {status === 'OPEN' ? 'Niciun task deschis.' : 'Niciun task finalizat.'}
-        </p>
+        <GlassCard className="overflow-hidden">
+          <EmptyState
+            icon={CheckSquare}
+            title={status === 'OPEN' ? 'Niciun task deschis' : 'Niciun task finalizat'}
+            description={
+              status === 'OPEN'
+                ? 'Nimic de făcut acum. Mergi la un deal sau companie și creează un task de acolo.'
+                : 'Niciun task încheiat încă. Comută la "Deschise" pentru lista activă.'
+            }
+          />
+        </GlassCard>
       )}
 
       <div className="space-y-2">
@@ -105,7 +107,7 @@ function TasksMinePage(): JSX.Element {
             onComplete={() => completeMut.mutate(t.id)}
             onReopen={() => reopenMut.mutate(t.id)}
             onDelete={() => removeMut.mutate(t.id)}
-            pending={completeMut.isPending || reopenMut.isPending || removeMut.isPending}
+            pending={pending}
           />
         ))}
       </div>
@@ -124,29 +126,33 @@ interface TaskCardProps {
 function TaskCard({ task, onComplete, onReopen, onDelete, pending }: TaskCardProps): JSX.Element {
   const isOverdue = task.dueAt && task.status === 'OPEN' && new Date(task.dueAt) < new Date();
   return (
-    <Card>
-      <CardContent className="flex items-start justify-between gap-3 py-3">
+    <GlassCard className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className={`font-medium ${task.status === 'DONE' ? 'line-through text-muted-foreground' : ''}`}>
+          <p
+            className={`font-medium leading-tight ${
+              task.status === 'DONE' ? 'line-through text-muted-foreground' : ''
+            }`}
+          >
             {task.title}
           </p>
           {task.description && (
-            <p className="text-sm text-muted-foreground">{task.description}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{task.description}</p>
           )}
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap gap-2 text-xs text-muted-foreground">
             {task.dueAt && (
               <span className={isOverdue ? 'font-medium text-destructive' : ''}>
                 Termen: {new Date(task.dueAt).toLocaleString('ro-RO')}
               </span>
             )}
             <span>Prioritate: {priorityLabel(task.priority)}</span>
-            {task.dealId && <span>Deal: {task.dealId.slice(0, 8)}…</span>}
+            {task.dealId && <span className="font-mono">Deal: {task.dealId.slice(0, 8)}…</span>}
             {task.subjectType && <span>{task.subjectType}</span>}
           </div>
         </div>
         <div className="flex shrink-0 gap-1">
           {task.status === 'OPEN' ? (
-            <Button size="sm" variant="ghost" onClick={onComplete} disabled={pending}>
+            <Button size="sm" variant="outline" onClick={onComplete} disabled={pending}>
               Finalizează
             </Button>
           ) : (
@@ -154,12 +160,12 @@ function TaskCard({ task, onComplete, onReopen, onDelete, pending }: TaskCardPro
               Redeschide
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={onDelete} disabled={pending}>
-            Șterge
+          <Button size="sm" variant="ghost" onClick={onDelete} disabled={pending} aria-label="Șterge task">
+            <Trash2 size={14} />
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </GlassCard>
   );
 }
 
@@ -176,8 +182,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
-        active ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
+      className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+        active
+          ? 'bg-primary text-primary-foreground'
+          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
       }`}
     >
       {children}
