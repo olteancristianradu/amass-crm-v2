@@ -73,11 +73,64 @@
     --accent-tenant: 222 47% 11%;
   }
 
-  /* Dark mode is OFF for now — design system locked to light glass. The
-   * dark variant ships in a follow-up so we don't ship two unfinished
-   * themes. The base scope still respects @media prefers-color-scheme
-   * via the `dark` class for opt-in pages.
-   */
+  /* Dark theme — applied when <html data-theme="dark"> is set by
+   * useUiPreferencesStore. Tokens mirror the light scheme; the canvas
+   * is a deep cool slate, surfaces are translucent dark cards, and
+   * accent dots stay vivid against the new background. Contrast on
+   * muted-foreground was checked against WCAG AA on body text. */
+  :root[data-theme="dark"] {
+    --background: 222 24% 8%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 24% 12%;
+    --card-foreground: 210 40% 96%;
+    --surface-alpha: 0.55;
+    --surface-blur: 22px;
+
+    --primary: 210 40% 96%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 222 20% 16%;
+    --secondary-foreground: 210 40% 92%;
+
+    --muted: 222 20% 18%;
+    --muted-foreground: 215 16% 70%;
+
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 18% 22%;
+    --input: 222 18% 22%;
+    --ring: 217 91% 60%;
+
+    --accent-blue: 217 91% 65%;
+    --accent-pink: 339 90% 70%;
+    --accent-amber: 38 92% 60%;
+    --accent-green: 142 71% 50%;
+
+    --accent-tenant: 210 40% 96%;
+  }
+
+  /* Auto mode: pick up the OS preference until the user picks a side.
+   * The ui-preferences store always writes data-theme on every change,
+   * so this only matters before first hydration on a fresh client. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) {
+      --background: 222 24% 8%;
+      --foreground: 210 40% 96%;
+      --card: 222 24% 12%;
+      --card-foreground: 210 40% 96%;
+      --surface-alpha: 0.55;
+      --primary: 210 40% 96%;
+      --primary-foreground: 222 47% 11%;
+      --secondary: 222 20% 16%;
+      --secondary-foreground: 210 40% 92%;
+      --muted: 222 20% 18%;
+      --muted-foreground: 215 16% 70%;
+      --border: 222 18% 22%;
+      --input: 222 18% 22%;
+    }
+  }
 
   * {
     @apply border-border;
@@ -96,6 +149,33 @@
       radial-gradient(at 100% 0%, hsl(339 90% 67% / 0.06) 0px, transparent 50%),
       radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.4) 0px, transparent 60%);
     background-attachment: fixed;
+  }
+
+  /* Dark canvas keeps the same gradient grammar but moves the bottom
+   * cool-gray bloom to a slate that doesn't wash out cards. */
+  :root[data-theme="dark"] body,
+  :root:not([data-theme="light"]):not([data-theme="dark"]) body {
+    background-image:
+      radial-gradient(at 0% 0%, hsl(217 91% 50% / 0.10) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(339 90% 50% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(222 30% 14% / 0.85) 0px, transparent 60%);
+  }
+  /* Re-apply the light-mode gradient explicitly when user picks light
+   * but the OS would otherwise prefer dark — without this the @media
+   * block above would keep painting the dark gradient. */
+  :root[data-theme="light"] body {
+    background-image:
+      radial-gradient(at 0% 0%, hsl(217 91% 60% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(339 90% 67% / 0.06) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.4) 0px, transparent 60%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) body {
+      background-image:
+        radial-gradient(at 0% 0%, hsl(217 91% 50% / 0.10) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, hsl(339 90% 50% / 0.08) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, hsl(222 30% 14% / 0.85) 0px, transparent 60%);
+    }
   }
 
   /* M-4 WCAG touch targets.

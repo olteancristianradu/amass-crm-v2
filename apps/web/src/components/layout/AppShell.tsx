@@ -27,6 +27,9 @@ import {
   Map,
   Menu,
   Minimize2,
+  Monitor,
+  Moon,
+  Sun,
   Network,
   Package,
   PartyPopper,
@@ -402,11 +405,41 @@ function Topbar({
         </button>
 
         {/* Right cluster */}
+        <ThemeToggle />
         <DensityToggle />
         <NotificationsBell />
         <UserMenu user={user} onLogout={onLogout} />
       </div>
     </header>
+  );
+}
+
+/**
+ * Cycle through three states on each click: system → light → dark → system.
+ * The icon mirrors the active state so a quick glance tells you which
+ * theme is selected (Sun=light, Moon=dark, Monitor=follow OS).
+ */
+function ThemeToggle(): JSX.Element {
+  const theme = useUiPreferencesStore((s) => s.theme);
+  const setTheme = useUiPreferencesStore((s) => s.setTheme);
+  const next: typeof theme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
+  const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const label =
+    theme === 'system'
+      ? 'Temă: urmează sistemul (click → luminoasă)'
+      : theme === 'light'
+        ? 'Temă: luminoasă (click → întunecată)'
+        : 'Temă: întunecată (click → sistem)';
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(next)}
+      className="hidden h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:inline-flex"
+      title={label}
+      aria-label={label}
+    >
+      <Icon size={16} />
+    </button>
   );
 }
 

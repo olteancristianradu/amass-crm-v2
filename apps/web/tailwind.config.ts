@@ -7,6 +7,11 @@ import type { Config } from 'tailwindcss';
  */
 const config: Config = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Dark theme is opt-in: <html data-theme="dark"> is set by
+  // useUiPreferencesStore (apps/web/src/stores/ui-preferences.ts).
+  // We use a custom selector instead of Tailwind's default `dark` class
+  // so the same DOM hook drives the CSS-variable swap in styles.css.
+  darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
