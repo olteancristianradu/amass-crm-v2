@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { AttachmentsController } from './attachments.controller';
 import { AttachmentsService } from './attachments.service';
 
@@ -30,7 +31,7 @@ import { AttachmentsService } from './attachments.service';
  * job lands in S18 (backup + observability sprint).
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AccessControlModule],
   controllers: [AttachmentsController],
   providers: [AttachmentsService],
 })

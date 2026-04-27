@@ -125,6 +125,10 @@ export class ValidationRulesService {
     }
 
     try {
+      // ReDoS hardening lives in the guards above (input length cap +
+      // nested-quantifier rejection). The pattern is admin-supplied via the
+      // ValidationRule UI, never end-user input. eslint disable is justified.
+      // eslint-disable-next-line security/detect-non-literal-regexp
       return new RegExp(pattern).test(value);
     } catch {
       // Invalid regex stored — treat as pass to avoid blocking all writes.

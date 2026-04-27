@@ -22,6 +22,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { AttachmentsService } from './attachments.service';
 
 /**
@@ -34,7 +36,7 @@ import { AttachmentsService } from './attachments.service';
  *   GET /attachments/:id/download                         → 15-min URL
  */
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class AttachmentsController {
   constructor(private readonly attachments: AttachmentsService) {}
 
@@ -98,6 +100,10 @@ export class AttachmentsController {
   @Delete('attachments/:id')
   @HttpCode(204)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({
+    action: 'attachment::delete',
+    resource: (req) => `Attachment::${(req as { params: { id: string } }).params.id}`,
+  })
   remove(@Param('id') id: string) {
     return this.attachments.remove(id);
   }

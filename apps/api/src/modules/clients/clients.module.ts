@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AccessControlModule } from '../access-control/access-control.module';
 import { ClientsController } from './clients.controller';
 import { ClientsService } from './clients.service';
 
@@ -10,7 +11,7 @@ import { ClientsService } from './clients.service';
  * birthDate, address line). Same RBAC + activity logging conventions.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AccessControlModule],
   controllers: [ClientsController],
   providers: [ClientsService],
 })
