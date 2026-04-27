@@ -23,7 +23,9 @@ describe('CasesService', () => {
   it('create() assigns next sequential number per tenant', async () => {
     const findFirst = vi.fn().mockResolvedValue({ number: 42 });
     const create = vi.fn().mockImplementation(async ({ data }) => ({ id: 'case-1', ...data }));
-    mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ case: { findFirst, create } }));
+    mockRunWithTenant.mockImplementation(async (_t, fn) =>
+      fn({ case: { findFirst, create }, $executeRaw: vi.fn().mockResolvedValue(1) }),
+    );
 
     await svc.create({ subject: 'Broken', priority: 'NORMAL' } as any);
 
@@ -34,7 +36,9 @@ describe('CasesService', () => {
   it('create() starts at 1 when no previous cases', async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
     const create = vi.fn().mockImplementation(async ({ data }) => ({ id: 'case-1', ...data }));
-    mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ case: { findFirst, create } }));
+    mockRunWithTenant.mockImplementation(async (_t, fn) =>
+      fn({ case: { findFirst, create }, $executeRaw: vi.fn().mockResolvedValue(1) }),
+    );
 
     await svc.create({ subject: 'Broken', priority: 'NORMAL' } as any);
     expect(create.mock.calls[0][0].data.number).toBe(1);

@@ -21,7 +21,9 @@ describe('OrdersService', () => {
   it('create() assigns next number per tenant (first order = 1)', async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
     const create = vi.fn().mockImplementation(async ({ data }) => ({ id: 'o-1', ...data, items: [] }));
-    mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ order: { findFirst, create } }));
+    mockRunWithTenant.mockImplementation(async (_t, fn) =>
+      fn({ order: { findFirst, create }, $executeRaw: vi.fn().mockResolvedValue(1) }),
+    );
 
     const out = await svc.create({
       companyId: 'co-1',
@@ -35,7 +37,9 @@ describe('OrdersService', () => {
   it('create() computes per-line total and aggregates totalAmount', async () => {
     const findFirst = vi.fn().mockResolvedValue({ number: 7 });
     const create = vi.fn().mockImplementation(async ({ data }) => ({ id: 'o-8', ...data, items: [] }));
-    mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ order: { findFirst, create } }));
+    mockRunWithTenant.mockImplementation(async (_t, fn) =>
+      fn({ order: { findFirst, create }, $executeRaw: vi.fn().mockResolvedValue(1) }),
+    );
 
     await svc.create({
       companyId: 'co-1',

@@ -57,4 +57,14 @@ EXPOSE 3000
 RUN chown -R node:node /repo
 USER node
 
+# C-16: Container-level healthcheck. Without it, Docker reports the
+# container "running" the moment the process is alive, even if Nest
+# is still booting or has crashed into a restart loop. We hit the
+# public /api/v1/health endpoint via a tiny one-liner — node is the
+# only thing guaranteed to be in the image, so we don't pull curl.
+# Failure threshold 3, with 30s start period for cold-start (Prisma
+# client init + DB pool warmup typically takes 8-15s).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["node", "dist/main.js"]

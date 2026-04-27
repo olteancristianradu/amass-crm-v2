@@ -142,6 +142,12 @@ export class ForecastingService {
       ? teamQuotaRows.reduce((s, r) => s + (r.quota ?? 0), 0)
       : null;
 
+    // Team-level currency: prefer the modal currency seen in the
+    // per-user rows (most common). Falls back to 'RON' only when no
+    // row carries a currency hint. Avoids the previous hardcoded RON,
+    // which was wrong for tenants whose quotas + deals are in EUR.
+    const teamCurrency = modeCurrency(rows.map((r) => r.currency)) ?? 'RON';
+
     return {
       year,
       period,
@@ -151,7 +157,7 @@ export class ForecastingService {
       teamBestCase: Math.round(teamBestCase * 100) / 100,
       teamQuota,
       rows,
-      currency: 'RON',
+      currency: teamCurrency,
     };
   }
 
@@ -177,4 +183,20 @@ function periodBounds(
   const startDate = new Date(Date.UTC(year, period - 1, 1));
   const endDate = new Date(Date.UTC(year, period, 0, 23, 59, 59, 999));
   return { startDate, endDate };
+}
+
+/** Most-frequently-occurring string in `xs`, or null when xs is empty. */
+function modeCurrency(xs: string[]): string | null {
+  if (xs.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const x of xs) counts.set(x, (counts.get(x) ?? 0) + 1);
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [k, v] of counts) {
+    if (v > bestCount) {
+      best = k;
+      bestCount = v;
+    }
+  }
+  return best;
 }

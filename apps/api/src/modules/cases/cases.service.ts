@@ -16,7 +16,12 @@ export class CasesService {
   async create(dto: CreateCaseDto): Promise<Case> {
     const ctx = requireTenantContext();
     return this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
-      // Per-tenant sequential number; aggregate is cheap with the (tenant_id, number) unique index.
+      // Race fix (same pattern as orders.service.ts): pg_advisory_xact_lock
+      // serialises concurrent number assignments per tenant. Without it,
+      // two concurrent create() calls hit the (tenant_id, number) unique
+      // constraint with a P2002 collision. The lock auto-releases on
+      // commit/rollback.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cases:nextNumber:${ctx.tenantId}`}))`;
       const last = await tx.case.findFirst({
         where: { tenantId: ctx.tenantId },
         orderBy: { number: 'desc' },

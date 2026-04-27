@@ -18,6 +18,13 @@ export class OrdersService {
   async create(dto: CreateOrderDto): Promise<OrderWithItems> {
     const ctx = requireTenantContext();
     return this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      // Race fix: two concurrent create() calls used to read the same
+      // max(number) and insert with the same value → unique-constraint
+      // conflict on second insert. `pg_advisory_xact_lock` serialises
+      // any concurrent number assignments for this tenant inside the
+      // current transaction; the lock auto-releases on commit/rollback.
+      // Hash key is stable across processes (hashtext is deterministic).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`orders:nextNumber:${ctx.tenantId}`}))`;
       const last = await tx.order.findFirst({
         where: { tenantId: ctx.tenantId },
         orderBy: { number: 'desc' },

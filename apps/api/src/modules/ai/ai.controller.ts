@@ -37,7 +37,7 @@ export class AiController {
     @Query('limit') limit?: string,
   ) {
     if (!q?.trim()) return { results: [] };
-    const results = await this.search.semanticSearch(q.trim(), limit ? parseInt(limit, 10) : 10);
+    const results = await this.search.semanticSearch(q.trim(), parseLimit(limit, 10, 100));
     return { results };
   }
 
@@ -53,7 +53,7 @@ export class AiController {
     @Param('id') id: string,
     @Query('limit') limit?: string,
   ) {
-    const results = await this.search.findSimilar(type as EntityType, id, limit ? parseInt(limit, 10) : 5);
+    const results = await this.search.findSimilar(type as EntityType, id, parseLimit(limit, 5, 50));
     return { results };
   }
 
@@ -96,4 +96,18 @@ export class AiController {
   enrichContact(@Param('id') id: string) {
     return this.enrichment.enrichContact(id);
   }
+}
+
+/**
+ * Coerce a `?limit=…` query param to a positive integer with bounds.
+ * `parseInt('abc', 10)` returns NaN; passing NaN downstream lands in a
+ * Prisma `take: NaN` which throws PrismaClientValidationError. Fail-soft
+ * to the default + cap at the upper bound so a malicious caller can't
+ * ask for `?limit=999999`.
+ */
+function parseLimit(raw: string | undefined, defaultValue: number, max: number): number {
+  if (!raw) return defaultValue;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n) || n <= 0) return defaultValue;
+  return Math.min(n, max);
 }

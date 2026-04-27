@@ -118,8 +118,8 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
       mc mb --ignore-existing local/${MINIO_BUCKET:-amass-files};
-      mc anonymous set download local/${MINIO_BUCKET:-amass-files} || true;
-      echo 'MinIO bucket ready: ${MINIO_BUCKET:-amass-files}';
+      mc anonymous set none local/${MINIO_BUCKET:-amass-files} || true;
+      echo 'MinIO bucket ready (private; access via presigned URLs only): ${MINIO_BUCKET:-amass-files}';
       "
     restart: "no"
 
@@ -142,9 +142,16 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    # C-17: wait for healthy api + web before starting Caddy. Without
+    # `condition: service_healthy`, Caddy used to come up before the API
+    # was ready and the first few requests failed with 502 until Nest
+    # finished booting. Healthchecks are wired on the api + web services
+    # above; this clause turns them into a real gating condition.
     depends_on:
-      - api
-      - web
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
 
   api:
     build:
@@ -193,6 +200,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    # C-16: matches the HEALTHCHECK in apps/api/Dockerfile. Compose
+    # uses this so dependents (Caddy) can wait on `condition: service_healthy`.
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
   web:
     build:
@@ -204,6 +219,15 @@ services:
       - "${WEB_PORT:-5173}:8080"
     depends_on:
       - api
+    # C-16/C-17: nginx healthcheck so Caddy can wait on condition:
+    # service_healthy. nginx-unprivileged:alpine ships wget; --quiet
+    # + --spider gives us a true/false on the index page.
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   ai-worker:
     build:
