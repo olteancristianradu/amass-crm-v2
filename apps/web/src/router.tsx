@@ -1,6 +1,9 @@
 import { createRouter, createRoute, redirect } from '@tanstack/react-router';
 import { rootRoute } from './routes/root';
 import { loginRoute } from './routes/login';
+import { registerRoute } from './routes/register';
+import { forgotPasswordRoute } from './routes/forgot-password';
+import { resetPasswordRoute } from './routes/reset-password';
 import { authedRoute } from './routes/authed';
 import { dashboardRoute } from './routes/dashboard';
 import { companiesRoute } from './routes/companies.list';
@@ -67,6 +70,9 @@ const indexRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  registerRoute,
+  forgotPasswordRoute,
+  resetPasswordRoute,
   authedRoute.addChildren([
     dashboardRoute,
     companiesRoute,
