@@ -1,21 +1,27 @@
 import { createRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
+import { Download, Receipt, X } from 'lucide-react';
 import { authedRoute } from './authed';
 import { invoicesApi } from '@/features/invoices/api';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { GlassCard } from '@/components/ui/glass-card';
+import {
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+  type StatusBadgeTone,
+} from '@/components/ui/page-header';
 import type { Invoice, InvoiceStatus, PaymentMethod } from '@/lib/types';
 import { downloadCsv } from '@/lib/csv';
 import { QueryError } from '@/components/ui/QueryError';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 
 export const invoicesListRoute = createRoute({
   getParentRoute: () => authedRoute,
   path: '/invoices',
   component: InvoicesListPage,
 });
-
-// ── Payment dialog state ──────────────────────────────────────────────────────
 
 interface PaymentFormState {
   amount: string;
@@ -27,8 +33,6 @@ interface PaymentFormState {
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-
-// ── Page ──────────────────────────────────────────────────────────────────────
 
 function InvoicesListPage(): JSX.Element {
   const { data, isLoading, isError, error } = useQuery({
@@ -51,67 +55,79 @@ function InvoicesListPage(): JSX.Element {
     downloadCsv(rows, `facturi-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
+  const rows = data?.data ?? [];
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Facturi</h1>
-        <Button variant="outline" size="sm" onClick={handleExportCsv}>Export CSV</Button>
-      </div>
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
-      <QueryError isError={isError} error={error} label="Nu am putut încărca facturile." />
-      {data && data.data.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          Nicio factură emisă. Creează una din detaliul unei companii.
-        </p>
+    <div>
+      <PageHeader
+        title="Facturi"
+        subtitle="Toate facturile emise — DRAFT, ISSUED, PAID, OVERDUE, CANCELLED."
+        actions={
+          <Button variant="outline" size="sm" onClick={handleExportCsv}>
+            <Download size={14} className="mr-1.5" />
+            Export
+          </Button>
+        }
+      />
+
+      {isLoading && (
+        <GlassCard className="overflow-hidden">
+          <TableSkeleton rows={5} cols={4} />
+        </GlassCard>
       )}
+      <QueryError isError={isError} error={error} label="Nu am putut încărca facturile." />
+
+      {data && rows.length === 0 && (
+        <GlassCard className="overflow-hidden">
+          <EmptyState
+            icon={Receipt}
+            title="Nicio factură emisă"
+            description="Creează factura din detaliul unei companii (nu din această pagină) — pleacă întotdeauna dintr-un client real ca să nu rămână orfană."
+          />
+        </GlassCard>
+      )}
+
       <div className="space-y-2">
-        {data?.data.map((inv) => (
-          <Card key={inv.id}>
-            <CardContent className="flex items-center justify-between py-3">
-              <div>
+        {rows.map((inv) => (
+          <GlassCard key={inv.id} className="px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
                 <Link
                   to="/app/companies/$id"
                   params={{ id: inv.companyId }}
-                  className="font-medium hover:underline"
+                  className="font-medium text-foreground underline-offset-4 hover:underline"
                 >
                   {inv.series}-{String(inv.number).padStart(4, '0')}
                 </Link>
-                <p className="text-xs text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   Emisă {new Date(inv.issueDate).toLocaleDateString('ro-RO')} · scadentă{' '}
                   {new Date(inv.dueDate).toLocaleDateString('ro-RO')}
                 </p>
               </div>
-              <div className="flex items-center gap-4">
-                <span className="font-mono text-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-mono text-sm tabular-nums">
                   {formatMoney(inv.total, inv.currency)}
                 </span>
-                <StatusBadge status={inv.status} />
+                <StatusBadge tone={STATUS_TONES[inv.status]}>
+                  {STATUS_LABELS[inv.status]}
+                </StatusBadge>
                 {inv.status !== 'PAID' && inv.status !== 'CANCELLED' && (
-                  <button
-                    type="button"
-                    onClick={() => setPayingInvoice(inv)}
-                    className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                  >
+                  <Button size="sm" onClick={() => setPayingInvoice(inv)}>
                     Înregistrează plată
-                  </button>
+                  </Button>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </GlassCard>
         ))}
       </div>
 
       {payingInvoice && (
-        <PaymentDialog
-          invoice={payingInvoice}
-          onClose={() => setPayingInvoice(null)}
-        />
+        <PaymentDialog invoice={payingInvoice} onClose={() => setPayingInvoice(null)} />
       )}
     </div>
   );
 }
-
-// ── Payment dialog (fixed overlay, no external modal lib) ─────────────────────
 
 interface PaymentDialogProps {
   invoice: Invoice;
@@ -148,11 +164,8 @@ function PaymentDialog({ invoice, onClose }: PaymentDialogProps): JSX.Element {
     },
   });
 
-  // Close on overlay click (not on dialog click)
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>): void {
-    if (e.target === overlayRef.current) {
-      onClose();
-    }
+    if (e.target === overlayRef.current) onClose();
   }
 
   function handleSubmit(e: React.FormEvent): void {
@@ -173,24 +186,33 @@ function PaymentDialog({ invoice, onClose }: PaymentDialogProps): JSX.Element {
   const invoiceLabel = `${invoice.series}-${String(invoice.number).padStart(4, '0')}`;
 
   return (
-    /* Full-screen overlay */
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
     >
-      {/* Dialog box */}
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold">
-          Înregistrează plată — {invoiceLabel}
-        </h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Total factură: {formatMoney(invoice.total, invoice.currency)}
-        </p>
+      <GlassCard elevation="elevated" className="w-full max-w-md p-6">
+        <header className="mb-4 flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">
+              Înregistrează plată — {invoiceLabel}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Total factură: <span className="tabular-nums">{formatMoney(invoice.total, invoice.currency)}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            aria-label="Închide"
+          >
+            <X size={16} />
+          </button>
+        </header>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Amount */}
-          <div className="flex flex-col gap-1">
+          <div className="space-y-1.5">
             <label htmlFor="pay-amount" className="text-sm font-medium">
               Sumă ({invoice.currency})
             </label>
@@ -202,12 +224,11 @@ function PaymentDialog({ invoice, onClose }: PaymentDialogProps): JSX.Element {
               required
               value={form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              className="rounded border border-input px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
 
-          {/* Method */}
-          <div className="flex flex-col gap-1">
+          <div className="space-y-1.5">
             <label htmlFor="pay-method" className="text-sm font-medium">
               Metodă de plată
             </label>
@@ -215,7 +236,7 @@ function PaymentDialog({ invoice, onClose }: PaymentDialogProps): JSX.Element {
               id="pay-method"
               value={form.method}
               onChange={(e) => setForm((f) => ({ ...f, method: e.target.value as PaymentMethod }))}
-              className="rounded border border-input px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="BANK">Transfer bancar</option>
               <option value="CARD">Card</option>
@@ -224,8 +245,7 @@ function PaymentDialog({ invoice, onClose }: PaymentDialogProps): JSX.Element {
             </select>
           </div>
 
-          {/* Date */}
-          <div className="flex flex-col gap-1">
+          <div className="space-y-1.5">
             <label htmlFor="pay-date" className="text-sm font-medium">
               Data plății
             </label>
@@ -235,12 +255,11 @@ function PaymentDialog({ invoice, onClose }: PaymentDialogProps): JSX.Element {
               required
               value={form.paidAt}
               onChange={(e) => setForm((f) => ({ ...f, paidAt: e.target.value }))}
-              className="rounded border border-input px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
 
-          {/* Reference (optional) */}
-          <div className="flex flex-col gap-1">
+          <div className="space-y-1.5">
             <label htmlFor="pay-ref" className="text-sm font-medium">
               Referință (opțional)
             </label>
@@ -250,74 +269,47 @@ function PaymentDialog({ invoice, onClose }: PaymentDialogProps): JSX.Element {
               value={form.reference}
               onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))}
               placeholder="ex: OP1234 / chitanță #5"
-              className="rounded border border-input px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </p>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={mutation.isPending}
-              className="rounded px-4 py-1.5 text-sm font-medium hover:bg-muted"
-            >
+            <Button type="button" variant="ghost" onClick={onClose} disabled={mutation.isPending}>
               Anulează
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="rounded bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            >
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Se salvează…' : 'Salvează plata'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </GlassCard>
     </div>
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const STATUS_LABELS: Record<InvoiceStatus, string> = {
+  DRAFT: 'Schiță',
+  ISSUED: 'Emisă',
+  PARTIALLY_PAID: 'Parțial plătită',
+  PAID: 'Plătită',
+  OVERDUE: 'Restantă',
+  CANCELLED: 'Anulată',
+};
 
-function StatusBadge({ status }: { status: InvoiceStatus }): JSX.Element {
-  return (
-    <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusClasses(status)}`}>
-      {statusLabel(status)}
-    </span>
-  );
-}
-
-function statusLabel(s: InvoiceStatus): string {
-  return (
-    {
-      DRAFT: 'Schiță',
-      ISSUED: 'Emisă',
-      PARTIALLY_PAID: 'Parțial plătită',
-      PAID: 'Plătită',
-      OVERDUE: 'Restantă',
-      CANCELLED: 'Anulată',
-    } as Record<InvoiceStatus, string>
-  )[s];
-}
-
-function statusClasses(s: InvoiceStatus): string {
-  switch (s) {
-    case 'PAID':
-      return 'bg-green-100 text-green-800';
-    case 'OVERDUE':
-      return 'bg-red-100 text-red-800';
-    case 'PARTIALLY_PAID':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'CANCELLED':
-      return 'bg-gray-200 text-gray-600';
-    case 'ISSUED':
-      return 'bg-blue-100 text-blue-800';
-    default:
-      return 'bg-gray-100 text-gray-700';
-  }
-}
+const STATUS_TONES: Record<InvoiceStatus, StatusBadgeTone> = {
+  DRAFT: 'neutral',
+  ISSUED: 'blue',
+  PARTIALLY_PAID: 'amber',
+  PAID: 'green',
+  OVERDUE: 'pink',
+  CANCELLED: 'neutral',
+};
 
 function formatMoney(amount: string, currency: string): string {
   const n = Number(amount);
