@@ -1,6 +1,7 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Plus, Rows3 } from 'lucide-react';
 import { authedRoute } from './authed';
 import {
   customFieldsApi,
@@ -11,8 +12,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { GlassCard } from '@/components/ui/glass-card';
+import { TabBar } from '@/components/ui/detail-layout';
+import {
+  EmptyState,
+  ListSurface,
+  PageHeader,
+  StatusBadge,
+} from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 
@@ -44,13 +51,17 @@ function SettingsCustomFieldsPage(): JSX.Element {
   const [showForm, setShowForm] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Câmpuri personalizate</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Anulează' : '+ Câmp nou'}
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Câmpuri personalizate"
+        subtitle="Atașează coloane custom la oricare resursă (companie, contact, deal, ofertă, factură etc.)."
+        actions={
+          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Plus size={14} className="mr-1.5" />
+            {showForm ? 'Anulează' : 'Câmp nou'}
+          </Button>
+        }
+      />
 
       {showForm && (
         <NewCustomFieldForm
@@ -59,25 +70,8 @@ function SettingsCustomFieldsPage(): JSX.Element {
         />
       )}
 
-      <Tabs
-        defaultValue="COMPANY"
-        value={activeEntity}
-        onValueChange={(v) => setActiveEntity(v as CustomFieldEntityType)}
-      >
-        <TabsList className="flex-wrap h-auto gap-1">
-          {ENTITY_TYPES.map((et) => (
-            <TabsTrigger key={et.value} value={et.value}>
-              {et.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {ENTITY_TYPES.map((et) => (
-          <TabsContent key={et.value} value={et.value}>
-            <EntityCustomFields entityType={et.value} />
-          </TabsContent>
-        ))}
-      </Tabs>
+      <TabBar tabs={ENTITY_TYPES} value={activeEntity} onChange={setActiveEntity} />
+      <EntityCustomFields entityType={activeEntity} />
     </div>
   );
 }
@@ -93,12 +87,16 @@ function EntityCustomFields({ entityType }: { entityType: CustomFieldEntityType 
   const toggleMut = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       customFieldsApi.toggle(id, isActive),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['custom-fields', entityType] });
-    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['custom-fields', entityType] }),
   });
 
-  if (isLoading) return <Card><TableSkeleton rows={3} cols={4} /></Card>;
+  if (isLoading) {
+    return (
+      <ListSurface>
+        <TableSkeleton rows={3} cols={4} />
+      </ListSurface>
+    );
+  }
   if (isError) {
     return (
       <p className="text-sm text-destructive">
@@ -110,71 +108,68 @@ function EntityCustomFields({ entityType }: { entityType: CustomFieldEntityType 
   const fields = data ?? [];
 
   return (
-    <Card>
-      <CardContent className="p-0 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="border-b bg-muted/50 text-left">
-            <tr>
-              <th scope="col" className="px-4 py-2 font-medium">Nume câmp</th>
-              <th scope="col" className="px-4 py-2 font-medium">Tip</th>
-              <th scope="col" className="px-4 py-2 font-medium">Obligatoriu</th>
-              <th scope="col" className="px-4 py-2 font-medium">Status</th>
-              <th scope="col" className="px-4 py-2 font-medium w-24"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {fields.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  Niciun câmp definit. Creează primul câmp folosind butonul de mai sus.
-                </td>
+    <ListSurface>
+      {fields.length === 0 ? (
+        <EmptyState
+          icon={Rows3}
+          title="Niciun câmp definit"
+          description="Adaugă câmpuri personalizate pentru a colecta date proprii (industrie internă, NPS, semnalmente etc.) la fiecare entitate."
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/70 bg-secondary/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <th scope="col" className="px-4 py-3 font-medium">Nume câmp</th>
+                <th scope="col" className="px-4 py-3 font-medium">Tip</th>
+                <th scope="col" className="px-4 py-3 font-medium">Obligatoriu</th>
+                <th scope="col" className="px-4 py-3 font-medium">Status</th>
+                <th scope="col" className="px-4 py-3 text-right font-medium">Acțiuni</th>
               </tr>
-            )}
-            {fields.map((f) => (
-              <tr
-                key={f.id}
-                className={`border-b last:border-0 hover:bg-muted/30 ${!f.isActive ? 'opacity-50' : ''}`}
-              >
-                <td className="px-4 py-2 font-medium">{f.name}</td>
-                <td className="px-4 py-2">
-                  <span className="rounded bg-secondary px-2 py-0.5 text-xs font-mono">
-                    {FIELD_TYPE_LABELS[f.fieldType]}
-                  </span>
-                </td>
-                <td className="px-4 py-2">
-                  {f.isRequired ? (
-                    <span className="text-xs text-orange-600 font-medium">Da</span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Nu</span>
-                  )}
-                </td>
-                <td className="px-4 py-2">
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-medium ${
-                      f.isActive
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {f.isActive ? 'Activ' : 'Inactiv'}
-                  </span>
-                </td>
-                <td className="px-4 py-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={toggleMut.isPending}
-                    onClick={() => toggleMut.mutate({ id: f.id, isActive: !f.isActive })}
-                  >
-                    {f.isActive ? 'Dezactivează' : 'Activează'}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CardContent>
-    </Card>
+            </thead>
+            <tbody>
+              {fields.map((f) => (
+                <tr
+                  key={f.id}
+                  className={`border-b border-border/40 last:border-0 transition-colors hover:bg-secondary/40 ${
+                    !f.isActive ? 'opacity-60' : ''
+                  }`}
+                >
+                  <td className="px-4 py-3 font-medium">{f.name}</td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-md bg-secondary px-2 py-0.5 font-mono text-xs">
+                      {FIELD_TYPE_LABELS[f.fieldType]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {f.isRequired ? (
+                      <StatusBadge tone="amber">Obligatoriu</StatusBadge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge tone={f.isActive ? 'green' : 'neutral'}>
+                      {f.isActive ? 'Activ' : 'Inactiv'}
+                    </StatusBadge>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={toggleMut.isPending}
+                      onClick={() => toggleMut.mutate({ id: f.id, isActive: !f.isActive })}
+                    >
+                      {f.isActive ? 'Dezactivează' : 'Activează'}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ListSurface>
   );
 }
 
@@ -216,76 +211,81 @@ function NewCustomFieldForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Câmp personalizat nou</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="cf-entity">Entitate *</Label>
-            <select
-              id="cf-entity"
-              value={form.entityType}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, entityType: e.target.value as CustomFieldEntityType }))
-              }
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              {ENTITY_TYPES.map((et) => (
-                <option key={et.value} value={et.value}>
-                  {et.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="cf-name">Nume câmp *</Label>
-            <Input
-              id="cf-name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="ex: Segment client"
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="cf-type">Tip câmp *</Label>
-            <select
-              id="cf-type"
-              value={form.fieldType}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, fieldType: e.target.value as CustomFieldType }))
-              }
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              {(Object.keys(FIELD_TYPE_LABELS) as CustomFieldType[]).map((t) => (
-                <option key={t} value={t}>
-                  {FIELD_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2 pt-6">
-            <input
-              id="cf-required"
-              type="checkbox"
-              checked={form.isRequired ?? false}
-              onChange={(e) => setForm((f) => ({ ...f, isRequired: e.target.checked }))}
-              className="rounded"
-            />
-            <Label htmlFor="cf-required">Câmp obligatoriu</Label>
-          </div>
-          <div className="md:col-span-2">
-            {formError && (
-              <p className="mb-2 text-sm text-destructive">{formError}</p>
-            )}
+    <GlassCard className="mb-4 p-6">
+      <h2 className="mb-4 text-lg font-medium">Câmp personalizat nou</h2>
+      <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="cf-entity">Entitate *</Label>
+          <select
+            id="cf-entity"
+            value={form.entityType}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, entityType: e.target.value as CustomFieldEntityType }))
+            }
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {ENTITY_TYPES.map((et) => (
+              <option key={et.value} value={et.value}>
+                {et.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="cf-name">Nume câmp *</Label>
+          <Input
+            id="cf-name"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="ex: Segment client"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="cf-type">Tip câmp *</Label>
+          <select
+            id="cf-type"
+            value={form.fieldType}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, fieldType: e.target.value as CustomFieldType }))
+            }
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {(Object.keys(FIELD_TYPE_LABELS) as CustomFieldType[]).map((t) => (
+              <option key={t} value={t}>
+                {FIELD_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 pt-6">
+          <input
+            id="cf-required"
+            type="checkbox"
+            checked={form.isRequired ?? false}
+            onChange={(e) => setForm((f) => ({ ...f, isRequired: e.target.checked }))}
+            className="rounded"
+          />
+          <Label htmlFor="cf-required" className="cursor-pointer">
+            Câmp obligatoriu
+          </Label>
+        </div>
+        <div className="md:col-span-2">
+          {formError && (
+            <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {formError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Anulează
+            </Button>
             <Button type="submit" disabled={createMut.isPending}>
               {createMut.isPending ? 'Se salvează…' : 'Salvează'}
             </Button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </form>
+    </GlassCard>
   );
 }
