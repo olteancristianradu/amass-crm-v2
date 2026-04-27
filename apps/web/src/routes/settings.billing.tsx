@@ -1,9 +1,16 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { CreditCard } from 'lucide-react';
 import { authedRoute } from './authed';
 import { billingApi, type SubscriptionStatus } from '@/features/billing/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { GlassCard } from '@/components/ui/glass-card';
+import {
+  EmptyState,
+  PageHeader,
+  StatusBadge,
+  type StatusBadgeTone,
+} from '@/components/ui/page-header';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 
@@ -22,13 +29,13 @@ const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   PAUSED: 'Pauza',
 };
 
-const STATUS_COLORS: Record<SubscriptionStatus, string> = {
-  TRIALING: 'bg-blue-100 text-blue-800',
-  ACTIVE: 'bg-green-100 text-green-800',
-  PAST_DUE: 'bg-red-100 text-red-800',
-  CANCELED: 'bg-gray-200 text-gray-600',
-  INCOMPLETE: 'bg-yellow-100 text-yellow-800',
-  PAUSED: 'bg-orange-100 text-orange-800',
+const STATUS_TONES: Record<SubscriptionStatus, StatusBadgeTone> = {
+  TRIALING: 'blue',
+  ACTIVE: 'green',
+  PAST_DUE: 'pink',
+  CANCELED: 'neutral',
+  INCOMPLETE: 'amber',
+  PAUSED: 'amber',
 };
 
 function SettingsBillingPage(): JSX.Element {
@@ -52,128 +59,126 @@ function SettingsBillingPage(): JSX.Element {
   });
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-semibold">Facturare & Abonament</h1>
+    <div className="mx-auto max-w-2xl">
+      <PageHeader
+        title="Facturare & abonament"
+        subtitle="Plan curent, perioada de trial, și gestionarea metodelor de plată via Stripe."
+      />
 
       {isLoading && <CardSkeleton />}
       {isError && (
-        <p className="text-sm text-destructive">
+        <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           Eroare: {error instanceof ApiError ? error.message : 'necunoscută'}
         </p>
       )}
 
       {sub && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Abonament curent</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">
-                  Plan
-                </p>
-                <p className="font-semibold text-base capitalize">{sub.plan}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">
-                  Status
-                </p>
-                <span
-                  className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[sub.status]}`}
-                >
-                  {STATUS_LABELS[sub.status]}
-                </span>
-              </div>
-
-              {sub.trialEndsAt && (
-                <div>
-                  <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">
-                    Trial expiră
-                  </p>
-                  <p className="font-medium">
-                    {new Date(sub.trialEndsAt).toLocaleDateString('ro-RO', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-              )}
-
-              {sub.currentPeriodEnd && (
-                <div>
-                  <p className="text-muted-foreground text-xs uppercase tracking-wide mb-1">
-                    Perioadă curentă până la
-                  </p>
-                  <p className="font-medium">
-                    {new Date(sub.currentPeriodEnd).toLocaleDateString('ro-RO', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-              )}
-
-              {sub.cancelAtPeriodEnd && (
-                <div className="col-span-2">
-                  <p className="text-sm text-orange-600 font-medium">
-                    Abonamentul se va anula la sfârșitul perioadei curente.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-3 pt-2">
-              {/* Show upgrade if on trial or on a free/lower plan */}
-              {(sub.status === 'TRIALING' || sub.status === 'CANCELED') && (
-                <Button
-                  onClick={() => checkoutMut.mutate()}
-                  disabled={checkoutMut.isPending}
-                >
-                  {checkoutMut.isPending ? 'Redirecționare…' : 'Upgrade plan'}
-                </Button>
-              )}
-
-              {/* Show manage if there is an active Stripe subscription */}
-              {sub.stripeSubscriptionId && (
-                <Button
-                  variant="outline"
-                  onClick={() => portalMut.mutate()}
-                  disabled={portalMut.isPending}
-                >
-                  {portalMut.isPending ? 'Redirecționare…' : 'Gestionează facturare'}
-                </Button>
-              )}
-            </div>
-
-            {(checkoutMut.isError || portalMut.isError) && (
-              <p className="text-sm text-destructive">
-                {(checkoutMut.error ?? portalMut.error) instanceof ApiError
-                  ? ((checkoutMut.error ?? portalMut.error) as ApiError).message
-                  : 'Eroare la redirecționare'}
+        <GlassCard className="p-6">
+          <header className="mb-5 flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-foreground">
+              <CreditCard size={18} />
+            </span>
+            <div>
+              <h2 className="font-medium leading-tight">Abonament curent</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Plan + status sincronizat cu Stripe
               </p>
+            </div>
+          </header>
+
+          <dl className="grid grid-cols-2 gap-y-4 text-sm">
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Plan
+              </dt>
+              <dd className="mt-1 text-base font-semibold capitalize">{sub.plan}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Status
+              </dt>
+              <dd className="mt-1">
+                <StatusBadge tone={STATUS_TONES[sub.status]}>{STATUS_LABELS[sub.status]}</StatusBadge>
+              </dd>
+            </div>
+
+            {sub.trialEndsAt && (
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Trial expiră
+                </dt>
+                <dd className="mt-1 font-medium tabular-nums">
+                  {new Date(sub.trialEndsAt).toLocaleDateString('ro-RO', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </dd>
+              </div>
             )}
-          </CardContent>
-        </Card>
+
+            {sub.currentPeriodEnd && (
+              <div>
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Perioadă curentă până la
+                </dt>
+                <dd className="mt-1 font-medium tabular-nums">
+                  {new Date(sub.currentPeriodEnd).toLocaleDateString('ro-RO', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          {sub.cancelAtPeriodEnd && (
+            <p className="mt-4 rounded-md border border-accent-amber/30 bg-accent-amber/[0.06] px-3 py-2 text-sm text-accent-amber">
+              Abonamentul se va anula la sfârșitul perioadei curente.
+            </p>
+          )}
+
+          <div className="mt-6 flex flex-wrap gap-2 border-t border-border/40 pt-5">
+            {(sub.status === 'TRIALING' || sub.status === 'CANCELED') && (
+              <Button onClick={() => checkoutMut.mutate()} disabled={checkoutMut.isPending}>
+                {checkoutMut.isPending ? 'Redirecționare…' : 'Upgrade plan'}
+              </Button>
+            )}
+            {sub.stripeSubscriptionId && (
+              <Button
+                variant="outline"
+                onClick={() => portalMut.mutate()}
+                disabled={portalMut.isPending}
+              >
+                {portalMut.isPending ? 'Redirecționare…' : 'Gestionează facturare'}
+              </Button>
+            )}
+          </div>
+
+          {(checkoutMut.isError || portalMut.isError) && (
+            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {(checkoutMut.error ?? portalMut.error) instanceof ApiError
+                ? ((checkoutMut.error ?? portalMut.error) as ApiError).message
+                : 'Eroare la redirecționare'}
+            </p>
+          )}
+        </GlassCard>
       )}
 
-      {/* No subscription yet */}
       {!isLoading && !sub && !isError && (
-        <Card>
-          <CardContent className="py-8 flex flex-col items-center gap-4 text-center">
-            <p className="text-muted-foreground">
-              Nu există un abonament activ. Alege un plan pentru a continua.
-            </p>
-            <Button
-              onClick={() => checkoutMut.mutate()}
-              disabled={checkoutMut.isPending}
-            >
-              {checkoutMut.isPending ? 'Redirecționare…' : 'Alege un plan'}
-            </Button>
-          </CardContent>
-        </Card>
+        <GlassCard className="overflow-hidden">
+          <EmptyState
+            icon={CreditCard}
+            title="Niciun abonament activ"
+            description="Alege un plan pentru a continua. Plata se procesează prin Stripe Checkout."
+            action={
+              <Button onClick={() => checkoutMut.mutate()} disabled={checkoutMut.isPending}>
+                {checkoutMut.isPending ? 'Redirecționare…' : 'Alege un plan'}
+              </Button>
+            }
+          />
+        </GlassCard>
       )}
     </div>
   );
