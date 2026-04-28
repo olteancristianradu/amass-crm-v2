@@ -12,6 +12,14 @@
 		reverse_proxy api:3000
 	}
 
+	# Socket.IO upgrade traffic — useReminderPoller + NotificationsBell
+	# connect via `io({ path: '/ws' })`. Caddy upgrades WS connections
+	# automatically when the matching upstream returns 101; without this
+	# handle, every connect spam-fails with "bad response from server".
+	handle /ws* {
+		reverse_proxy api:3000
+	}
+
 	# AI worker under /ai
 	handle /ai/* {
 		uri strip_prefix /ai

@@ -3,7 +3,11 @@
 // hide multi-tenant boundaries and stale data); only cache the app shell so the
 // page can boot offline. Future: precache static assets via vite-plugin-pwa.
 
-const CACHE = 'amass-shell-v1';
+// Bump this on any breaking change to the cached shell so old clients
+// purge on activate. v2: dark theme + 12 lazy-loaded routes shipped
+// together; users on v1 were stuck on a stale index.html pointing at
+// deleted bundle hashes (404 cascade → blank page).
+const CACHE = 'amass-shell-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.svg', '/icon-512.svg'];
 
 self.addEventListener('install', (e) => {

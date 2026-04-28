@@ -109,7 +109,12 @@ export class ReportsService {
   }
 
   private async getPipelineStats(tenantId: string, from: string, to: string): Promise<PipelineStageStats[]> {
-    return this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<PipelineStageStats[]>`
+    // Postgres returns COUNT(*) as bigint and SUM(numeric) as string; both
+    // crash JSON.stringify with "Do not know how to serialize a BigInt"
+    // unless coerced. Type the row narrowly and convert before returning.
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{
+      stageId: string; stageName: string; count: bigint; totalValue: string | null;
+    }>>`
       SELECT
         d."stageId"    AS "stageId",
         ps.name        AS "stageName",
@@ -124,6 +129,12 @@ export class ReportsService {
       GROUP BY d."stageId", ps.name
       ORDER BY COUNT(*) DESC
     `);
+    return rows.map((r) => ({
+      stageId: r.stageId,
+      stageName: r.stageName,
+      count: Number(r.count),
+      totalValue: parseFloat(r.totalValue ?? '0'),
+    }));
   }
 
   private async getActivityStats(tenantId: string, from: string, to: string): Promise<ActivityStats> {
