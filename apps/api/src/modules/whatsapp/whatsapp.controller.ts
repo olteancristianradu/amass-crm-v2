@@ -74,12 +74,15 @@ export class WhatsappController {
     @Query('hub.verify_token') verifyToken: string,
     @Query('hub.challenge') challenge: string,
     @Query('hub.mode') mode: string,
-    @Query('tenantId') _tenantId: string,
+    @Query('tenantId') tenantId: string,
   ) {
-    // In production, look up account verify token by tenantId
-    // For now, verify against env var fallback
     if (mode !== 'subscribe') return 'forbidden';
-    return this.svc.verifyWebhook(verifyToken, challenge, verifyToken);
+    // M-aud-M1: previously the controller passed `verifyToken` as both
+    // the candidate AND the expected value, so `if (a !== a)` was always
+    // false and anybody completed the Meta verification handshake. Now
+    // we hand the tenantId off to the service which loads the account's
+    // own `webhookVerifyToken` from the DB and does the real comparison.
+    return this.svc.verifyWebhook(tenantId, verifyToken, challenge);
   }
 
   @Post('webhook')

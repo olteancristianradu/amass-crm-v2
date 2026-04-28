@@ -123,8 +123,35 @@ export class WhatsappService {
 
   // ─── Webhook ───────────────────────────────────────────────────────────────
 
-  verifyWebhook(verifyToken: string, challenge: string, tenantVerifyToken: string): string {
-    if (verifyToken !== tenantVerifyToken) throw new UnauthorizedException('Invalid verify token');
+  /**
+   * Meta WhatsApp Cloud webhook verification handshake. Meta GETs the
+   * webhook URL with `?hub.verify_token=<our-shared-secret>&hub.challenge=N`
+   * and we must echo `challenge` back IF the verify_token matches what we
+   * registered in the Meta dashboard for this tenant's account. Stored as
+   * `webhookVerifyToken` on `WhatsappAccount`.
+   *
+   * M-aud-M1: previously took `verifyToken` and `tenantVerifyToken` as
+   * SEPARATE parameters but the controller passed `verifyToken` for both,
+   * making the check vacuously true. Reshaped to load the expected token
+   * from the DB, removing the chance of a wrong-arity callsite.
+   */
+  async verifyWebhook(tenantId: string, verifyToken: string, challenge: string): Promise<string> {
+    if (!tenantId || !verifyToken) {
+      throw new UnauthorizedException('Invalid verify token');
+    }
+    const account = await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.whatsappAccount.findFirst({
+        where: { tenantId, isActive: true, deletedAt: null },
+        select: { webhookVerifyToken: true },
+      }),
+    );
+    if (!account) throw new UnauthorizedException('Invalid verify token');
+    // Constant-time compare to remove the timing-oracle.
+    const a = Buffer.from(verifyToken);
+    const b = Buffer.from(account.webhookVerifyToken);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new UnauthorizedException('Invalid verify token');
+    }
     return challenge;
   }
 

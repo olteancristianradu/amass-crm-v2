@@ -321,6 +321,17 @@ export class CallsService {
       return;
     }
 
+    // M-aud-M2 parity: idempotency match for the voice/status webhook paths
+    // (callid+recordingSid keys this delivery). Twilio retries on 5xx and
+    // also delivers PROCESSING + COMPLETED events; we want one DB write.
+    const idempKey = `twilio:processed:${callId}:recording:${recordingSid}`;
+    const already = await this.redis.client.get(idempKey);
+    if (already) {
+      this.logger.debug(`Recording webhook ${callId}/${recordingSid} already processed — skipping`);
+      return;
+    }
+    await this.redis.client.set(idempKey, '1', 'EX', 300);
+
     const existing = await this.prisma.call.findFirst({ where: { id: callId } });
     if (!existing) {
       this.logger.warn(`Recording webhook for unknown callId=${callId}`);

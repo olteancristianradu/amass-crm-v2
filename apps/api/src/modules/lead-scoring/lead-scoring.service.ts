@@ -52,6 +52,10 @@ export class LeadScoringService {
     await this.queue.add('recompute-single', { tenantId, entityType, entityId }, {
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
+      // M-aud-M10: bound retention so failed jobs don't pile up in Redis
+      // (lead-scoring can fan-out a lot under bulk-import scenarios).
+      removeOnComplete: { count: 100 },
+      removeOnFail: { age: 86_400, count: 100 },
     });
     return { queued: true };
   }

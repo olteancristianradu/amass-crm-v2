@@ -145,13 +145,27 @@ describe('WhatsappService.send', () => {
 });
 
 describe('WhatsappService.verifyWebhook', () => {
-  it('refuses a wrong verify token', () => {
-    expect(() => build().svc.verifyWebhook('wrong', 'CHALLENGE', 'expected'))
-      .toThrow(UnauthorizedException);
+  // M-aud-M1: signature changed — service now reads the expected token
+  // from the DB by tenantId rather than receiving it as a parameter.
+  it('refuses a wrong verify token', async () => {
+    const h = build();
+    h.tx.whatsappAccount.findFirst.mockResolvedValueOnce({ webhookVerifyToken: 'expected' });
+    await expect(h.svc.verifyWebhook('tenant-1', 'wrong', 'CHALLENGE'))
+      .rejects.toThrow(UnauthorizedException);
   });
 
-  it('echoes the challenge when token matches', () => {
-    expect(build().svc.verifyWebhook('expected', 'CHAL-9', 'expected')).toBe('CHAL-9');
+  it('echoes the challenge when token matches', async () => {
+    const h = build();
+    h.tx.whatsappAccount.findFirst.mockResolvedValueOnce({ webhookVerifyToken: 'expected' });
+    await expect(h.svc.verifyWebhook('tenant-1', 'expected', 'CHAL-9'))
+      .resolves.toBe('CHAL-9');
+  });
+
+  it('refuses when no active WhatsApp account exists for the tenant', async () => {
+    const h = build();
+    h.tx.whatsappAccount.findFirst.mockResolvedValueOnce(null);
+    await expect(h.svc.verifyWebhook('tenant-1', 'anything', 'CHAL'))
+      .rejects.toThrow(UnauthorizedException);
   });
 });
 

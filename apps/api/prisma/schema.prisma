@@ -1383,11 +1383,16 @@ model SsoConfig {
   tenantId       String   @unique @map("tenant_id")
   // IdP metadata — paste the SSO URL + public cert from your IdP dashboard
   idpSsoUrl      String   @map("idp_sso_url")
-  idpCertificate String   @map("idp_certificate")
+  // M-aud-M5: SAML signing material is encrypted at rest. The IdP cert
+  // is technically a public key but we still encrypt it because tenants
+  // sometimes paste private intermediate certs by mistake — encrypting
+  // both columns means a DB breach yields ciphertext, not signing keys.
+  // Same AES-256-GCM primitive as Session.refreshTokenHash et al.
+  idpCertificateEnc String @map("idp_certificate_enc")
   // SP entity ID — usually https://your-domain/api/v1/sso/:tenantSlug/metadata
   spEntityId     String   @map("sp_entity_id")
-  // Optional: sign AuthnRequests with SP private key
-  spPrivateKey   String?  @map("sp_private_key")
+  // Optional: sign AuthnRequests with SP private key (encrypted)
+  spPrivateKeyEnc String? @map("sp_private_key_enc")
   // SAML attribute names that map to our user fields
   attrEmail      String   @default("email") @map("attr_email")
   attrFirstName  String   @default("firstName") @map("attr_first_name")

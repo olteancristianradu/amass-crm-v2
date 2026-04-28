@@ -44,6 +44,10 @@ export class ExportsService {
     await this.queue.add('generate-export', { tenantId, exportId: exp.id, entityType, filters }, {
       attempts: 3,
       backoff: { type: 'exponential', delay: 2000 },
+      // M-aud-M10: keep at most 100 completed jobs and 100 failed (24h);
+      // unbounded retention pollutes Redis memory in long-running deploys.
+      removeOnComplete: { count: 100 },
+      removeOnFail: { age: 86_400, count: 100 },
     });
 
     return exp;
