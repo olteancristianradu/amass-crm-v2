@@ -69,9 +69,9 @@ export function RegisterForm(): JSX.Element {
           <UserPlus size={18} className="text-foreground" />
         </span>
         <div>
-          <h1 className="text-lg font-semibold leading-tight">Creează tenant nou</h1>
+          <h1 className="text-lg font-semibold leading-tight">Creează cont nou</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Vei deveni proprietar (OWNER). Poți invita colegii ulterior din setări.
+            Vei deveni proprietar al spațiului tău de lucru. Poți invita colegii ulterior din setări.
           </p>
         </div>
       </header>

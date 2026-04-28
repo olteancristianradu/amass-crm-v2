@@ -26,8 +26,8 @@ function LoginPage(): JSX.Element {
       footer={
         <>
           Nu ai cont?{' '}
-          <Link to="/register" className="text-foreground underline-offset-4 hover:underline">
-            Creează tenant
+          <Link to="/register" className="font-medium text-foreground underline-offset-4 hover:underline">
+            Creează cont
           </Link>{' '}
           ·{' '}
           <Link
