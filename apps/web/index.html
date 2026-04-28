@@ -13,15 +13,19 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Service worker DISABLED. A registered SW aggressively caches the
-      // app shell (index.html + referenced JS chunks) and, when a deploy
-      // changes hashed filenames, serves a stale HTML pointing at missing
-      // chunks → blank page that Ctrl+F5 can't clear. For the demo we
-      // unregister any previously installed SW + clear its caches so
-      // users on old builds recover automatically.
+      // Service worker enabled (v3) — installable PWA with offline shell
+      // + selective API cache for /companies and /contacts. Past stale-
+      // chunks regression is handled inside sw.js: HTML + non-hashed
+      // resources are network-first; only Vite's content-addressed
+      // /assets/*.[hash].js are cache-first. See apps/web/public/sw.js.
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
-        if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k)));
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            // SW registration failure should never break the app — log
+            // and proceed without offline support.
+            console.warn('SW registration failed', err);
+          });
+        });
       }
     </script>
   </body>

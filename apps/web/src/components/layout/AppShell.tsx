@@ -55,6 +55,7 @@ import { useCommandPaletteStore } from '@/stores/command-palette';
 import { api } from '@/lib/api';
 import { CommandPalette } from '@/components/ui/command-palette';
 import { Toaster } from '@/components/ui/Toaster';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { useReminderPoller } from '@/hooks/useReminderPoller';
 import { NotificationsBell } from './NotificationsBell';
 
@@ -132,6 +133,21 @@ export function AppShell({ children }: Props): JSX.Element {
     // resolves.
     queryClient.clear();
     clear();
+    // PWA cache hygiene: nuke any cached /api/v1/companies + /contacts
+    // responses so the next user on this device doesn't see them. The SW
+    // also gets a CLEAR_CACHES message in case it's holding shell-cache
+    // entries that referenced auth-bearing API URLs.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHES' });
+    }
+    if (window.caches) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch {
+        // best-effort
+      }
+    }
     await router.navigate({ to: '/login' });
   };
 
@@ -177,6 +193,7 @@ export function AppShell({ children }: Props): JSX.Element {
 
       {/* ── Main column ──────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
+        <OfflineBanner />
         <Topbar
           user={user}
           onLogout={handleLogout}
