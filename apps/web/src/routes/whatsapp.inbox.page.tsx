@@ -11,18 +11,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
-const MSG_DIRECTION_COLORS: Record<string, string> = {
-  INBOUND: 'bg-blue-100 text-blue-800',
-  OUTBOUND: 'bg-green-100 text-green-800',
+const MSG_DIRECTION_TONES: Record<string, StatusTone> = {
+  INBOUND: 'info',
+  OUTBOUND: 'success',
 };
 
-const MSG_STATUS_COLORS: Record<string, string> = {
-  QUEUED: 'bg-gray-100 text-gray-600',
-  SENT: 'bg-blue-100 text-blue-800',
-  DELIVERED: 'bg-green-100 text-green-800',
-  READ: 'bg-emerald-100 text-emerald-800',
-  FAILED: 'bg-red-100 text-red-800',
+const MSG_STATUS_TONES: Record<string, StatusTone> = {
+  QUEUED: 'neutral',
+  SENT: 'info',
+  DELIVERED: 'success',
+  READ: 'success',
+  FAILED: 'danger',
 };
 
 export function WhatsAppInboxPage(): JSX.Element {
@@ -67,7 +68,7 @@ export function WhatsAppInboxPage(): JSX.Element {
       )}
 
       {/* Accounts list */}
-      {accountsLoading && <div className="animate-pulse h-8 bg-gray-100 rounded w-full" />}
+      {accountsLoading && <div className="animate-pulse h-8 bg-secondary rounded w-full" />}
       {accountsError && (
         <p className="text-red-500 text-sm">
           {accountsErr instanceof ApiError ? accountsErr.message : String(accountsErr)}
@@ -107,7 +108,7 @@ export function WhatsAppInboxPage(): JSX.Element {
                     <td className="px-4 py-2">{a.displayName ?? '—'}</td>
                     <td className="px-4 py-2">
                       <span
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${a.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                        className={statusBadgeClasses(a.isActive ? 'success' : 'neutral')}
                       >
                         {a.isActive ? 'Activ' : 'Inactiv'}
                       </span>
@@ -137,7 +138,7 @@ export function WhatsAppInboxPage(): JSX.Element {
       {/* Messages list for selected account */}
       {selectedAccountId && (
         <>
-          {messagesLoading && <div className="animate-pulse h-8 bg-gray-100 rounded w-full" />}
+          {messagesLoading && <div className="animate-pulse h-8 bg-secondary rounded w-full" />}
           {messagesError && (
             <p className="text-red-500 text-sm">
               {messagesErr instanceof ApiError ? messagesErr.message : String(messagesErr)}
@@ -175,7 +176,7 @@ export function WhatsAppInboxPage(): JSX.Element {
                       <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-4 py-2">
                           <span
-                            className={`rounded px-2 py-0.5 text-xs font-medium ${MSG_DIRECTION_COLORS[m.direction] ?? 'bg-gray-100 text-gray-600'}`}
+                            className={statusBadgeClasses(MSG_DIRECTION_TONES[m.direction] ?? 'neutral')}
                           >
                             {m.direction === 'INBOUND' ? 'IN' : 'OUT'}
                           </span>
@@ -190,7 +191,7 @@ export function WhatsAppInboxPage(): JSX.Element {
                         </td>
                         <td className="px-4 py-2">
                           <span
-                            className={`rounded px-2 py-0.5 text-xs font-medium ${MSG_STATUS_COLORS[m.status] ?? 'bg-gray-100 text-gray-600'}`}
+                            className={statusBadgeClasses(MSG_STATUS_TONES[m.status] ?? 'neutral')}
                           >
                             {m.status}
                           </span>

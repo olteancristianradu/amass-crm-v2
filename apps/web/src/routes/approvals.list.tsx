@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
 export const approvalsRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -24,10 +25,10 @@ const STATUS_LABELS: Record<ApprovalStatus, string> = {
   REJECTED: 'Respins',
 };
 
-const STATUS_COLORS: Record<ApprovalStatus, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-800',
-  APPROVED: 'bg-green-100 text-green-800',
-  REJECTED: 'bg-red-100 text-red-800',
+const STATUS_TONES: Record<ApprovalStatus, StatusTone> = {
+  PENDING: 'warning',
+  APPROVED: 'success',
+  REJECTED: 'danger',
 };
 
 function ApprovalsListPage(): JSX.Element {
@@ -51,11 +52,11 @@ function ApprovalsListPage(): JSX.Element {
               key={s}
               type="button"
               onClick={() => setStatusFilter(s)}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+              className={
                 statusFilter === s
-                  ? STATUS_COLORS[s]
-                  : 'bg-muted text-muted-foreground hover:bg-secondary'
-              }`}
+                  ? statusBadgeClasses(STATUS_TONES[s])
+                  : 'inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary'
+              }
             >
               {STATUS_LABELS[s]}
             </button>
@@ -115,7 +116,7 @@ function ApprovalsListPage(): JSX.Element {
                     </td>
                     <td className="px-4 py-2">
                       <span
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[req.status]}`}
+                        className={statusBadgeClasses(STATUS_TONES[req.status])}
                       >
                         {STATUS_LABELS[req.status]}
                       </span>

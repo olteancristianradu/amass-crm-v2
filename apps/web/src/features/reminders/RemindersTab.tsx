@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { SubjectType } from '@/lib/types';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
 interface Props {
   subjectType: SubjectType;
@@ -162,14 +163,15 @@ export function RemindersTab({ subjectType, subjectId }: Props): JSX.Element {
 }
 
 function StatusBadge({ status }: { status: string }): JSX.Element {
-  const cls: Record<string, string> = {
-    PENDING: 'bg-amber-100 text-amber-900',
-    FIRED: 'bg-green-100 text-green-900',
-    DISMISSED: 'bg-slate-100 text-slate-700',
-    CANCELLED: 'bg-slate-100 text-slate-500 line-through',
+  const tone: Record<string, StatusTone> = {
+    PENDING: 'warning',
+    FIRED: 'success',
+    DISMISSED: 'neutral',
+    CANCELLED: 'neutral',
   };
+  const extra = status === 'CANCELLED' ? ' line-through' : '';
   return (
-    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls[status] ?? ''}`}>
+    <span className={statusBadgeClasses(tone[status] ?? 'neutral') + extra}>
       {status}
     </span>
   );

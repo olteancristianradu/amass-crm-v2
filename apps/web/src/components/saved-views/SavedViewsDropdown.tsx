@@ -136,9 +136,9 @@ export function SavedViewsDropdown({
                           handleDelete(view, e as unknown as React.MouseEvent);
                         }
                       }}
-                      className="opacity-0 group-hover:opacity-100 rounded p-1 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-destructive/15 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <Trash2 size={12} />
+                      <Trash2 size={14} />
                     </span>
                   </button>
                 </li>

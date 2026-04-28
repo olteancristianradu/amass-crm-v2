@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
 export const smsInboxRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -16,18 +17,18 @@ export const smsInboxRoute = createRoute({
   component: SmsInboxPage,
 });
 
-const DIRECTION_COLORS: Record<string, string> = {
-  INBOUND: 'bg-blue-100 text-blue-800',
-  OUTBOUND: 'bg-green-100 text-green-800',
+const DIRECTION_TONES: Record<string, StatusTone> = {
+  INBOUND: 'info',
+  OUTBOUND: 'success',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  QUEUED: 'bg-gray-100 text-gray-600',
-  SENDING: 'bg-yellow-100 text-yellow-800',
-  SENT: 'bg-green-100 text-green-800',
-  DELIVERED: 'bg-emerald-100 text-emerald-800',
-  FAILED: 'bg-red-100 text-red-800',
-  UNDELIVERED: 'bg-orange-100 text-orange-800',
+const STATUS_TONES: Record<string, StatusTone> = {
+  QUEUED: 'neutral',
+  SENDING: 'warning',
+  SENT: 'success',
+  DELIVERED: 'success',
+  FAILED: 'danger',
+  UNDELIVERED: 'warning',
 };
 
 function SmsInboxPage(): JSX.Element {
@@ -61,7 +62,7 @@ function SmsInboxPage(): JSX.Element {
 
       {showForm && <SendSmsForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <div className="animate-pulse h-8 bg-gray-100 rounded w-full" />}
+      {isLoading && <div className="animate-pulse h-8 bg-secondary rounded w-full" />}
       {isError && (
         <p className="text-red-500 text-sm">
           {error instanceof ApiError ? error.message : String(error)}
@@ -94,7 +95,7 @@ function SmsInboxPage(): JSX.Element {
                   <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-2">
                       <span
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${DIRECTION_COLORS[m.direction] ?? 'bg-gray-100 text-gray-600'}`}
+                        className={statusBadgeClasses(DIRECTION_TONES[m.direction] ?? 'neutral')}
                       >
                         {m.direction === 'INBOUND' ? 'IN' : 'OUT'}
                       </span>
@@ -106,7 +107,7 @@ function SmsInboxPage(): JSX.Element {
                     </td>
                     <td className="px-4 py-2">
                       <span
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[m.status] ?? 'bg-gray-100 text-gray-600'}`}
+                        className={statusBadgeClasses(STATUS_TONES[m.status] ?? 'neutral')}
                       >
                         {m.status}
                       </span>

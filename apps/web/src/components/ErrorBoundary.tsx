@@ -35,15 +35,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render(): React.ReactNode {
     if (this.state.error) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
-          <div className="max-w-md w-full bg-white rounded-lg shadow p-6">
-            <h1 className="text-xl font-semibold text-red-600 mb-2">
+        <div className="min-h-screen flex items-center justify-center p-6 bg-background text-foreground">
+          <div className="max-w-md w-full bg-card border border-border/70 rounded-lg shadow-md p-6">
+            <h1 className="text-xl font-semibold text-destructive mb-2">
               Ceva nu a mers bine
             </h1>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               Aplicația a întâmpinat o eroare neașteptată. Reîncarcă pagina pentru a continua.
             </p>
-            <details className="text-xs text-gray-500 mb-4">
+            <details className="text-xs text-muted-foreground mb-4">
               <summary className="cursor-pointer">Detalii tehnice</summary>
               <pre className="mt-2 whitespace-pre-wrap break-words">
                 {this.state.error.message}
@@ -52,7 +52,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <button
               type="button"
               onClick={this.handleReload}
-              className="w-full bg-blue-600 text-white rounded px-4 py-2 text-sm hover:bg-blue-700"
+              className="w-full bg-primary text-primary-foreground rounded px-4 py-2 text-sm font-medium hover:bg-primary/90"
             >
               Reîncarcă pagina
             </button>

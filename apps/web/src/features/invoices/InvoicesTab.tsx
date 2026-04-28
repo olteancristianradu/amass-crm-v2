@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 import type { InvoiceCurrency, InvoiceStatus } from '@/lib/types';
 
 interface Props {
@@ -358,13 +359,13 @@ function NewInvoiceForm({ companyId, onSaved }: FormProps): JSX.Element {
 }
 
 function StatusBadge({ status }: { status: InvoiceStatus }): JSX.Element {
-  const cls: Record<InvoiceStatus, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700',
-    ISSUED: 'bg-blue-100 text-blue-800',
-    PARTIALLY_PAID: 'bg-yellow-100 text-yellow-800',
-    PAID: 'bg-green-100 text-green-800',
-    OVERDUE: 'bg-red-100 text-red-800',
-    CANCELLED: 'bg-gray-200 text-gray-500',
+  const tone: Record<InvoiceStatus, StatusTone> = {
+    DRAFT: 'neutral',
+    ISSUED: 'info',
+    PARTIALLY_PAID: 'warning',
+    PAID: 'success',
+    OVERDUE: 'danger',
+    CANCELLED: 'neutral',
   };
   const labels: Record<InvoiceStatus, string> = {
     DRAFT: 'Schiță',
@@ -375,7 +376,7 @@ function StatusBadge({ status }: { status: InvoiceStatus }): JSX.Element {
     CANCELLED: 'Anulată',
   };
   return (
-    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls[status]}`}>
+    <span className={statusBadgeClasses(tone[status])}>
       {labels[status]}
     </span>
   );
