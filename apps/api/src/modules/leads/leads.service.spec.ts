@@ -45,6 +45,126 @@ function withTenant<T>(fn: () => Promise<T> | T): Promise<T> {
   );
 }
 
+describe('LeadsService.create + findAll + update + softDelete', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function buildFull() {
+    const tx = {
+      lead: {
+        create: vi.fn(),
+        findMany: vi.fn(),
+        findFirst: vi.fn(),
+        update: vi.fn(),
+      },
+    };
+    const runWithTenant: Mock = vi.fn(async (
+      _id: string,
+      cbOrMode: unknown,
+      maybeCb?: unknown,
+    ) => {
+      const cb = typeof cbOrMode === 'function' ? cbOrMode : maybeCb;
+      return (cb as (tx: typeof tx) => Promise<unknown>)(tx);
+    });
+    const prisma = { runWithTenant } as unknown as import('../../infra/prisma/prisma.service').PrismaService;
+    const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as import('../audit/audit.service').AuditService;
+    const svc = new LeadsService(prisma, audit);
+    return { svc, tx, runWithTenant, audit };
+  }
+
+  it('create persists tenantId + creator + writes audit', async () => {
+    const h = buildFull();
+    h.tx.lead.create.mockResolvedValueOnce({ id: 'l1', email: 'a@b.c', company: 'Acme' });
+    await withTenant(() =>
+      h.svc.create({ firstName: 'A', lastName: 'B', email: 'a@b.c', source: 'WEB' } as never),
+    );
+    expect(h.tx.lead.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        tenantId: 'cabc1234567890123456789abc',
+        createdById: 'cuser1234567890123456789a',
+        firstName: 'A',
+        email: 'a@b.c',
+        source: 'WEB',
+      }),
+    }));
+    expect(h.audit.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'lead.create',
+      subjectType: 'lead',
+      subjectId: 'l1',
+    }));
+  });
+
+  it('findAll filters by status / source / ownerId + supports cursor pagination', async () => {
+    const h = buildFull();
+    h.tx.lead.findMany.mockResolvedValueOnce([
+      { id: 'l1', firstName: 'A', lastName: 'B', deletedAt: null },
+      { id: 'l2', firstName: 'C', lastName: 'D', deletedAt: null },
+    ]);
+    const out = await withTenant(() =>
+      h.svc.findAll({ status: 'NEW', source: 'WEB', ownerId: 'u1', limit: 50 } as never),
+    );
+    expect(h.tx.lead.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        tenantId: 'cabc1234567890123456789abc',
+        deletedAt: null,
+        status: 'NEW',
+        source: 'WEB',
+        ownerId: 'u1',
+      }),
+    }));
+    expect(out.data).toHaveLength(2);
+  });
+
+  it('findAll search query (q) builds OR across firstName/lastName/email/company', async () => {
+    const h = buildFull();
+    h.tx.lead.findMany.mockResolvedValueOnce([]);
+    await withTenant(() =>
+      h.svc.findAll({ q: 'acme', limit: 20 } as never),
+    );
+    const callArgs = h.tx.lead.findMany.mock.calls[0][0];
+    expect(callArgs.where.OR).toBeDefined();
+    expect(Array.isArray(callArgs.where.OR)).toBe(true);
+  });
+
+  it('update mutates fields and writes audit', async () => {
+    const h = buildFull();
+    h.tx.lead.findFirst.mockResolvedValueOnce({ id: 'l1', tenantId: 'cabc1234567890123456789abc', deletedAt: null });
+    h.tx.lead.update.mockResolvedValueOnce({ id: 'l1', firstName: 'New' });
+    await withTenant(() =>
+      h.svc.update('l1', { firstName: 'New' } as never),
+    );
+    expect(h.tx.lead.update).toHaveBeenCalled();
+    expect(h.audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'lead.update', subjectId: 'l1' }));
+  });
+
+  it('update throws NotFound when lead missing', async () => {
+    const h = buildFull();
+    h.tx.lead.findFirst.mockResolvedValueOnce(null);
+    await withTenant(async () => {
+      await expect(h.svc.update('ghost', { firstName: 'X' } as never)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  it('remove sets deletedAt + writes audit', async () => {
+    const h = buildFull();
+    h.tx.lead.findFirst.mockResolvedValueOnce({ id: 'l1', tenantId: 'cabc1234567890123456789abc', deletedAt: null });
+    h.tx.lead.update.mockResolvedValueOnce({ id: 'l1', deletedAt: new Date() });
+    await withTenant(() => h.svc.remove('l1'));
+    expect(h.tx.lead.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'l1' },
+      data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+    }));
+    expect(h.audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'lead.delete' }));
+  });
+
+  it('remove throws NotFound when lead missing', async () => {
+    const h = buildFull();
+    h.tx.lead.findFirst.mockResolvedValueOnce(null);
+    await withTenant(async () => {
+      await expect(h.svc.remove('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+});
+
 describe('LeadsService.convert', () => {
   beforeEach(() => vi.clearAllMocks());
 
