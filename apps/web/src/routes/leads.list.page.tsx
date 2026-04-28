@@ -15,6 +15,7 @@ import {
   Toolbar,
 } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { ApiError } from '@/lib/api';
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -433,8 +434,22 @@ export function LeadsListPage(): JSX.Element {
                       <td className="px-4 py-3 font-medium">
                         {lead.firstName} {lead.lastName}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{lead.email ?? '—'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{lead.company ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={lead.email ?? ''}
+                          placeholder="Email"
+                          onSave={(v) => leadsApi.update(lead.id, { email: v || null })
+                            .then(() => qc.invalidateQueries({ queryKey: ['leads'] }))}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={lead.company ?? ''}
+                          placeholder="Companie"
+                          onSave={(v) => leadsApi.update(lead.id, { company: v || null })
+                            .then(() => qc.invalidateQueries({ queryKey: ['leads'] }))}
+                        />
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {lead.source ? SOURCE_LABELS[lead.source] : '—'}
                       </td>

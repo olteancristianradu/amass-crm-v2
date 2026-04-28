@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { GlassCard, StatusDot, type StatusTone } from '@/components/ui/glass-card';
 import { EmptyState, PageHeader } from '@/components/ui/page-header';
+import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { ApiError } from '@/lib/api';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 
@@ -151,6 +152,11 @@ export function DealsKanbanPage(): JSX.Element {
                       stages={pipeline.stages}
                       onMove={(target) => handleMove(deal, target)}
                       onDelete={() => removeMut.mutate(deal.id)}
+                      onRename={(title) =>
+                        dealsApi.update(deal.id, { title }).then(() =>
+                          qc.invalidateQueries({ queryKey: ['deals'] }),
+                        )
+                      }
                       pending={moveMut.isPending || removeMut.isPending}
                     />
                   ))
@@ -169,10 +175,11 @@ interface DealCardProps {
   stages: PipelineStage[];
   onMove: (target: PipelineStage) => void;
   onDelete: () => void;
+  onRename: (title: string) => Promise<unknown>;
   pending: boolean;
 }
 
-function DealCard({ deal, stages, onMove, onDelete, pending }: DealCardProps): JSX.Element {
+function DealCard({ deal, stages, onMove, onDelete, onRename, pending }: DealCardProps): JSX.Element {
   const currentIdx = stages.findIndex((s) => s.id === deal.stageId);
   const prevStage = currentIdx > 0 ? stages[currentIdx - 1] : null;
   const nextStage =
@@ -180,7 +187,14 @@ function DealCard({ deal, stages, onMove, onDelete, pending }: DealCardProps): J
 
   return (
     <div className="rounded-md border border-border/70 bg-card/80 p-3 backdrop-blur-sm transition-shadow hover:shadow-glass">
-      <p className="text-sm font-medium leading-tight">{deal.title}</p>
+      <div className="text-sm font-medium leading-tight text-foreground">
+        <InlineEditCell
+          value={deal.title}
+          placeholder="Titlu deal"
+          ariaLabel="Editează titlu deal"
+          onSave={(v) => (v.trim() ? onRename(v.trim()) : Promise.resolve())}
+        />
+      </div>
       {deal.value && (
         <p className="mt-1 text-xs tabular-nums text-muted-foreground">
           {formatMoney(deal.value, deal.currency)}

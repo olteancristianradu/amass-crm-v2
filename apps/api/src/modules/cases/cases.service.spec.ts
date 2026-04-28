@@ -69,6 +69,100 @@ describe('CasesService', () => {
     await expect(svc.findOne('x')).rejects.toThrow(NotFoundException);
   });
 
+  describe('findAll', () => {
+    it('filters by tenant + soft-delete + optional status/priority/assignee/company', async () => {
+      const findMany = vi.fn().mockResolvedValue([]);
+      mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ case: { findMany } }));
+
+      await svc.findAll({
+        status: 'OPEN',
+        priority: 'HIGH',
+        assigneeId: 'u1',
+        companyId: 'co1',
+        limit: 20,
+      } as any);
+
+      expect(findMany.mock.calls[0][0].where).toMatchObject({
+        tenantId: 'tenant-1',
+        deletedAt: null,
+        status: 'OPEN',
+        priority: 'HIGH',
+        assigneeId: 'u1',
+        companyId: 'co1',
+      });
+      expect(findMany.mock.calls[0][0].orderBy).toEqual({ createdAt: 'desc' });
+    });
+
+    it('omits filters when query keys are not set', async () => {
+      const findMany = vi.fn().mockResolvedValue([]);
+      mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ case: { findMany } }));
+
+      await svc.findAll({ limit: 50 } as any);
+      const where = findMany.mock.calls[0][0].where;
+      expect(where.status).toBeUndefined();
+      expect(where.priority).toBeUndefined();
+      expect(where.assigneeId).toBeUndefined();
+      expect(where.companyId).toBeUndefined();
+    });
+  });
+
+  describe('remove (soft-delete)', () => {
+    it('throws NotFound when target missing', async () => {
+      mockRunWithTenant.mockImplementation(async (_t, fn) =>
+        fn({ case: { findFirst: vi.fn().mockResolvedValue(null) } }),
+      );
+      await expect(svc.remove('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('stamps deletedAt without hard-deleting', async () => {
+      const update = vi.fn().mockResolvedValue({});
+      // findOne lookup
+      mockRunWithTenant.mockImplementationOnce(async (_t, fn) =>
+        fn({ case: { findFirst: vi.fn().mockResolvedValue({ id: 'c-1' }) } }),
+      );
+      // soft-delete update
+      mockRunWithTenant.mockImplementationOnce(async (_t, fn) => fn({ case: { update } }));
+
+      await svc.remove('c-1');
+      const args = update.mock.calls[0][0];
+      expect(args.where).toEqual({ id: 'c-1' });
+      expect(args.data.deletedAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('update — terminal-state stamping', () => {
+    it('does NOT stamp resolvedAt on OPEN → IN_PROGRESS', async () => {
+      const findFirst = vi.fn().mockResolvedValue({ id: 'c-1', status: 'OPEN' });
+      const update = vi.fn().mockResolvedValue({});
+      mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ case: { findFirst, update } }));
+
+      await svc.update('c-1', { status: 'IN_PROGRESS' } as any);
+      expect(update.mock.calls[0][0].data.resolvedAt).toBeUndefined();
+    });
+
+    it('stamps resolvedAt when reaching CLOSED for the first time', async () => {
+      const findFirst = vi.fn().mockResolvedValue({ id: 'c-1', status: 'OPEN' });
+      const update = vi.fn().mockResolvedValue({});
+      mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ case: { findFirst, update } }));
+
+      await svc.update('c-1', { status: 'CLOSED', resolution: 'fix shipped' } as any);
+      expect(update.mock.calls[0][0].data.resolvedAt).toBeInstanceOf(Date);
+      expect(update.mock.calls[0][0].data.resolution).toBe('fix shipped');
+    });
+
+    it('only includes patch keys present in the dto', async () => {
+      const findFirst = vi.fn().mockResolvedValue({ id: 'c-1', status: 'OPEN' });
+      const update = vi.fn().mockResolvedValue({});
+      mockRunWithTenant.mockImplementation(async (_t, fn) => fn({ case: { findFirst, update } }));
+
+      await svc.update('c-1', { subject: 'New subj' } as any);
+      const data = update.mock.calls[0][0].data;
+      expect(data.subject).toBe('New subj');
+      expect(data.priority).toBeUndefined();
+      expect(data.assigneeId).toBeUndefined();
+    });
+  });
+
   describe('escalateOverdueForAllTenants', () => {
     it('returns 0 when no overdue cases', async () => {
       directCase.findMany.mockResolvedValue([]);

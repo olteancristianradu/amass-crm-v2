@@ -17,12 +17,14 @@ import {
   Toolbar,
 } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
+import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { clientsRoute } from './clients.list';
 
 export function ClientsListPage(): JSX.Element {
   const { q } = clientsRoute.useSearch();
   const navigate = clientsRoute.useNavigate();
+  const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -119,11 +121,30 @@ export function ClientsListPage(): JSX.Element {
                           {c.firstName} {c.lastName}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.email ?? '—'}</td>
-                      <td className="px-4 py-3 tabular-nums text-muted-foreground">
-                        {c.phone ?? c.mobile ?? '—'}
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={c.email ?? ''}
+                          placeholder="Email"
+                          onSave={(v) => clientsApi.update(c.id, { email: v || null } as never)
+                            .then(() => qc.invalidateQueries({ queryKey: ['clients'] }))}
+                        />
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.city ?? '—'}</td>
+                      <td className="px-4 py-3 tabular-nums">
+                        <InlineEditCell
+                          value={c.phone ?? c.mobile ?? ''}
+                          placeholder="Telefon"
+                          onSave={(v) => clientsApi.update(c.id, { phone: v || null } as never)
+                            .then(() => qc.invalidateQueries({ queryKey: ['clients'] }))}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={c.city ?? ''}
+                          placeholder="Oraș"
+                          onSave={(v) => clientsApi.update(c.id, { city: v || null } as never)
+                            .then(() => qc.invalidateQueries({ queryKey: ['clients'] }))}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

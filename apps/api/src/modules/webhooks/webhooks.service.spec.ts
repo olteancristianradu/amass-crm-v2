@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { WebhooksService, isPrivateOrReservedIp } from './webhooks.service';
 
-const mockRunWithTenant = vi.fn();
-const mockCreate = vi.fn();
+type Mock = ReturnType<typeof vi.fn>;
+
+const mockRunWithTenant: Mock = vi.fn();
+const mockDeliveryCreate: Mock = vi.fn();
 const mockPrisma = {
   runWithTenant: mockRunWithTenant,
-  webhookDelivery: { create: mockCreate },
-} as any;
+  webhookDelivery: { create: mockDeliveryCreate },
+} as unknown as import('../../infra/prisma/prisma.service').PrismaService;
 
 vi.mock('../../infra/prisma/tenant-context', () => ({
   requireTenantContext: () => ({ tenantId: 'tenant-1', userId: 'user-1' }),
@@ -29,6 +32,124 @@ describe('WebhooksService', () => {
 
       expect(result).toBe(endpoint);
       expect(mockRunWithTenant).toHaveBeenCalledWith('tenant-1', expect.any(Function));
+    });
+
+    it('rejects URLs that fail SSRF validation (malformed)', async () => {
+      await expect(
+        svc.create({ url: 'not-a-url', events: ['DEAL_CREATED' as never] }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects URLs containing credentials (userinfo bypass)', async () => {
+      await expect(
+        svc.create({ url: 'https://user:pass@example.com/hook', events: ['DEAL_CREATED' as never] }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects non-http(s) protocols', async () => {
+      await expect(
+        svc.create({ url: 'ftp://example.com/hook', events: ['DEAL_CREATED' as never] }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('list', () => {
+    it('returns all endpoints for the current tenant', async () => {
+      const eps = [
+        { id: 'ep1', url: 'https://a.example/hook', events: [], isActive: true, createdAt: new Date() },
+        { id: 'ep2', url: 'https://b.example/hook', events: [], isActive: false, createdAt: new Date() },
+      ];
+      mockRunWithTenant.mockResolvedValueOnce(eps);
+      const out = await svc.list();
+      expect(out).toEqual(eps);
+      expect(mockRunWithTenant).toHaveBeenCalledWith('tenant-1', expect.any(Function));
+    });
+  });
+
+  describe('get', () => {
+    it('throws NotFoundException when endpoint missing', async () => {
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(null) } }),
+      );
+      await expect(svc.get('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('returns the endpoint when found', async () => {
+      const ep = { id: 'ep1', url: 'https://a.example/hook', events: [], isActive: true };
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(ep) } }),
+      );
+      const out = await svc.get('ep1');
+      expect(out).toEqual(ep);
+    });
+  });
+
+  describe('update', () => {
+    it('rejects credential-bearing URL on update (SSRF re-validation)', async () => {
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue({ id: 'ep1' }) } }),
+      );
+      await expect(
+        svc.update('ep1', { url: 'https://u:p@example.com/hook' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('only patches keys present in the dto', async () => {
+      // get() lookup
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue({ id: 'ep1' }) } }),
+      );
+      // update() call
+      const update = vi.fn().mockResolvedValue({ id: 'ep1' });
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { update: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { update } }),
+      );
+
+      await svc.update('ep1', { isActive: false });
+      expect(update.mock.calls[0][0].data).toEqual({ isActive: false });
+    });
+  });
+
+  describe('delete', () => {
+    it('throws NotFound when endpoint missing', async () => {
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(null) } }),
+      );
+      await expect(svc.delete('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('deletes when endpoint exists', async () => {
+      // get() lookup
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue({ id: 'ep1' }) } }),
+      );
+      const del = vi.fn().mockResolvedValue({});
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { delete: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { delete: del } }),
+      );
+
+      await svc.delete('ep1');
+      expect(del).toHaveBeenCalledWith({ where: { id: 'ep1' } });
+    });
+  });
+
+  describe('listDeliveries', () => {
+    it('orders by createdAt desc and caps at 100', async () => {
+      // get() succeeds
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue({ id: 'ep1' }) } }),
+      );
+      const findMany = vi.fn().mockResolvedValue([]);
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookDelivery: { findMany: Mock } }) => Promise<unknown>) =>
+        fn({ webhookDelivery: { findMany } }),
+      );
+
+      await svc.listDeliveries('ep1');
+      expect(findMany).toHaveBeenCalledWith({
+        where: { endpointId: 'ep1' },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
     });
   });
 
