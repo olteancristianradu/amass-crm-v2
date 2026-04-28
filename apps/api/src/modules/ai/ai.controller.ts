@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { SearchService, EntityType } from './search.service';
@@ -18,7 +20,7 @@ import { EnrichmentService } from './enrichment.service';
 import { BriefService } from './brief.service';
 
 @Controller('ai')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class AiController {
   constructor(
     private readonly search: SearchService,
@@ -66,6 +68,10 @@ export class AiController {
   @Post('deals/:id/suggest')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'ai::deal-suggest',
+    resource: (req) => `Deal::${(req as { params: { id: string } }).params.id}`,
+  })
   async suggestDealAction(@Param('id') id: string) {
     return this.dealAi.suggest(id);
   }
@@ -78,6 +84,7 @@ export class AiController {
   @Post('reindex')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequireCedar({ action: 'ai::reindex', resource: 'Embedding::*' })
   async reindex() {
     const counts = await this.embedding.reindexAll();
     return { message: 'Reindex complete', counts };
@@ -87,6 +94,10 @@ export class AiController {
   @Post('companies/:id/enrich')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({
+    action: 'ai::enrich',
+    resource: (req) => `Company::${(req as { params: { id: string } }).params.id}`,
+  })
   enrichCompany(@Param('id') id: string) {
     return this.enrichment.enrichCompany(id);
   }
@@ -95,6 +106,10 @@ export class AiController {
   @Post('contacts/:id/enrich')
   @HttpCode(200)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({
+    action: 'ai::enrich',
+    resource: (req) => `Contact::${(req as { params: { id: string } }).params.id}`,
+  })
   enrichContact(@Param('id') id: string) {
     return this.enrichment.enrichContact(id);
   }

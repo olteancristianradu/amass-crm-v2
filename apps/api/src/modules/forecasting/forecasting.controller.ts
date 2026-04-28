@@ -7,12 +7,14 @@ import {
 } from '@amass/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ForecastingService } from './forecasting.service';
 
 @Controller('forecasting')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class ForecastingController {
   constructor(private readonly forecasting: ForecastingService) {}
 
@@ -30,6 +32,7 @@ export class ForecastingController {
 
   @Post('quota')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({ action: 'forecast-quota::set', resource: 'ForecastQuota::*' })
   setQuota(@Body(new ZodValidationPipe(SetQuotaSchema)) body: Parameters<ForecastingService['setQuota']>[0]) {
     return this.forecasting.setQuota(body);
   }
