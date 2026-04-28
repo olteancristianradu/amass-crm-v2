@@ -22,7 +22,10 @@
 //   2. Limiting API caching to non-sensitive endpoints.
 //   3. Always revalidating in the background.
 
-const CACHE = 'amass-shell-v3';
+// Bump on every breaking change so old clients purge on activate.
+// v4: tenant-removed login + 3 themes shipped → ensure stale HTML pointing
+// at deleted bundle hashes (from the v3 build) gets evicted.
+const CACHE = 'amass-shell-v4';
 const STATIC_ASSETS = ['/manifest.webmanifest', '/icon-192.svg', '/icon-512.svg'];
 
 // API paths we DO want to cache for offline UX. Keep this list narrow.
