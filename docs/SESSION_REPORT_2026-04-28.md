@@ -24,7 +24,13 @@ fix(reports): camelCase column names in raw SQL + write 04-28 verification repor
 feat(security): expand Cedar coverage 18/64 → 33/64 controllers
 feat(web): dark theme with light/dark/system tri-state toggle
 docs: 2026-04-28 session report + UNFINISHED + STATUS + LESSONS
+docs: note that overnight commits couldn't be pushed unattended
+feat(integrations): *_BASE_URL overrides for mock services
+feat(security): Cedar batch #2 — coverage 33/64 → 48/64
+perf(web): lazy-load 12 heavy routes — main bundle 440→337 KB / 106→86 KB gzip
 ```
+
+(The last four landed during the morning continuation — see §Session 2 below.)
 
 ## Phase 0 — Mocks
 
@@ -137,10 +143,10 @@ broken unit tests). I documented those rather than pretend they're
 done; everything that DID get touched was verified through lint +
 typecheck + (where applicable) a live HTTP request before commit.
 
-## Metrics
+## Metrics — overnight half (commits 1–5)
 
-| Metric | Before | After |
-|--------|--------|-------|
+| Metric | Before | After overnight |
+|--------|--------|-----------------|
 | Tables in DB | 0 | 82 |
 | `@RequireCedar` controller coverage | 18/64 | 33/64 |
 | `@RequireCedar` handler count (rough) | ~30 | ~92 |
@@ -148,8 +154,64 @@ typecheck + (where applicable) a live HTTP request before commit.
 | Web bundle (main chunk) | 440 KB / 106 KB gzip | 440 KB / 106 KB gzip (unchanged) |
 | Mock services available locally | 0 | 9 (mailpit, stripe-mock, 7 in mock-services) |
 | Themes | light only | light / dark / system |
-| Files changed in session | 0 | 35 |
-| Commits added in session | 0 | 5 |
+| Commits added (overnight) | 0 | 5 |
+
+## Session 2 — morning continuation (commits 6–9)
+
+User said `git push origin main`; that failed because no GH credentials
+exist on this machine (no `gh` CLI, no SSH key, no PAT in keychain).
+Captured the unblock paths in UNFINISHED.md and kept working in
+parallel rather than block on credentials.
+
+**6 — `docs: …couldn't be pushed unattended`** — UNFINISHED.md gained
+a §P0 entry with three concrete unblock paths (`gh auth`, SSH key,
+PAT via osxkeychain).
+
+**7 — `feat(integrations): *_BASE_URL overrides for mock services`** —
+Plumbed every external SDK to support a local-mock host override:
+
+- `STRIPE_API_HOST / _PORT / _PROTOCOL` → Stripe SDK opts in
+  `billing.service.ts`.
+- `TWILIO_BASE_URL` → calls + sms client.
+- `META_GRAPH_BASE_URL` → whatsapp client.
+- `ANAF_BASE_URL / _OAUTH_BASE_URL` → e-Factura submit + token flow.
+- `GOOGLE_API_BASE_URL / _OAUTH_BASE_URL` → calendar v3 + OAuth2.
+- `MICROSOFT_GRAPH_BASE_URL / _OAUTH_BASE_URL` → outlook + OAuth2.
+
+Network aliases (`twilio-mock`, `meta-mock`, etc.) added to the
+mock-services container in docker-compose so the API can dial each
+provider by its own hostname. **Verified live**:
+`POST /api/v1/sms/send` → API container `fetch
+http://twilio-mock:3001/.../Messages.json` → mock returns
+`SM…0058601e` → DB row `status=SENT, twilioSid=SM…`.
+
+**8 — `feat(security): Cedar batch #2 — coverage 33/64 → 48/64`** —
+15 more controllers, 43 more `@RequireCedar` handlers. Pattern is
+the same — `AccessControlModule` `@Global`, no module wiring.
+
+**9 — `perf(web): lazy-load 12 heavy routes`** — Split twelve heavy
+route files into a route-declaration sibling + a `*.page.tsx` lazy
+chunk. **Main bundle: 440 KB → 337 KB raw / 106 KB → 86 KB gzip**.
+Each lazy chunk is now 2.75–14.90 KB raw / 1.15–4.56 KB gzip. The
+target is <300 KB / <80 KB gzip; this run trims 23% off raw and 20%
+off gzip — the biggest single perf win since the v2 design-system
+split. The remaining ~6 KB to the gzip target lives in the
+`tanstack-vendor` and `lucide-react` icon imports, both deferred
+to UNFINISHED P2.
+
+## Metrics — combined (overnight + session 2)
+
+| Metric | Before night | After session 2 |
+|--------|--------------|-----------------|
+| Tables in DB | 0 | 82 |
+| `@RequireCedar` controller coverage | 18/64 | **48/64** |
+| `@RequireCedar` handler count | ~30 | ~135 |
+| Web bundle (main chunk) | 440 KB / 106 KB gz | **337 KB / 86 KB gz** (−23%) |
+| Mock services + plumbing | 0 / 0 | 9 / 6 SDKs wired |
+| Live mock verification | none | SMS via twilio-mock end-to-end |
+| Themes | light only | light / dark / system |
+| API tests passing | 694/806 | 694/806 (no regressions) |
+| Commits added today | 0 | 9 (all on `main`, locally) |
 
 ## What's next (most-bang first)
 
