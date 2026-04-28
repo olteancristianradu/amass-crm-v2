@@ -68,7 +68,7 @@ function build() {
   const prisma = {
     tenant: { findUnique: vi.fn() },
     user: { findUnique: vi.fn(), update: vi.fn() },
-    session: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
+    session: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
     pipeline: { create: vi.fn() },
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   } as unknown as ConstructorParameters<typeof AuthService>[0];
@@ -251,7 +251,8 @@ describe('AuthService.login', () => {
       { ipAddress: '1.2.3.4', userAgent: 'ua' },
     );
     expect(out.tokens.accessToken).toBe('signed.jwt.token');
-    expect(h.redis.del).toHaveBeenCalledTimes(2); // both failKey + lockKey cleared
+    // M-aud-H6: 4 dels — failKey, lockKey, globalFailKey, globalLockKey
+    expect(h.redis.del).toHaveBeenCalledTimes(4);
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'auth.login', ipAddress: '1.2.3.4' }),
     );
@@ -353,7 +354,10 @@ describe('AuthService.login', () => {
       h.svc.login({ tenantSlug: 'x', email: 'a@b.com', password: 'pw' } as never),
     ).rejects.toThrow(UnauthorizedException);
     // After crossing, both the lockout key was set AND the fail counter deleted.
-    expect(h.redis.incr).toHaveBeenCalledTimes(2); // fail + lockout
+    // M-aud-H6: 3 incrs — failKey (promotes to lockout), lockKey (set
+    // by promotion), globalFailKey (the global counter increments on
+    // every failure too; threshold is 3× higher so it doesn't promote here).
+    expect(h.redis.incr).toHaveBeenCalledTimes(3);
     expect(h.redis.del).toHaveBeenCalled();
   });
 });

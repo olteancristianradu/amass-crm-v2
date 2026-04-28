@@ -1,4 +1,4 @@
-import { ConflictException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, HttpException, HttpStatus, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -65,6 +65,7 @@ export interface AuthTokens {
 @Injectable()
 export class AuthService {
   private readonly env = loadEnv();
+  private readonly logger = new Logger(AuthService.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -138,14 +139,31 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta: SessionMeta = {}): Promise<{ user: SafeUser; tokens: AuthTokens }> {
-    // Check account lockout before hitting the DB to avoid timing oracle attacks.
-    const lockKey = `auth:lockout:${dto.tenantSlug}:${dto.email.toLowerCase()}`;
-    const failKey = `auth:fails:${dto.tenantSlug}:${dto.email.toLowerCase()}`;
+    // M-aud-H6: lockout uses TWO keys, both checked + both incremented.
+    //   • per-(tenant,email) — original behaviour, prevents brute-force on a
+    //     known account inside a single tenant.
+    //   • per-email-globally — prevents the audit's "tenant pivot" attack
+    //     where the attacker registers fresh tenants and brute-forces the
+    //     same victim email across each one (5 attempts × N tenants).
+    // The global counter has a separate TTL/limit so the legit user's
+    // typo session in tenant A doesn't lock them out of every other
+    // tenant they own.
+    const emailLower = dto.email.toLowerCase();
+    const lockKey = `auth:lockout:${dto.tenantSlug}:${emailLower}`;
+    const failKey = `auth:fails:${dto.tenantSlug}:${emailLower}`;
+    const globalLockKey = `auth:lockout:email:${emailLower}`;
+    const globalFailKey = `auth:fails:email:${emailLower}`;
 
-    const lockTtl = await this.redis.ttl(lockKey);
-    if (lockTtl > 0) {
+    // Check both lockouts upfront before hitting the DB (timing oracle
+    // resistance: same shape regardless of which key tripped).
+    const [lockTtl, globalLockTtl] = await Promise.all([
+      this.redis.ttl(lockKey),
+      this.redis.ttl(globalLockKey),
+    ]);
+    const effectiveLockTtl = Math.max(lockTtl, globalLockTtl);
+    if (effectiveLockTtl > 0) {
       throw new HttpException(
-        { code: 'ACCOUNT_LOCKED', message: lockoutMessage(lockTtl) },
+        { code: 'ACCOUNT_LOCKED', message: lockoutMessage(effectiveLockTtl) },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -153,7 +171,7 @@ export class AuthService {
     const tenant = await this.prisma.tenant.findUnique({ where: { slug: dto.tenantSlug } });
     if (!tenant) {
       // Still consume a fail-counter slot to prevent user enumeration via timing.
-      await this.recordFailedAttempt(failKey, lockKey);
+      await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
@@ -161,13 +179,13 @@ export class AuthService {
       where: { tenantId_email: { tenantId: tenant.id, email: dto.email.toLowerCase() } },
     });
     if (!user || !user.isActive) {
-      await this.recordFailedAttempt(failKey, lockKey);
+      await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
-      await this.recordFailedAttempt(failKey, lockKey);
+      await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
@@ -203,7 +221,7 @@ export class AuthService {
         const stored = (user.totpBackupCodes as string[] | null) ?? [];
         const consumed = consumeBackupCode(dto.totpCode, stored);
         if (!consumed.matched) {
-          await this.recordFailedAttempt(failKey, lockKey);
+          await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
           throw new UnauthorizedException({ code: 'INVALID_TOTP', message: 'Invalid authenticator code' });
         }
         await this.prisma.user.update({
@@ -221,9 +239,13 @@ export class AuthService {
       }
     }
 
-    // Successful login — clear failure counters.
-    await this.redis.del(failKey);
-    await this.redis.del(lockKey);
+    // Successful login — clear failure counters (both per-tenant + global).
+    await Promise.all([
+      this.redis.del(failKey),
+      this.redis.del(lockKey),
+      this.redis.del(globalFailKey),
+      this.redis.del(globalLockKey),
+    ]);
 
     const tokens = await this.issueTokens(user, meta);
     await this.audit.log({
@@ -238,12 +260,33 @@ export class AuthService {
     return { user: toSafeUser(user), tokens };
   }
 
-  private async recordFailedAttempt(failKey: string, lockKey: string): Promise<void> {
+  /**
+   * Increment the per-tenant fail counter AND the global per-email fail
+   * counter. Either tripping its threshold lights up its lockout key.
+   * The global counter has a higher threshold (3× the per-tenant) so a
+   * legit user mistyping in one tenant doesn't lock them out elsewhere,
+   * but a tenant-pivot attack still hits the cap quickly.
+   */
+  private async recordFailedAttempt(
+    failKey: string,
+    lockKey: string,
+    globalFailKey?: string,
+    globalLockKey?: string,
+  ): Promise<void> {
     const attempts = await this.redis.incr(failKey, LOCKOUT_TTL_SECONDS);
     if (attempts >= MAX_LOGIN_ATTEMPTS) {
       // Promote to a hard lockout key and clear the counter.
       await this.redis.incr(lockKey, LOCKOUT_TTL_SECONDS);
       await this.redis.del(failKey);
+    }
+    if (globalFailKey && globalLockKey) {
+      const globalAttempts = await this.redis.incr(globalFailKey, LOCKOUT_TTL_SECONDS);
+      // Threshold higher to tolerate legit-typo across owned tenants.
+      // 5 per tenant × ~3 tenants worth of slack before we hard-lock.
+      if (globalAttempts >= MAX_LOGIN_ATTEMPTS * 3) {
+        await this.redis.incr(globalLockKey, LOCKOUT_TTL_SECONDS);
+        await this.redis.del(globalFailKey);
+      }
     }
   }
 
@@ -257,9 +300,45 @@ export class AuthService {
   async refresh(dto: RefreshDto, meta: SessionMeta = {}): Promise<{ tokens: AuthTokens }> {
     const hash = hashToken(dto.refreshToken);
     const session = await this.prisma.session.findUnique({ where: { refreshTokenHash: hash } });
-    if (!session || session.revokedAt || session.expiresAt < new Date()) {
+    if (!session) {
       throw new UnauthorizedException({ code: 'INVALID_REFRESH', message: 'Refresh token invalid or expired' });
     }
+
+    // M-aud-H5: refresh-token reuse detection + family revocation.
+    //
+    // If a refresh token that has ALREADY been revoked is presented again,
+    // it almost certainly means an attacker captured the token (XSS, MITM,
+    // device steal) and is rotating it from a second location. The legit
+    // user already rotated past it on their original session.
+    //
+    // Industry-standard mitigation (Auth0/Okta): revoke the entire
+    // session family — every other active session for the same user.
+    // The legit user is forced to re-authenticate, but the attacker's
+    // shadow session is killed at the same time. Without this, a stolen
+    // refresh-cookie buys 30 days of persistent shadow access.
+    if (session.revokedAt) {
+      this.logger.warn(
+        `Refresh-token reuse detected (session ${session.id}, user ${session.userId}). Revoking all active sessions for this user.`,
+      );
+      await this.prisma.session.updateMany({
+        where: { userId: session.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      // audit.log so SecOps gets the signal even if logs are rolled.
+      void this.audit.log({
+        action: 'auth.refresh_reuse_detected',
+        actorId: session.userId,
+        subjectType: 'user',
+        subjectId: session.userId,
+        metadata: { sessionId: session.id, ipAddress: meta.ipAddress, userAgent: meta.userAgent },
+      });
+      throw new UnauthorizedException({ code: 'INVALID_REFRESH', message: 'Refresh token invalid or expired' });
+    }
+
+    if (session.expiresAt < new Date()) {
+      throw new UnauthorizedException({ code: 'INVALID_REFRESH', message: 'Refresh token invalid or expired' });
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: session.userId } });
     if (!user || !user.isActive) {
       throw new UnauthorizedException({ code: 'INVALID_REFRESH', message: 'Refresh token invalid or expired' });

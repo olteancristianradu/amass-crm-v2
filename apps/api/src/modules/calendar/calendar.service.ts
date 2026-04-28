@@ -15,7 +15,9 @@
 import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CalendarEvent, CalendarProvider, Prisma, SubjectType } from '@prisma/client';
 import { CreateCalendarEventDto, ListCalendarEventsQueryDto } from '@amass/shared';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { decrypt as decryptSecret, encrypt as encryptSecret } from '../../common/crypto/encryption';
 import { loadEnv } from '../../config/env';
@@ -39,11 +41,33 @@ function microsoftGraphBase(): string {
 export class CalendarService {
   private readonly logger = new Logger(CalendarService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   // ─── OAuth helpers ─────────────────────────────────────────────────────────
 
-  buildAuthUrl(provider: 'GOOGLE' | 'OUTLOOK', redirectUri: string): string {
+  /**
+   * M-aud-H8: build the IdP auth URL AND issue a one-time `state` value
+   * bound to the current user. The state is stored in Redis (10 min TTL)
+   * keyed by its own value; on the callback we verify it exists and was
+   * issued for the same userId. Without this check the OAuth flow is
+   * vulnerable to CSRF — an attacker tricks the victim into hitting
+   * `/calendar/callback?code=<attacker_code>` and the API would link the
+   * attacker's calendar to the victim's account.
+   */
+  async buildAuthUrl(provider: 'GOOGLE' | 'OUTLOOK', redirectUri: string): Promise<string> {
+    const { tenantId, userId } = requireTenantContext();
+    const state = randomBytes(24).toString('hex');
+    // Bind state → (tenantId, userId, provider). 10 minutes is the OAuth
+    // §10.12 recommendation and matches what Google/Microsoft tolerate.
+    await this.redis.client.set(
+      `oauth:calendar:state:${state}`,
+      JSON.stringify({ tenantId, userId, provider }),
+      'EX',
+      600,
+    );
     if (provider === 'GOOGLE') {
       const params = new URLSearchParams({
         client_id: process.env['GOOGLE_CLIENT_ID'] ?? '',
@@ -52,6 +76,7 @@ export class CalendarService {
         scope: 'https://www.googleapis.com/auth/calendar',
         access_type: 'offline',
         prompt: 'consent',
+        state,
       });
       return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
     }
@@ -60,8 +85,28 @@ export class CalendarService {
       redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'Calendars.ReadWrite offline_access',
+      state,
     });
     return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+  }
+
+  /**
+   * M-aud-H8: callback-side validation of the state issued in
+   * buildAuthUrl. Must match the current user (or fail with 401). Single-use:
+   * we delete the Redis key after read so a stolen state can't be replayed.
+   */
+  async consumeOAuthState(state: string, expectProvider: 'GOOGLE' | 'OUTLOOK'): Promise<void> {
+    const { tenantId, userId } = requireTenantContext();
+    if (!state) throw new UnauthorizedException('OAuth state missing');
+    const key = `oauth:calendar:state:${state}`;
+    const raw = await this.redis.client.get(key);
+    if (!raw) throw new UnauthorizedException('OAuth state invalid or expired');
+    await this.redis.client.del(key);
+    let parsed: { tenantId?: string; userId?: string; provider?: string };
+    try { parsed = JSON.parse(raw); } catch { throw new UnauthorizedException('OAuth state corrupt'); }
+    if (parsed.tenantId !== tenantId || parsed.userId !== userId || parsed.provider !== expectProvider) {
+      throw new UnauthorizedException('OAuth state mismatch');
+    }
   }
 
   async exchangeCode(

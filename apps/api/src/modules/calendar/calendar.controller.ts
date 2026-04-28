@@ -26,9 +26,9 @@ export class CalendarController {
 
   @Get('connect/:provider')
   @Redirect()
-  connect(@Param('provider') rawProvider: string, @Query('redirectUri') redirectUri: string) {
+  async connect(@Param('provider') rawProvider: string, @Query('redirectUri') redirectUri: string) {
     const provider = CalendarProviderSchema.parse(rawProvider.toUpperCase());
-    const url = this.svc.buildAuthUrl(provider, redirectUri ?? `${process.env['API_BASE_URL']}/api/v1/calendar/callback/${provider}`);
+    const url = await this.svc.buildAuthUrl(provider, redirectUri ?? `${process.env['API_BASE_URL']}/api/v1/calendar/callback/${provider}`);
     return { url };
   }
 
@@ -37,8 +37,12 @@ export class CalendarController {
     @Param('provider') rawProvider: string,
     @Query('code') code: string,
     @Query('redirectUri') redirectUri: string,
+    @Query('state') state: string,
   ) {
     const provider = CalendarProviderSchema.parse(rawProvider.toUpperCase());
+    // M-aud-H8: refuse the callback unless state matches a value we issued
+    // for THIS user in connect/. CSRF mitigation per OAuth 2.0 §10.12.
+    await this.svc.consumeOAuthState(state, provider);
     const uri = redirectUri ?? `${process.env['API_BASE_URL']}/api/v1/calendar/callback/${provider}`;
     const tokens = await this.svc.exchangeCode(provider, code, uri);
     const integration = await this.svc.saveIntegration(provider, tokens.accessToken, tokens.refreshToken, tokens.expiresAt);

@@ -28,8 +28,18 @@ function build() {
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
     calendarIntegration: { findMany: vi.fn() },
   } as unknown as ConstructorParameters<typeof CalendarService>[0];
-  const svc = new CalendarService(prisma);
-  return { svc, prisma, tx };
+  // M-aud-H8: redis stub for OAuth state nonces. set/get/del are the
+  // only methods buildAuthUrl/consumeOAuthState touch.
+  const redisStore = new Map<string, string>();
+  const redis = {
+    client: {
+      set: vi.fn(async (k: string, v: string) => { redisStore.set(k, v); return 'OK'; }),
+      get: vi.fn(async (k: string) => redisStore.get(k) ?? null),
+      del: vi.fn(async (k: string) => { redisStore.delete(k); return 1; }),
+    },
+  } as unknown as ConstructorParameters<typeof CalendarService>[1];
+  const svc = new CalendarService(prisma, redis);
+  return { svc, prisma, tx, redis };
 }
 
 beforeEach(() => {
@@ -44,21 +54,30 @@ afterEach(() => {
   process.env = { ...ORIG_ENV };
 });
 
+// requireTenantContext is mocked at top of file — buildAuthUrl needs ALS context
+vi.mock('../../infra/prisma/tenant-context', () => ({
+  requireTenantContext: vi.fn(() => ({ tenantId: 'tenant-1', userId: 'user-1' })),
+  tenantStorage: { run: (_ctx: unknown, fn: () => unknown) => fn() },
+}));
+
 describe('CalendarService.buildAuthUrl', () => {
-  it('builds Google URL with offline access + consent prompt', () => {
-    const url = build().svc.buildAuthUrl('GOOGLE', 'https://app/cb');
+  it('builds Google URL with offline access + consent prompt + state nonce', async () => {
+    const url = await build().svc.buildAuthUrl('GOOGLE', 'https://app/cb');
     expect(url).toContain('accounts.google.com');
     expect(url).toContain('access_type=offline');
     expect(url).toContain('prompt=consent');
     expect(url).toContain('client_id=g-cid');
+    // M-aud-H8: state must be present and non-empty (CSRF mitigation)
+    expect(url).toMatch(/state=[0-9a-f]{48}/);
   });
 
-  it('builds Outlook URL with offline_access + Calendars.ReadWrite scopes', () => {
-    const url = build().svc.buildAuthUrl('OUTLOOK', 'https://app/cb');
+  it('builds Outlook URL with offline_access + Calendars.ReadWrite scopes + state', async () => {
+    const url = await build().svc.buildAuthUrl('OUTLOOK', 'https://app/cb');
     expect(url).toContain('login.microsoftonline.com');
     // URLSearchParams encodes spaces as '+', so decode + handle that explicitly.
     const decoded = decodeURIComponent(url.replace(/\+/g, ' '));
     expect(decoded).toContain('Calendars.ReadWrite offline_access');
+    expect(url).toMatch(/state=[0-9a-f]{48}/);
   });
 });
 
