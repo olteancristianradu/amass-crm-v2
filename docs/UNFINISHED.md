@@ -123,6 +123,40 @@ if buttons in the invoice list aren't legible.
      `runWithTenant` mock pattern from LESSONS.md).
 - Estimated effort: 2–3 hours, mostly mechanical.
 
+### Coverage push (current state captured 2026-04-28)
+
+`pnpm vitest run --coverage` against `main` post-Faza C:
+
+| Module                | Line %  | Branch % | Notes |
+|-----------------------|---------|----------|-------|
+| `infra/prisma`        | 86.27   | 84.21    | ≥80 ✓ |
+| `modules/deals`       | 87.05   | 87.27    | ≥80 ✓ |
+| `modules/calls`       | 73.66   | 84.47    | close |
+| `modules/audit`       | 70.00   | 78.57    | close |
+| `modules/auth`        | 65.52   | 89.31    | service ≥80; controller drags |
+| `modules/anaf`        | 80.35   | 64.28    | ≥80 ✓ |
+| `modules/notes`       | 72.63   | 93.54    | close |
+| `modules/cases`       | 62.98   | 60.00    | mid |
+| `modules/email`       | 58.55   | 69.64    | mid |
+| `modules/gdpr`        | 72.61   | 80.95    | close |
+| `modules/leads`       | 14.23   | 78.57    | **needs work** — 302 LOC service, only 120 LOC spec |
+| `modules/sms`         | 22.41   | 27.27    | **needs work** |
+| `modules/ai`          | 30.31   | 65.75    | **needs work** — multiple services |
+| scaffolds (scim/webauthn/sync) | 100 | 100 | 501 stubs only |
+
+The `infra/queue`, `infra/redis`, `infra/storage`, `infra/ws` infra
+modules sit at 25–30% line; their cores are integration paths
+(BullMQ workers, Socket.IO gateway, MinIO S3 client) that are e2e-
+tested with the live Docker stack rather than mocked at the unit
+level. Module total numbers also include `*.module.ts` and
+`*.controller.ts` files that are 0% by design (controllers are
+e2e/integration tested).
+
+**Target for next sprint**: bring `leads`, `sms`, `ai` to ≥50% line
+each, push `auth`/`calls`/`audit` over the 80% mark by adding the
+specific edge-case branches that aren't currently asserted (mostly
+error paths). Estimated 4h focused work.
+
 ### onDelete: business cross-references — focused refactor (deferred)
 
 Re-audited 2026-04-28 after the wider Faza C work landed. Live state of
