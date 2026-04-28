@@ -7,7 +7,6 @@ import { z } from 'zod';
  * promote the auth schemas to @amass/shared, delete this file.
  */
 export const LoginFormSchema = z.object({
-  tenantSlug: z.string().trim().min(2, 'Cel puțin 2 caractere').max(64),
   email: z.string().email('Email invalid'),
   password: z.string().min(1, 'Parola este obligatorie'),
 });

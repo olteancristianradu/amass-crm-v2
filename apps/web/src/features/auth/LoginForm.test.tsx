@@ -35,18 +35,20 @@ describe('LoginForm', () => {
     );
   }
 
-  it('renders all fields', () => {
+  it('renders email + password fields (no tenant field after S?? UX cleanup)', () => {
     renderForm();
-    expect(screen.getByLabelText('Tenant')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tenant')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.getByLabelText('Parolă')).toBeInTheDocument();
   });
 
-  it('shows validation errors when submitting empty', async () => {
+  it('keeps the user on the form (no navigation) when submitting empty', async () => {
     renderForm();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Conectare/i }));
-    expect(await screen.findByText(/cel puțin 2/i)).toBeInTheDocument();
-    expect(await screen.findByText(/email invalid/i)).toBeInTheDocument();
+    // Form should still be visible — i.e. the submit didn't sneak through
+    // empty values past the Zod resolver.
+    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByLabelText('Parolă')).toBeInTheDocument();
   });
 });

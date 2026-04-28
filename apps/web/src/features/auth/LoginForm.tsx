@@ -11,15 +11,19 @@ import { Label } from '@/components/ui/label';
 import { GlassCard } from '@/components/ui/glass-card';
 import { LoginFormSchema, type LoginFormValues } from './schemas';
 
+interface TenantOption {
+  slug: string;
+  name: string;
+}
+
 /**
- * Login card. Two-step flow:
- *   1. Tenant + email + password → if TOTP_REQUIRED, show TOTP input
- *   2. Retry same credentials + totpCode → get session tokens
+ * Login card. Three possible steps:
+ *   1. Email + password → if TOTP_REQUIRED, show TOTP input
+ *   2. Email + password → if TENANT_PICKER_REQUIRED (same email on multiple
+ *      tenants), show a workspace picker, then resubmit with tenantSlug
+ *   3. Retry same credentials + totpCode (if 2FA) → get session tokens
  *
- * Visual style: glass card on the v2 design tokens. No drop shadows
- * outside of the GlassCard's own subtle elevation. Errors render under
- * the relevant field; account-locked errors bounce the user back to
- * the password step so the lockout TTL message is visible.
+ * No tenant field by default — the BE resolves the tenant from the email.
  */
 export function LoginForm(): JSX.Element {
   const router = useRouter();
@@ -27,8 +31,11 @@ export function LoginForm(): JSX.Element {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [totpStep, setTotpStep] = useState(false);
   const [pendingValues, setPendingValues] = useState<LoginFormValues | null>(null);
+  const [pendingTenantSlug, setPendingTenantSlug] = useState<string | null>(null);
+  const [tenantOptions, setTenantOptions] = useState<TenantOption[] | null>(null);
   const [totpCode, setTotpCode] = useState('');
   const [totpSubmitting, setTotpSubmitting] = useState(false);
+  const [pickerSubmitting, setPickerSubmitting] = useState(false);
 
   const {
     register,
@@ -36,20 +43,31 @@ export function LoginForm(): JSX.Element {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(LoginFormSchema),
-    defaultValues: { tenantSlug: '', email: '', password: '' },
+    defaultValues: { email: '', password: '' },
   });
+
+  async function attemptLogin(values: LoginFormValues, tenantSlug?: string): Promise<void> {
+    const body = tenantSlug ? { ...values, tenantSlug } : values;
+    const res = await api.post<{ user: AuthUser; tokens: AuthTokens }>('/auth/login', body);
+    setSession(res.user, res.tokens);
+    await router.navigate({ to: '/app' });
+  }
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
     try {
-      const res = await api.post<{ user: AuthUser; tokens: AuthTokens }>('/auth/login', values);
-      setSession(res.user, res.tokens);
-      await router.navigate({ to: '/app' });
+      await attemptLogin(values);
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === 'TOTP_REQUIRED') {
           setPendingValues(values);
           setTotpStep(true);
+        } else if (err.code === 'TENANT_PICKER_REQUIRED') {
+          // BE returns the candidate tenants in `details.tenants` — see
+          // AuthService.login. The user picks one; we resubmit explicitly.
+          const tenants = (err.details as { tenants?: TenantOption[] } | undefined)?.tenants ?? [];
+          setPendingValues(values);
+          setTenantOptions(tenants);
         } else {
           setSubmitError(err.code === 'INVALID_CREDENTIALS' ? 'Email sau parolă incorectă' : err.message);
         }
@@ -59,16 +77,42 @@ export function LoginForm(): JSX.Element {
     }
   });
 
+  const onPickerSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    if (!pendingValues || !pendingTenantSlug) return;
+    setSubmitError(null);
+    setPickerSubmitting(true);
+    try {
+      await attemptLogin(pendingValues, pendingTenantSlug);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.code === 'TOTP_REQUIRED') {
+          setTenantOptions(null);
+          setPendingValues({ ...pendingValues });
+          // Carry the chosen slug into the TOTP step.
+          setPendingTenantSlug(pendingTenantSlug);
+          setTotpStep(true);
+        } else {
+          setSubmitError(err.message ?? 'Eroare la conectare.');
+        }
+      } else {
+        setSubmitError('Eroare necunoscută.');
+      }
+    } finally {
+      setPickerSubmitting(false);
+    }
+  };
+
   const onTotpSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!pendingValues || totpCode.length !== 6) return;
     setSubmitError(null);
     setTotpSubmitting(true);
     try {
-      const res = await api.post<{ user: AuthUser; tokens: AuthTokens }>('/auth/login', {
-        ...pendingValues,
-        totpCode,
-      });
+      const body = pendingTenantSlug
+        ? { ...pendingValues, tenantSlug: pendingTenantSlug, totpCode }
+        : { ...pendingValues, totpCode };
+      const res = await api.post<{ user: AuthUser; tokens: AuthTokens }>('/auth/login', body);
       setSession(res.user, res.tokens);
       await router.navigate({ to: '/app' });
     } catch (err) {
@@ -87,6 +131,74 @@ export function LoginForm(): JSX.Element {
     }
   };
 
+  // ── Step 2a: tenant picker ────────────────────────────────────────────────
+  if (tenantOptions) {
+    return (
+      <GlassCard className="w-full max-w-sm p-7">
+        <header className="mb-5 flex items-start gap-3">
+          <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
+            <KeyRound size={18} className="text-foreground" />
+          </span>
+          <div>
+            <h1 className="text-lg font-semibold leading-tight">Alege spațiul de lucru</h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Adresa ta de email aparține mai multor firme. Alege unde vrei să te conectezi.
+            </p>
+          </div>
+        </header>
+
+        <form onSubmit={onPickerSubmit} className="space-y-4">
+          <div className="space-y-2">
+            {tenantOptions.map((t) => (
+              <label
+                key={t.slug}
+                className="flex cursor-pointer items-center gap-3 rounded-md border border-border/60 bg-secondary/20 px-3 py-2 text-sm hover:bg-secondary/40"
+              >
+                <input
+                  type="radio"
+                  name="tenant"
+                  value={t.slug}
+                  checked={pendingTenantSlug === t.slug}
+                  onChange={() => setPendingTenantSlug(t.slug)}
+                  className="accent-primary"
+                />
+                <span className="flex-1">
+                  <span className="block font-medium">{t.name}</span>
+                  <span className="block text-xs text-muted-foreground">{t.slug}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {submitError && (
+            <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {submitError}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTenantOptions(null);
+                setPendingTenantSlug(null);
+                setSubmitError(null);
+              }}
+            >
+              <ArrowLeft size={14} className="mr-1" /> Înapoi
+            </Button>
+            <Button type="submit" className="flex-1" disabled={pickerSubmitting || !pendingTenantSlug}>
+              {pickerSubmitting ? 'Se conectează…' : 'Continuă'}
+            </Button>
+          </div>
+        </form>
+      </GlassCard>
+    );
+  }
+
+  // ── Step 2b/3: TOTP step ──────────────────────────────────────────────────
   if (totpStep) {
     return (
       <GlassCard className="w-full max-w-sm p-7">
@@ -153,6 +265,7 @@ export function LoginForm(): JSX.Element {
     );
   }
 
+  // ── Step 1: email + password ─────────────────────────────────────────────
   return (
     <GlassCard className="w-full max-w-sm p-7">
       <header className="mb-5 flex items-start gap-3">
@@ -168,19 +281,6 @@ export function LoginForm(): JSX.Element {
       </header>
 
       <form onSubmit={onSubmit} noValidate className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="tenantSlug">Tenant</Label>
-          <Input
-            id="tenantSlug"
-            autoComplete="organization"
-            placeholder="ex: acme-srl"
-            {...register('tenantSlug')}
-          />
-          {errors.tenantSlug && (
-            <p className="text-xs text-destructive">{errors.tenantSlug.message}</p>
-          )}
-        </div>
-
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input

@@ -10,7 +10,10 @@ export const RegisterSchema = z.object({
 export type RegisterDto = z.infer<typeof RegisterSchema>;
 
 export const LoginSchema = z.object({
-  tenantSlug: z.string().min(2).max(64),
+  // Optional now. If absent, the service looks up the email across all tenants;
+  // single-tenant match → proceeds; multi-tenant match → 409 TENANT_PICKER_REQUIRED
+  // and the FE shows a dropdown for the user to pick.
+  tenantSlug: z.string().min(2).max(64).optional(),
   email: z.string().email(),
   password: z.string().min(1),
   // 6-digit TOTP code — required only when the account has 2FA enabled.

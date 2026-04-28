@@ -139,6 +139,42 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, meta: SessionMeta = {}): Promise<{ user: SafeUser; tokens: AuthTokens }> {
+    const emailLower = dto.email.toLowerCase();
+
+    // Resolve the tenant slug. When the FE omits it (the modern UX), look the
+    // email up across all tenants. Single match → use it. Multi-match → 409
+    // with the slug list so the FE can show a picker. No match → fall through
+    // to the lockout/InvalidCredentials path so we don't leak account presence.
+    let tenantSlug = dto.tenantSlug;
+    if (!tenantSlug) {
+      const users = await this.prisma.user.findMany({
+        where: { email: emailLower, isActive: true },
+        select: { tenant: { select: { slug: true, name: true } } },
+      });
+      if (users.length === 1) {
+        tenantSlug = users[0].tenant.slug;
+      } else if (users.length > 1) {
+        // Don't leak which tenants exist if the password is wrong — but
+        // matching emails on multiple tenants is a benign disclosure since
+        // the user is the legitimate owner of that email. The FE asks
+        // them to pick, then resubmits with tenantSlug set.
+        throw new HttpException(
+          {
+            code: 'TENANT_PICKER_REQUIRED',
+            message: 'Multiple workspaces match this email — pick one and retry.',
+            // The global exception filter surfaces `details`; nesting the
+            // tenant list there keeps the public response shape consistent
+            // ({ code, message, details, traceId, timestamp }).
+            details: { tenants: users.map((u) => ({ slug: u.tenant.slug, name: u.tenant.name })) },
+          },
+          HttpStatus.CONFLICT,
+        );
+      }
+      // 0 matches: leave tenantSlug undefined; the lookup below will fail
+      // with INVALID_CREDENTIALS (same as a wrong password) so attackers
+      // can't enumerate registered emails.
+    }
+
     // M-aud-H6: lockout uses TWO keys, both checked + both incremented.
     //   • per-(tenant,email) — original behaviour, prevents brute-force on a
     //     known account inside a single tenant.
@@ -148,9 +184,12 @@ export class AuthService {
     // The global counter has a separate TTL/limit so the legit user's
     // typo session in tenant A doesn't lock them out of every other
     // tenant they own.
-    const emailLower = dto.email.toLowerCase();
-    const lockKey = `auth:lockout:${dto.tenantSlug}:${emailLower}`;
-    const failKey = `auth:fails:${dto.tenantSlug}:${emailLower}`;
+    //
+    // tenantSlug may be unresolved here (no user found) — use a sentinel
+    // so the per-tenant key still functions and isn't a collision risk.
+    const slugForKey = tenantSlug ?? '__unresolved__';
+    const lockKey = `auth:lockout:${slugForKey}:${emailLower}`;
+    const failKey = `auth:fails:${slugForKey}:${emailLower}`;
     const globalLockKey = `auth:lockout:email:${emailLower}`;
     const globalFailKey = `auth:fails:email:${emailLower}`;
 
@@ -168,7 +207,11 @@ export class AuthService {
       );
     }
 
-    const tenant = await this.prisma.tenant.findUnique({ where: { slug: dto.tenantSlug } });
+    // tenantSlug is now the resolved local from the email-lookup branch above
+    // (or the value the FE passed in if it sent one).
+    const tenant = tenantSlug
+      ? await this.prisma.tenant.findUnique({ where: { slug: tenantSlug } })
+      : null;
     if (!tenant) {
       // Still consume a fail-counter slot to prevent user enumeration via timing.
       await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
