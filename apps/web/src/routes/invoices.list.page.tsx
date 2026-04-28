@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
 import { Download, Receipt, X } from 'lucide-react';
 import { invoicesApi } from '@/features/invoices/api';
+import { AnafInvoiceCell } from '@/features/anaf/AnafInvoiceCell';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
 import {
@@ -111,6 +112,11 @@ export function InvoicesListPage(): JSX.Element {
                 )}
               </div>
             </div>
+            {inv.status !== 'DRAFT' && inv.status !== 'CANCELLED' && (
+              <div className="mt-3 border-t border-border/50 pt-3">
+                <AnafInvoiceCell invoiceId={inv.id} />
+              </div>
+            )}
           </GlassCard>
         ))}
       </div>
