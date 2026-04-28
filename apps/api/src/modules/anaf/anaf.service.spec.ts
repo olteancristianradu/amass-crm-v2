@@ -12,6 +12,7 @@ vi.mock('../../common/resilience/circuit-breaker', () => ({
 }));
 
 import { AnafService } from './anaf.service';
+import { _resetEnvCacheForTests } from '../../config/env';
 
 const ORIG_ENV = { ...process.env };
 
@@ -66,6 +67,10 @@ const sampleInvoice = {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env = { ...ORIG_ENV };
+  // Scrub overrides that would shadow the production hostnames the
+  // assertions below check for (`webservicesp.anaf.ro`).
+  delete process.env.ANAF_BASE_URL;
+  delete process.env.ANAF_OAUTH_BASE_URL;
   process.env.ANAF_VAT = 'RO12345678';
   process.env.ANAF_COMPANY_NAME = 'Acme';
   process.env.ANAF_ADDRESS = 'Str. X 1';
@@ -74,10 +79,12 @@ beforeEach(() => {
   process.env.ANAF_CLIENT_ID = 'cid';
   process.env.ANAF_CLIENT_SECRET = 'sec';
   process.env.ANAF_SANDBOX = 'true';
+  _resetEnvCacheForTests();
 });
 
 afterEach(() => {
   process.env = { ...ORIG_ENV };
+  _resetEnvCacheForTests();
 });
 
 describe('AnafService.submitInvoice', () => {

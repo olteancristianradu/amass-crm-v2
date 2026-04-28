@@ -296,6 +296,17 @@ export type Env = z.infer<typeof envSchema>;
 
 let cached: Env | null = null;
 
+/**
+ * Test-only escape hatch — drops the cached env so the next loadEnv()
+ * re-reads `process.env`. Tests that mutate provider URLs in beforeEach
+ * (e.g. ANAF_BASE_URL switching between mock and prod assertions) must
+ * call this after the mutation, otherwise the original cached value
+ * survives and the assertion sees the wrong host.
+ */
+export function _resetEnvCacheForTests(): void {
+  cached = null;
+}
+
 export function loadEnv(): Env {
   if (cached) return cached;
   const parsed = envSchema.safeParse(process.env);
