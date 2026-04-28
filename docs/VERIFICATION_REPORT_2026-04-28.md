@@ -36,6 +36,23 @@
 | A9 | Cedar decorator placement audit | ✅ static | Programmatic audit: 339 handlers across 64 controllers, 152 carry @RequireCedar, only 2 are `@Get + @RequireCedar` (gdpr/contacts/:id/export and gdpr/clients/:id/export — both **intentional** because GDPR PII exports deserve ABAC beyond simple role gates). No mistaken placements. |
 | A10 | Honesty pass on this report | ✅ done | This block. |
 
+## Faza B — Phase 2 verification gap closure (2026-04-28)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| B1 | Email send → mailpit + tracking pixel | ✅ live | mailpit /api/v1/messages: subject="Test mailpit verificare B1", from=Radu Oltean. Then GET tracking pixel → email_tracks row kind=OPEN, user_agent=TestB1/1.0. |
+| B2 | Calls flow (initiate → mock → callback → DB) | ✅ live | mock log [twilio] POST /Calls.json + callback fired with HMAC-SHA1 X-Twilio-Signature → API 204 → DB row status=COMPLETED, durationSec=42, twilioCallSid=CA8dbedf25... |
+| B3 | WhatsApp inbound (HMAC-SHA256 signed POST) | ✅ live | POST /whatsapp/webhook?tenantId=… with x-hub-signature-256 → 200, DB whatsapp_messages row direction=INBOUND, status=DELIVERED, body="Salut, merge mock-ul inbound." |
+| B4 | Workflow E2E COMPANY_CREATED→ADD_NOTE→CREATE_TASK | ✅ live | Created workflow + new company → DB shows note "Companie nouă: triază priortizarea în 24h." + task "Sună pe contactul principal" status=OPEN priority=HIGH |
+| B5 | GDPR export contact + erase + retention | ✅ live | Export returned full PII JSON. Erase: DB row firstName=[ANONYMISED], email=anonymised@deleted.invalid, deletedAt set. |
+| B6 | Stripe webhook signed → BillingSubscription state | ✅ live | POST /billing/webhook with t=ts,v1=HMAC-SHA256(secret, "ts.payload") → 200. DB transition: TRIALING → ACTIVE, stripe_subscription_id stamped. **Bug fix shipped**: rawBody capture via verify() callback (was 400 "No webhook payload" silently in prod). |
+| B7 | File upload presign+PUT+complete + magic-byte | ✅ live | Real PDF (73B) → DB attachments row created. HTML masked as application/pdf → API 400 MIME_MISMATCH "Uploaded file magic bytes (unknown) do not match declared mimeType application/pdf". |
+| B8 | 2FA TOTP setup + enable | ✅ live | /totp/setup → otpauthUrl + secret. Generated TOTP code in Node from secret using RFC 6238 (HMAC-SHA1, 30s window) → /totp/enable returned `{"message":"2FA enabled successfully"}`. |
+| B9 | Cmd+K palette combos | PENDING B-3 | Will require Playwright run; deferred to Faza C / E for browser sweep. |
+| B10 | Duplicate detection + merge | ✅ live | Created 2 similar companies "Acme Romania International SRL" / "S.R.L." → /duplicates/companies/:id returned `[{similarity: 0.80}, {similarity: 0.41}]`. Merge soft-deleted victim. **Bug fix shipped**: 3 raw queries in DuplicatesService used snake_case column names against camelCase tables. |
+| B11 | Custom fields create+attach+set+read | ✅ live | Def created (SELECT, options [IT/Producție/Retail]). Set value "IT" on company → 200. Read back returned full payload with fieldDef + value. |
+| B12 | Outbound webhook HMAC verify-side | ✅ live | Captured webhook receipt from webhook-mock: x-amass-signature=sha256=2b058b2e9cf2df58... Re-computed HMAC-SHA256(endpoint.secret, body) on host = identical. Content-length 172 = re-stringified 172, byte-for-byte match. |
+
 ## Bonus latent bugs caught while running Faza A
 
 Three real production-blocker bugs surfaced because the unit-test

@@ -23,21 +23,23 @@ export class DuplicatesService {
     const vat = source.vatNumber ?? '';
     const email = source.email ?? '';
 
+    // companies/contacts/clients tables use camelCase columns (no @map),
+    // so quote them like reports.service.ts does. Was 500-ing in Faza B.
     return this.prisma.$queryRaw<DuplicateCandidate[]>`
       SELECT id, name,
         GREATEST(
           similarity(name, ${name}),
-          CASE WHEN vat_number IS NOT NULL AND ${vat} <> '' THEN similarity(vat_number, ${vat}) ELSE 0 END,
-          CASE WHEN email     IS NOT NULL AND ${email} <> '' THEN similarity(email, ${email}) ELSE 0 END
+          CASE WHEN "vatNumber" IS NOT NULL AND ${vat} <> '' THEN similarity("vatNumber", ${vat}) ELSE 0 END,
+          CASE WHEN email       IS NOT NULL AND ${email} <> '' THEN similarity(email, ${email}) ELSE 0 END
         )::float AS similarity
       FROM companies
-      WHERE tenant_id = ${tenantId}
+      WHERE "tenantId" = ${tenantId}
         AND id <> ${id}
-        AND deleted_at IS NULL
+        AND "deletedAt" IS NULL
         AND (
           similarity(name, ${name}) > 0.3
-          OR (vat_number IS NOT NULL AND ${vat} <> '' AND similarity(vat_number, ${vat}) > 0.8)
-          OR (email      IS NOT NULL AND ${email} <> '' AND similarity(email, ${email}) > 0.8)
+          OR ("vatNumber" IS NOT NULL AND ${vat} <> '' AND similarity("vatNumber", ${vat}) > 0.8)
+          OR (email        IS NOT NULL AND ${email} <> '' AND similarity(email, ${email}) > 0.8)
         )
       ORDER BY similarity DESC
       LIMIT 10
@@ -55,17 +57,17 @@ export class DuplicatesService {
     const email = source.email ?? '';
 
     return this.prisma.$queryRaw<DuplicateCandidate[]>`
-      SELECT id, first_name || ' ' || last_name AS name,
+      SELECT id, "firstName" || ' ' || "lastName" AS name,
         GREATEST(
-          similarity(first_name || ' ' || last_name, ${fullName}),
+          similarity("firstName" || ' ' || "lastName", ${fullName}),
           CASE WHEN email IS NOT NULL AND ${email} <> '' THEN similarity(email, ${email}) ELSE 0 END
         )::float AS similarity
       FROM contacts
-      WHERE tenant_id = ${tenantId}
+      WHERE "tenantId" = ${tenantId}
         AND id <> ${id}
-        AND deleted_at IS NULL
+        AND "deletedAt" IS NULL
         AND (
-          similarity(first_name || ' ' || last_name, ${fullName}) > 0.4
+          similarity("firstName" || ' ' || "lastName", ${fullName}) > 0.4
           OR (email IS NOT NULL AND ${email} <> '' AND similarity(email, ${email}) > 0.8)
         )
       ORDER BY similarity DESC
@@ -84,17 +86,17 @@ export class DuplicatesService {
     const email = source.email ?? '';
 
     return this.prisma.$queryRaw<DuplicateCandidate[]>`
-      SELECT id, first_name || ' ' || last_name AS name,
+      SELECT id, "firstName" || ' ' || "lastName" AS name,
         GREATEST(
-          similarity(first_name || ' ' || last_name, ${fullName}),
+          similarity("firstName" || ' ' || "lastName", ${fullName}),
           CASE WHEN email IS NOT NULL AND ${email} <> '' THEN similarity(email, ${email}) ELSE 0 END
         )::float AS similarity
       FROM clients
-      WHERE tenant_id = ${tenantId}
+      WHERE "tenantId" = ${tenantId}
         AND id <> ${id}
-        AND deleted_at IS NULL
+        AND "deletedAt" IS NULL
         AND (
-          similarity(first_name || ' ' || last_name, ${fullName}) > 0.4
+          similarity("firstName" || ' ' || "lastName", ${fullName}) > 0.4
           OR (email IS NOT NULL AND ${email} <> '' AND similarity(email, ${email}) > 0.8)
         )
       ORDER BY similarity DESC
