@@ -72,6 +72,7 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
 import { TerritoriesModule } from './modules/territories/territories.module';
 import { ChatterModule } from './modules/chatter/chatter.module';
 import { EventsModule } from './modules/events/events.module';
+import { SavedViewsModule } from './modules/saved-views/saved-views.module';
 import { ScimModule } from './modules/scim/scim.module';
 import { WebauthnModule } from './modules/webauthn/webauthn.module';
 import { AccessControlModule } from './modules/access-control/access-control.module';
@@ -242,6 +243,7 @@ import { SyncModule } from './modules/sync/sync.module';
     TerritoriesModule,
     ChatterModule,
     EventsModule,
+    SavedViewsModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

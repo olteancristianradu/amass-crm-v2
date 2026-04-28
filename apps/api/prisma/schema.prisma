@@ -2303,3 +2303,23 @@ model EventAttendee {
   @@index([eventId])
   @@map("event_attendees")
 }
+
+// ─── Saved views ──────────────────────────────────────────────────────────────
+// Per-user, per-resource snapshot of a list page's filters/search/sort. The
+// user names a view ("My Romanian SMBs") and the FE re-applies its `filters`
+// blob when the view is selected. Scoped to a single resource so the FE can
+// dropdown-list only the views that match the page it's on.
+model SavedView {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  ownerId   String   @map("owner_id")
+  resource  String
+  name      String
+  filters   Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([ownerId, resource, name])
+  @@index([tenantId, ownerId, resource])
+  @@map("saved_views")
+}

@@ -24,6 +24,7 @@ import { ApiError } from '@/lib/api';
 import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { SavedViewsDropdown } from '@/components/saved-views/SavedViewsDropdown';
 import { companiesRoute } from './companies.list';
 
 export function CompaniesListPage(): JSX.Element {
@@ -98,6 +99,14 @@ export function CompaniesListPage(): JSX.Element {
         subtitle="Toate organizațiile B2B din portofoliul tău."
         actions={
           <>
+            <SavedViewsDropdown
+              resource="companies"
+              currentFilters={{ q: q ?? '' }}
+              onApply={(filters) => {
+                const next = (filters as { q?: string }).q;
+                void navigate({ search: { q: next || undefined } });
+              }}
+            />
             <Button variant="outline" size="sm" onClick={handleExportCsv}>
               <Download size={14} className="mr-1.5" />
               Export {selected.size > 0 ? `(${selected.size})` : ''}

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { QuotesService } from './quotes.service';
 

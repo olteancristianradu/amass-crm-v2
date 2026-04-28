@@ -36,3 +36,4 @@ venv/
 
 # docker volumes (if mounted locally)
 infra/data/
+.claude/

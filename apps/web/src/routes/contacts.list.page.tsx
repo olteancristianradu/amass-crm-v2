@@ -22,6 +22,7 @@ import { ApiError } from '@/lib/api';
 import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { SavedViewsDropdown } from '@/components/saved-views/SavedViewsDropdown';
 import { contactsRoute } from './contacts.list';
 
 export function ContactsListPage(): JSX.Element {
@@ -86,6 +87,14 @@ export function ContactsListPage(): JSX.Element {
         subtitle="Persoanele de contact din companiile cu care lucrezi."
         actions={
           <>
+            <SavedViewsDropdown
+              resource="contacts"
+              currentFilters={{ q: q ?? '' }}
+              onApply={(filters) => {
+                const next = (filters as { q?: string }).q;
+                void navigate({ search: { q: next || undefined } });
+              }}
+            />
             <Button variant="outline" size="sm" onClick={handleExportCsv}>
               <Download size={14} className="mr-1.5" />
               Export {selected.size > 0 ? `(${selected.size})` : ''}
