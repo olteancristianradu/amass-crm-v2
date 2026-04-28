@@ -14,7 +14,17 @@ export const searchApi = {
 
   dealSuggest: (dealId: string) =>
     api.post<DealSuggestion>(`/ai/deals/${dealId}/suggest`, {}),
+
+  emailDraft: (input: { contactId: string; intent: string; tone?: 'formal' | 'friendly' | 'concise' }) =>
+    api.post<EmailDraftResponse>('/ai/email/draft', input),
 };
+
+export interface EmailDraftResponse {
+  subject: string;
+  body: string;
+  tone: 'formal' | 'friendly' | 'concise';
+  generatedAt: string;
+}
 
 export interface DealSuggestion {
   action: string;

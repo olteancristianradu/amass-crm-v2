@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { emailAccountsApi, emailMessagesApi } from './api';
+import { searchApi, type EmailDraftResponse } from '@/features/search/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +23,19 @@ export function EmailTab({ subjectType, subjectId }: Props): JSX.Element {
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
+  const [aiIntent, setAiIntent] = useState('');
+  const [aiTone, setAiTone] = useState<'formal' | 'friendly' | 'concise'>('friendly');
+
+  const aiDraftMut = useMutation({
+    mutationFn: () =>
+      searchApi.emailDraft({ contactId: subjectId, intent: aiIntent, tone: aiTone }),
+    onSuccess: (data: EmailDraftResponse) => {
+      setSubject(data.subject);
+      // Backend returns plain-text with paragraph breaks (\n\n).
+      // Convert to HTML so the editor + tracked-pixel rewrite work correctly.
+      setBodyHtml(data.body.split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`).join(''));
+    },
+  });
 
   const { data: accounts } = useQuery({
     queryKey: ['email-accounts'],
@@ -79,6 +94,45 @@ export function EmailTab({ subjectType, subjectId }: Props): JSX.Element {
           <div className="text-xs text-muted-foreground">
             De la: {defaultAccount?.fromName} &lt;{defaultAccount?.fromEmail}&gt;
           </div>
+          {subjectType === 'CONTACT' && (
+            <div className="rounded-md border border-border/60 bg-secondary/30 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Sparkles size={12} />
+                AI draft (Gemini/Claude)
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                <Input
+                  placeholder="Intenție (ex: urmare după demo, mulțumire pentru întâlnire)…"
+                  value={aiIntent}
+                  onChange={(e) => setAiIntent(e.target.value)}
+                />
+                <select
+                  value={aiTone}
+                  onChange={(e) => setAiTone(e.target.value as 'formal' | 'friendly' | 'concise')}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  aria-label="Ton"
+                >
+                  <option value="friendly">Prietenos</option>
+                  <option value="formal">Formal</option>
+                  <option value="concise">Concis</option>
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={aiDraftMut.isPending || aiIntent.trim().length < 3}
+                  onClick={() => aiDraftMut.mutate()}
+                >
+                  {aiDraftMut.isPending ? 'Se generează…' : 'Generează'}
+                </Button>
+              </div>
+              {aiDraftMut.isError && (
+                <p className="text-xs text-destructive">
+                  Eroare la generare. Încearcă din nou sau scrie manual.
+                </p>
+              )}
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="email-to" className="sr-only">
               Către

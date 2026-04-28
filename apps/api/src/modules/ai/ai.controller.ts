@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -8,16 +9,19 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { EmailDraftRequestDto, EmailDraftRequestSchema } from '@amass/shared';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { SearchService, EntityType } from './search.service';
 import { EmbeddingService } from './embedding.service';
 import { DealAiService } from './deal-ai.service';
 import { EnrichmentService } from './enrichment.service';
 import { BriefService } from './brief.service';
+import { EmailDraftService } from './email-draft.service';
 
 @Controller('ai')
 @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
@@ -28,6 +32,7 @@ export class AiController {
     private readonly dealAi: DealAiService,
     private readonly enrichment: EnrichmentService,
     private readonly brief: BriefService,
+    private readonly emailDraft: EmailDraftService,
   ) {}
 
   /**
@@ -126,6 +131,24 @@ export class AiController {
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   getBrief(@Query('fresh') fresh?: string) {
     return this.brief.getBrief({ fresh: fresh === '1' || fresh === 'true' });
+  }
+
+  /**
+   * POST /ai/email/draft
+   * Generate a Romanian email draft for a contact based on a free-form
+   * intent ("relance after demo", "thank for meeting"). Cedar guards
+   * the contact resource because the email leaks contact context.
+   */
+  @Post('email/draft')
+  @HttpCode(200)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'ai::email-draft',
+    resource: (req) =>
+      `Contact::${(req as { body: { contactId: string } }).body.contactId}`,
+  })
+  draftEmail(@Body(new ZodValidationPipe(EmailDraftRequestSchema)) dto: EmailDraftRequestDto) {
+    return this.emailDraft.draft(dto.contactId, dto.intent, dto.tone);
   }
 }
 

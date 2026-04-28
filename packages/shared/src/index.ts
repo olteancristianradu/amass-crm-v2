@@ -44,3 +44,4 @@ export * from './schemas/territories';
 export * from './schemas/chatter';
 export * from './schemas/events';
 export * from './schemas/saved-view';
+export * from './schemas/email-draft';
