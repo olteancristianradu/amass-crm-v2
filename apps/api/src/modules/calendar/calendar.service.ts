@@ -18,6 +18,22 @@ import { CreateCalendarEventDto, ListCalendarEventsQueryDto } from '@amass/share
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { decrypt as decryptSecret, encrypt as encryptSecret } from '../../common/crypto/encryption';
+import { loadEnv } from '../../config/env';
+
+// Provider URL helpers — all support an env override so apps/mock-services
+// can stand in for the real provider during local verification + tests.
+function googleOAuthBase(): string {
+  return (loadEnv().GOOGLE_OAUTH_BASE_URL ?? 'https://oauth2.googleapis.com').replace(/\/$/, '');
+}
+function googleApiBase(): string {
+  return (loadEnv().GOOGLE_API_BASE_URL ?? 'https://www.googleapis.com').replace(/\/$/, '');
+}
+function microsoftOAuthBase(): string {
+  return (loadEnv().MICROSOFT_OAUTH_BASE_URL ?? 'https://login.microsoftonline.com').replace(/\/$/, '');
+}
+function microsoftGraphBase(): string {
+  return (loadEnv().MICROSOFT_GRAPH_BASE_URL ?? 'https://graph.microsoft.com').replace(/\/$/, '');
+}
 
 @Injectable()
 export class CalendarService {
@@ -54,7 +70,7 @@ export class CalendarService {
     redirectUri: string,
   ): Promise<{ accessToken: string; refreshToken?: string; expiresAt: Date }> {
     if (provider === 'GOOGLE') {
-      const res = await fetch('https://oauth2.googleapis.com/token', {
+      const res = await fetch(`${googleOAuthBase()}/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -72,7 +88,7 @@ export class CalendarService {
         expiresAt: new Date(Date.now() + data.expires_in * 1000),
       };
     }
-    const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    const res = await fetch(`${microsoftOAuthBase()}/common/oauth2/v2.0/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -190,7 +206,7 @@ export class CalendarService {
 
   private async fetchGoogleEvents(accessToken: string) {
     const timeMin = new Date().toISOString();
-    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&maxResults=250&singleEvents=true&orderBy=startTime`;
+    const url = `${googleApiBase()}/calendar/v3/calendars/primary/events?timeMin=${timeMin}&maxResults=250&singleEvents=true&orderBy=startTime`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (res.status === 401) throw new UnauthorizedException('Google token expired');
     const data = await res.json() as { items?: Array<{ id: string; summary: string; description?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; attendees?: Array<{ email: string }> }> };
@@ -205,7 +221,7 @@ export class CalendarService {
   }
 
   private async fetchOutlookEvents(accessToken: string) {
-    const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${new Date().toISOString()}&endDateTime=${new Date(Date.now() + 90 * 86400000).toISOString()}&$top=250`;
+    const url = `${microsoftGraphBase()}/v1.0/me/calendarView?startDateTime=${new Date().toISOString()}&endDateTime=${new Date(Date.now() + 90 * 86400000).toISOString()}&$top=250`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (res.status === 401) throw new UnauthorizedException('Outlook token expired');
     const data = await res.json() as { value?: Array<{ id: string; subject: string; bodyPreview?: string; start: { dateTime: string }; end: { dateTime: string }; attendees?: Array<{ emailAddress: { address: string } }> }> };
@@ -234,12 +250,12 @@ export class CalendarService {
     let externalId: string;
     if (integration.provider === 'GOOGLE') {
       const body = { summary: dto.title, description: dto.description, start: { dateTime: dto.startAt.toISOString() }, end: { dateTime: dto.endAt.toISOString() }, location: dto.location, attendees: dto.attendees?.map((e) => ({ email: e })) };
-      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch(`${googleApiBase()}/calendar/v3/calendars/primary/events`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json() as { id: string };
       externalId = data.id;
     } else {
       const body = { subject: dto.title, body: { contentType: 'text', content: dto.description ?? '' }, start: { dateTime: dto.startAt.toISOString(), timeZone: 'UTC' }, end: { dateTime: dto.endAt.toISOString(), timeZone: 'UTC' }, location: dto.location ? { displayName: dto.location } : undefined, attendees: dto.attendees?.map((e) => ({ emailAddress: { address: e }, type: 'required' })) };
-      const res = await fetch('https://graph.microsoft.com/v1.0/me/events', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch(`${microsoftGraphBase()}/v1.0/me/events`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json() as { id: string };
       externalId = data.id;
     }
@@ -345,8 +361,8 @@ export class CalendarService {
   ): Promise<{ accessToken: string; refreshToken?: string; expiresAt: Date }> {
     const tokenUrl =
       provider === 'GOOGLE'
-        ? 'https://oauth2.googleapis.com/token'
-        : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+        ? `${googleOAuthBase()}/token`
+        : `${microsoftOAuthBase()}/common/oauth2/v2.0/token`;
     const clientId =
       provider === 'GOOGLE' ? process.env['GOOGLE_CLIENT_ID'] : process.env['OUTLOOK_CLIENT_ID'];
     const clientSecret =

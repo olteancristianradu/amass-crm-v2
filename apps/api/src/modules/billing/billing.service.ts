@@ -36,7 +36,15 @@ export class BillingService {
   ) {
     const env = loadEnv();
     if (env.STRIPE_SECRET_KEY) {
-      this.stripe = new StripeLib(env.STRIPE_SECRET_KEY, { apiVersion: '2026-03-25.dahlia' });
+      // Stripe SDK options. When STRIPE_API_HOST is set, route all calls
+      // there — used by the local stripe-mock (apps/mock-services). The
+      // SDK accepts host/port/protocol independently, so a partial
+      // override (e.g. only HOST) is fine.
+      const opts: Record<string, unknown> = { apiVersion: '2026-03-25.dahlia' };
+      if (env.STRIPE_API_HOST) opts.host = env.STRIPE_API_HOST;
+      if (env.STRIPE_API_PORT) opts.port = env.STRIPE_API_PORT;
+      if (env.STRIPE_API_PROTOCOL) opts.protocol = env.STRIPE_API_PROTOCOL;
+      this.stripe = new StripeLib(env.STRIPE_SECRET_KEY, opts);
     }
   }
 

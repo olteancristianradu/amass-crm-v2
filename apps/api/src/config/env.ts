@@ -122,6 +122,73 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().min(1).optional(),
   ),
+  // Optional Stripe API host override for local stripe-mock. When set,
+  // every Stripe SDK request goes to http(s)://${HOST}:${PORT} instead
+  // of api.stripe.com — see infra/docker-compose.yml profile `mocks`.
+  // In prod leave unset so the SDK defaults to the real Stripe.
+  STRIPE_API_HOST: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  STRIPE_API_PORT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().positive().optional(),
+  ),
+  STRIPE_API_PROTOCOL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['http', 'https']).optional(),
+  ),
+
+  // Optional base URL for the Twilio REST API. Default = api.twilio.com.
+  // Set to e.g. http://twilio-mock:3001 in dev to point the client at
+  // apps/mock-services. Webhook signature verification still uses the
+  // real TWILIO_AUTH_TOKEN, so the mock can sign with the same value
+  // and the verification path is exercised end-to-end.
+  TWILIO_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+
+  // Optional base URL for Meta Graph (WhatsApp Cloud API). Default =
+  // https://graph.facebook.com. Set to http://meta-mock:3002 for local.
+  META_GRAPH_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+
+  // Optional base URL for ANAF e-Factura SPV REST API. Default = the
+  // public webservices(p).anaf.ro depending on ANAF_SANDBOX.
+  // Set to http://anaf-mock:3005 for local mock.
+  ANAF_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+  // ANAF OAuth2 base. Default = https://logincert.anaf.ro/anaf-oauth2/v1.
+  ANAF_OAUTH_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+  // Google API base (covers OAuth2 token + Calendar v3). Default =
+  // https://www.googleapis.com (and oauth2.googleapis.com — see below).
+  GOOGLE_API_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+  // Google OAuth token endpoint base. Default = https://oauth2.googleapis.com.
+  GOOGLE_OAUTH_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+  // Microsoft Graph API base. Default = https://graph.microsoft.com.
+  MICROSOFT_GRAPH_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+  // Microsoft OAuth token endpoint base. Default = https://login.microsoftonline.com.
+  MICROSOFT_OAUTH_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
 
   // Twilio SMS sender phone number (E.164, e.g. +40700000000). Optional.
   TWILIO_SMS_FROM: z.preprocess(

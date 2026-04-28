@@ -39,7 +39,8 @@ export class SmsService {
     // Send via Twilio REST API
     try {
       const auth = Buffer.from(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`).toString('base64');
-      const url = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
+      const twilioBase = (env.TWILIO_BASE_URL ?? 'https://api.twilio.com').replace(/\/$/, '');
+      const url = `${twilioBase}/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },

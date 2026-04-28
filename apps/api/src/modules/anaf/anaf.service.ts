@@ -13,6 +13,7 @@ import { AnafSubmissionStatus } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { loadEnv } from '../../config/env';
 
 interface AnafConfig {
   vatNumber: string;
@@ -33,6 +34,11 @@ export class AnafService {
   ) {}
 
   private baseUrl(sandbox: boolean) {
+    // Local mock override (apps/mock-services on :3005). When the env var
+    // is set, use it as-is — the mock exposes the same /prod/FCTEL/rest
+    // path shape for both sandbox and prod modes.
+    const override = loadEnv().ANAF_BASE_URL;
+    if (override) return `${override.replace(/\/$/, '')}/prod/FCTEL/rest`;
     return sandbox
       ? 'https://webservicesp.anaf.ro/prod/FCTEL/rest'
       : 'https://webservices.anaf.ro/prod/FCTEL/rest';
@@ -221,8 +227,9 @@ export class AnafService {
     const cached = await this.redis.client.get(cacheKey);
     if (cached) return cached;
 
-    const base = config.sandbox
-      ? 'https://logincert.anaf.ro/anaf-oauth2/v1'
+    const oauthOverride = loadEnv().ANAF_OAUTH_BASE_URL;
+    const base = oauthOverride
+      ? oauthOverride.replace(/\/$/, '')
       : 'https://logincert.anaf.ro/anaf-oauth2/v1';
     const res = await getBreaker('anaf').exec(() =>
       fetch(`${base}/token`, {

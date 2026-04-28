@@ -6,9 +6,17 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { ActivitiesService } from '../activities/activities.service';
 import { decrypt as decryptSecret, encrypt as encryptSecret } from '../../common/crypto/encryption';
+import { loadEnv } from '../../config/env';
 
 const META_API_VERSION = 'v19.0';
-const META_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
+function metaBase(): string {
+  // Allow overriding the Meta Graph host via env (apps/mock-services in
+  // dev). Keep the version segment in the path so the mock can match
+  // the same /v19.0/:phoneId/messages shape the production Cloud API
+  // accepts.
+  const override = loadEnv().META_GRAPH_BASE_URL;
+  return `${(override ?? 'https://graph.facebook.com').replace(/\/$/, '')}/${META_API_VERSION}`;
+}
 
 @Injectable()
 export class WhatsappService {
@@ -73,7 +81,7 @@ export class WhatsappService {
       text: { body: dto.body },
     };
 
-    const response = await fetch(`${META_BASE}/${account.phoneNumberId}/messages`, {
+    const response = await fetch(`${metaBase()}/${account.phoneNumberId}/messages`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

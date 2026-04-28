@@ -185,11 +185,27 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_WEBHOOK_BASE_URL: ${TWILIO_WEBHOOK_BASE_URL:-}
+      TWILIO_SMS_FROM: ${TWILIO_SMS_FROM:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # Mock service overrides — when `pnpm mocks:up` is running, point
+      # every external SDK at the local container instead of the real
+      # provider. Each takes the producer's $VAR or empty string fallback,
+      # so unset vars don't propagate "undefined" into the env.
+      STRIPE_API_HOST: ${STRIPE_API_HOST:-}
+      STRIPE_API_PORT: ${STRIPE_API_PORT:-}
+      STRIPE_API_PROTOCOL: ${STRIPE_API_PROTOCOL:-}
+      TWILIO_BASE_URL: ${TWILIO_BASE_URL:-}
+      META_GRAPH_BASE_URL: ${META_GRAPH_BASE_URL:-}
+      ANAF_BASE_URL: ${ANAF_BASE_URL:-}
+      ANAF_OAUTH_BASE_URL: ${ANAF_OAUTH_BASE_URL:-}
+      GOOGLE_API_BASE_URL: ${GOOGLE_API_BASE_URL:-}
+      GOOGLE_OAUTH_BASE_URL: ${GOOGLE_OAUTH_BASE_URL:-}
+      MICROSOFT_GRAPH_BASE_URL: ${MICROSOFT_GRAPH_BASE_URL:-}
+      MICROSOFT_OAUTH_BASE_URL: ${MICROSOFT_OAUTH_BASE_URL:-}
       PORT: ${API_PORT:-3000}
     ports:
       - "${API_PORT:-3000}:3000"
@@ -339,6 +355,9 @@ services:
 
   # Custom Express container exposing Twilio, Meta WhatsApp, Google OAuth,
   # Microsoft OAuth, ANAF e-Factura and a generic webhook listener.
+  # Network aliases let the API resolve each provider's host name —
+  # `twilio-mock`, `meta-mock` etc. — even though they all live in the
+  # same container on different ports.
   mock-services:
     build:
       context: ../apps/mock-services
@@ -346,6 +365,16 @@ services:
     container_name: amass-mocks
     profiles: ["mocks"]
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - twilio-mock
+          - meta-mock
+          - google-mock
+          - microsoft-mock
+          - anaf-mock
+          - webhook-mock
+          - ai-mock
     ports:
       - "127.0.0.1:3001:3001" # twilio
       - "127.0.0.1:3002:3002" # meta-whatsapp
