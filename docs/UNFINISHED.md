@@ -123,6 +123,55 @@ if buttons in the invoice list aren't legible.
      `runWithTenant` mock pattern from LESSONS.md).
 - Estimated effort: 2–3 hours, mostly mechanical.
 
+### onDelete: business cross-references — focused refactor (deferred)
+
+Re-audited 2026-04-28 after the wider Faza C work landed. Live state of
+the schema (verified via `pg_constraint` query, full output saved
+during the audit run):
+
+- **38 existing FK constraints**: every one already declares the
+  correct ON DELETE clause (Cascade for sub-resources, SetNull for
+  optional people-refs, Restrict for legal-preservation rows like
+  `quotes.company_id`). No drift.
+- **26 business cross-references** still defined as plain `xxxId String`
+  text columns with no `@relation` and therefore no DB FK constraint.
+  Listed below with the recommended `onDelete` strategy for each.
+  These are improvements, not security gaps — the existing layered
+  defense (RLS + soft-delete on deletedAt) prevents observable orphans
+  at the read paths that matter.
+
+Recommended map for the focused refactor (~3–4h work + a single
+catch-up migration):
+
+| relation                               | onDelete strategy |
+|----------------------------------------|-------------------|
+| Deal.companyId / Deal.contactId        | SetNull           |
+| Deal.ownerId                           | SetNull           |
+| Task.assigneeId                        | SetNull           |
+| Invoice.companyId                      | Restrict (legal)  |
+| Invoice.dealId                         | SetNull           |
+| Project.{companyId,dealId}             | SetNull           |
+| Quote.dealId                           | SetNull           |
+| Quote.invoiceId                        | SetNull           |
+| SequenceEnrollment.contactId           | Cascade           |
+| ApprovalRequest.quoteId                | Cascade           |
+| AnafSubmission.invoiceId               | Cascade           |
+| PortalToken.{companyId,clientId}       | Cascade           |
+| SmsMessage.contactId                   | SetNull           |
+| Lead.ownerId                           | SetNull           |
+| Contract.companyId                     | Restrict (legal)  |
+| CustomerSubscription.companyId         | Restrict (legal)  |
+| Case.{companyId,contactId,assigneeId}  | SetNull           |
+| Order.companyId                        | Restrict (legal)  |
+| Order.quoteId                          | SetNull           |
+| EventAttendee.{contactId,clientId}     | Cascade           |
+
+Each row needs: inverse field on the parent model (`Company.deals`,
+`Company.invoices`, etc.), `@relation` block on the child with
+`onDelete: …`, plus the Postgres-level FK in the migration. Do this in
+ONE migration to avoid the drift this avoidance pattern was created to
+prevent. After this, the schema will be at 64 / 64 declared FKs.
+
 ### onDelete: Cascade — proper finding from the audit
 - The shape of the issue is bigger than first thought: the schema has
   92 FK-style columns (`xxxId String`) that have NO `@relation`
