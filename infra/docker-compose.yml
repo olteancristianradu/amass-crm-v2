@@ -377,6 +377,9 @@ services:
       context: ../apps/mock-services
       dockerfile: Dockerfile
     container_name: amass-mocks
+    environment:
+      MOCK_TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-mockauthtoken1234567890abcdef1234}
+
     profiles: ["mocks"]
     restart: unless-stopped
     networks:

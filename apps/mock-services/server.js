@@ -19,21 +19,43 @@ const twilio = newApp('twilio');
 twilio.post('/2010-04-01/Accounts/:sid/Calls.json', (req, res) => {
   const callSid = 'CA' + crypto.randomBytes(16).toString('hex');
   const accountSid = req.params.sid;
+  // Log body keys so we can see when StatusCallback is missing.
+  console.log('[twilio]   body keys:', Object.keys(req.body).join(','));
+  console.log('[twilio]   StatusCallback:', req.body.StatusCallback || '(missing)');
   // Fire callback after a short delay so the in-DB Call row gets the SID first.
   if (req.body.StatusCallback) {
     setTimeout(() => {
-      const url = new URL(req.body.StatusCallback);
-      const body = new URLSearchParams({
+      const url = req.body.StatusCallback;
+      const params = {
         CallSid: callSid,
         AccountSid: accountSid,
         CallStatus: 'completed',
         CallDuration: '42',
         RecordingUrl: `http://twilio-mock:3001/recordings/${callSid}.mp3`,
-      });
+        RecordingSid: 'RE' + crypto.randomBytes(16).toString('hex'),
+      };
+      // Twilio signature = HMAC-SHA1(authToken, url + sortedKeys.join(key+value)) base64.
+      // The auth token must match what the API uses (from TWILIO_AUTH_TOKEN env).
+      // Mock reads it from MOCK_TWILIO_AUTH_TOKEN with a default fallback so the
+      // signature is reproducible without leaking real creds.
+      const authToken = process.env.MOCK_TWILIO_AUTH_TOKEN || 'mockauthtoken1234567890abcdef1234';
+      const sortedKeys = Object.keys(params).sort();
+      const data = url + sortedKeys.map((k) => k + params[k]).join('');
+      const signature = crypto.createHmac('sha1', authToken).update(data).digest('base64');
+
+      const body = new URLSearchParams(params);
       const fetchFn = global.fetch || require('node-fetch');
-      fetchFn(url.toString(), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
-        .catch((e) => console.log('[twilio] callback error', e.message));
-    }, 5000);
+      fetchFn(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Twilio-Signature': signature,
+        },
+        body: body.toString(),
+      })
+        .then((r) => console.log('[twilio]   callback fired →', url, 'status', r.status))
+        .catch((e) => console.log('[twilio]   callback error', e.message));
+    }, 3000);
   }
   res.json({ sid: callSid, account_sid: accountSid, status: 'queued', date_created: new Date().toUTCString() });
 });

@@ -22,7 +22,14 @@ async function bootstrap(): Promise<void> {
     });
   }
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    // Raw body capture is required for the Stripe webhook signature
+    // verification path (BillingService.handleWebhook reads req.rawBody).
+    // Without it, Stripe.constructEvent throws "No webhook payload was
+    // provided" and every legit webhook is rejected with 400.
+    rawBody: true,
+  });
   // Replace the default Nest console logger with Pino. This also picks up the
   // PII-redaction config from LoggerModule.forRoot().
   app.useLogger(app.get(Logger));
@@ -129,7 +136,20 @@ async function bootstrap(): Promise<void> {
   // ── Body size limits ──────────────────────────────────────────────────────
   // Prevent DoS via oversized JSON payloads. File uploads go via presigned
   // PUT to MinIO directly and never pass through this API, so 2MB is plenty.
-  app.use(json({ limit: '2mb' }));
+  //
+  // The `verify` callback captures the raw bytes alongside parsing so the
+  // Stripe webhook signature path (BillingService.handleWebhook reads
+  // req.rawBody) keeps working. Without it, the express json() middleware
+  // consumes the stream before NestJS's rawBody hook can preserve it,
+  // causing "No webhook payload was provided" 400s on every Stripe event.
+  app.use(
+    json({
+      limit: '2mb',
+      verify: (req: Request & { rawBody?: Buffer }, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '2mb' }));
 
   app.setGlobalPrefix('api/v1');

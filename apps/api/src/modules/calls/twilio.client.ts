@@ -25,44 +25,17 @@ export class TwilioClient {
         message: 'Twilio credentials missing — set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN',
       });
     }
-    // The SDK accepts an optional `region` + a custom base URL via the
-    // `httpClient` option. Simpler approach: when TWILIO_BASE_URL is set
-    // (apps/mock-services in dev), pass it as `edge`/`region` is not
-    // applicable — we override at the request level via `baseUrl` on
-    // each REST resource. The Twilio SDK exposes `client.baseUrl =
-    // ...` on the resource collection objects but it's read-only on
-    // the v5 client. The supported override is the `httpClient` option,
-    // and the cleanest swap is monkey-patching the resource hosts after
-    // construction. For now we set the global `host` env that the SDK
-    // honours via the HTTP_PROXY semantics — see
-    // https://www.twilio.com/docs/libraries/node/usage#http-client-options
+    this.cached = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
     if (env.TWILIO_BASE_URL) {
-      const u = new URL(env.TWILIO_BASE_URL);
-      // host = e.g. "twilio-mock:3001"; the SDK will compose
-      // protocol://host/<path>. Falling back to defaults if unset.
-      this.cached = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN, {
-        // Library option name on twilio-node v5+: `region`/`edge` only
-        // accept production regions. Use the documented `httpClient` to
-        // route everywhere through a custom URL builder by setting the
-        // host directly on the wrapper — the official escape hatch.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any);
-      // Resource API hosts are pulled from `client.<resource>.v2010` etc.
-      // Patching them keeps the auth + signing path intact while flipping
-      // the URL the request lands on. This is what the official
-      // testing guide shows for stripe-mock-style local mocks.
+      // Twilio SDK v5 has no public knob for the API host. Internally each
+      // domain (Api / Studio / Verify / …) inherits `Domain` and uses
+      // `this.baseUrl + uri` to compose every request — see
+      // node_modules/twilio/lib/base/Domain.js. Overwriting `client.api.baseUrl`
+      // after construction redirects every Account / Calls / Messages / etc.
+      // call to the mock without touching auth or signing logic.
+      const base = env.TWILIO_BASE_URL.replace(/\/$/, '');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const c = this.cached as any;
-      const baseHost = u.host; // e.g. twilio-mock:3001
-      const baseProtocol = u.protocol.replace(':', ''); // http
-      // The SDK's request layer reads `client.host` + `client.region` on
-      // certain code paths; setting both covers v5 and v6 of twilio-node.
-      c.host = baseHost;
-      c.region = undefined;
-      c.edge = undefined;
-      c.baseUrl = `${baseProtocol}://${baseHost}`;
-    } else {
-      this.cached = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
+      (this.cached as any).api.baseUrl = base;
     }
     return this.cached;
   }
