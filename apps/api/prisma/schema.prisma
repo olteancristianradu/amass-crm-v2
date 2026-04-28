@@ -69,6 +69,12 @@ model User {
   sessions                Session[]
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  // Back-relations from business_fk_constraints + saved_views migrations.
+  ownedDeals       Deal[]      @relation("DealOwner")
+  assignedTasks    Task[]      @relation("TaskAssignee")
+  assignedCases    Case[]      @relation("CaseAssignee")
+  ownedLeads       Lead[]      @relation("LeadOwner")
+  savedViews       SavedView[]
 
   // Email is unique within a tenant, not globally — multi-tenant requirement.
   @@unique([tenantId, email])
@@ -212,8 +218,17 @@ model Company {
   parent             Company?                     @relation("CompanyHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   subsidiaries       Company[]                    @relation("CompanyHierarchy")
 
-  contacts Contact[]
-  quotes   Quote[]
+  contacts                Contact[]
+  quotes                  Quote[]
+  // Back-relations matching FKs added in business_fk_constraints migrations.
+  deals                   Deal[]
+  invoices                Invoice[]
+  cases                   Case[]
+  contracts               Contract[]
+  customer_subscriptions  CustomerSubscription[]
+  orders                  Order[]
+  portal_tokens           PortalToken[]
+  projects                Project[]
 
   @@index([tenantId, createdAt])
   @@index([tenantId, name])
@@ -243,6 +258,12 @@ model Contact {
   embedding   Unsupported("vector(1536)")?
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  // Back-relations from business_fk_constraints migrations.
+  deals                Deal[]
+  cases                Case[]
+  event_attendees      EventAttendee[]
+  sequence_enrollments SequenceEnrollment[]
+  sms_messages         SmsMessage[]
 
   @@index([tenantId, createdAt])
   @@index([tenantId, companyId])
@@ -270,6 +291,10 @@ model Client {
   deletedAt   DateTime?
   /// See Company.embedding note above.
   embedding   Unsupported("vector(1536)")?
+
+  // Back-relations from business_fk_constraints migrations.
+  event_attendees EventAttendee[]
+  portal_tokens   PortalToken[]
 
   @@index([tenantId, createdAt])
   @@index([tenantId, lastName, firstName])
@@ -498,7 +523,15 @@ model Deal {
 
   pipeline Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   stage    PipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  // FK relations declared in migration 20260428130000 / 140000 — must be
+  // mirrored here to keep `prisma migrate diff` (CI) clean.
+  company  Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact  Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner    User?         @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   tasks    Task[]
+  invoices Invoice[]
+  projects Project[]
+  quotes   Quote[]
 
   @@index([tenantId, pipelineId, stageId, orderInStage])
   @@index([tenantId, status])
@@ -542,7 +575,8 @@ model Task {
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
 
-  deal Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  deal     Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  assignee User? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, assigneeId, status, dueAt])
   @@index([tenantId, status, dueAt])
@@ -897,6 +931,11 @@ model Invoice {
 
   lines    InvoiceLine[]
   payments Payment[]
+  // Forward + back FK relations from business_fk_constraints migrations.
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  deal              Deal?             @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  anaf_submissions  AnafSubmission[]
+  quotes            Quote[]
 
   @@unique([tenantId, series, number])
   @@index([tenantId, companyId, issueDate])
@@ -985,6 +1024,9 @@ model Project {
   updatedAt   DateTime        @updatedAt @map("updated_at")
   deletedAt   DateTime?       @map("deleted_at")
 
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  deal    Deal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
   @@index([tenantId, companyId])
   @@index([tenantId, status])
   @@map("projects")
@@ -1045,8 +1087,13 @@ model Quote {
   updatedAt   DateTime        @updatedAt @map("updated_at")
   deletedAt   DateTime?       @map("deleted_at")
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  lines   QuoteLine[]
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lines    QuoteLine[]
+  // Forward + back FK relations from business_fk_constraints migrations.
+  deal               Deal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  invoice            Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  approval_requests  ApprovalRequest[]
+  orders             Order[]
 
   @@unique([tenantId, number])
   @@index([tenantId, companyId, issueDate])
@@ -1143,6 +1190,7 @@ model SequenceEnrollment {
   nextSendAt  DateTime?        @map("next_send_at")
 
   sequence EmailSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  contact  Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, sequenceId, status])
   @@index([tenantId, status, nextSendAt])
@@ -1355,6 +1403,7 @@ model ApprovalRequest {
 
   policy    ApprovalPolicy     @relation(fields: [policyId], references: [id], onDelete: Cascade)
   decisions ApprovalDecision[]
+  quote     Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, quoteId])
   @@index([tenantId, status])
@@ -1489,6 +1538,8 @@ model AnafSubmission {
   createdAt    DateTime             @default(now()) @map("created_at")
   updatedAt    DateTime             @updatedAt @map("updated_at")
 
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
   @@index([tenantId, status])
   @@index([tenantId, invoiceId])
   @@map("anaf_submissions")
@@ -1616,6 +1667,9 @@ model PortalToken {
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
   @@index([tenantId, email])
   @@index([tokenHash])
   @@map("portal_tokens")
@@ -1702,6 +1756,8 @@ model SmsMessage {
   error      String?
   sentAt     DateTime?    @map("sent_at")
   createdAt  DateTime     @default(now()) @map("created_at")
+
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, contactId])
   @@index([tenantId, direction, createdAt])
@@ -1815,6 +1871,8 @@ model Lead {
   updatedAt            DateTime    @updatedAt @map("updated_at")
   deletedAt            DateTime?   @map("deleted_at")
 
+  owner User? @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
   @@index([tenantId, status])
   @@index([tenantId, ownerId])
   @@index([tenantId, createdAt])
@@ -1850,6 +1908,8 @@ model Contract {
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
   deletedAt   DateTime?      @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, companyId])
   @@index([tenantId, status])
@@ -1910,6 +1970,8 @@ model CustomerSubscription {
   updatedAt   DateTime                   @updatedAt @map("updated_at")
   deletedAt   DateTime?                  @map("deleted_at")
 
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
   @@index([tenantId, status])
   @@index([tenantId, companyId])
   @@map("customer_subscriptions")
@@ -1951,6 +2013,11 @@ model Case {
   updatedAt   DateTime     @updatedAt @map("updated_at")
   deletedAt   DateTime?    @map("deleted_at")
 
+  // Forward FK relations from business_fk_constraints migrations.
+  company  Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact  Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignee User?    @relation("CaseAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
   @@unique([tenantId, number])
   @@index([tenantId, status])
   @@index([tenantId, assigneeId])
@@ -1985,6 +2052,8 @@ model Order {
   updatedAt   DateTime    @updatedAt @map("updated_at")
   deletedAt   DateTime?   @map("deleted_at")
   items       OrderItem[]
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  quote       Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
@@ -2299,6 +2368,8 @@ model EventAttendee {
   registeredAt DateTime?           @map("registered_at")
   attendedAt   DateTime?           @map("attended_at")
   event        Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  client       Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
   @@map("event_attendees")
@@ -2318,6 +2389,8 @@ model SavedView {
   filters   Json
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@unique([ownerId, resource, name])
   @@index([tenantId, ownerId, resource])

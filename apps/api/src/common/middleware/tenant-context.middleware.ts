@@ -35,6 +35,22 @@ export class TenantContextMiddleware implements NestMiddleware {
       return next();
     }
     const token = auth.slice('Bearer '.length).trim();
+
+    // Heuristic: only attempt JWT verification on tokens that LOOK like a
+    // JWT (`header.payload.signature` — three base64url segments). Static
+    // system tokens (AI_WORKER_SECRET, SCIM tokens, etc.) are sent on
+    // `Authorization: Bearer` but aren't JWTs; verifying them throws and
+    // would 401 routes that should be authenticated by their own guard.
+    //
+    // Routes that need tenant context still rely on `JwtAuthGuard` (global,
+    // post-H1) to reject missing/invalid JWTs, so skipping non-JWT tokens
+    // here is safe: requireTenantContext() in services throws if there's
+    // no context, and @Public() routes shouldn't be touching tenant data.
+    const looksLikeJwt = token.split('.').length === 3;
+    if (!looksLikeJwt) {
+      return next();
+    }
+
     try {
       const payload = this.jwt.verify<JwtPayload>(token, { secret: this.env.JWT_SECRET });
       tenantStorage.run(
