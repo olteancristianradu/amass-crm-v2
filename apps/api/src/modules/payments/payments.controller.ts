@@ -14,6 +14,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { PaymentsService } from './payments.service';
 
 /**
@@ -24,7 +26,7 @@ import { PaymentsService } from './payments.service';
  *   DELETE /payments/:id                     soft-delete (undoes recompute)
  */
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
@@ -35,6 +37,10 @@ export class PaymentsController {
   }
 
   @Post('invoices/:invoiceId/payments')
+  @RequireCedar({
+    action: 'payment::create',
+    resource: (req) => `Invoice::${(req as { params: { invoiceId: string } }).params.invoiceId}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   create(
     @Param('invoiceId') invoiceId: string,
@@ -45,6 +51,10 @@ export class PaymentsController {
 
   @Delete('payments/:id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'payment::delete',
+    resource: (req) => `Payment::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   remove(@Param('id') id: string) {
     return this.payments.remove(id);

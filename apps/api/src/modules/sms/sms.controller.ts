@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { SmsService } from './sms.service';
 
@@ -14,12 +16,13 @@ const SendSmsSchema = z.object({
 });
 
 @Controller('sms')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
 export class SmsController {
   constructor(private readonly svc: SmsService) {}
 
   @Post('send')
+  @RequireCedar({ action: 'sms::send', resource: 'Sms::*' })
   send(@Body(new ZodValidationPipe(SendSmsSchema)) dto: { toNumber: string; body: string; contactId?: string }) {
     return this.svc.send(dto);
   }

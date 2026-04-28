@@ -16,6 +16,8 @@ import { memoryStorage } from 'multer';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { ImporterService } from './importer.service';
 
 /**
@@ -38,11 +40,12 @@ import { ImporterService } from './importer.service';
  *   is the single source of truth for binary blobs across all sprints.
  */
 @Controller('imports')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class ImporterController {
   constructor(private readonly importer: ImporterService) {}
 
   @Post()
+  @RequireCedar({ action: 'import::create', resource: 'Import::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   @UseInterceptors(
     FileInterceptor('file', {

@@ -3,10 +3,12 @@ import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { LeadScoringService } from './lead-scoring.service';
 
 @Controller('lead-scoring')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
 export class LeadScoringController {
   constructor(private readonly svc: LeadScoringService) {}
@@ -22,12 +24,20 @@ export class LeadScoringController {
   }
 
   @Post('company/:id/recompute')
+  @RequireCedar({
+    action: 'lead-score::recompute',
+    resource: (req) => `Company::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   recomputeCompany(@Param('id') id: string) {
     return this.svc.requestRecompute('company', id);
   }
 
   @Post('contact/:id/recompute')
+  @RequireCedar({
+    action: 'lead-score::recompute',
+    resource: (req) => `Contact::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   recomputeContact(@Param('id') id: string) {
     return this.svc.requestRecompute('contact', id);

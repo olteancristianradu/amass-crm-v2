@@ -16,6 +16,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { PhoneNumbersService } from './phone-numbers.service';
 
 const UpdatePhoneNumberSchema = CreatePhoneNumberSchema.partial();
@@ -33,11 +35,12 @@ type UpdatePhoneNumberDto = z.infer<typeof UpdatePhoneNumberSchema>;
  *   DELETE /phone-numbers/:id
  */
 @Controller('phone-numbers')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class PhoneNumbersController {
   constructor(private readonly phoneNumbers: PhoneNumbersService) {}
 
   @Post()
+  @RequireCedar({ action: 'phone-number::create', resource: 'PhoneNumber::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   create(@Body(new ZodValidationPipe(CreatePhoneNumberSchema)) dto: CreatePhoneNumberDto) {
     return this.phoneNumbers.create(dto);
@@ -56,6 +59,10 @@ export class PhoneNumbersController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'phone-number::update',
+    resource: (req) => `PhoneNumber::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   update(
     @Param('id') id: string,
@@ -66,6 +73,10 @@ export class PhoneNumbersController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'phone-number::delete',
+    resource: (req) => `PhoneNumber::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   remove(@Param('id') id: string) {
     return this.phoneNumbers.remove(id);

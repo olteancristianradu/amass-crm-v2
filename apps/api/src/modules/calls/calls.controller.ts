@@ -18,6 +18,8 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { CallsService } from './calls.service';
 
 /**
@@ -28,11 +30,12 @@ import { CallsService } from './calls.service';
  *   GET    /calls/:id         single call + transcript
  */
 @Controller('calls')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class CallsController {
   constructor(private readonly calls: CallsService) {}
 
   @Post('initiate')
+  @RequireCedar({ action: 'call::create', resource: 'Call::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   initiateCall(@Body(new ZodValidationPipe(InitiateCallSchema)) dto: InitiateCallDto) {
     return this.calls.initiateCall(dto);

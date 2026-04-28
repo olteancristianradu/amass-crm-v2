@@ -11,14 +11,17 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { ValidationRulesService } from './validation-rules.service';
 
 @Controller('validation-rules')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class ValidationRulesController {
   constructor(private readonly rules: ValidationRulesService) {}
 
   @Post()
+  @RequireCedar({ action: 'validation-rule::create', resource: 'ValidationRule::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   create(@Body(new ZodValidationPipe(CreateValidationRuleSchema)) body: Parameters<ValidationRulesService['create']>[0]) {
     return this.rules.create(body);
@@ -38,6 +41,10 @@ export class ValidationRulesController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'validation-rule::update',
+    resource: (req) => `ValidationRule::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   update(
     @Param('id') id: string,
@@ -48,6 +55,10 @@ export class ValidationRulesController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'validation-rule::delete',
+    resource: (req) => `ValidationRule::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   remove(@Param('id') id: string) {
     return this.rules.remove(id);

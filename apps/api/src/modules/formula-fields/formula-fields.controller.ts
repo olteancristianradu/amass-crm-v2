@@ -12,14 +12,17 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { FormulaFieldsService } from './formula-fields.service';
 
 @Controller('formula-fields')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 export class FormulaFieldsController {
   constructor(private readonly formulas: FormulaFieldsService) {}
 
   @Post()
+  @RequireCedar({ action: 'formula-field::create', resource: 'FormulaField::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   create(@Body(new ZodValidationPipe(CreateFormulaFieldSchema)) body: Parameters<FormulaFieldsService['create']>[0]) {
     return this.formulas.create(body);
@@ -33,6 +36,7 @@ export class FormulaFieldsController {
   }
 
   @Post('evaluate')
+  @RequireCedar({ action: 'formula-field::run', resource: 'FormulaField::*' })
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   evaluate(@Body(new ZodValidationPipe(EvaluateFormulaSchema)) body: { expression: string; context: Record<string, unknown> }) {
     return { result: this.formulas.evaluate(body.expression, body.context) };
@@ -45,6 +49,10 @@ export class FormulaFieldsController {
   }
 
   @Patch(':id')
+  @RequireCedar({
+    action: 'formula-field::update',
+    resource: (req) => `FormulaField::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   update(
     @Param('id') id: string,
@@ -55,6 +63,10 @@ export class FormulaFieldsController {
 
   @Delete(':id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'formula-field::delete',
+    resource: (req) => `FormulaField::${(req as { params: { id: string } }).params.id}`,
+  })
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   remove(@Param('id') id: string) {
     return this.formulas.remove(id);

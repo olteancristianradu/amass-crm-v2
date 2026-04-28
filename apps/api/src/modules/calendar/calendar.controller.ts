@@ -10,11 +10,13 @@ import {
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CedarGuard } from '../access-control/cedar.guard';
+import { RequireCedar } from '../access-control/cedar.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CalendarService } from './calendar.service';
 
 @Controller('calendar')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
 @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
 export class CalendarController {
   constructor(private readonly svc: CalendarService) {}
@@ -45,10 +47,18 @@ export class CalendarController {
 
   @Delete('integrations/:id')
   @HttpCode(204)
+  @RequireCedar({
+    action: 'calendar::delete',
+    resource: (req) => `CalendarIntegration::${(req as { params: { id: string } }).params.id}`,
+  })
   disconnect(@Param('id') id: string) { return this.svc.disconnect(id); }
 
   @Post('integrations/:id/sync')
   @HttpCode(200)
+  @RequireCedar({
+    action: 'calendar::sync',
+    resource: (req) => `CalendarIntegration::${(req as { params: { id: string } }).params.id}`,
+  })
   sync(@Param('id') id: string) { return this.svc.sync(id); }
 
   @Get('events')
@@ -58,6 +68,10 @@ export class CalendarController {
   }
 
   @Post('integrations/:id/events')
+  @RequireCedar({
+    action: 'calendar::create',
+    resource: (req) => `CalendarIntegration::${(req as { params: { id: string } }).params.id}`,
+  })
   createEvent(
     @Param('id') integrationId: string,
     @Body(new ZodValidationPipe(CreateCalendarEventSchema)) dto: CreateCalendarEventDto,
