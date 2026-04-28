@@ -99,12 +99,34 @@
      `runWithTenant` mock pattern from LESSONS.md).
 - Estimated effort: 2–3 hours, mostly mechanical.
 
-### onDelete: Cascade audit
-- 45/79 Prisma models still don't declare an `onDelete` rule on FK
-  relations. Risk: orphans on parent delete. Need an audit pass +
-  one migration that adds Cascade where it makes sense and SetNull
-  where the child should survive.
-- Estimated effort: 90 min for the audit + a single migration.
+### onDelete: Cascade — proper finding from the audit
+- The shape of the issue is bigger than first thought: the schema has
+  92 FK-style columns (`xxxId String`) that have NO `@relation`
+  navigation at all — Prisma cannot attach an `onDelete` rule to
+  those because there's nothing to attach it to. The 38 declared
+  `@relation()` blocks already all have an `onDelete` (verified
+  2026-04-28 with a script).
+- Categories of the 92 unrelated FKs:
+  1. **Polymorphic** (subjectId on Note/Reminder/Activity/Attachment)
+     — by design no single parent.
+  2. **Audit/historical** (actorId, createdById, uploadedById,
+     authorId) — should NOT cascade; we keep the row even after the
+     user is removed, otherwise audit history disappears.
+  3. **Business cross-references** (Deal.companyId, Task.assigneeId,
+     EmailMessage.subjectId, etc.) — these SHOULD probably have
+     onDelete:SetNull (or the soft-delete + RLS pattern that's
+     already in place).
+- Hard part: turning #3 into proper `@relation` + onDelete requires
+  adding inverse list relations on the parents (`Company.deals`,
+  `User.assignedTasks`), generating a catch-up migration that doesn't
+  destroy data, and a re-test of the relevant services. Estimated
+  effort: 3–4 hours for the full sweep — not just one migration.
+- Risk mitigation in place today:
+  - All these models have `tenantId` + Postgres RLS, so a stale FK
+    can't leak across tenants.
+  - The services use `softDelete` rather than `delete` everywhere it
+    matters, so the "parent gone" scenario is "parent has
+    `deletedAt != null`", which all the read paths already filter.
 
 ### RLS audit re-run
 - Last full sweep was 2026-04-14. Schema has gained ~10 models since.
