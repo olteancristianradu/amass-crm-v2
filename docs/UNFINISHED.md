@@ -6,6 +6,24 @@
 
 ## P0 — needs human/credentials/ops
 
+### `git push origin main`
+- Five overnight commits (`d0d9f1c` … `4070ab2`) are queued locally
+  but `git push` failed with `could not read Username for
+  'https://github.com'`. The repo is on HTTPS and the keychain has
+  no entry; no SSH key in `~/.ssh/`; no `GH_TOKEN` / `GITHUB_TOKEN`
+  in env; `gh` CLI not installed. To unblock:
+  ```bash
+  # Either install gh + login (one-time):
+  brew install gh && gh auth login -h github.com -p https
+  # OR add an SSH key:
+  ssh-keygen -t ed25519 -C "cristian.raduoltean@gmail.com"
+  pbcopy < ~/.ssh/id_ed25519.pub  # paste into github.com/settings/keys
+  git remote set-url origin git@github.com:olteancristianradu/amass-crm-v2.git
+  # Then:
+  git push origin main
+  ```
+
+
 ### Cloudflare Tunnel
 - `cloudflared` is installed (`/opt/homebrew/bin/cloudflared`) but
   `~/.cloudflared/cert.pem` does not exist, so I cannot create a
