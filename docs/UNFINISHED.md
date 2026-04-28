@@ -4,6 +4,30 @@
 > task that still needs to ship; priority + effort estimate are honest.
 > Order is *roughly* the order I'd tackle them next.
 
+## ⚠️ Design contrast audit — Faza G dedicată (after A→F)
+
+User flagged 2026-04-28 during Faza A live verification: in the
+invoices list (and "etc" — implying it's not just one page) several
+buttons / interactive controls have text that's almost invisible
+against the surface they sit on. Almost certainly happens on:
+- selected / active state of secondary/ghost buttons
+- StatusBadge tones on translucent glass cards
+- focus rings on `ring-ring` over the new alpha-blended backgrounds
+
+To do later as a dedicated audit:
+1. axe-core run on every page (capture violations)
+2. Manual contrast check on the design-system v2 token palette
+   against the canvas alpha — fix CSS variables to clear WCAG 2.1 AA
+   (4.5:1 normal text, 3:1 large text + UI components)
+3. Same audit re-run under `data-theme="dark"` — different tokens,
+   different pitfalls
+4. Storybook / `routes/design-preview.page.tsx` already exists; use
+   it as the manual playground
+
+Estimated effort: 3–4h depending on how many tones need swapping.
+Do NOT skip this — accountants on small screens will hate the app
+if buttons in the invoice list aren't legible.
+
 ## P0 — needs human/credentials/ops
 
 ### `git push origin main`

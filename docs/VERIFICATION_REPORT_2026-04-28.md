@@ -1,15 +1,65 @@
 # Verification Report — 2026-04-28 autonomous session
 
-> Ran by Claude during the autonomous overnight pass on 2026-04-27/28.
-> The bar set by the user: **ZERO N/A** — every feature must either pass
-> a live request, or be marked with the concrete reason it didn't and
-> the workaround applied.
+> Ran by Claude during the autonomous overnight pass on 2026-04-27/28
+> + the morning continuation. The bar set by the user: **ZERO N/A** —
+> every feature must either pass a live request, or be marked with the
+> concrete reason it didn't and the workaround applied.
+>
+> ## Honesty pass (added during Faza A)
+>
+> The original draft of this report (commit `0b2f3e7`) over-claimed in
+> places: it implied broad feature coverage when the actual evidence
+> was a smoke test. This honesty pass adds an explicit **Evidence**
+> column to every claim with the concrete proof captured during Faza A
+> (mock service log lines, HTTP status codes, DB rows, file paths).
+> Anything without that proof is now flagged as **PENDING — Faza B**
+> rather than implied as verified.
 >
 > All evidence below was captured against the live Docker stack on
 > `darwin / Apple Silicon` with `docker compose --profile mocks up`
 > (mailpit + stripe-mock + mock-services + the seven mock endpoints
 > running) plus the production stack (postgres, redis, minio, api,
 > web, ai-worker, caddy).
+
+## Faza A — live mock + UI verification (2026-04-28)
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| A1 | Stripe-mock receives a real call | ✅ live | `docker logs amass-stripe-mock`: `Request: POST /v1/customers` + `Request: POST /v1/checkout/sessions` (price=`price_mock_starter`, tenantId in metadata). API returns `{"url":"https://checkout.stripe.com/pay/c/cs_test_a1YS1URlnyQCN5fUUduORoQ7Pw41PJqDWkIVQCpJPqkfIhd6tVY8XB1OLY"}` HTTP 201. |
+| A2 | Meta WhatsApp send hits meta-mock | ✅ live | `docker logs amass-mocks`: `[meta] POST /v19.0/15550001234/messages`. DB row whatsapp_messages: status=SENT, externalId=wamid.4b4be1baf2795f59. |
+| A3 | ANAF submit hits anaf-mock | ✅ live | `[anaf] POST /anaf-oauth2/token` + `[anaf] POST /prod/FCTEL/rest/upload?standard=UBL&cif=12345678`. API returns `{"uploadIndex":"6658177"}` HTTP 200. DB row anaf_submissions: status=UPLOADED, upload_index=6658177. **Bug fix shipped**: AnafService.submitInvoice/checkStatus did `res.json()` on XML responses; replaced with parseAnafResponse() helper that handles both XML and JSON. |
+| A4 | Google + Microsoft OAuth + calendar sync | ✅ live | `[google] POST /token` + `[google] GET /calendar/v3/calendars/primary/events?timeMin=…`. Sync returned `{"synced":2}`. `[microsoft] POST /common/oauth2/v2.0/token`. Both integrations have rows in calendar_integrations table. |
+| A5 | Outbound webhook delivery + HMAC | ✅ live | webhook-mock GET /_received returned the POST with `x-amass-event: COMPANY_CREATED`, valid HMAC `x-amass-signature: sha256=a8310356266dd52e30c2473ee9627ec377ebb15ada5ac5eba0547ea80725ba1d`, body `{event, tenantId, timestamp, data:{id, name}}`. **Bug fix shipped**: WebhooksService.dispatch() existed but no service called it — wired companies.service to fire COMPANY_CREATED on create. SSRF allow-list (`WEBHOOK_TRUSTED_HOSTS`) added so dev mocks pass validation. |
+| A6 | ANAF UI on invoices list (browser) | ✅ live | User confirmed visually: badge "ANAF: Validată #6658177" rendered under invoice AMS-0001. Click "XML" opened a new tab with the full UBL 2.1 / CIUS-RO 1.0.1 XML (validated as a Postgres-backed real submission). **Bug fix shipped**: original `<a href>` lost the Bearer token; replaced with auth-aware fetch + Blob URL pattern. |
+| A7 | Dark theme tri-state toggle | ✅ live | User confirmed clicks Sun→Moon→Monitor cycle the visible palette. CSS audit (post-fix): `:root[data-theme=dark]` block compiled into the bundle (verified by inspecting served `index-DPgqIWco.css`). **Cache fix shipped**: bumped service worker `CACHE = 'amass-shell-v1' → 'v2'` so old clients purge their stale shell on activate. |
+| A8 | Lazy-loaded route chunks | ✅ live | User Network panel screenshot 2026-04-28 12:27 shows `companies.list.page-BGrNMiBX.js` 8.84 KB + `csv-Bgh-u4xy.js` 1.06 KB downloaded only when navigating to /app/companies. Main bundle stays at 337/86 KB gzip. |
+| A9 | Cedar decorator placement audit | ✅ static | Programmatic audit: 339 handlers across 64 controllers, 152 carry @RequireCedar, only 2 are `@Get + @RequireCedar` (gdpr/contacts/:id/export and gdpr/clients/:id/export — both **intentional** because GDPR PII exports deserve ABAC beyond simple role gates). No mistaken placements. |
+| A10 | Honesty pass on this report | ✅ done | This block. |
+
+## Bonus latent bugs caught while running Faza A
+
+Three real production-blocker bugs surfaced because the unit-test
+fixtures had been masking them. Fixed live and committed:
+
+1. **`AnafService` did `res.json()` on XML** — would have crashed
+   every real ANAF e-Factura upload + status poll with
+   "Unexpected token '<'". Real ANAF emits XML; only the OAuth
+   token endpoint emits JSON.
+2. **`WebhooksService.dispatch()` was orphaned** — implemented but
+   never called by any service. Outbound webhooks for tenants would
+   have shown 0 deliveries forever despite endpoint registration
+   being accepted.
+3. **`/reports/dashboard` 500 BigInt** — `getPipelineStats` returned
+   raw rows with `count: bigint` (Postgres COUNT) untouched;
+   `JSON.stringify` can't serialize bigint, crashed mid-response.
+   Other four queries already converted; this one was the gap.
+
+Also caught:
+4. **Caddy `/ws*` proxy missing** — Socket.IO upgrade traffic 502'd,
+   dashboard saw "WebSocket failed" ×68 in console. Added
+   `handle /ws* { reverse_proxy api:3000 }`.
+5. **Service worker cache-bust** — bumped to `v2` so the next
+   activation purges old shell.
 
 ## 0. Stack state at start of session
 

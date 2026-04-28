@@ -123,16 +123,25 @@ export function AnafInvoiceCell({ invoiceId }: { invoiceId: string }): JSX.Eleme
         </Button>
       )}
       {data.uploadIndex && (
-        <a
-          href={anafApi.xmlUrl(invoiceId)}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={async () => {
+            // Fetch with auth, then open as a blob URL — opening the
+            // raw endpoint in a new tab strips the Bearer token (it
+            // lives in the in-memory zustand store, not in cookies).
+            const xml = await anafApi.fetchXml(invoiceId);
+            const blob = new Blob([xml], { type: 'application/xml' });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank', 'noopener,noreferrer');
+            // Free the URL after the browser has had time to load it.
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          }}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
           title="Descarcă XML UBL 2.1 (auditare)"
         >
           <FileDown size={12} />
           XML
-        </a>
+        </button>
       )}
       {status === 'NOK' && data.errors && data.errors.length > 0 && (
         <span

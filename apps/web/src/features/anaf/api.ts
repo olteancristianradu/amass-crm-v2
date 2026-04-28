@@ -48,10 +48,14 @@ export const anafApi = {
     api.get<StatusResponse>(`/anaf/invoices/${invoiceId}/status`),
 
   /**
-   * GET /anaf/invoices/:id/xml — raw UBL 2.1 XML (Content-Type: application/xml).
-   * Used for the "Descarcă XML" button so the accountant can audit it.
+   * GET /anaf/invoices/:id/xml — raw UBL 2.1 XML.
+   * The endpoint is JWT-gated, but a plain `<a href>` opens in a new tab
+   * which can't see the in-memory access token. Fetch via the auth-aware
+   * api helper, then open the blob URL — same UX, but the request carries
+   * the Bearer header.
    */
-  xmlUrl: (invoiceId: string) => `/api/v1/anaf/invoices/${invoiceId}/xml`,
+  fetchXml: (invoiceId: string) =>
+    api.get<string>(`/anaf/invoices/${invoiceId}/xml`),
 };
 
 /**
