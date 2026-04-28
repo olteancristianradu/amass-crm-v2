@@ -14,6 +14,7 @@ import { Request } from 'express';
 import { AiCallResultDto, AiCallResultSchema } from '@amass/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { SystemApiKeyGuard } from '../../common/guards/system-api-key.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { CallsService } from './calls.service';
 
 /**
@@ -28,6 +29,7 @@ import { CallsService } from './calls.service';
  *   POST   /calls/:id/ai-result        AI worker: transcript + summary
  */
 @Controller('calls')
+@Public()
 export class CallsWebhookController {
   constructor(private readonly calls: CallsService) {}
 

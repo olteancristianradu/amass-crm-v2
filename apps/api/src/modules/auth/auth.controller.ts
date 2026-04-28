@@ -13,6 +13,7 @@ import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { loadEnv } from '../../config/env';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AuthService, AuthTokens } from './auth.service';
 import {
@@ -62,6 +63,7 @@ export class AuthController {
 
   // Registration: 3 attempts/IP/15min (long window) + 5/min short burst (strict-auth).
   @Post('register')
+  @Public()
   @Throttle({
     default: { ttl: 900_000, limit: 3 },
     'strict-auth': { ttl: 60_000, limit: 2 },
@@ -76,6 +78,7 @@ export class AuthController {
 
   // Login: 5 attempts/IP/15min (brute-force defense) + 3/min short burst.
   @Post('login')
+  @Public()
   @HttpCode(200)
   @Throttle({
     default: { ttl: 900_000, limit: 5 },
@@ -95,6 +98,7 @@ export class AuthController {
 
   // 20 refresh attempts per IP per minute
   @Post('refresh')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   async refresh(
@@ -155,6 +159,7 @@ export class AuthController {
    * email exists, so an attacker cannot probe the user database.
    */
   @Post('password-reset/request')
+  @Public()
   @HttpCode(204)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async requestPasswordReset(
@@ -175,6 +180,7 @@ export class AuthController {
 
   /** Password reset — CONFIRM. Consumes token + rotates password + revokes sessions. */
   @Post('password-reset/confirm')
+  @Public()
   @HttpCode(204)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async confirmPasswordReset(
@@ -185,6 +191,7 @@ export class AuthController {
 
   /** Email verification — CONFIRM. Sets User.emailVerifiedAt atomically. */
   @Post('email/verify')
+  @Public()
   @HttpCode(204)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async verifyEmail(

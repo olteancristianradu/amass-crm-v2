@@ -1,4 +1,4 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Injectable, Logger, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { NextFunction, Request, Response } from 'express';
 import { loadEnv } from '../../config/env';
@@ -9,13 +9,23 @@ import { tenantStorage } from '../../infra/prisma/tenant-context';
  * Decodes the JWT (best-effort, non-blocking) and stores tenant context in
  * AsyncLocalStorage so downstream services can call `prisma.runWithTenant`.
  *
- * This is a MIDDLEWARE not a guard — it doesn't reject requests. JwtAuthGuard
- * remains the actual access gate. Routes without the guard simply have no
- * tenant context (login, register), which is intentional.
+ * This is a MIDDLEWARE not a guard — it doesn't reject the *missing* token
+ * case (that's `JwtAuthGuard`'s job, which now runs globally as APP_GUARD).
+ *
+ * **But:** if a Bearer header IS present and the token is corrupt/expired,
+ * we reject HERE with 401 instead of swallowing the error silently.
+ *
+ * Why: pre-fix, the swallow path let requests continue with no ALS context.
+ * If the route was wrapped in `JwtAuthGuard` the guard would catch it and
+ * 401, but the chain `(unguarded route) + (service uses getTenantContext)`
+ * would skip every multi-tenant boundary (no `runWithTenant`, no
+ * `SET LOCAL ROLE app_user`) and the connection-string user (BYPASSRLS in
+ * dev) would return cross-tenant data. Audit finding H2.
  */
 @Injectable()
 export class TenantContextMiddleware implements NestMiddleware {
   private readonly env = loadEnv();
+  private readonly logger = new Logger(TenantContextMiddleware.name);
 
   constructor(private readonly jwt: JwtService) {}
 
@@ -31,9 +41,17 @@ export class TenantContextMiddleware implements NestMiddleware {
         { tenantId: payload.tid, userId: payload.sub, role: payload.role },
         () => next(),
       );
-    } catch {
-      // Invalid token — let the guard reject it. No context set.
-      next();
+    } catch (err) {
+      // M-aud-H2: never let a corrupt/expired JWT through silently. Log the
+      // category (without the token bytes) and short-circuit with 401 so
+      // any subsequent service call cannot fall back to a no-context query
+      // path that bypasses the multi-tenant guarantees.
+      const reason = err instanceof Error ? err.message : 'unknown';
+      this.logger.warn(`Rejected request with invalid JWT: ${reason}`);
+      throw new UnauthorizedException({
+        code: 'INVALID_TOKEN',
+        message: 'Invalid or expired authentication token',
+      });
     }
   }
 }

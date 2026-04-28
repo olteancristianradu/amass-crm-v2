@@ -16,10 +16,19 @@
 import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, UnauthorizedException,
 } from '@nestjs/common';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RequestPortalAccessDto, SignQuotePortalDto } from '@amass/shared';
 import { AuditService } from '../audit/audit.service';
+
+/**
+ * M-aud-H7: SHA-256 of the raw token. We never persist the plaintext
+ * token — only the hash. The raw token only lives in the email link
+ * sent to the client. Same primitive used for Session.refreshTokenHash.
+ */
+function hashPortalToken(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex');
+}
 
 @Injectable()
 export class PortalService {
@@ -33,14 +42,19 @@ export class PortalService {
   // ─── Token lifecycle ────────────────────────────────────────────────────────
 
   async requestAccess(tenantId: string, dto: RequestPortalAccessDto) {
+    // The raw token leaves the API exactly once — in the response body
+    // here, which the API caller must immediately email to the recipient.
+    // After that point only the SHA-256 hash exists (in DB). Lookups in
+    // verifyToken / resolveToken hash the inbound token before findUnique.
     const token = randomBytes(32).toString('hex');
+    const tokenHash = hashPortalToken(token);
     const expiresAt = new Date(Date.now() + 24 * 3600_000); // 24 hours
 
     const portalToken = await this.prisma.runWithTenant(tenantId, (tx) =>
       tx.portalToken.create({
         data: {
           tenantId,
-          token,
+          tokenHash,
           email: dto.email,
           companyId: dto.companyId ?? null,
           clientId: dto.clientId ?? null,
@@ -49,10 +63,11 @@ export class PortalService {
       }),
     );
 
-    // In production: send email with magic link containing token
-    // Returning token directly here for API testability (frontend should email it)
+    // In production: send email with magic link containing the *raw* token.
+    // Returning the raw token directly here for API testability (frontend
+    // should mail it). The DB row carries only the hash.
     return {
-      token: portalToken.token,
+      token,
       expiresAt: portalToken.expiresAt,
       message: 'Access token generated. Share this link with the client.',
     };
@@ -67,7 +82,7 @@ export class PortalService {
     //
     // Token is `@unique` in schema so findUnique is the right primitive.
     const record = await this.prisma.portalToken.findUnique({
-      where: { token },
+      where: { tokenHash: hashPortalToken(token) },
       select: { id: true, tenantId: true, email: true, companyId: true, clientId: true, expiresAt: true },
     });
     if (!record || record.expiresAt <= new Date()) {
@@ -100,7 +115,7 @@ export class PortalService {
    * even on these routes.
    */
   private async resolveToken(headerTenantId: string, token: string) {
-    const record = await this.prisma.portalToken.findUnique({ where: { token } });
+    const record = await this.prisma.portalToken.findUnique({ where: { tokenHash: hashPortalToken(token) } });
     if (!record || record.expiresAt <= new Date()) {
       throw new UnauthorizedException('Invalid or expired portal token');
     }

@@ -1,5 +1,6 @@
 import { Controller, Get, HttpException, HttpStatus, Query } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 
 /**
  * F-scaffold: delta-sync API. Mobile + offline clients call
@@ -12,6 +13,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
  */
 @ApiExcludeController()
 @Controller('sync')
+@Public()
 export class SyncController {
   @Get()
   delta(@Query('since') _since?: string, @Query('types') _types?: string) {

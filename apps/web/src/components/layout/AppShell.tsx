@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   Bell,
@@ -88,6 +89,7 @@ interface Props {
 export function AppShell({ children }: Props): JSX.Element {
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const paletteOpen = useCommandPaletteStore((s) => s.isOpen);
@@ -122,6 +124,13 @@ export function AppShell({ children }: Props): JSX.Element {
     } catch {
       // Logout is fire-and-forget; even if the API call fails, wipe local state.
     }
+    // M-aud-H4: drop every cached server response. Without this, opening
+    // /companies on the next user that logs in on the same tab serves
+    // the previous tenant's data from React Query's stale-while-revalidate
+    // cache (default 5min). Server-side RLS still prevents cross-tenant
+    // *fetches*, but the FE renders the stale snapshot until the refetch
+    // resolves.
+    queryClient.clear();
     clear();
     await router.navigate({ to: '/login' });
   };

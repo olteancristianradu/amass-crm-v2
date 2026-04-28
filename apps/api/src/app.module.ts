@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TenantThrottlerGuard } from './common/guards/tenant-throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './modules/auth/jwt.guard';
 import { LoggerModule } from 'nestjs-pino';
 import { CsrfHeaderMiddleware } from './common/middleware/csrf-header.middleware';
 import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
@@ -254,6 +255,18 @@ import { SyncModule } from './modules/sync/sync.module';
     SyncModule,
   ],
   providers: [
+    // M-aud-H1: JwtAuthGuard registered globally so any new controller is
+    // protected by default. Routes that legitimately accept anonymous
+    // requests (login/register, OAuth callbacks, public webhooks, the
+    // portal-token + SSO flows, the 501 scaffolds, the email-tracking
+    // pixel/redirect endpoints, /health) opt out with @Public(). The
+    // previous design only attached @UseGuards(JwtAuthGuard) per-controller,
+    // which is fail-open: a forgotten decorator silently exposes the route.
+    //
+    // Order in this array is the order the guards run for every request.
+    // JwtAuthGuard MUST run before TenantThrottlerGuard so the throttler
+    // can read req.user.tenantId for authed traffic.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
     // B-scaling: rate-limit per-tenant (and per-user when authed) instead of
     // per-IP so a single noisy tenant can't starve others and co-located
     // employees behind one NAT don't share a counter. Unauthenticated paths

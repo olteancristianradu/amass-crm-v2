@@ -268,6 +268,56 @@
 ### 8.2 ANAF e-Factura
 - **Ce face:** Emitere facturi electronice conforme RO către ANAF (API oficial). Semnătură digitală XML, tracking status (`SENT → VALIDATED → ACCEPTED`).
 - **Obligatoriu RO:** din iulie 2024 pentru toate B2B.
+- **UI:** `/app/invoices` — sub fiecare factură non-DRAFT vezi
+  panoul ANAF cu badge status (`Trimisă` / `În validare` /
+  `Validată` / `Respinsă`) + buton **Trimite la ANAF** + link
+  **XML** (descarcă UBL 2.1).
+
+#### De ce există butonul "Descarcă XML" și ce vezi în el
+
+Când dai click pe **XML** lângă badge-ul ANAF, se deschide într-un
+tab nou structura raw a facturii în format **UBL 2.1 / CIUS-RO 1.0.1**
+— exact bytii pe care i-am trimis la ANAF. Nu are stylesheet, deci
+browserul afișează tree-ul XML aproape ca pe HTML "gol cu cod".
+**Asta e normal și intenționat** — XML-ul e mașină-citibil, nu
+proiectat pentru ochi umani.
+
+La ce te ajută concret:
+
+1. **Conformitate fiscală** — Ministerul Finanțelor (ANAF) impune
+   formatul UBL 2.1 customization românesc CIUS-RO. XML-ul trebuie
+   păstrat 5+ ani ca dovadă fiscală în caz de control.
+2. **Audit trail** — contabilul tău confirmă vizual exact ce date
+   au plecat la ANAF (sumele, TVA, supplier, client, line items).
+   Dacă apare o discrepanță în declarația fiscală, XML-ul e
+   dovada juridică a ce a fost transmis.
+3. **Re-submission după respingere** — dacă ANAF respinge factura
+   (CIF inactiv, sume nepotrivite, format greșit), iei XML-ul,
+   identifici câmpul greșit, corectezi datele în CRM, regenerezi
+   și retrimiți. XML-ul îți spune *exact ce a primit ANAF*, nu
+   ce credea CRM-ul tău că a trimis.
+4. **Debug ANAF** — când ANAF îți spune "factura X e respinsă cu
+   eroare Y", te uiți în XML să vezi ce câmp e problematic
+   (un VAT lipsă, un cod CPV invalid, etc.).
+5. **Portabilitate** — dacă vreodată schimbi CRM-ul, XML-urile
+   exportate sunt standard UBL 2.1, deci orice alt sistem
+   conform poate să le re-importe sau să le folosească ca
+   referință.
+
+**Pentru utilizatorul tău (clientul facturat) NU există XML-ul.**
+El primește factura PDF "frumoasă" — endpoint separat
+`GET /invoices/:id/pdf-url` (vizibil ca buton **Descarcă PDF**
+pe pagina de detaliu), generat din același set de date dar
+cu layout pentru oameni. XML-ul e doar pentru tine + ANAF +
+contabil + auditor fiscal.
+
+**Lifecycle complet** vizibil în badge:
+- `Neprezentată` (gri) — invoice creată, încă nu submit-uită la ANAF
+- `Trimisă` (albastru) — POST la `/upload`, am primit `index_incarcare`
+- `În validare` (albastru) — ANAF procesează, polling `/stareMesaj`
+- `Validată` (verde) — `stare=ok`, am primit `id_descarcare`
+- `Respinsă` (roz) — `stare=nok`, primul mesaj de eroare apare inline
+- `Eroare locală` (roz) — circuit-breaker / network / OAuth fail
 
 ### 8.3 SSO / SAML
 - **Ce face:** Single Sign-On enterprise — integrare Okta, Azure AD, Google Workspace. User-ul se loghează cu contul de companie, fără parole separate.

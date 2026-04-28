@@ -1598,7 +1598,12 @@ model LeadScore {
 model PortalToken {
   id        String    @id @default(cuid())
   tenantId  String    @map("tenant_id")
-  token     String    @unique
+  // M-aud-H7: raw token only ever lives in the email link sent to the
+  // client. DB stores SHA-256(token) so a DB breach (backup leak, SQL
+  // injection elsewhere, insider) does NOT yield usable tokens — the
+  // attacker would need to also control the message delivering the raw
+  // token. Same posture as Session.refreshTokenHash.
+  tokenHash String    @unique @map("token_hash")
   email     String
   companyId String?   @map("company_id")
   clientId  String?   @map("client_id")
@@ -1607,7 +1612,7 @@ model PortalToken {
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@index([tenantId, email])
-  @@index([token])
+  @@index([tokenHash])
   @@map("portal_tokens")
 }
 

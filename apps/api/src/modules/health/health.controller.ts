@@ -10,6 +10,7 @@ import { Controller, Get, HttpCode, ServiceUnavailableException } from '@nestjs/
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { listBreakers } from '../../common/resilience/circuit-breaker';
+import { Public } from '../../common/decorators/public.decorator';
 
 type ProbeStatus = 'up' | 'down' | 'degraded';
 
@@ -20,6 +21,7 @@ interface Probe {
 }
 
 @Controller('health')
+@Public()
 export class HealthController {
   constructor(
     private readonly prisma: PrismaService,

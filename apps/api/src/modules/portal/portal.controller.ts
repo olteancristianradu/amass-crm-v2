@@ -8,6 +8,7 @@ import {
   SignQuotePortalSchema, SignQuotePortalDto,
 } from '@amass/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { Public } from '../../common/decorators/public.decorator';
 import { PortalService } from './portal.service';
 
 /**
@@ -21,6 +22,7 @@ import { PortalService } from './portal.service';
  * a handful of times per session.
  */
 @Controller('portal')
+@Public()
 export class PortalController {
   constructor(private readonly svc: PortalService) {}
 

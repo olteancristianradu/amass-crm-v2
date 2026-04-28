@@ -1,5 +1,6 @@
 import { Controller, Get, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 
 /**
  * SSO / SAML — DISABLED in this build.
@@ -34,16 +35,19 @@ export class SsoController {
   }
 
   @Get(':tenantSlug/login')
+  @Public()
   login(): never {
     this.gone();
   }
 
   @Post(':tenantSlug/callback')
+  @Public()
   callback(): never {
     this.gone();
   }
 
   @Get(':tenantSlug/metadata')
+  @Public()
   metadata(): never {
     this.gone();
   }

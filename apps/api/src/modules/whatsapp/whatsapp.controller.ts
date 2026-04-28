@@ -11,6 +11,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { WhatsappService } from './whatsapp.service';
 
 @Controller('whatsapp')
@@ -67,6 +68,7 @@ export class WhatsappController {
   // we don't want to burn CPU hashing garbage at line rate.
 
   @Get('webhook')
+  @Public()
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   verifyWebhook(
     @Query('hub.verify_token') verifyToken: string,
@@ -81,6 +83,7 @@ export class WhatsappController {
   }
 
   @Post('webhook')
+  @Public()
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 300 } })
   async receiveWebhook(

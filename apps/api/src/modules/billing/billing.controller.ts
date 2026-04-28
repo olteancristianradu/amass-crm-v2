@@ -10,6 +10,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { BillingService } from './billing.service';
 
 const CheckoutSchema = z.object({
@@ -52,6 +53,7 @@ export class BillingController {
 
   /** Raw body required for Stripe webhook signature verification. */
   @Post('webhook')
+  @Public()
   @HttpCode(200)
   webhook(@Req() req: RawBodyRequest<Request>) {
     return this.svc.handleWebhook(req);

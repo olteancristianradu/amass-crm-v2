@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { EmailTrackingService } from './email-tracking.service';
 
@@ -21,6 +22,7 @@ export class EmailTrackingController {
   constructor(private readonly tracking: EmailTrackingService) {}
 
   @Get('e/t/:id/open.gif')
+  @Public()
   async open(
     @Param('id') id: string,
     @Req() req: Request,
@@ -37,6 +39,7 @@ export class EmailTrackingController {
   }
 
   @Get('e/t/:id/click')
+  @Public()
   async click(
     @Param('id') id: string,
     @Query('u') u: string,

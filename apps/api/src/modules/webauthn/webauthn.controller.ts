@@ -1,5 +1,6 @@
 import { Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 
 /**
  * A-scaffold: FIDO2 / WebAuthn endpoints. Target library is
@@ -15,6 +16,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
  */
 @ApiExcludeController()
 @Controller('webauthn')
+@Public()
 export class WebauthnController {
   @Post('register/options')
   registerOptions() {

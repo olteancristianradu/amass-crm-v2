@@ -1,5 +1,6 @@
 import { All, Controller, HttpException, HttpStatus, Param } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 
 /**
  * A-scaffold: SCIM 2.0 endpoints — user/group provisioning protocol used by
@@ -18,6 +19,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
  */
 @ApiExcludeController()
 @Controller('scim/v2')
+@Public()
 export class ScimController {
   @All(':resource')
   collection(@Param('resource') resource: string) {

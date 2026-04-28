@@ -20,9 +20,12 @@ describe('PortalService', () => {
   beforeEach(() => vi.clearAllMocks());
 
   describe('requestAccess', () => {
-    it('creates a portal token with 24h expiry', async () => {
+    it('creates a portal token with 24h expiry and returns the raw token only in the response', async () => {
       const { svc, runWithTenant } = build();
-      const row = { id: 't1', token: 'abc123', expiresAt: new Date(Date.now() + 86_400_000), email: 'test@example.com' };
+      // M-aud-H7: service generates a fresh raw token internally, persists
+      // SHA-256(token) as tokenHash, and returns the raw token in the
+      // response (which the API caller must immediately email out).
+      const row = { id: 't1', tokenHash: 'opaque-hash', expiresAt: new Date(Date.now() + 86_400_000), email: 'test@example.com' };
       runWithTenant.mockResolvedValue(row);
 
       const result = await svc.requestAccess('tenant-1', {
@@ -30,7 +33,8 @@ describe('PortalService', () => {
         tenantSlug: 'test',
         companyId: 'comp-1',
       });
-      expect(result.token).toBe('abc123');
+      // Raw token is 32 bytes hex = 64 chars
+      expect(result.token).toMatch(/^[0-9a-f]{64}$/);
       expect(result.expiresAt).toBeDefined();
     });
   });
