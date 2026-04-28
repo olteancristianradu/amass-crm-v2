@@ -62,7 +62,7 @@ function ExportsPage(): JSX.Element {
 
       {showForm && <RequestExportForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <div className="animate-pulse h-8 bg-gray-100 rounded w-full" />}
+      {isLoading && <div className="animate-pulse h-8 bg-secondary rounded w-full" />}
       {isError && (
         <p className="text-red-500 text-sm">
           {error instanceof ApiError ? error.message : String(error)}

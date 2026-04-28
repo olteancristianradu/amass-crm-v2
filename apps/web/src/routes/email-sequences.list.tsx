@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 import { QueryError } from '@/components/ui/QueryError';
 
 export const emailSequencesRoute = createRoute({
@@ -41,11 +42,11 @@ function EmailSequencesPage(): JSX.Element {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['email-sequences'] }),
   });
 
-  const STATUS_BADGE: Record<string, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700',
-    ACTIVE: 'bg-green-100 text-green-800',
-    PAUSED: 'bg-yellow-100 text-yellow-800',
-    ARCHIVED: 'bg-gray-200 text-gray-500',
+  const STATUS_TONES: Record<string, StatusTone> = {
+    DRAFT: 'neutral',
+    ACTIVE: 'success',
+    PAUSED: 'warning',
+    ARCHIVED: 'neutral',
   };
 
   const STATUS_LABEL: Record<string, string> = {
@@ -74,7 +75,7 @@ function EmailSequencesPage(): JSX.Element {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium">{seq.name}</h3>
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[seq.status] ?? ''}`}>
+                    <span className={statusBadgeClasses(STATUS_TONES[seq.status] ?? 'neutral')}>
                       {STATUS_LABEL[seq.status] ?? seq.status}
                     </span>
                   </div>
@@ -98,7 +99,7 @@ function EmailSequencesPage(): JSX.Element {
                     <button
                       type="button"
                       onClick={() => activateMut.mutate(seq.id)}
-                      className="rounded bg-green-100 px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-200"
+                      className="rounded bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200/50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20 dark:hover:bg-emerald-500/20"
                     >
                       Activează
                     </button>
@@ -115,7 +116,7 @@ function EmailSequencesPage(): JSX.Element {
                       <button
                         type="button"
                         onClick={() => pauseMut.mutate(seq.id)}
-                        className="rounded bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800 hover:bg-yellow-200"
+                        className="rounded bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-200/50 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/20 dark:hover:bg-amber-500/20"
                       >
                         Pausează
                       </button>
@@ -125,7 +126,7 @@ function EmailSequencesPage(): JSX.Element {
                     <button
                       type="button"
                       onClick={() => activateMut.mutate(seq.id)}
-                      className="rounded bg-green-100 px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-200"
+                      className="rounded bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200/50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20 dark:hover:bg-emerald-500/20"
                     >
                       Reactivează
                     </button>
@@ -136,7 +137,7 @@ function EmailSequencesPage(): JSX.Element {
                       onClick={() => {
                         if (confirm(`Arhivezi "${seq.name}"?`)) archiveMut.mutate(seq.id);
                       }}
-                      className="rounded bg-gray-100 px-3 py-1 text-xs text-gray-600 hover:bg-gray-200"
+                      className="rounded bg-secondary px-3 py-1 text-xs text-muted-foreground hover:bg-secondary/80"
                     >
                       Arhivează
                     </button>

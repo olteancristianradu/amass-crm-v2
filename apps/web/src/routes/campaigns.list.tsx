@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
 export const campaignsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -23,11 +24,11 @@ const STATUS_LABELS: Record<CampaignStatus, string> = {
   COMPLETED: 'Finalizată',
 };
 
-const STATUS_CLASSES: Record<CampaignStatus, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  ACTIVE: 'bg-green-100 text-green-800',
-  PAUSED: 'bg-yellow-100 text-yellow-800',
-  COMPLETED: 'bg-blue-100 text-blue-800',
+const STATUS_TONES: Record<CampaignStatus, StatusTone> = {
+  DRAFT: 'neutral',
+  ACTIVE: 'success',
+  PAUSED: 'warning',
+  COMPLETED: 'info',
 };
 
 const CHANNEL_LABELS: Record<CampaignChannel, string> = {
@@ -229,7 +230,7 @@ function CampaignsListPage(): JSX.Element {
                         <select
                           value={c.status}
                           onChange={(e) => updateMut.mutate({ id: c.id, status: e.target.value as CampaignStatus })}
-                          className={`text-xs px-2 py-0.5 rounded ${STATUS_CLASSES[c.status]} border-0`}
+                          className={statusBadgeClasses(STATUS_TONES[c.status]) + ' border-0'}
                         >
                           {(Object.entries(STATUS_LABELS) as [CampaignStatus, string][]).map(([val, label]) => (
                             <option key={val} value={val}>{label}</option>

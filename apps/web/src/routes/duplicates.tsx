@@ -108,7 +108,7 @@ function DuplicatesPage(): JSX.Element {
               Selectează compania sursă
             </label>
             {companiesLoading ? (
-              <div className="animate-pulse h-9 bg-gray-100 rounded w-full" />
+              <div className="animate-pulse h-9 bg-secondary rounded w-full" />
             ) : (
               <select
                 id="companySelect"
@@ -135,7 +135,7 @@ function DuplicatesPage(): JSX.Element {
       </Card>
 
       {dupeLoading && isFetching && (
-        <div className="animate-pulse h-8 bg-gray-100 rounded w-full" />
+        <div className="animate-pulse h-8 bg-secondary rounded w-full" />
       )}
 
       {dupeError && (

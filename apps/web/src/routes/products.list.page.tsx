@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses } from '@/lib/status-colors';
 
 export function ProductsListPage(): JSX.Element {
   const qc = useQueryClient();
@@ -89,13 +90,7 @@ export function ProductsListPage(): JSX.Element {
                     <td className="px-4 py-2">{Number(p.vatRate).toFixed(0)}%</td>
                     <td className="px-4 py-2">{p.category?.name ?? '—'}</td>
                     <td className="px-4 py-2">
-                      <span
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${
-                          p.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
+                      <span className={statusBadgeClasses(p.isActive ? 'success' : 'neutral')}>
                         {p.isActive ? 'Activ' : 'Arhivat'}
                       </span>
                     </td>

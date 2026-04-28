@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { statusBadgeClasses } from '@/lib/status-colors';
 
 /** Returns ISO date string for today/7-days-from-now for the events default range. */
 function todayIso(): string {
@@ -77,11 +78,7 @@ export function CalendarPage(): JSX.Element {
                     </p>
                     <p className="text-xs text-muted-foreground">{intg.accountEmail}</p>
                   </div>
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-medium ${
-                      intg.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
+                  <span className={statusBadgeClasses(intg.isActive ? 'success' : 'neutral')}>
                     {intg.isActive ? 'Activ' : 'Inactiv'}
                   </span>
                 </CardContent>
