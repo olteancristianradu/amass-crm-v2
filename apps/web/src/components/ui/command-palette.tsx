@@ -56,7 +56,7 @@ import {
   Webhook,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
-import { searchApi } from '@/features/search/api';
+import { searchApi, type ParsedIntent } from '@/features/search/api';
 import { cn } from '@/lib/cn';
 
 // ─── nav catalog ──────────────────────────────────────────────────────────
@@ -216,6 +216,18 @@ function PaletteBody({
     staleTime: 30_000,
   });
 
+  // AI intent — only fires for inputs that start with a verb-like word
+  // ("creează", "adaugă", "deschide", "mergi la", "task"). Saves on cost
+  // for plain-text searches ("Popescu") since the static fallback would
+  // just return search anyway.
+  const aiHint = isAiLike(debounced);
+  const intent = useQuery({
+    queryKey: ['cmdk-intent', debounced],
+    queryFn: () => searchApi.parseIntent(debounced),
+    enabled: aiHint && debounced.length >= 4,
+    staleTime: 60_000,
+  });
+
   const close = React.useCallback(() => onOpenChange(false), [onOpenChange]);
 
   // Build flat row list (used for keyboard nav).
@@ -232,6 +244,20 @@ function PaletteBody({
         onSelect: () => {
           close();
           void navigate({ to: c.to });
+        },
+      });
+    }
+    if (intent.data && intent.data.kind !== 'unknown' && intent.data.kind !== 'search') {
+      out.push({
+        kind: 'remote',
+        id: `intent:${intent.data.kind}`,
+        primary: intent.data.label,
+        secondary: 'Acțiune AI',
+        icon: Sparkles,
+        group: 'Acțiuni AI',
+        onSelect: () => {
+          close();
+          executeIntent(intent.data, navigate);
         },
       });
     }
@@ -258,7 +284,7 @@ function PaletteBody({
       }
     }
     return out;
-  }, [visibleNav, remote.data, close, navigate]);
+  }, [visibleNav, remote.data, intent.data, close, navigate]);
 
   // Clamp highlighted index inline (avoids a setState-in-effect cascade).
   const highlighted = rows.length === 0 ? 0 : Math.min(highlightedRaw, rows.length - 1);
@@ -356,6 +382,68 @@ function PaletteBody({
       </div>
     </div>
   );
+}
+
+/**
+ * Heuristic: only call /ai/intent when the input looks like a command,
+ * not a plain-text search. Keeps the request count low for what is
+ * almost always a search use case.
+ *
+ * Matches Romanian + English imperatives and "deschide/mergi la".
+ */
+function isAiLike(s: string): boolean {
+  if (!s) return false;
+  const re = /^(creeaz[ăa]|adaug[ăa]|fa|f[ăa]|task|reminder|deschide|mergi|deal|companie|contact|client|invoice|factur[ăa]|create|add|open)\b/i;
+  return re.test(s.trim());
+}
+
+/**
+ * Map a parsed AI intent to actual navigation. For create_* intents we
+ * land on the list page with `?new=…&prefill=…` — the list page picks
+ * up the prefill and opens its own create form.
+ */
+function executeIntent(
+  intent: ParsedIntent,
+  navigate: ReturnType<typeof useNavigate>,
+): void {
+  switch (intent.kind) {
+    case 'navigate': {
+      const slug = intentTargetToRoute(intent.target ?? '');
+      void navigate({ to: slug });
+      return;
+    }
+    case 'create_company':
+      void navigate({ to: '/app/companies', search: { new: intent.target ?? '' } as never });
+      return;
+    case 'create_contact':
+      void navigate({ to: '/app/contacts', search: { new: intent.target ?? '' } as never });
+      return;
+    case 'create_deal':
+      void navigate({ to: '/app/deals', search: { new: intent.target ?? '' } as never });
+      return;
+    case 'create_task':
+      void navigate({ to: '/app/tasks', search: { new: intent.target ?? '' } as never });
+      return;
+    case 'search':
+    case 'unknown':
+    default:
+      // Falls back to no-op — the user can still hit the regular search results.
+      return;
+  }
+}
+
+function intentTargetToRoute(target: string): '/app' | '/app/companies' | '/app/contacts' | '/app/clients' | '/app/leads' | '/app/deals' | '/app/tasks' | '/app/invoices' | '/app/quotes' | '/app/reports' {
+  const t = target.toLowerCase().replace(/[^a-z]/g, '');
+  if (t.startsWith('compani')) return '/app/companies';
+  if (t.startsWith('contact')) return '/app/contacts';
+  if (t.startsWith('client')) return '/app/clients';
+  if (t.startsWith('lead')) return '/app/leads';
+  if (t.startsWith('deal') || t === 'pipeline') return '/app/deals';
+  if (t.startsWith('task')) return '/app/tasks';
+  if (t.startsWith('factur') || t === 'invoices') return '/app/invoices';
+  if (t.startsWith('ofert') || t === 'quotes') return '/app/quotes';
+  if (t.startsWith('raport') || t === 'reports') return '/app/reports';
+  return '/app';
 }
 
 function ResultGroups({

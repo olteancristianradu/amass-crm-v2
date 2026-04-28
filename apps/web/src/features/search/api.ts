@@ -17,7 +17,24 @@ export const searchApi = {
 
   emailDraft: (input: { contactId: string; intent: string; tone?: 'formal' | 'friendly' | 'concise' }) =>
     api.post<EmailDraftResponse>('/ai/email/draft', input),
+
+  parseIntent: (input: string) =>
+    api.post<ParsedIntent>('/ai/intent', { input }),
 };
+
+export interface ParsedIntent {
+  kind:
+    | 'navigate'
+    | 'create_company'
+    | 'create_contact'
+    | 'create_deal'
+    | 'create_task'
+    | 'search'
+    | 'unknown';
+  target?: string;
+  params?: Record<string, string>;
+  label: string;
+}
 
 export interface EmailDraftResponse {
   subject: string;

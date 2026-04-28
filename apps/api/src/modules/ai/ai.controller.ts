@@ -22,6 +22,7 @@ import { DealAiService } from './deal-ai.service';
 import { EnrichmentService } from './enrichment.service';
 import { BriefService } from './brief.service';
 import { EmailDraftService } from './email-draft.service';
+import { IntentService } from './intent.service';
 
 @Controller('ai')
 @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
@@ -33,6 +34,7 @@ export class AiController {
     private readonly enrichment: EnrichmentService,
     private readonly brief: BriefService,
     private readonly emailDraft: EmailDraftService,
+    private readonly intent: IntentService,
   ) {}
 
   /**
@@ -149,6 +151,19 @@ export class AiController {
   })
   draftEmail(@Body(new ZodValidationPipe(EmailDraftRequestSchema)) dto: EmailDraftRequestDto) {
     return this.emailDraft.draft(dto.contactId, dto.intent, dto.tone);
+  }
+
+  /**
+   * POST /ai/intent  { input: "creează deal pentru Acme" }
+   * Parses a natural-language CRM command into a structured action.
+   * Used by the Cmd-K "Acțiuni AI" section. No Cedar — the parsed action
+   * runs through the FE which then calls the appropriate guarded route.
+   */
+  @Post('intent')
+  @HttpCode(200)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  parseIntent(@Body() dto: { input?: string }) {
+    return this.intent.parse(dto.input ?? '');
   }
 }
 

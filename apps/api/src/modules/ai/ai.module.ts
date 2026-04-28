@@ -17,13 +17,14 @@ import { DealAiService } from './deal-ai.service';
 import { EnrichmentService } from './enrichment.service';
 import { BriefService } from './brief.service';
 import { EmailDraftService } from './email-draft.service';
+import { IntentService } from './intent.service';
 import { AiController } from './ai.controller';
 
 @Global()
 @Module({
   imports: [PrismaModule, AuthModule],
-  providers: [EmbeddingService, SearchService, DealAiService, EnrichmentService, BriefService, EmailDraftService],
+  providers: [EmbeddingService, SearchService, DealAiService, EnrichmentService, BriefService, EmailDraftService, IntentService],
   controllers: [AiController],
-  exports: [EmbeddingService, SearchService, DealAiService, EnrichmentService, BriefService, EmailDraftService],
+  exports: [EmbeddingService, SearchService, DealAiService, EnrichmentService, BriefService, EmailDraftService, IntentService],
 })
 export class AiModule {}
