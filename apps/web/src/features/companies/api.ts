@@ -8,5 +8,10 @@ export const companiesApi = {
   create: (dto: Partial<Company>) => api.post<Company>('/companies', dto),
   update: (id: string, dto: Partial<Company>) => api.patch<Company>(`/companies/${id}`, dto),
   remove: (id: string) => api.delete<void>(`/companies/${id}`),
+  // Faza-D: single-request bulk delete. Returns { deleted, skipped[] } —
+  // skipped contains ids that didn't belong to this tenant or were
+  // already soft-deleted (RLS filters them out silently).
+  bulkDelete: (ids: string[]) =>
+    api.post<{ deleted: number; skipped: string[] }>('/companies/bulk-delete', { ids }),
   subsidiaries: (id: string) => api.get<Company[]>(`/companies/${id}/subsidiaries`),
 };

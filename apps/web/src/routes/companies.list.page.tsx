@@ -37,9 +37,10 @@ export function CompaniesListPage(): JSX.Element {
   });
 
   const bulkDeleteMut = useMutation({
-    mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map((id) => companiesApi.remove(id)));
-    },
+    // Faza-D: single round-trip + atomic transaction on the API side.
+    // Was previously fan-out (N parallel deletes) which scaled poorly
+    // and could leave the list in a half-deleted state on partial failure.
+    mutationFn: (ids: string[]) => companiesApi.bulkDelete(ids),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['companies'] });
       setSelected(new Set());

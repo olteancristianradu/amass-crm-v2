@@ -142,4 +142,48 @@ export class CompaniesService {
       action: 'company.deleted',
     });
   }
+
+  /**
+   * Faza-D: soft-delete N companies in a single transaction. Returns the
+   * count actually deleted (caller may have asked for ids that don't
+   * belong to this tenant — RLS filters those out silently).
+   *
+   * One audit row + one activity row per company so the operator can
+   * still see in the timeline what was deleted.
+   */
+  async bulkDelete(ids: string[]): Promise<{ deleted: number; skipped: string[] }> {
+    if (ids.length === 0) return { deleted: 0, skipped: [] };
+    const ctx = requireTenantContext();
+    // Single transaction: find which ids belong to this tenant + are
+    // not already deleted, then update them all in one go. Anything
+    // that's missing or cross-tenant gets reported back as `skipped`.
+    const result = await this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const live = await tx.company.findMany({
+        where: { id: { in: ids }, tenantId: ctx.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      const liveIds = live.map((c) => c.id);
+      if (liveIds.length === 0) return { deleted: 0, liveIds, skipped: ids };
+      await tx.company.updateMany({
+        where: { id: { in: liveIds }, tenantId: ctx.tenantId },
+        data: { deletedAt: new Date() },
+      });
+      const skipped = ids.filter((id) => !liveIds.includes(id));
+      return { deleted: liveIds.length, liveIds, skipped };
+    });
+
+    // Audit + activity rows AFTER the tx so a failed write here doesn't
+    // roll back the user-visible delete (audit is best-effort sidecar).
+    await Promise.all(result.liveIds.map((id) => Promise.all([
+      this.audit.log({ action: 'company.delete', subjectType: 'company', subjectId: id }),
+      this.activities.log({
+        subjectType: 'COMPANY',
+        subjectId: id,
+        action: 'company.deleted',
+        metadata: { bulk: true, batchSize: result.liveIds.length },
+      }),
+    ])));
+
+    return { deleted: result.deleted, skipped: result.skipped };
+  }
 }

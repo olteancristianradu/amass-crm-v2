@@ -19,6 +19,15 @@ import {
   UpdateCompanySchema,
 } from '@amass/shared';
 import { UserRole } from '@prisma/client';
+import { z } from 'zod';
+
+/**
+ * Faza-D bulk-delete payload. Capped at 200 ids per call so a runaway
+ * client can't soft-delete an entire tenant in one request.
+ */
+const BulkDeleteSchema = z.object({
+  ids: z.array(z.string().min(1).max(64)).min(1).max(200),
+});
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -71,5 +80,18 @@ export class CompaniesController {
   @RequireCedar({ action: "company::delete", resource: (req) => `Company::${(req as { params: { id: string } }).params.id}` })
   remove(@Param('id') id: string) {
     return this.companies.remove(id);
+  }
+
+  /**
+   * Faza-D bulk delete. Replaces the FE's previous "fan out N requests"
+   * pattern with a single transaction so the operator gets atomic
+   * all-or-nothing semantics + a single audit row instead of N.
+   */
+  @Post('bulk-delete')
+  @HttpCode(200)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @RequireCedar({ action: 'company::bulk-delete', resource: 'Company::*' })
+  bulkDelete(@Body(new ZodValidationPipe(BulkDeleteSchema)) dto: { ids: string[] }) {
+    return this.companies.bulkDelete(dto.ids);
   }
 }
