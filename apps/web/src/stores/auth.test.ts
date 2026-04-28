@@ -27,12 +27,34 @@ describe('useAuthStore', () => {
     expect(s.isAuthenticated()).toBe(false);
   });
 
-  it('setSession populates user + accessToken', () => {
+  it('setSession populates user + accessToken (in-memory)', () => {
     useAuthStore.getState().setSession(user, tokens);
     const s = useAuthStore.getState();
     expect(s.user).toEqual(user);
     expect(s.accessToken).toBe('acc-xyz');
     expect(s.isAuthenticated()).toBe(true);
+  });
+
+  it('M-aud-H3: NEVER persists the access token to localStorage', () => {
+    useAuthStore.getState().setSession(user, tokens);
+    const raw = localStorage.getItem('amass-auth');
+    expect(raw).toBeTruthy();
+    // Token must not appear anywhere in the persisted blob — checked by
+    // both substring (defends against re-keying the field) and JSON-shape
+    // (defends against accidental top-level field additions).
+    expect(raw!).not.toContain('acc-xyz');
+    expect(raw!).not.toContain('accessToken');
+    const parsed = JSON.parse(raw!);
+    expect(parsed.state).toBeDefined();
+    expect(parsed.state.accessToken).toBeUndefined();
+    // user stays in storage so the chrome renders on reload
+    expect(parsed.state.user).toEqual(user);
+  });
+
+  it('M-aud-H3: isAuthenticated stays true when only user is restored from localStorage', () => {
+    // Simulate cold reload: user persisted, but in-memory access token gone.
+    useAuthStore.setState({ user, accessToken: null });
+    expect(useAuthStore.getState().isAuthenticated()).toBe(true);
   });
 
   it('setTokens rotates the accessToken without touching user', () => {
