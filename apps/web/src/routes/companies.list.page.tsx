@@ -21,6 +21,7 @@ import {
   Toolbar,
 } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
+import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { companiesRoute } from './companies.list';
@@ -258,83 +259,6 @@ export function CompaniesListPage(): JSX.Element {
         </ListSurface>
       )}
     </div>
-  );
-}
-
-/**
- * Faza-D inline editing primitive. Click the cell → text input. Enter or
- * blur → save (calls onSave). Esc → revert. Pending state disables the
- * input + dims it. The cell renders an em-dash for empty values, same
- * affordance as the read-only column it replaces.
- *
- * Kept inline (not a /components/ui/ entry) so its blast radius is one
- * page until we factor it out for /contacts/, /clients/, /deals/ etc.
- */
-function InlineEditCell({
-  value,
-  placeholder,
-  onSave,
-}: {
-  value: string;
-  placeholder: string;
-  onSave: (next: string) => Promise<unknown>;
-}): JSX.Element {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-
-  // Keep draft in sync when the row's value changes from outside
-  // (refetch after another user's update).
-  if (!editing && draft !== value) setDraft(value);
-
-  async function commit(): Promise<void> {
-    if (draft === value) {
-      setEditing(false);
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(draft);
-    } finally {
-      setSaving(false);
-      setEditing(false);
-    }
-  }
-
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        onClick={() => setEditing(true)}
-        className="w-full rounded px-1 py-0.5 text-left text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-        title="Click pentru editare"
-      >
-        {value || <span className="italic text-muted-foreground/60">— click —</span>}
-      </button>
-    );
-  }
-
-  return (
-    <input
-      type="text"
-      autoFocus
-      value={draft}
-      placeholder={placeholder}
-      disabled={saving}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => void commit()}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.currentTarget.blur();
-        } else if (e.key === 'Escape') {
-          setDraft(value);
-          setEditing(false);
-        }
-      }}
-      className={`w-full rounded border border-ring/30 bg-background px-2 py-0.5 text-sm focus:border-ring focus:outline-none ${
-        saving ? 'opacity-50' : ''
-      }`}
-    />
   );
 }
 

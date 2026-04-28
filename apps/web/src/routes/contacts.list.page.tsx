@@ -19,6 +19,7 @@ import {
   Toolbar,
 } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
+import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { contactsRoute } from './contacts.list';
@@ -204,8 +205,22 @@ export function ContactsListPage(): JSX.Element {
                           {c.firstName} {c.lastName}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.jobTitle ?? '—'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.email ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={c.jobTitle ?? ''}
+                          placeholder="Funcție"
+                          onSave={(v) => contactsApi.update(c.id, { jobTitle: v || null } as never)
+                            .then(() => qc.invalidateQueries({ queryKey: ['contacts'] }))}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={c.email ?? ''}
+                          placeholder="Email"
+                          onSave={(v) => contactsApi.update(c.id, { email: v || null } as never)
+                            .then(() => qc.invalidateQueries({ queryKey: ['contacts'] }))}
+                        />
+                      </td>
                       <td className="px-4 py-3 tabular-nums text-muted-foreground">
                         {c.phone ?? c.mobile ?? '—'}
                       </td>
