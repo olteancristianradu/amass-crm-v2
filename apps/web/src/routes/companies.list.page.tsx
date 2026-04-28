@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Building2, Download, Plus, Search, Trash2 } from 'lucide-react';
 import { companiesApi } from '@/features/companies/api';
 import { CreateCompanySchema, type CreateCompanyDto, type RelationshipStatus } from '@amass/shared';
+import type { Company } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -229,8 +230,22 @@ export function CompaniesListPage(): JSX.Element {
                       <td className="px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground">
                         {c.vatNumber ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.industry ?? '—'}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{c.city ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={c.industry ?? ''}
+                          placeholder="Industrie"
+                          onSave={(v) => companiesApi.update(c.id, { industry: v || null } as Partial<Company>)
+                            .then(() => qc.invalidateQueries({ queryKey: ['companies'] }))}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <InlineEditCell
+                          value={c.city ?? ''}
+                          placeholder="Oraș"
+                          onSave={(v) => companiesApi.update(c.id, { city: v || null } as Partial<Company>)
+                            .then(() => qc.invalidateQueries({ queryKey: ['companies'] }))}
+                        />
+                      </td>
                       <td className="px-4 py-3 text-xs tabular-nums text-muted-foreground">
                         {new Date(c.createdAt).toLocaleDateString('ro-RO')}
                       </td>
@@ -243,6 +258,83 @@ export function CompaniesListPage(): JSX.Element {
         </ListSurface>
       )}
     </div>
+  );
+}
+
+/**
+ * Faza-D inline editing primitive. Click the cell → text input. Enter or
+ * blur → save (calls onSave). Esc → revert. Pending state disables the
+ * input + dims it. The cell renders an em-dash for empty values, same
+ * affordance as the read-only column it replaces.
+ *
+ * Kept inline (not a /components/ui/ entry) so its blast radius is one
+ * page until we factor it out for /contacts/, /clients/, /deals/ etc.
+ */
+function InlineEditCell({
+  value,
+  placeholder,
+  onSave,
+}: {
+  value: string;
+  placeholder: string;
+  onSave: (next: string) => Promise<unknown>;
+}): JSX.Element {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  // Keep draft in sync when the row's value changes from outside
+  // (refetch after another user's update).
+  if (!editing && draft !== value) setDraft(value);
+
+  async function commit(): Promise<void> {
+    if (draft === value) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+      setEditing(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="w-full rounded px-1 py-0.5 text-left text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+        title="Click pentru editare"
+      >
+        {value || <span className="italic text-muted-foreground/60">— click —</span>}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      autoFocus
+      value={draft}
+      placeholder={placeholder}
+      disabled={saving}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => void commit()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur();
+        } else if (e.key === 'Escape') {
+          setDraft(value);
+          setEditing(false);
+        }
+      }}
+      className={`w-full rounded border border-ring/30 bg-background px-2 py-0.5 text-sm focus:border-ring focus:outline-none ${
+        saving ? 'opacity-50' : ''
+      }`}
+    />
   );
 }
 
