@@ -118,3 +118,23 @@ S19 Railway deploy · S20 Polish + launch
 1. Read this file.
 2. Read [LESSONS.md](./LESSONS.md) — past mistakes you should not repeat.
 3. Check current sprint status in commits / PRs.
+
+## gstack
+
+This repo uses [gstack](https://github.com/garrytan/gstack) — a workflow skill pack
+for Claude Code. Use `/browse` from gstack for all web browsing; never use
+`mcp__claude-in-chrome__*` tools.
+
+Available slash commands (sprint flow: think → plan → build → review → test → ship → reflect):
+
+- **Plan:** `/office-hours`, `/autoplan`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/plan-devex-review`, `/design-consultation`, `/design-shotgun`, `/design-html`
+- **Review:** `/review`, `/codex`, `/cso`, `/investigate`, `/design-review`, `/devex-review`
+- **Test/QA:** `/qa`, `/qa-only`, `/browse`, `/open-gstack-browser`, `/setup-browser-cookies`, `/benchmark`
+- **Ship:** `/ship`, `/land-and-deploy`, `/canary`, `/document-release`
+- **Meta:** `/retro`, `/learn`, `/setup-deploy`, `/setup-gbrain`, `/gstack-upgrade`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/pair-agent`
+
+Recommended for this project (CRM, multi-tenant, solo dev):
+- Run `/cso` periodically against `auth`, `billing`, `calls`, `prisma` modules — multi-tenant isolation is rule #3 here.
+- Run `/review` before pushing to `main` (per rule #15, no feature branches).
+- Run `/qa` on the dev/staging URL after UI changes — satisfies rule #2 ("never mark done without proof").
+- Use `/autoplan` instead of the ad-hoc ≤15-line plan from rule #1 when the feature is non-trivial.
