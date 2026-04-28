@@ -111,6 +111,43 @@
     --accent-tenant: 210 40% 96%;
   }
 
+  /* High Contrast / Pro theme — Salesforce-Lightning-inspired. Sharp edges,
+   * opaque surfaces, no blur, denser shadows. Useful for power users on
+   * cheap monitors or anyone who finds the glass effect distracting. */
+  :root[data-theme="contrast"] {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 8%;
+    --surface-alpha: 1;          /* fully opaque — disables glass effect */
+    --surface-blur: 0px;
+
+    --primary: 217 91% 38%;       /* Salesforce-blue accent */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 222 47% 18%;
+
+    --muted: 220 14% 92%;
+    --muted-foreground: 215 16% 38%;
+
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 75%;        /* visibly stronger than glass */
+    --input: 220 13% 70%;
+    --ring: 217 91% 38%;
+
+    --accent-blue: 217 91% 45%;
+    --accent-pink: 339 90% 50%;
+    --accent-amber: 38 92% 45%;
+    --accent-green: 142 71% 35%;
+
+    --radius: 0.375rem;           /* sharper corners */
+    --accent-tenant: 217 91% 38%;
+  }
+
   /* Auto mode: pick up the OS preference until the user picks a side.
    * The ui-preferences store always writes data-theme on every change,
    * so this only matters before first hydration on a fresh client. */
@@ -168,6 +205,12 @@
       radial-gradient(at 0% 0%, hsl(217 91% 60% / 0.08) 0px, transparent 50%),
       radial-gradient(at 100% 0%, hsl(339 90% 67% / 0.06) 0px, transparent 50%),
       radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.4) 0px, transparent 60%);
+  }
+
+  /* Contrast theme has NO ambient gradient — the appeal is clean,
+   * predictable contrast, not refracted light. */
+  :root[data-theme="contrast"] body {
+    background-image: none;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) body {

@@ -33,6 +33,7 @@ import {
   Sun,
   Network,
   Package,
+  Palette,
   PartyPopper,
   Phone,
   Receipt,
@@ -541,6 +542,13 @@ function UserMenu({
               </div>
             </div>
           )}
+          <Link
+            to="/app/settings/appearance"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-foreground hover:bg-secondary"
+          >
+            <Palette size={14} /> Aspect
+          </Link>
           <Link
             to="/app/settings/2fa"
             onClick={() => setOpen(false)}

@@ -124,6 +124,9 @@ export const NAV_COMMANDS: NavCommand[] = [
   { id: 'email-set', label: 'Setări email', group: 'Administrare', to: '/app/email-settings', keywords: 'smtp', icon: Mail, adminOnly: true },
   { id: 'phone-set', label: 'Telefonie', group: 'Administrare', to: '/app/phone-settings', keywords: 'twilio', icon: Phone, adminOnly: true },
   { id: '2fa', label: 'Securitate (2FA)', group: 'Administrare', to: '/app/settings/2fa', keywords: 'totp parola', icon: KeyRound, adminOnly: true },
+
+  // Personal — disponibil tuturor, nu doar admin
+  { id: 'appearance', label: 'Aspect (temă, culori)', group: 'Personal', to: '/app/settings/appearance', keywords: 'tema dark light culoare accent contrast glass', icon: Sparkles },
 ];
 
 // Diacritic-insensitive match: "căutați" should match "cautat".

@@ -20,15 +20,41 @@ import { persist } from 'zustand/middleware';
  * subtly. Defaults to the same near-black as `--primary`.
  */
 export type Density = 'comfortable' | 'compact';
-export type Theme = 'light' | 'dark' | 'system';
+/**
+ * Theme registry:
+ *   - light    : Liquid Glass Light (default — Apple-style translucent panels)
+ *   - dark     : Liquid Glass Dark (deep navy + frosted glass)
+ *   - contrast : High Contrast / Pro (sharp edges, opaque, Salesforce-style)
+ *   - system   : follow prefers-color-scheme (light or dark only)
+ */
+export type Theme = 'light' | 'dark' | 'contrast' | 'system';
+
+/**
+ * Accent presets — independent of theme. Each maps to an HSL triplet
+ * applied to --accent-tenant. 'custom' lets the user pick any HSL value
+ * via the color picker on the settings page.
+ */
+export type AccentPreset = 'default' | 'blue' | 'purple' | 'green' | 'amber' | 'rose' | 'custom';
+
+const ACCENT_PRESET_HSL: Record<Exclude<AccentPreset, 'custom'>, string> = {
+  default: '222 47% 11%',  // near-black (light theme primary)
+  blue:    '217 91% 55%',
+  purple:  '268 78% 58%',
+  green:   '152 60% 42%',
+  amber:   '32 92% 50%',
+  rose:    '345 82% 58%',
+};
 
 interface UiPreferencesState {
   density: Density;
   theme: Theme;
+  /** Preset name. 'custom' uses `accentTenant` HSL directly. */
+  accentPreset: AccentPreset;
   /** HSL triplet "H S% L%". Default = primary near-black. */
   accentTenant: string;
   setDensity: (d: Density) => void;
   setTheme: (t: Theme) => void;
+  setAccentPreset: (p: AccentPreset) => void;
   setAccentTenant: (hsl: string) => void;
 }
 
@@ -37,6 +63,7 @@ export const useUiPreferencesStore = create<UiPreferencesState>()(
     (set) => ({
       density: 'comfortable',
       theme: 'system',
+      accentPreset: 'default',
       accentTenant: '222 47% 11%', // matches default --primary
       setDensity: (density) => {
         set({ density });
@@ -46,8 +73,17 @@ export const useUiPreferencesStore = create<UiPreferencesState>()(
         set({ theme });
         applyTheme(theme);
       },
+      setAccentPreset: (accentPreset) => {
+        if (accentPreset !== 'custom') {
+          const hsl = ACCENT_PRESET_HSL[accentPreset];
+          set({ accentPreset, accentTenant: hsl });
+          applyAccent(hsl);
+        } else {
+          set({ accentPreset });
+        }
+      },
       setAccentTenant: (accentTenant) => {
-        set({ accentTenant });
+        set({ accentTenant, accentPreset: 'custom' });
         applyAccent(accentTenant);
       },
     }),
