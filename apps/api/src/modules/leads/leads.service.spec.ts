@@ -48,8 +48,16 @@ function withTenant<T>(fn: () => Promise<T> | T): Promise<T> {
 describe('LeadsService.create + findAll + update + softDelete', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  interface LeadTx {
+    lead: {
+      create: Mock;
+      findMany: Mock;
+      findFirst: Mock;
+      update: Mock;
+    };
+  }
   function buildFull() {
-    const tx = {
+    const tx: LeadTx = {
       lead: {
         create: vi.fn(),
         findMany: vi.fn(),
@@ -63,7 +71,7 @@ describe('LeadsService.create + findAll + update + softDelete', () => {
       maybeCb?: unknown,
     ) => {
       const cb = typeof cbOrMode === 'function' ? cbOrMode : maybeCb;
-      return (cb as (tx: typeof tx) => Promise<unknown>)(tx);
+      return (cb as (t: LeadTx) => Promise<unknown>)(tx);
     });
     const prisma = { runWithTenant } as unknown as import('../../infra/prisma/prisma.service').PrismaService;
     const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as import('../audit/audit.service').AuditService;
