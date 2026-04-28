@@ -188,6 +188,12 @@ export class WebhooksService {
     // In test env, skip DNS lookups — tests use fake hostnames.
     if (process.env['NODE_ENV'] === 'test') return;
 
+    // Dev escape hatch: comma-separated allow-list of hostnames whose
+    // private/loopback resolution is acceptable. Use ONLY for the local
+    // mock-services container (`webhook-mock` etc.) — empty in prod.
+    const trusted = (process.env['WEBHOOK_TRUSTED_HOSTS'] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (trusted.includes(parsed.hostname)) return;
+
     let records: Array<{ address: string; family: number }>;
     try {
       records = await lookup(parsed.hostname, { all: true, verbatim: true });

@@ -6,6 +6,7 @@ import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { EmbeddingService } from '../ai/embedding.service';
 import { WorkflowsService } from '../workflows/workflows.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { buildCursorArgs, CursorPage, makeCursorPage } from '../../common/pagination';
 import { Company, Prisma } from '@prisma/client';
 
@@ -17,6 +18,7 @@ export class CompaniesService {
     private readonly activities: ActivitiesService,
     private readonly embedding: EmbeddingService,
     private readonly workflows: WorkflowsService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   async create(dto: CreateCompanyDto): Promise<Company> {
@@ -48,6 +50,11 @@ export class CompaniesService {
       subjectId: company.id,
       tenantId: ctx.tenantId,
     });
+    // Outbound webhook dispatch — fire-and-forget; failures land in
+    // webhook_deliveries with success=false and the operator can retry
+    // via the dashboard. Wired here (not in the controller) so internal
+    // callers also fire the event when they create a company.
+    this.webhooks.dispatch(ctx.tenantId, 'COMPANY_CREATED', { id: company.id, name: company.name });
     return company;
   }
 

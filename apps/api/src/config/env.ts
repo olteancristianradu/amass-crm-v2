@@ -190,6 +190,14 @@ const envSchema = z.object({
     z.string().url().optional(),
   ),
 
+  // Dev-only: comma-separated hostname allow-list for the webhook URL
+  // SSRF check. Add `webhook-mock` so registering an endpoint pointed at
+  // the local mock works. Leave EMPTY in production.
+  WEBHOOK_TRUSTED_HOSTS: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().optional(),
+  ),
+
   // Twilio SMS sender phone number (E.164, e.g. +40700000000). Optional.
   TWILIO_SMS_FROM: z.preprocess(
     (v) => (v === '' ? undefined : v),

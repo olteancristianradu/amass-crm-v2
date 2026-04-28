@@ -15,6 +15,57 @@ import { RedisService } from '../../infra/redis/redis.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { loadEnv } from '../../config/env';
 
+/**
+ * ANAF SPV emits XML for upload + stareMesaj responses (the upload OAuth
+ * token endpoint is JSON). The historical unit-test fixtures mock JSON,
+ * which masked a bug: `res.json()` would throw "Unexpected token '<'" on
+ * any real or mock ANAF call. This helper accepts both shapes:
+ *
+ *   - JSON     (existing test fixtures + the OAuth token endpoint)
+ *   - XML      (real ANAF + the local anaf-mock)
+ *
+ * For XML, we extract attributes from the top-level `<header …/>` element
+ * and the optional `<Errors errorMessage="…"/>` children. ANAF's responses
+ * are very narrow (a handful of attributes), so a regex is enough — we
+ * don't pull in fast-xml-parser for this.
+ */
+async function parseAnafResponse<T extends Record<string, unknown>>(res: Response): Promise<T> {
+  const ct = res.headers?.get?.('content-type') ?? '';
+  if (ct.includes('json')) {
+    return await res.json() as T;
+  }
+  // Test fixtures often mock `res.json()` directly without setting
+  // Content-Type or .text(); honour that contract by trying json first.
+  if (typeof res.text !== 'function') {
+    return await res.json() as T;
+  }
+  const text = await res.text();
+  // Try JSON first if the body actually looks like it (some test mocks
+  // skip Content-Type headers).
+  if (text.trim().startsWith('{')) {
+    try { return JSON.parse(text) as T; } catch { /* fall through to XML */ }
+  }
+  const out: Record<string, unknown> = {};
+  // Extract every attr="value" pair from the `<header …` opening tag.
+  const headerMatch = /<header\b([^>]*)/.exec(text);
+  if (headerMatch) {
+    const attrRe = /([A-Za-z_:][\w:-]*)\s*=\s*"([^"]*)"/g;
+    let m: RegExpExecArray | null;
+    while ((m = attrRe.exec(headerMatch[1])) !== null) {
+      out[m[1]] = m[2];
+    }
+  }
+  // Pull error messages from <Errors errorMessage="…"/> children.
+  const errors: { errorMessage: string }[] = [];
+  const errRe = /<Errors\b[^>]*\berrorMessage\s*=\s*"([^"]*)"/g;
+  let em: RegExpExecArray | null;
+  while ((em = errRe.exec(text)) !== null) {
+    errors.push({ errorMessage: em[1] });
+  }
+  if (errors.length) out.Errors = errors;
+  return out as T;
+}
+
 interface AnafConfig {
   vatNumber: string;
   companyName: string;
@@ -78,7 +129,10 @@ export class AnafService {
       }),
     );
 
-    const data = await res.json() as { index_incarcare?: string; Errors?: { errorMessage: string }[] };
+    // Real ANAF returns XML; the original test fixtures mock JSON. Accept
+    // either: parse XML attributes from the `<header …/>` envelope
+    // ANAF emits, fall back to JSON for the unit-test path.
+    const data = await parseAnafResponse<{ index_incarcare?: string; Errors?: { errorMessage: string }[] }>(res);
 
     if (!res.ok || data.Errors?.length) {
       const err = data.Errors?.[0]?.errorMessage ?? `HTTP ${res.status}`;
@@ -113,7 +167,7 @@ export class AnafService {
     const res = await getBreaker('anaf').exec(() =>
       fetch(url, { headers: { Authorization: `Bearer ${token}` } }),
     );
-    const data = await res.json() as { stare?: string; id_descarcare?: string; Errors?: unknown[] };
+    const data = await parseAnafResponse<{ stare?: string; id_descarcare?: string; Errors?: unknown[] }>(res);
 
     const statusMap: Record<string, AnafSubmissionStatus> = {
       'in prelucrare': 'IN_VALIDATION',

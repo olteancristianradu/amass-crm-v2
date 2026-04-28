@@ -22,8 +22,9 @@ function build() {
   const activities = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof CompaniesService>[2];
   const embedding = { updateCompany: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof CompaniesService>[3];
   const workflows = { trigger: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof CompaniesService>[4];
-  const svc = new CompaniesService(prisma, audit, activities, embedding, workflows);
-  return { svc, prisma, tx, audit, activities, embedding, workflows };
+  const webhooks = { dispatch: vi.fn() } as unknown as ConstructorParameters<typeof CompaniesService>[5];
+  const svc = new CompaniesService(prisma, audit, activities, embedding, workflows, webhooks);
+  return { svc, prisma, tx, audit, activities, embedding, workflows, webhooks };
 }
 
 describe('CompaniesService.create', () => {
