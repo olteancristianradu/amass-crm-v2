@@ -1,6 +1,6 @@
 # STATUS.md — Stadiul Proiectului Amass CRM v2
 
-> Actualizat: 2026-04-27 | Sprint curent: design v2 (glass) finalizat pe toate paginile + Cmd-K palette + AI Morning Brief (Gemini/Claude + Redis cache) + register/forgot/reset password public + push major de coverage pe 11 servicii noi (557 → 638+ teste API). CI ZAP-baseline action repinned la SHA real verificat.
+> Actualizat: 2026-04-28 | Sprint curent: autonomous overnight pass — DB migrate deploy live (82 tabele OK), mock infrastructure (mailpit + stripe-mock + 7 custom mocks pe profile `mocks`), Cedar coverage 18/64 → 33/64 (62 handlers noi pe 14 controllere), dark theme tri-state (light / dark / system), bug fix raw-SQL camelCase pe `/reports/dashboard`. Vezi `docs/VERIFICATION_REPORT_2026-04-28.md` și `docs/UNFINISHED.md`.
 
 **Acest fișier e ONEST. Ceea ce e „implementat complet" e cu adevărat funcțional; ceea ce e parțial sau stub e marcat ca atare. Coordonează cu [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md) pentru punctele care mai necesită verificare runtime pe Docker real.**
 
@@ -193,7 +193,7 @@ Vezi **[LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)** pentru lista completă. Pu
 | `apps/web` | Bundle > 500KB — code splitting parțial (lazy routes pentru Tier 2/3) |
 | 5 module scaffold | SCIM/WebAuthn/Sync/Push/CA — marcate explicit ca nu-implementate |
 | Test coverage non-critical modules | Mai e tail de muncă: workflows post-spec ~50%, email post-spec ~40%, totp ~70%, tasks ~85%, contracts ~95%, contact-segments ~95%, forecasting ~95%, duplicates ~85%, companies/contacts/clients ~95%. Servicii încă la 0%: anaf, sso, sync, scim, webauthn, push, calendar, importer, invoice-pdf, formula-fields, custom-fields, attachments, gdpr, leads, email-sequences, email-tracking, whatsapp, reports, validation-rules, territories, contracts-pdf. Restul controllerelor ~0% (nu sunt unit-tested deliberat — folosim e2e specs pentru ele). |
-| CedarGuard policy coverage | **3/64 controllere** (`gdpr`, `deals`, `invoices`) au `@RequireCedar` metadata. Restul sunt protejate doar prin RolesGuard — Cedar e scaffold până se scriu policies reale. |
+| CedarGuard policy coverage | **33/64 controllere** au `@RequireCedar` (sesiune 2026-04-28: 18 → 33). Restul controllere de mutație sunt listate în `docs/UNFINISHED.md` pentru a urca la ~50/64; cele rămase sunt scaffold-501 sau read-only și nu necesită ABAC. |
 | 6 modele fără `tenantId` explicit | `Tenant` (self-scope OK), `WebhookDelivery`, `OrderItem`, `ProductBundleItem`, `TerritoryAssignment`, `EventAttendee` — toate sub-resurse cu `onDelete: Cascade` + RLS pe parent. Nu e leak direct dar e fragilitate dacă rol `app_user` vreodată nu-i activ. |
 | 45/79 modele fără `onDelete: Cascade` | Risc orfani la ștergere. De auditat relațiile — schema necesită review dedicat. |
 | `prisma.service.ts` SET LOCAL ROLE | `$executeRawUnsafe("SET LOCAL ROLE app_user")` — identifier hardcodat, nu user input. Acceptabil (injection-proof prin natura valorii). Pentru `app.tenant_id` s-a migrat la `set_config()` parametrizat. |

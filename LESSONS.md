@@ -34,6 +34,27 @@
 
 ## Entries
 
+### 2026-04-28 — `@map` is the exception in this schema, not the rule
+- **Sprint / area:** reports / raw SQL
+- **Symptom:** `GET /reports/dashboard` returned 500 with `column d.stage_id does not exist`. Three of the five raw `$queryRaw` blocks in `ReportsService` referenced `tenant_id`, `created_at`, `deleted_at`, `stage_id`, `duration_sec` — and those columns don't exist; the actual columns are `tenantId`, `createdAt`, `deletedAt`, `stageId`, `durationSec`.
+- **Root cause:** Most Prisma models in this repo do NOT use `@map`. Postgres stores the column with the camelCase identifier and requires it to be quoted: `"tenantId"`. There are exceptions: `invoices`, `email_tracking`, `webhook_deliveries` etc. *do* use `@map`. The reports service mixed both worlds in the same file, which made the inconsistency hard to spot during code review.
+- **Fix:** Replaced snake_case with `"camelCase"` in every query that hits a non-`@map` table; left the `invoices` queries as-is (they correctly use snake_case). Verified post-fix with a live `GET /reports/dashboard` returning 200.
+- **Lesson:** Before writing raw SQL against any table in this repo, run `\d <table>` against the live Postgres or grep the schema for `@@map(` and `@map(` on the model — never assume snake_case. When mixing camelCase and snake_case columns in the same file, add an inline comment marking the non-default convention so the next reader doesn't have to reconstruct it.
+
+### 2026-04-28 — Stale `dist/` in running container after a host build
+- **Sprint / area:** dev loop / docker
+- **Symptom:** Edited `reports.service.ts`, ran `pnpm --filter @amass/api build` (which writes to `apps/api/dist/` on the host), restarted the container — the fix didn't take effect. Container was still running the old `dist/` baked in at image-build time.
+- **Root cause:** `apps/api/Dockerfile` does `COPY apps/api ./apps/api` and then `pnpm --filter @amass/api build` *inside the build stage*, so the running container's `dist/` is whatever the image was built with. Restarting just re-execs the same image.
+- **Fix:** `docker cp apps/api/dist amass-api:/repo/apps/api/` then `docker compose restart api`. (Long-term: add a dev compose override that bind-mounts `apps/api/src/` and runs `nest start --watch` instead of `node dist/main.js`.)
+- **Lesson:** When a host build doesn't show up in the container, the answer is `docker cp` (fast) or rebuild the image (slow). Both beat 30 minutes of "but I rebuilt it" debugging.
+
+### 2026-04-28 — Cedar policy decorator pattern, mass-add edition
+- **Sprint / area:** access-control / 19 controllers in one push
+- **Symptom:** Cedar coverage on Nest controllers stuck at 18/64 because nobody wanted to write the same `@RequireCedar({...})` block 50 times.
+- **Root cause:** It looked like adding Cedar required (a) editing the module to import `AccessControlModule`, (b) editing the controller to import the guard + decorator + add to `@UseGuards`, (c) editing every write/delete handler. The module step is the one that made it feel heavy.
+- **Fix:** `AccessControlModule` is `@Global()` — module imports are NOT needed. Adding Cedar is just (b) + (c) per controller. With that realisation, mass-rolled out across 14 controllers / 62 handlers via a delegated agent task, then verified `pnpm lint && tsc --noEmit` clean.
+- **Lesson:** When a code pattern looks expensive to roll out, check what's actually required vs. what the docs say is required. `@Global()` on a module turns "edit N modules" into "edit N controllers" — sometimes that 2× difference is what unblocks a whole quality improvement.
+
 ### 2026-04-27 — Hallucinated GitHub Action SHA broke CI
 - **Sprint / area:** CI / dependency hygiene
 - **Symptom:** Daily workflow failed with `Unable to resolve action zaproxy/action-baseline@4ca41f5d416ba7c0a5e1c84a3ff9ec8efd34ee3a, unable to find version`. The pin claimed to be `# v0.12.0` but the SHA didn't exist in the upstream repo.
