@@ -13,6 +13,7 @@ import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { ApiError } from '@/lib/api';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
+import { useTour } from '@/lib/tours/useTour';
 
 /** Map a pipeline stage type to a status-dot tone for the column header. */
 const STAGE_TONE: Record<PipelineStage['type'], StatusTone> = {
@@ -24,6 +25,9 @@ const STAGE_TONE: Record<PipelineStage['type'], StatusTone> = {
 export function DealsKanbanPage(): JSX.Element {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+
+  // F1.12 — auto-launch product tour on first visit (self-skips if completed).
+  useTour('deals-kanban');
 
   const { data: pipelines, isLoading: loadingPipelines } = useQuery({
     queryKey: ['pipelines'],
@@ -109,7 +113,11 @@ export function DealsKanbanPage(): JSX.Element {
         title={pipeline.name}
         subtitle={pipeline.description ?? 'Pipeline implicit'}
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button
+            size="sm"
+            onClick={() => setShowForm((v) => !v)}
+            data-tour="new-deal-btn"
+          >
             <Plus size={14} className="mr-1.5" />
             {showForm ? 'Anulează' : 'Deal nou'}
           </Button>
@@ -124,12 +132,23 @@ export function DealsKanbanPage(): JSX.Element {
           gridTemplateColumns: `repeat(${pipeline.stages.length}, minmax(260px, 1fr))`,
         }}
       >
-        {pipeline.stages.map((stage) => {
+        {pipeline.stages.map((stage, stageIndex) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
           const total = stageValueRO(stage, stageDeals);
+          // F1.12 — first column anchors the kanban tour steps (column +
+          // header total). First card across all columns anchors the deal-card
+          // step. Conditional attrs keep the DOM clean for the rest.
+          const isFirstColumn = stageIndex === 0;
           return (
-            <GlassCard key={stage.id} className="flex min-h-[200px] flex-col p-3">
-              <div className="mb-3 flex items-baseline justify-between gap-2 px-1">
+            <GlassCard
+              key={stage.id}
+              className="flex min-h-[200px] flex-col p-3"
+              {...(isFirstColumn ? { 'data-tour': 'deals-stage-column' } : {})}
+            >
+              <div
+                className="mb-3 flex items-baseline justify-between gap-2 px-1"
+                {...(isFirstColumn ? { 'data-tour': 'deals-stage-total' } : {})}
+              >
                 <div className="flex min-w-0 items-center gap-2">
                   <StatusDot tone={STAGE_TONE[stage.type]} />
                   <h3 className="truncate text-sm font-semibold">{stage.name}</h3>
@@ -145,7 +164,7 @@ export function DealsKanbanPage(): JSX.Element {
                 {stageDeals.length === 0 ? (
                   <p className="px-1 py-3 text-center text-xs text-muted-foreground/70">—</p>
                 ) : (
-                  stageDeals.map((deal) => (
+                  stageDeals.map((deal, dealIndex) => (
                     <DealCard
                       key={deal.id}
                       deal={deal}
@@ -158,6 +177,7 @@ export function DealsKanbanPage(): JSX.Element {
                         )
                       }
                       pending={moveMut.isPending || removeMut.isPending}
+                      dataTour={isFirstColumn && dealIndex === 0 ? 'deal-card' : undefined}
                     />
                   ))
                 )}
@@ -177,16 +197,29 @@ interface DealCardProps {
   onDelete: () => void;
   onRename: (title: string) => Promise<unknown>;
   pending: boolean;
+  /** F1.12 — optional product-tour anchor; only first card in first column gets it. */
+  dataTour?: string;
 }
 
-function DealCard({ deal, stages, onMove, onDelete, onRename, pending }: DealCardProps): JSX.Element {
+function DealCard({
+  deal,
+  stages,
+  onMove,
+  onDelete,
+  onRename,
+  pending,
+  dataTour,
+}: DealCardProps): JSX.Element {
   const currentIdx = stages.findIndex((s) => s.id === deal.stageId);
   const prevStage = currentIdx > 0 ? stages[currentIdx - 1] : null;
   const nextStage =
     currentIdx >= 0 && currentIdx < stages.length - 1 ? stages[currentIdx + 1] : null;
 
   return (
-    <div className="rounded-md border border-border/70 bg-card/80 p-3 backdrop-blur-sm transition-shadow hover:shadow-glass">
+    <div
+      className="rounded-md border border-border/70 bg-card/80 p-3 backdrop-blur-sm transition-shadow hover:shadow-glass"
+      {...(dataTour ? { 'data-tour': dataTour } : {})}
+    >
       <div className="text-sm font-medium leading-tight text-foreground">
         <InlineEditCell
           value={deal.title}

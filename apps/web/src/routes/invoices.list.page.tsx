@@ -16,6 +16,7 @@ import type { Invoice, InvoiceStatus, PaymentMethod } from '@/lib/types';
 import { downloadCsv } from '@/lib/csv';
 import { QueryError } from '@/components/ui/QueryError';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { useTour } from '@/lib/tours/useTour';
 
 interface PaymentFormState {
   amount: string;
@@ -35,6 +36,9 @@ export function InvoicesListPage(): JSX.Element {
   });
 
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
+
+  // F1.12 — auto-launch product tour on first visit (self-skips if completed).
+  useTour('invoices-list');
 
   function handleExportCsv(): void {
     const rows = (data?.data ?? []).map((inv) => ({
@@ -57,7 +61,12 @@ export function InvoicesListPage(): JSX.Element {
         title="Facturi"
         subtitle="Toate facturile emise — DRAFT, ISSUED, PAID, OVERDUE, CANCELLED."
         actions={
-          <Button variant="outline" size="sm" onClick={handleExportCsv}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            data-tour="invoices-export-btn"
+          >
             <Download size={14} className="mr-1.5" />
             Export
           </Button>
@@ -81,7 +90,7 @@ export function InvoicesListPage(): JSX.Element {
         </GlassCard>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="invoices-table">
         {rows.map((inv) => (
           <GlassCard key={inv.id} className="px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">

@@ -24,6 +24,7 @@ import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { SavedViewsDropdown } from '@/components/saved-views/SavedViewsDropdown';
 import { contactsRoute } from './contacts.list';
+import { useTour } from '@/lib/tours/useTour';
 
 export function ContactsListPage(): JSX.Element {
   const { q } = contactsRoute.useSearch();
@@ -31,6 +32,9 @@ export function ContactsListPage(): JSX.Element {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // F1.12 — auto-launch product tour on first visit (self-skips if completed).
+  useTour('contacts-list');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['contacts', { q }],
@@ -95,11 +99,20 @@ export function ContactsListPage(): JSX.Element {
                 void navigate({ search: { q: next || undefined } });
               }}
             />
-            <Button variant="outline" size="sm" onClick={handleExportCsv}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              data-tour="contacts-export-btn"
+            >
               <Download size={14} className="mr-1.5" />
               Export {selected.size > 0 ? `(${selected.size})` : ''}
             </Button>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Button
+              size="sm"
+              onClick={() => setShowForm((v) => !v)}
+              data-tour="new-contact-btn"
+            >
               <Plus size={14} className="mr-1.5" />
               {showForm ? 'Anulează' : 'Contact nou'}
             </Button>
@@ -108,7 +121,7 @@ export function ContactsListPage(): JSX.Element {
       />
 
       <Toolbar>
-        <div className="relative flex-1 sm:max-w-sm">
+        <div className="relative flex-1 sm:max-w-sm" data-tour="contacts-search">
           <Search
             size={14}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -148,7 +161,7 @@ export function ContactsListPage(): JSX.Element {
       )}
 
       {data && (
-        <ListSurface>
+        <ListSurface data-tour="contacts-table">
           {rows.length === 0 ? (
             <EmptyState
               icon={Contact2}

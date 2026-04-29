@@ -18,12 +18,16 @@ import {
 import { ApiError } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { useTour } from '@/lib/tours/useTour';
 
 export function QuotesListPage(): JSX.Element {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [statusFilter, setStatusFilter] = useState<QuoteStatus | ''>('');
   const [convertingQuote, setConvertingQuote] = useState<Quote | null>(null);
+
+  // F1.12 — auto-launch product tour on first visit (self-skips if completed).
+  useTour('quotes-list');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['quotes', { status: statusFilter }],
@@ -72,7 +76,11 @@ export function QuotesListPage(): JSX.Element {
               <Download size={14} className="mr-1.5" />
               Export
             </Button>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Button
+              size="sm"
+              onClick={() => setShowForm((v) => !v)}
+              data-tour="new-quote-btn"
+            >
               <Plus size={14} className="mr-1.5" />
               {showForm ? 'Anulează' : 'Ofertă nouă'}
             </Button>
@@ -80,7 +88,7 @@ export function QuotesListPage(): JSX.Element {
         }
       />
 
-      <Toolbar>
+      <Toolbar data-tour="quotes-search">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as QuoteStatus | '')}
@@ -109,7 +117,7 @@ export function QuotesListPage(): JSX.Element {
       )}
 
       {data && (
-        <ListSurface>
+        <ListSurface data-tour="quotes-table">
           {rows.length === 0 ? (
             <EmptyState
               icon={FileText}
