@@ -46,9 +46,16 @@ model Tenant {
   // step 4. Prevents double-loading sample data and is shown in admin UI.
   sampleDataLoadedAt    DateTime?
 
+  // F2-residency: data-residency region. Default 'EU' (Frankfurt/Amsterdam
+  // via Railway). Enterprise tier can request 'EU-RO' (Romanian DC) or
+  // 'EU-DE'. NULL = same as 'EU' (legacy tenants pre-residency-feature).
+  // Read by services that route data to region-specific sub-processors.
+  region                String?   @default("EU")
+
   users User[]
 
   @@index([shardId])
+  @@index([region])
   @@map("tenants")
 }
 
