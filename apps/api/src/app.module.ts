@@ -17,6 +17,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { CompaniesModule } from './modules/companies/companies.module';
+import { ConsentsModule } from './modules/consents/consents.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { ImporterModule } from './modules/importer/importer.module';
 import { DealsModule } from './modules/deals/deals.module';
@@ -31,6 +32,7 @@ import { CallsModule } from './modules/calls/calls.module';
 import { EmailModule } from './modules/email/email.module';
 import { EmailTrackingModule } from './modules/email-tracking/email-tracking.module';
 import { NotesModule } from './modules/notes/notes.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { TasksModule } from './modules/tasks/tasks.module';
@@ -194,9 +196,11 @@ import { SyncModule } from './modules/sync/sync.module';
     UsersModule,
     CompaniesModule,
     ContactsModule,
+    ConsentsModule,
     ClientsModule,
     ImporterModule,
     NotesModule,
+    OnboardingModule,
     AttachmentsModule,
     RemindersModule,
     PipelinesModule,

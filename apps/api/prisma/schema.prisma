@@ -39,6 +39,13 @@ model Tenant {
   // AUDIT_RETENTION_DAYS_DEFAULT.
   auditRetentionDays Int?
 
+  // F1.9: Onboarding state. NULL = wizard not yet completed (FE redirects
+  // OWNER to /welcome). Set to a timestamp when OWNER finishes the wizard.
+  onboardingCompletedAt DateTime?
+  // F1.9: marked once tenant has loaded sample data via the welcome wizard
+  // step 4. Prevents double-loading sample data and is shown in admin UI.
+  sampleDataLoadedAt    DateTime?
+
   users User[]
 
   @@index([shardId])
@@ -2395,4 +2402,80 @@ model SavedView {
   @@unique([ownerId, resource, name])
   @@index([tenantId, ownerId, resource])
   @@map("saved_views")
+}
+
+// ─── GDPR consent tracking ───────────────────────────────────────────────────
+// Records granular per-data-subject consents per processing purpose. Required
+// for GDPR Art. 7 (provable consent — when, how, what, by whom) and Art. 6
+// (lawful basis tracking).
+//
+// Append-only via service layer — revocation creates a NEW row with status=
+// REVOKED rather than mutating existing. This preserves audit trail for
+// regulators (ANSPDCP, supervisors) and survives data-subject access requests.
+//
+// Polymorphic subject via (subjectType, subjectId) matches repo convention
+// (Note, Reminder, Attachment, AuditLog). For consent tracking we use CONTACT
+// and CLIENT (data subjects = natural persons); COMPANY is not a data subject
+// under GDPR (entities don't have GDPR rights, only natural persons do).
+
+model ConsentRecord {
+  id           String         @id @default(cuid())
+  tenantId     String
+  subjectType  SubjectType
+  subjectId    String
+  purpose      ConsentPurpose
+  lawfulBasis  LawfulBasis
+  status       ConsentStatus
+  grantedAt    DateTime?
+  revokedAt    DateTime?
+  // Provenance — required for GDPR Art. 7(1) "controller shall be able to
+  // demonstrate that the data subject has consented".
+  source       String? // e.g. "signup_form", "checkbox_email_marketing", "verbal_call"
+  ipAddress    String?
+  userAgent    String?
+  // Arbitrary supporting evidence: form snapshot, call recording ref, etc.
+  evidence     Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([tenantId, subjectType, subjectId])
+  @@index([tenantId, purpose, status])
+  @@index([tenantId, createdAt])
+  @@map("consent_records")
+}
+
+/// GDPR Art. 6(1) lawful bases for processing personal data.
+enum LawfulBasis {
+  CONSENT // Art. 6(1)(a) — explicit consent from data subject
+  CONTRACT // Art. 6(1)(b) — necessary for contract performance with subject
+  LEGAL_OBLIGATION // Art. 6(1)(c) — controller's legal compliance requirement
+  VITAL_INTEREST // Art. 6(1)(d) — protecting vital interests of subject or another
+  PUBLIC_TASK // Art. 6(1)(e) — task carried out in public interest
+  LEGITIMATE_INTEREST // Art. 6(1)(f) — legitimate business interest balanced vs subject rights
+}
+
+/// Specific data-processing purposes a subject may consent to or revoke.
+/// Granular by design — single global consent doesn't satisfy GDPR Art. 7(2).
+enum ConsentPurpose {
+  MARKETING_EMAIL
+  MARKETING_SMS
+  MARKETING_WHATSAPP
+  CALL_RECORDING
+  CALL_TRANSCRIPTION
+  AI_PROFILING
+  AI_LEAD_SCORING
+  COOKIES_FUNCTIONAL
+  COOKIES_ANALYTICS
+  COOKIES_MARKETING
+  DATA_SHARING_PARTNERS
+  NEWSLETTER
+}
+
+/// Current state of a consent record. Revocation = new row with status=REVOKED,
+/// not UPDATE on existing — preserves provable history.
+enum ConsentStatus {
+  GRANTED
+  REVOKED
+  EXPIRED
+  PENDING
 }

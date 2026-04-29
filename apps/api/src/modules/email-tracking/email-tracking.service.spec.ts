@@ -5,10 +5,12 @@ vi.mock('../../config/env', () => ({
   loadEnv: vi.fn(() => ({
     PUBLIC_API_BASE_URL: 'https://api.example.com',
     TWILIO_WEBHOOK_BASE_URL: undefined,
+    JWT_SECRET: 'test-secret-for-email-tracking-spec-only',
+    EMAIL_TRACKING_REQUIRE_SIG: 'true',
   })),
 }));
 
-import { EmailTrackingService } from './email-tracking.service';
+import { EmailTrackingService, signTrackingUrl, verifyTrackingSig } from './email-tracking.service';
 import { loadEnv } from '../../config/env';
 
 function build() {
@@ -32,6 +34,8 @@ afterEach(() => {
   vi.mocked(loadEnv).mockReturnValue({
     PUBLIC_API_BASE_URL: 'https://api.example.com',
     TWILIO_WEBHOOK_BASE_URL: undefined,
+    JWT_SECRET: 'test-secret-for-email-tracking-spec-only',
+    EMAIL_TRACKING_REQUIRE_SIG: 'true',
   } as never);
 });
 
@@ -129,15 +133,18 @@ describe('EmailTrackingService.recordOpen', () => {
 describe('EmailTrackingService.recordClick', () => {
   it('returns null for a non-http URL (refuses javascript: + data: + tel:)', async () => {
     const h = build();
-    expect(await h.svc.recordClick('m-1', 'javascript:alert(1)', null, null)).toBeNull();
-    expect(await h.svc.recordClick('m-1', 'data:text/html,xx', null, null)).toBeNull();
+    const sig1 = signTrackingUrl('m-1', 'javascript:alert(1)');
+    const sig2 = signTrackingUrl('m-1', 'data:text/html,xx');
+    expect(await h.svc.recordClick('m-1', 'javascript:alert(1)', sig1, null, null)).toBeNull();
+    expect(await h.svc.recordClick('m-1', 'data:text/html,xx', sig2, null, null)).toBeNull();
     expect(h.prisma.emailMessage.findUnique).not.toHaveBeenCalled();
   });
 
   it('returns null when message is missing', async () => {
     const h = build();
     vi.mocked(h.prisma.emailMessage.findUnique).mockResolvedValueOnce(null);
-    expect(await h.svc.recordClick('m-1', 'https://x.com', null, null)).toBeNull();
+    const sig = signTrackingUrl('m-1', 'https://x.com');
+    expect(await h.svc.recordClick('m-1', 'https://x.com', sig, null, null)).toBeNull();
   });
 
   it('still redirects on DB failure (tracking failure should NOT brick links)', async () => {
@@ -147,7 +154,8 @@ describe('EmailTrackingService.recordClick', () => {
       tenantId: 't-A',
     } as never);
     h.tx.emailTrack.create.mockRejectedValueOnce(new Error('boom'));
-    expect(await h.svc.recordClick('m-1', 'https://x.com', null, null)).toBe('https://x.com');
+    const sig = signTrackingUrl('m-1', 'https://x.com');
+    expect(await h.svc.recordClick('m-1', 'https://x.com', sig, null, null)).toBe('https://x.com');
   });
 
   it('happy path returns the target URL after writing CLICK row', async () => {
@@ -157,11 +165,89 @@ describe('EmailTrackingService.recordClick', () => {
       tenantId: 't-A',
     } as never);
     h.tx.emailTrack.create.mockResolvedValueOnce({});
-    expect(await h.svc.recordClick('m-1', 'https://example.com', '1.2.3.4', 'UA'))
+    const sig = signTrackingUrl('m-1', 'https://example.com');
+    expect(await h.svc.recordClick('m-1', 'https://example.com', sig, '1.2.3.4', 'UA'))
       .toBe('https://example.com');
     const data = h.tx.emailTrack.create.mock.calls[0][0].data;
     expect(data.kind).toBe('CLICK');
     expect(data.url).toBe('https://example.com');
+  });
+
+  // ─── Open redirect defense — F1.7 from /cso security audit ─────────────
+  it('rejects click with NO signature when EMAIL_TRACKING_REQUIRE_SIG=true (default)', async () => {
+    const h = build();
+    expect(await h.svc.recordClick('m-1', 'https://x.com', null, null, null)).toBeNull();
+    expect(h.prisma.emailMessage.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects click with WRONG signature (forged URL attack)', async () => {
+    const h = build();
+    // Attacker knows messageId, crafts ?u=https://phishing.com but cannot forge
+    // the HMAC sig without our JWT_SECRET.
+    expect(await h.svc.recordClick('m-1', 'https://phishing.com', 'forged-bad-sig', null, null))
+      .toBeNull();
+  });
+
+  it('rejects click where signature was generated for a DIFFERENT URL', async () => {
+    const h = build();
+    const realSig = signTrackingUrl('m-1', 'https://example.com');
+    // Attacker captures sig from one link, tries to use it with a different URL
+    expect(await h.svc.recordClick('m-1', 'https://phishing.com', realSig, null, null))
+      .toBeNull();
+  });
+
+  it('rejects click where signature was generated for a DIFFERENT messageId', async () => {
+    const h = build();
+    const sigForOtherMsg = signTrackingUrl('m-OTHER', 'https://example.com');
+    expect(await h.svc.recordClick('m-1', 'https://example.com', sigForOtherMsg, null, null))
+      .toBeNull();
+  });
+
+  it('allows click without signature when EMAIL_TRACKING_REQUIRE_SIG=false (backward compat)', async () => {
+    const h = build();
+    vi.mocked(loadEnv).mockReturnValueOnce({
+      PUBLIC_API_BASE_URL: 'https://api.example.com',
+      TWILIO_WEBHOOK_BASE_URL: undefined,
+      JWT_SECRET: 'test-secret-for-email-tracking-spec-only',
+      EMAIL_TRACKING_REQUIRE_SIG: 'false',
+    } as never);
+    vi.mocked(h.prisma.emailMessage.findUnique).mockResolvedValueOnce({
+      id: 'm-1',
+      tenantId: 't-A',
+    } as never);
+    h.tx.emailTrack.create.mockResolvedValueOnce({});
+    expect(await h.svc.recordClick('m-1', 'https://x.com', null, null, null)).toBe('https://x.com');
+  });
+});
+
+describe('EmailTrackingService HMAC sign/verify', () => {
+  it('signTrackingUrl produces deterministic 16-char hex output', () => {
+    const sig1 = signTrackingUrl('msg-1', 'https://example.com');
+    const sig2 = signTrackingUrl('msg-1', 'https://example.com');
+    expect(sig1).toBe(sig2);
+    expect(sig1).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it('different messageId produces different sig', () => {
+    expect(signTrackingUrl('msg-1', 'https://x.com')).not.toBe(signTrackingUrl('msg-2', 'https://x.com'));
+  });
+
+  it('different URL produces different sig', () => {
+    expect(signTrackingUrl('msg-1', 'https://x.com')).not.toBe(signTrackingUrl('msg-1', 'https://y.com'));
+  });
+
+  it('verifyTrackingSig returns true for matching sig', () => {
+    const sig = signTrackingUrl('msg-1', 'https://x.com');
+    expect(verifyTrackingSig('msg-1', 'https://x.com', sig)).toBe(true);
+  });
+
+  it('verifyTrackingSig returns false for mismatched sig', () => {
+    expect(verifyTrackingSig('msg-1', 'https://x.com', '0123456789abcdef')).toBe(false);
+  });
+
+  it('verifyTrackingSig handles malformed input without throwing', () => {
+    expect(verifyTrackingSig('msg-1', 'https://x.com', 'not-hex-zzzz')).toBe(false);
+    expect(verifyTrackingSig('msg-1', 'https://x.com', '')).toBe(false);
   });
 });
 

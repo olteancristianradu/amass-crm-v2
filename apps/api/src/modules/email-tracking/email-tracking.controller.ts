@@ -43,11 +43,15 @@ export class EmailTrackingController {
   async click(
     @Param('id') id: string,
     @Query('u') u: string,
+    @Query('s') s: string | undefined,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     const { ip, ua } = extractIpUa(req);
-    const target = await this.tracking.recordClick(id, u ?? '', ip, ua);
+    // `s` is the HMAC signature added by injectTracking. Required by default
+    // (see EMAIL_TRACKING_REQUIRE_SIG env). Defeats open-redirect attacks
+    // where an attacker who knows a messageId crafts ?u=https://phishing.
+    const target = await this.tracking.recordClick(id, u ?? '', s ?? null, ip, ua);
     if (!target) {
       res.status(404).json({ code: 'TRACKING_LINK_INVALID', message: 'Link not found' });
       return;

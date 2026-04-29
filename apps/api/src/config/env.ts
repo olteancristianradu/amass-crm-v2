@@ -73,6 +73,13 @@ const envSchema = z.object({
   // purpose (a public-reachable URL pointing at this API).
   PUBLIC_API_BASE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
 
+  // Strict mode for email tracking link signatures. Default "true" → links
+  // without HMAC signature are rejected (defeats open redirect attacks
+  // where an attacker crafts ?u=https://phishing knowing only a messageId).
+  // Set "false" ONLY during a migration window if pre-signature emails
+  // are still in active inboxes. See docs/SECURITY.md.
+  EMAIL_TRACKING_REQUIRE_SIG: z.string().default('true'),
+
   // Twilio credentials + webhook base URL. The AUTH_TOKEN is used for
   // outbound REST calls AND for verifying inbound webhook signatures.
   // WEBHOOK_BASE_URL is the public URL Twilio can reach — in dev, this

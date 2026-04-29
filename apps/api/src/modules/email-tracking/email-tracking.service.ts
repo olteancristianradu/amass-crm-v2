@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EmailTrackKind } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -45,6 +46,9 @@ export class EmailTrackingService {
    * - Rewrites every `<a href="http(s)://…">` to pass through the click
    *   endpoint. Anchors without a protocol (mailto:, tel:, #anchor) are
    *   left alone.
+   * - Each click URL is signed with HMAC(JWT_SECRET, messageId|url) so an
+   *   attacker who knows a messageId cannot craft `?u=https://phishing` and
+   *   abuse the legitimate CRM domain for phishing (open redirect defense).
    */
   injectTracking(messageId: string, html: string): string {
     const base = this.publicBaseUrl();
@@ -54,7 +58,8 @@ export class EmailTrackingService {
     const rewritten = html.replace(
       /<a\b([^>]*?)href=("|')(https?:\/\/[^"']+)\2([^>]*)>/gi,
       (_match, pre: string, quote: string, url: string, post: string) => {
-        const tracked = `${base}/e/t/${messageId}/click?u=${encodeURIComponent(url)}`;
+        const sig = signTrackingUrl(messageId, url);
+        const tracked = `${base}/e/t/${messageId}/click?u=${encodeURIComponent(url)}&s=${sig}`;
         return `<a${pre}href=${quote}${tracked}${quote}${post}>`;
       },
     );
@@ -95,16 +100,37 @@ export class EmailTrackingService {
 
   /**
    * Record a CLICK event and return the target URL to redirect to.
-   * If the message doesn't exist or the url is invalid, returns null
-   * (caller responds 404).
+   *
+   * Validation order:
+   *   1. URL has http(s) scheme (drop javascript:, data:, etc.)
+   *   2. HMAC signature matches messageId|url combo (defeats open-redirect
+   *      attacks where attacker crafts ?u=https://phishing.example with a
+   *      legitimate messageId — without our secret they cannot forge sig).
+   *   3. Message exists in DB.
+   *
+   * Returns null on any validation failure → caller serves 404.
+   *
+   * Backward compat: if env.EMAIL_TRACKING_REQUIRE_SIG is "false", links
+   * sent before this defense was deployed (no `s=` param) are still
+   * accepted. Default is strict (require sig).
    */
   async recordClick(
     messageId: string,
     targetUrl: string,
+    sig: string | null,
     ip: string | null,
     ua: string | null,
   ): Promise<string | null> {
     if (!isSafeHttpUrl(targetUrl)) return null;
+
+    const env = loadEnv();
+    const requireSig = env.EMAIL_TRACKING_REQUIRE_SIG !== 'false';
+    if (requireSig || sig) {
+      if (!sig || !verifyTrackingSig(messageId, targetUrl, sig)) {
+        this.logger.warn(`Click rejected: invalid signature for messageId=${messageId}`);
+        return null;
+      }
+    }
 
     try {
       const message = await this.prisma.emailMessage.findUnique({
@@ -175,6 +201,38 @@ function isSafeHttpUrl(raw: string): boolean {
   try {
     const u = new URL(raw);
     return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sign a tracking URL using HMAC-SHA256. Domain-separated by `email-track:`
+ * prefix so the same JWT_SECRET used for tokens cannot collide. Output
+ * truncated to 16 hex chars (64 bits) — sufficient for non-financial
+ * authentication when combined with rate-limiting and the messageId namespace.
+ */
+export function signTrackingUrl(messageId: string, url: string): string {
+  const env = loadEnv();
+  return createHmac('sha256', env.JWT_SECRET)
+    .update(`email-track:${messageId}|${url}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/**
+ * Constant-time signature verification. Both inputs MUST be hex of the same
+ * length; otherwise we still run a comparison against a dummy value to keep
+ * timing constant (defeats length-leak side channel).
+ */
+export function verifyTrackingSig(messageId: string, url: string, providedSig: string): boolean {
+  const expected = signTrackingUrl(messageId, url);
+  // Pad/truncate provided to expected length to ensure timingSafeEqual works
+  // even on malformed input — without this, attacker could distinguish "wrong
+  // length" from "wrong value" via response timing.
+  const provided = providedSig.padEnd(expected.length, '0').slice(0, expected.length);
+  try {
+    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(provided, 'hex'));
   } catch {
     return false;
   }
