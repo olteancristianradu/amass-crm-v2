@@ -52,12 +52,15 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps): JSX.E
 export function ListSurface({
   className,
   children,
+  ...rest
 }: {
   className?: string;
   children: ReactNode;
-}): JSX.Element {
+} & React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
-    <GlassCard className={cn('overflow-hidden', className)}>{children}</GlassCard>
+    <GlassCard className={cn('overflow-hidden', className)} {...rest}>
+      {children}
+    </GlassCard>
   );
 }
 
@@ -68,12 +71,13 @@ export function ListSurface({
 export function Toolbar({
   className,
   children,
+  ...rest
 }: {
   className?: string;
   children: ReactNode;
-}): JSX.Element {
+} & React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
-    <div className={cn('mb-3 flex flex-wrap items-center gap-2', className)}>
+    <div className={cn('mb-3 flex flex-wrap items-center gap-2', className)} {...rest}>
       {children}
     </div>
   );

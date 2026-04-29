@@ -26,6 +26,7 @@ import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { SavedViewsDropdown } from '@/components/saved-views/SavedViewsDropdown';
 import { companiesRoute } from './companies.list';
+import { useTour } from '@/lib/tours/useTour';
 
 export function CompaniesListPage(): JSX.Element {
   const { q } = companiesRoute.useSearch();
@@ -33,6 +34,11 @@ export function CompaniesListPage(): JSX.Element {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // F1.12 — auto-launch product tour on first visit. Self-skips if already
+  // completed (state stored in DB on User.completedTours). Re-launchable from
+  // /app/help.
+  useTour('companies-list');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['companies', { q }],
@@ -107,11 +113,20 @@ export function CompaniesListPage(): JSX.Element {
                 void navigate({ search: { q: next || undefined } });
               }}
             />
-            <Button variant="outline" size="sm" onClick={handleExportCsv}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              data-tour="companies-import-btn"
+            >
               <Download size={14} className="mr-1.5" />
               Export {selected.size > 0 ? `(${selected.size})` : ''}
             </Button>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Button
+              size="sm"
+              onClick={() => setShowForm((v) => !v)}
+              data-tour="new-company-btn"
+            >
               <Plus size={14} className="mr-1.5" />
               {showForm ? 'Anulează' : 'Companie nouă'}
             </Button>
@@ -119,8 +134,8 @@ export function CompaniesListPage(): JSX.Element {
         }
       />
 
-      <Toolbar>
-        <div className="relative flex-1 sm:max-w-sm">
+      <Toolbar data-tour="companies-filters">
+        <div className="relative flex-1 sm:max-w-sm" data-tour="companies-search">
           <Search
             size={14}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -165,7 +180,7 @@ export function CompaniesListPage(): JSX.Element {
       )}
 
       {data && (
-        <ListSurface>
+        <ListSurface data-tour="companies-table">
           {rows.length === 0 ? (
             <EmptyState
               icon={Building2}

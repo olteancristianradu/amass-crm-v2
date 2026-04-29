@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { createRoute, Link } from '@tanstack/react-router';
+import { createRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   BookOpen,
   Building2,
   ChevronRight,
   CircleDollarSign,
+  Compass,
   ExternalLink,
   KanbanSquare,
   Keyboard,
@@ -13,12 +15,16 @@ import {
   Mail,
   PartyPopper,
   PhoneCall,
+  PlayCircle,
   Sparkles,
   Zap,
 } from 'lucide-react';
 import { authedRoute } from './authed';
 import { GlassCard } from '@/components/ui/glass-card';
 import { PageHeader } from '@/components/ui/page-header';
+import { Button } from '@/components/ui/button';
+import { TOUR_REGISTRY } from '@/lib/tours/registry';
+import { toursApi } from '@/lib/tours/api';
 
 export const helpRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -240,6 +246,20 @@ const FAQ: { q: string; a: string }[] = [
 
 function HelpPage(): JSX.Element {
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0]!.id);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  /**
+   * Re-launch a tour: mark incomplete in DB so it auto-fires when user
+   * lands on the target page, invalidate the query cache, then navigate.
+   */
+  const relaunchTour = async (tourId: string, page: string) => {
+    await toursApi.markIncomplete(tourId).catch(() => {
+      // Non-fatal: even if API fails, navigation still happens
+    });
+    await qc.invalidateQueries({ queryKey: ['tour-progress'] });
+    void navigate({ to: page });
+  };
 
   return (
     <div className="space-y-6">
@@ -270,6 +290,20 @@ function HelpPage(): JSX.Element {
                   <span className="line-clamp-1">{s.title}</span>
                 </a>
               ))}
+              <a
+                href="#tours"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveSection('tours');
+                  document.getElementById('tours')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                  activeSection === 'tours' ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Compass className="size-4 shrink-0" />
+                <span>Tour-uri interactive</span>
+              </a>
               <a
                 href="#faq"
                 onClick={(e) => {
@@ -324,6 +358,52 @@ function HelpPage(): JSX.Element {
               </GlassCard>
             </section>
           ))}
+
+          {/* Interactive tours */}
+          <section id="tours" className="scroll-mt-4">
+            <GlassCard className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="rounded-lg bg-secondary p-2">
+                  <Compass className="size-5" />
+                </span>
+                <h2 className="text-xl font-semibold">Tour-uri interactive</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Apasă „Re-vezi tour-ul" pe oricare din variante de mai jos ca să-ți ghidăm
+                din nou pas-cu-pas prin pagina respectivă. Tour-urile pornesc automat
+                doar prima oară când vizitezi pagina, dar le poți declanșa din nou oricând.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {TOUR_REGISTRY.map((tour) => (
+                  <div
+                    key={tour.id}
+                    className="rounded-lg border border-border p-4 flex flex-col gap-2"
+                  >
+                    <h3 className="font-medium text-sm">{tour.title}</h3>
+                    <p className="text-xs text-muted-foreground flex-1">{tour.description}</p>
+                    <p className="text-xs text-muted-foreground/70">
+                      {tour.steps.length} pași · pagina {tour.page}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        void relaunchTour(tour.id, tour.page);
+                      }}
+                      className="self-start"
+                    >
+                      <PlayCircle className="size-4 mr-1.5" />
+                      Re-vezi tour-ul
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-4 italic">
+                Tour-uri suplimentare vin în curând pentru fiecare modul (contacte,
+                deal-uri, apeluri, oferte, facturi etc.).
+              </p>
+            </GlassCard>
+          </section>
 
           {/* FAQ */}
           <section id="faq" className="scroll-mt-4">
