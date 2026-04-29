@@ -1,0 +1,38 @@
+# AMASS-CRM pre-commit: lint-staged on staged files + typecheck on affected packages.
+# Bypass with: git commit --no-verify (don't, unless you know why)
+
+set -e
+
+echo "→ Running lint-staged on staged files…"
+pnpm exec lint-staged
+
+# Typecheck only if any TS files staged. Slow (~7s) but catches type errors before they reach CI.
+if git diff --cached --name-only | grep -qE '\.(ts|tsx)$'; then
+  STAGED_TS=$(git diff --cached --name-only | grep -E '\.(ts|tsx)$' || true)
+  if echo "$STAGED_TS" | grep -q '^apps/api/'; then
+    echo "→ Typecheck @amass/api (staged TS in apps/api)…"
+    pnpm --filter @amass/api typecheck > /tmp/precommit-tc-api.log 2>&1 || {
+      echo "✗ TypeScript errors in api — see /tmp/precommit-tc-api.log"
+      tail -20 /tmp/precommit-tc-api.log
+      exit 1
+    }
+  fi
+  if echo "$STAGED_TS" | grep -q '^apps/web/'; then
+    echo "→ Typecheck @amass/web (staged TS in apps/web)…"
+    pnpm --filter @amass/web typecheck > /tmp/precommit-tc-web.log 2>&1 || {
+      echo "✗ TypeScript errors in web — see /tmp/precommit-tc-web.log"
+      tail -20 /tmp/precommit-tc-web.log
+      exit 1
+    }
+  fi
+  if echo "$STAGED_TS" | grep -q '^packages/shared/'; then
+    echo "→ Typecheck @amass/shared (staged TS in packages/shared)…"
+    pnpm --filter @amass/shared typecheck > /tmp/precommit-tc-shared.log 2>&1 || {
+      echo "✗ TypeScript errors in shared — see /tmp/precommit-tc-shared.log"
+      tail -20 /tmp/precommit-tc-shared.log
+      exit 1
+    }
+  fi
+fi
+
+echo "✓ Pre-commit checks passed"
