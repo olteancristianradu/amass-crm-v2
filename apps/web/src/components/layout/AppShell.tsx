@@ -19,6 +19,7 @@ import {
   FileText,
   Files,
   Globe2,
+  HelpCircle,
   KanbanSquare,
   KeyRound,
   LayoutDashboard,
@@ -324,6 +325,14 @@ const ADMIN_SECTION: NavSection = {
   ],
 };
 
+// Always-on Help section — accessible to every role.
+const HELP_SECTION: NavSection = {
+  title: 'Resurse',
+  items: [
+    { to: '/app/help', label: 'Ajutor & tutoriale', icon: HelpCircle },
+  ],
+};
+
 function SidebarNav({
   isAdmin,
   onNavigate,
@@ -331,7 +340,9 @@ function SidebarNav({
   isAdmin: boolean;
   onNavigate?: () => void;
 }): JSX.Element {
-  const sections = isAdmin ? [...SECTIONS, ADMIN_SECTION] : SECTIONS;
+  const sections = isAdmin
+    ? [...SECTIONS, ADMIN_SECTION, HELP_SECTION]
+    : [...SECTIONS, HELP_SECTION];
   return (
     <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
       {sections.map((section) => (

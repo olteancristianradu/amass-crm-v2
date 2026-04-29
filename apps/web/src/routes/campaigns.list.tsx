@@ -1,12 +1,14 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Megaphone } from 'lucide-react';
 import { authedRoute } from './authed';
 import { campaignsApi, type CampaignChannel, type CampaignStatus } from '@/features/campaigns/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmptyState } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
@@ -200,7 +202,15 @@ function CampaignsListPage(): JSX.Element {
       {isLoading && <Card><TableSkeleton rows={6} cols={7} /></Card>}
       {isError && <p className="text-sm text-destructive">Eroare: {error instanceof ApiError ? error.message : 'necunoscută'}</p>}
 
-      {data && (
+      {data && rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Megaphone}
+            title="Nicio campanie încă"
+            description="Campaniile de marketing vor apărea aici. Folosește butonul «Creează» pentru prima."
+          />
+        </Card>
+      ) : data && (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
@@ -217,9 +227,6 @@ function CampaignsListPage(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Nicio campanie.</td></tr>
-                )}
                 {rows.map((c) => {
                   const convRate = c.sentCount > 0 ? ((c.conversions / c.sentCount) * 100).toFixed(1) : '—';
                   return (

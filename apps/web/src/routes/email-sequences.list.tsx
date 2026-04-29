@@ -1,12 +1,14 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Mail } from 'lucide-react';
 import { authedRoute } from './authed';
 import { emailSequencesApi, type EmailSequence, type SequenceStepInput } from '@/features/email-sequences/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 import { QueryError } from '@/components/ui/QueryError';
@@ -148,9 +150,13 @@ function EmailSequencesPage(): JSX.Element {
           </Card>
         ))}
         {!isLoading && (sequences as EmailSequence[]).length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Nicio secvență. Creează una pentru a trimite drip campanii automate.
-          </p>
+          <Card>
+            <EmptyState
+              icon={Mail}
+              title="Nicio secvență de email"
+              description="Configurează drip campaigns automate pentru lead nurturing și onboarding."
+            />
+          </Card>
         )}
       </div>
 

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Package } from 'lucide-react';
 import { productsApi, type CreateProductDto } from '@/features/products/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses } from '@/lib/status-colors';
@@ -54,7 +56,15 @@ export function ProductsListPage(): JSX.Element {
         </p>
       )}
 
-      {data && (
+      {data && rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Package}
+            title="Niciun produs încă"
+            description="Adaugă produse pentru a le folosi în oferte și facturi cu prețuri și stocuri configurabile."
+          />
+        </Card>
+      ) : data && (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
@@ -70,13 +80,6 @@ export function ProductsListPage(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                      Niciun produs. Adaugă primul produs folosind butonul de mai sus.
-                    </td>
-                  </tr>
-                )}
                 {rows.map((p) => (
                   <tr
                     key={p.id}

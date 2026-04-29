@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useState } from 'react';
+import { MessageCircle } from 'lucide-react';
 import {
   whatsappApi,
   type ConnectAccountDto,
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
@@ -145,7 +147,18 @@ export function WhatsAppInboxPage(): JSX.Element {
             </p>
           )}
 
-          {messagesData && (
+          {messagesData && messages.length === 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Mesaje cont</CardTitle>
+              </CardHeader>
+              <EmptyState
+                icon={MessageCircle}
+                title="Niciun mesaj WhatsApp"
+                description="Conversațiile WhatsApp Business vor apărea aici după ce conectezi un Meta WABA account."
+              />
+            </Card>
+          ) : messagesData && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
@@ -165,13 +178,6 @@ export function WhatsAppInboxPage(): JSX.Element {
                     </tr>
                   </thead>
                   <tbody>
-                    {messages.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                          Niciun mesaj pentru acest cont.
-                        </td>
-                      </tr>
-                    )}
                     {messages.map((m) => (
                       <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-4 py-2">

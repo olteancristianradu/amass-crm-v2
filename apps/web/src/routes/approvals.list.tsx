@@ -1,6 +1,7 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { authedRoute } from './authed';
 import {
   approvalsApi,
@@ -9,6 +10,7 @@ import {
 } from '@/features/approvals/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
@@ -75,7 +77,15 @@ function ApprovalsListPage(): JSX.Element {
         </p>
       )}
 
-      {data && (
+      {data && rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={CheckCircle2}
+            title="Nicio cerere de aprobare"
+            description="Cererile de aprobare oferte vor apărea aici când agentul le solicită."
+          />
+        </Card>
+      ) : data && (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
@@ -91,14 +101,6 @@ function ApprovalsListPage(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                      Nicio cerere de aprobare{' '}
-                      {statusFilter === 'PENDING' ? 'în așteptare' : 'în această categorie'}.
-                    </td>
-                  </tr>
-                )}
                 {rows.map((req) => (
                   <tr key={req.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-2 font-medium font-mono">{req.quoteNumber}</td>

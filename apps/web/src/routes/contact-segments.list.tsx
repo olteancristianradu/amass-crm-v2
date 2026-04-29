@@ -1,6 +1,7 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Users } from 'lucide-react';
 import { authedRoute } from './authed';
 import {
   contactSegmentsApi,
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -121,9 +123,13 @@ function ContactSegmentsPage(): JSX.Element {
           </Card>
         ))}
         {!isLoading && (segments as ContactSegment[]).length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Niciun segment salvat. Creează unul pentru a segmenta contactele cu filtre AND/OR.
-          </p>
+          <Card>
+            <EmptyState
+              icon={Users}
+              title="Niciun segment de contacte"
+              description="Creează segmente pentru a grupa contacte după criterii (industrie, vechime, valoare deal etc.)."
+            />
+          </Card>
         )}
       </div>
     </div>

@@ -1,12 +1,14 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { MapPin } from 'lucide-react';
 import { authedRoute } from './authed';
 import { territoriesApi } from '@/features/territories/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -114,7 +116,15 @@ function TerritoriesPage(): JSX.Element {
             </CardContent>
           </Card>
         ))}
-        {(territories ?? []).length === 0 && <p className="text-sm text-muted-foreground">Niciun teritoriu.</p>}
+        {(territories ?? []).length === 0 && (
+          <Card>
+            <EmptyState
+              icon={MapPin}
+              title="Niciun teritoriu definit"
+              description="Definește teritorii (geografice sau de tip cont) pentru atribuire automată a lead-urilor."
+            />
+          </Card>
+        )}
       </div>
     </div>
   );

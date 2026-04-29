@@ -1,12 +1,14 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Calendar } from 'lucide-react';
 import { authedRoute } from './authed';
 import { eventsApi, type EventKind } from '@/features/events/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -79,39 +81,48 @@ function EventsPage(): JSX.Element {
 
       <QueryError isError={isError} error={queryError} label="Nu am putut încărca evenimentele." />
 
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/50 text-left">
-              <tr>
-                <th scope="col" className="px-4 py-2">Nume</th>
-                <th scope="col" className="px-4 py-2">Tip</th>
-                <th scope="col" className="px-4 py-2">Start</th>
-                <th scope="col" className="px-4 py-2">Sfârșit</th>
-                <th scope="col" className="px-4 py-2">Locație</th>
-                <th scope="col" className="px-4 py-2 text-right">Capacitate</th>
-                <th scope="col" className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data ?? []).length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">Niciun eveniment.</td></tr>}
-              {(data ?? []).map((e) => (
-                <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-2 font-medium">{e.name}</td>
-                  <td className="px-4 py-2 text-xs">{KIND_LABELS[e.kind]}</td>
-                  <td className="px-4 py-2 text-xs">{new Date(e.startAt).toLocaleString('ro-RO')}</td>
-                  <td className="px-4 py-2 text-xs">{new Date(e.endAt).toLocaleString('ro-RO')}</td>
-                  <td className="px-4 py-2 text-xs">{e.location ?? '—'}</td>
-                  <td className="px-4 py-2 text-right">{e.capacity ?? '—'}</td>
-                  <td className="px-4 py-2">
-                    <Button size="sm" variant="ghost" onClick={() => { if (confirm('Ștergi evenimentul?')) deleteMut.mutate(e.id); }}>×</Button>
-                  </td>
+      {(data ?? []).length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Calendar}
+            title="Niciun eveniment programat"
+            description="Adaugă evenimente (webinare, târguri, demo-uri) pentru tracking participanți."
+          />
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/50 text-left">
+                <tr>
+                  <th scope="col" className="px-4 py-2">Nume</th>
+                  <th scope="col" className="px-4 py-2">Tip</th>
+                  <th scope="col" className="px-4 py-2">Start</th>
+                  <th scope="col" className="px-4 py-2">Sfârșit</th>
+                  <th scope="col" className="px-4 py-2">Locație</th>
+                  <th scope="col" className="px-4 py-2 text-right">Capacitate</th>
+                  <th scope="col" className="px-4 py-2"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+              </thead>
+              <tbody>
+                {(data ?? []).map((e) => (
+                  <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-2 font-medium">{e.name}</td>
+                    <td className="px-4 py-2 text-xs">{KIND_LABELS[e.kind]}</td>
+                    <td className="px-4 py-2 text-xs">{new Date(e.startAt).toLocaleString('ro-RO')}</td>
+                    <td className="px-4 py-2 text-xs">{new Date(e.endAt).toLocaleString('ro-RO')}</td>
+                    <td className="px-4 py-2 text-xs">{e.location ?? '—'}</td>
+                    <td className="px-4 py-2 text-right">{e.capacity ?? '—'}</td>
+                    <td className="px-4 py-2">
+                      <Button size="sm" variant="ghost" onClick={() => { if (confirm('Ștergi evenimentul?')) deleteMut.mutate(e.id); }}>×</Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

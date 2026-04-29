@@ -3,9 +3,14 @@ import { rootRoute } from './routes/root';
 import { loginRoute } from './routes/login';
 import { registerRoute } from './routes/register';
 import { forgotPasswordRoute } from './routes/forgot-password';
+import { privacyRoute } from './routes/privacy';
+import { subprocessorsRoute } from './routes/subprocessors';
+import { pricingRoute } from './routes/pricing';
 import { resetPasswordRoute } from './routes/reset-password';
 import { authedRoute } from './routes/authed';
 import { dashboardRoute } from './routes/dashboard';
+import { welcomeRoute } from './routes/welcome';
+import { helpRoute } from './routes/help';
 import { companiesRoute } from './routes/companies.list';
 import { companyDetailRoute } from './routes/company.detail';
 import { contactsRoute } from './routes/contacts.list';
@@ -74,8 +79,13 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   forgotPasswordRoute,
   resetPasswordRoute,
+  privacyRoute,
+  subprocessorsRoute,
+  pricingRoute,
   authedRoute.addChildren([
     dashboardRoute,
+    welcomeRoute,
+    helpRoute,
     companiesRoute,
     companyDetailRoute,
     contactsRoute,

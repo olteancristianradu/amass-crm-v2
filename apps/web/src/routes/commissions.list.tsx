@@ -1,12 +1,14 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Wallet } from 'lucide-react';
 import { authedRoute } from './authed';
 import { commissionsApi } from '@/features/commissions/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -108,35 +110,42 @@ function CommissionsPage(): JSX.Element {
 
       <Card>
         <CardHeader><CardTitle className="text-lg">Rezultate {year}/{String(month).padStart(2, '0')}</CardTitle></CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/50 text-left">
-              <tr>
-                <th scope="col" className="px-4 py-2">Agent</th>
-                <th scope="col" className="px-4 py-2 text-right">Deal-uri</th>
-                <th scope="col" className="px-4 py-2 text-right">Bază</th>
-                <th scope="col" className="px-4 py-2 text-right">Comision</th>
-                <th scope="col" className="px-4 py-2">Plătit</th>
-                <th scope="col" className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(commissions ?? []).length === 0 && <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Niciun rezultat. Rulează calculul.</td></tr>}
-              {(commissions ?? []).map((c) => (
-                <tr key={c.id} className="border-b last:border-0">
-                  <td className="px-4 py-2 font-mono text-xs">{c.userId}</td>
-                  <td className="px-4 py-2 text-right">{c.dealsCount}</td>
-                  <td className="px-4 py-2 text-right font-mono">{Number(c.basis).toLocaleString('ro-RO')} {c.currency}</td>
-                  <td className="px-4 py-2 text-right font-mono font-semibold">{Number(c.amount).toLocaleString('ro-RO')} {c.currency}</td>
-                  <td className="px-4 py-2 text-xs">{c.paidAt ? new Date(c.paidAt).toLocaleDateString('ro-RO') : '—'}</td>
-                  <td className="px-4 py-2">
-                    {!c.paidAt && <Button size="sm" variant="ghost" onClick={() => payMut.mutate(c.id)}>Marchează plătit</Button>}
-                  </td>
+        {(commissions ?? []).length === 0 ? (
+          <EmptyState
+            icon={Wallet}
+            title="Nicio comisie calculată încă"
+            description="Comisiile pe deal-uri câștigate vor apărea aici după ce agenții închid vânzări."
+          />
+        ) : (
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/50 text-left">
+                <tr>
+                  <th scope="col" className="px-4 py-2">Agent</th>
+                  <th scope="col" className="px-4 py-2 text-right">Deal-uri</th>
+                  <th scope="col" className="px-4 py-2 text-right">Bază</th>
+                  <th scope="col" className="px-4 py-2 text-right">Comision</th>
+                  <th scope="col" className="px-4 py-2">Plătit</th>
+                  <th scope="col" className="px-4 py-2"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
+              </thead>
+              <tbody>
+                {(commissions ?? []).map((c) => (
+                  <tr key={c.id} className="border-b last:border-0">
+                    <td className="px-4 py-2 font-mono text-xs">{c.userId}</td>
+                    <td className="px-4 py-2 text-right">{c.dealsCount}</td>
+                    <td className="px-4 py-2 text-right font-mono">{Number(c.basis).toLocaleString('ro-RO')} {c.currency}</td>
+                    <td className="px-4 py-2 text-right font-mono font-semibold">{Number(c.amount).toLocaleString('ro-RO')} {c.currency}</td>
+                    <td className="px-4 py-2 text-xs">{c.paidAt ? new Date(c.paidAt).toLocaleDateString('ro-RO') : '—'}</td>
+                    <td className="px-4 py-2">
+                      {!c.paidAt && <Button size="sm" variant="ghost" onClick={() => payMut.mutate(c.id)}>Marchează plătit</Button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        )}
       </Card>
     </div>
   );

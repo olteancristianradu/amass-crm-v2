@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Zap } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/page-header';
 import { QueryError } from '@/components/ui/QueryError';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -108,9 +110,11 @@ export function WorkflowsPage(): JSX.Element {
 
       {!isLoading && workflows.length === 0 && (
         <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Niciun workflow. Apasă <strong>+ Workflow nou</strong> pentru a crea primul.
-          </CardContent>
+          <EmptyState
+            icon={Zap}
+            title="Niciun workflow definit"
+            description="Workflows automatizează acțiuni pe trigger-e (deal creat, contact actualizat etc.)."
+          />
         </Card>
       )}
 

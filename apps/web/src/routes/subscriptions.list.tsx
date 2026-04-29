@@ -1,12 +1,14 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Repeat } from 'lucide-react';
 import { authedRoute } from './authed';
 import { customerSubsApi, type CustomerSubscriptionStatus } from '@/features/customer-subscriptions/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -119,39 +121,48 @@ function SubscriptionsListPage(): JSX.Element {
 
       <QueryError isError={isError} error={error} label="Nu am putut încărca abonamentele." />
 
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/50 text-left">
-              <tr>
-                <th scope="col" className="px-4 py-2 font-medium">Nume</th>
-                <th scope="col" className="px-4 py-2 font-medium">Plan</th>
-                <th scope="col" className="px-4 py-2 font-medium">Status</th>
-                <th scope="col" className="px-4 py-2 font-medium text-right">MRR</th>
-                <th scope="col" className="px-4 py-2 font-medium">Start</th>
-                <th scope="col" className="px-4 py-2 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Niciun abonament.</td></tr>}
-              {rows.map((s) => (
-                <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-2 font-medium">{s.name}</td>
-                  <td className="px-4 py-2 text-xs">{s.plan ?? '—'}</td>
-                  <td className="px-4 py-2"><span className="text-xs">{STATUS_LABELS[s.status]}</span></td>
-                  <td className="px-4 py-2 text-right font-mono text-xs">{Number(s.mrr).toLocaleString('ro-RO')} {s.currency}</td>
-                  <td className="px-4 py-2 text-xs">{new Date(s.startDate).toLocaleDateString('ro-RO')}</td>
-                  <td className="px-4 py-2">
-                    {s.status === 'ACTIVE' && (
-                      <Button size="sm" variant="ghost" onClick={() => { if (confirm('Anulezi abonamentul?')) cancelMut.mutate(s.id); }}>Anulează</Button>
-                    )}
-                  </td>
+      {rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Repeat}
+            title="Niciun abonament activ"
+            description="Abonamentele recurente ale clienților vor apărea aici."
+          />
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/50 text-left">
+                <tr>
+                  <th scope="col" className="px-4 py-2 font-medium">Nume</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Plan</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-2 font-medium text-right">MRR</th>
+                  <th scope="col" className="px-4 py-2 font-medium">Start</th>
+                  <th scope="col" className="px-4 py-2 font-medium"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+              </thead>
+              <tbody>
+                {rows.map((s) => (
+                  <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-2 font-medium">{s.name}</td>
+                    <td className="px-4 py-2 text-xs">{s.plan ?? '—'}</td>
+                    <td className="px-4 py-2"><span className="text-xs">{STATUS_LABELS[s.status]}</span></td>
+                    <td className="px-4 py-2 text-right font-mono text-xs">{Number(s.mrr).toLocaleString('ro-RO')} {s.currency}</td>
+                    <td className="px-4 py-2 text-xs">{new Date(s.startDate).toLocaleDateString('ro-RO')}</td>
+                    <td className="px-4 py-2">
+                      {s.status === 'ACTIVE' && (
+                        <Button size="sm" variant="ghost" onClick={() => { if (confirm('Anulezi abonamentul?')) cancelMut.mutate(s.id); }}>Anulează</Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

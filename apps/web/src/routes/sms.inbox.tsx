@@ -2,12 +2,14 @@ import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useState } from 'react';
+import { MessageSquare } from 'lucide-react';
 import { authedRoute } from './authed';
 import { smsApi, type SendSmsDto } from '@/features/sms/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
@@ -69,7 +71,15 @@ function SmsInboxPage(): JSX.Element {
         </p>
       )}
 
-      {data && (
+      {data && messages.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={MessageSquare}
+            title="Niciun SMS în inbox"
+            description="Conversațiile SMS prin Twilio vor apărea aici după primul mesaj primit."
+          />
+        </Card>
+      ) : data && (
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
@@ -84,13 +94,6 @@ function SmsInboxPage(): JSX.Element {
                 </tr>
               </thead>
               <tbody>
-                {messages.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      Niciun mesaj SMS.
-                    </td>
-                  </tr>
-                )}
                 {messages.map((m) => (
                   <tr key={m.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-2">
