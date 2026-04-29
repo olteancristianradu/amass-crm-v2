@@ -1,4 +1,4 @@
-import { createRoute, Link } from '@tanstack/react-router';
+import { createRoute, Link, redirect } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowUpRight,
@@ -22,6 +22,18 @@ import { QueryError } from '@/components/ui/QueryError';
 export const dashboardRoute = createRoute({
   getParentRoute: () => authedRoute,
   path: '/',
+  beforeLoad: async () => {
+    // F1.9: redirect first-time tenants to /welcome wizard.
+    // Errors / 403 are swallowed — wizard self-dismisses if not applicable.
+    try {
+      const status = await api.get<{ onboardingCompletedAt: string | null }>('/onboarding/status');
+      if (!status.onboardingCompletedAt) {
+        throw redirect({ to: '/app/welcome' });
+      }
+    } catch (err) {
+      if (err && typeof err === 'object' && 'to' in err) throw err;
+    }
+  },
   component: Dashboard,
 });
 
