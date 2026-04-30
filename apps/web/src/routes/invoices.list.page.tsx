@@ -1,11 +1,14 @@
 import { Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef } from 'react';
-import { Download, Receipt, X } from 'lucide-react';
-import { invoicesApi } from '@/features/invoices/api';
+import { Download, Plus, Receipt, X } from 'lucide-react';
+import { invoicesApi, type CreateInvoiceInput } from '@/features/invoices/api';
+import { companiesApi } from '@/features/companies/api';
 import { AnafInvoiceCell } from '@/features/anaf/AnafInvoiceCell';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   EmptyState,
   PageHeader,
@@ -36,6 +39,7 @@ export function InvoicesListPage(): JSX.Element {
   });
 
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   // F1.12 — auto-launch product tour on first visit (self-skips if completed).
   useTour('invoices-list');
@@ -61,17 +65,25 @@ export function InvoicesListPage(): JSX.Element {
         title="Facturi"
         subtitle="Toate facturile emise — DRAFT, ISSUED, PAID, OVERDUE, CANCELLED."
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCsv}
-            data-tour="invoices-export-btn"
-          >
-            <Download size={14} className="mr-1.5" />
-            Export
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              data-tour="invoices-export-btn"
+            >
+              <Download size={14} className="mr-1.5" />
+              Export
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus size={14} className="mr-1.5" />
+              Factură nouă
+            </Button>
+          </div>
         }
       />
+
+      {showCreate && <NewInvoiceForm onDone={() => setShowCreate(false)} />}
 
       {isLoading && (
         <GlassCard className="overflow-hidden">
@@ -322,4 +334,165 @@ const STATUS_TONES: Record<InvoiceStatus, StatusBadgeTone> = {
 function formatMoney(amount: string, currency: string): string {
   const n = Number(amount);
   return new Intl.NumberFormat('ro-RO', { style: 'currency', currency }).format(n);
+}
+
+function NewInvoiceForm({ onDone }: { onDone: () => void }): JSX.Element {
+  const qc = useQueryClient();
+  const [companyId, setCompanyId] = useState('');
+  const [issueDate, setIssueDate] = useState(todayIso());
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  });
+  const [description, setDescription] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [vatRate, setVatRate] = useState('19');
+
+  const companies = useQuery({
+    queryKey: ['companies', 'for-invoice-create'],
+    queryFn: () => companiesApi.list(undefined, 50),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (dto: CreateInvoiceInput) => invoicesApi.create(dto),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['invoices'] });
+      onDone();
+    },
+  });
+
+  function submit(e: React.FormEvent): void {
+    e.preventDefault();
+    if (!companyId || !description.trim() || !unitPrice) return;
+    const dto: CreateInvoiceInput = {
+      companyId,
+      issueDate,
+      dueDate,
+      lines: [
+        {
+          description: description.trim(),
+          quantity,
+          unitPrice,
+          vatRate,
+        },
+      ],
+    };
+    createMut.mutate(dto);
+  }
+
+  return (
+    <GlassCard className="mb-4 p-6">
+      <h2 className="mb-4 text-lg font-medium">Factură nouă</h2>
+      <p className="mb-4 text-xs text-muted-foreground">
+        Pentru facturi cu mai multe linii sau atașate la deal-uri, creează din pagina
+        unui deal sau company. Aici creezi o factură rapidă cu o linie.
+      </p>
+      <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2 space-y-1.5">
+          <Label htmlFor="i-company">Companie *</Label>
+          <select
+            id="i-company"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
+            required
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="">— alege companie —</option>
+            {companies.data?.data.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="i-issue">Dată emitere *</Label>
+          <Input
+            id="i-issue"
+            type="date"
+            value={issueDate}
+            onChange={(e) => setIssueDate(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="i-due">Dată scadență *</Label>
+          <Input
+            id="i-due"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            required
+          />
+        </div>
+        <div className="md:col-span-2 space-y-1.5">
+          <Label htmlFor="i-line">Descriere produs/serviciu *</Label>
+          <Input
+            id="i-line"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ex: Consultanță IT — luna octombrie"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="i-qty">Cantitate *</Label>
+          <Input
+            id="i-qty"
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="i-price">Preț unitar (RON, fără TVA) *</Label>
+          <Input
+            id="i-price"
+            type="number"
+            step="0.01"
+            min="0"
+            value={unitPrice}
+            onChange={(e) => setUnitPrice(e.target.value)}
+            placeholder="100.00"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="i-vat">TVA (%)</Label>
+          <Input
+            id="i-vat"
+            type="number"
+            step="1"
+            min="0"
+            max="100"
+            value={vatRate}
+            onChange={(e) => setVatRate(e.target.value)}
+          />
+        </div>
+        <div className="md:col-span-2">
+          {createMut.isError && (
+            <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {createMut.error instanceof Error ? createMut.error.message : 'Eroare la salvare'}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Anulează
+            </Button>
+            <Button
+              type="submit"
+              disabled={!companyId || !description.trim() || !unitPrice || createMut.isPending}
+            >
+              {createMut.isPending ? 'Se emite…' : 'Emite factură'}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </GlassCard>
+  );
 }

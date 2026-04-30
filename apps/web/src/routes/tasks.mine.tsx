@@ -1,13 +1,15 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
-import { CheckSquare, Trash2 } from 'lucide-react';
+import { CheckSquare, Plus, Trash2 } from 'lucide-react';
 import { authedRoute } from './authed';
-import { tasksApi } from '@/features/tasks/api';
+import { tasksApi, type CreateTaskInput } from '@/features/tasks/api';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { EmptyState, PageHeader } from '@/components/ui/page-header';
-import type { Task, TaskStatus } from '@/lib/types';
+import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
 import { QueryError } from '@/components/ui/QueryError';
 
 export const tasksMineRoute = createRoute({
@@ -19,6 +21,7 @@ export const tasksMineRoute = createRoute({
 function TasksMinePage(): JSX.Element {
   const qc = useQueryClient();
   const [status, setStatus] = useState<TaskStatus>('OPEN');
+  const [showCreate, setShowCreate] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['tasks', 'mine', { status }],
@@ -71,16 +74,24 @@ function TasksMinePage(): JSX.Element {
         title="Task-urile mele"
         subtitle="Sarcinile asignate ție — comută între deschise și finalizate."
         actions={
-          <div className="flex gap-1 rounded-md border border-border/70 bg-card/70 p-1">
-            <TabButton active={status === 'OPEN'} onClick={() => setStatus('OPEN')}>
-              Deschise
-            </TabButton>
-            <TabButton active={status === 'DONE'} onClick={() => setStatus('DONE')}>
-              Finalizate
-            </TabButton>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 rounded-md border border-border/70 bg-card/70 p-1">
+              <TabButton active={status === 'OPEN'} onClick={() => setStatus('OPEN')}>
+                Deschise
+              </TabButton>
+              <TabButton active={status === 'DONE'} onClick={() => setStatus('DONE')}>
+                Finalizate
+              </TabButton>
+            </div>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus size={14} className="mr-1.5" />
+              Task nou
+            </Button>
           </div>
         }
       />
+
+      {showCreate && <NewTaskForm onDone={() => setShowCreate(false)} />}
 
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
       <QueryError isError={isError} error={error} label="Nu am putut încărca taskurile." />
@@ -202,4 +213,96 @@ function priorityLabel(p: Task['priority']): string {
     case 'HIGH':
       return 'Ridicată';
   }
+}
+
+function NewTaskForm({ onDone }: { onDone: () => void }): JSX.Element {
+  const qc = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('NORMAL');
+  const [dueAt, setDueAt] = useState('');
+
+  const createMut = useMutation({
+    mutationFn: (dto: CreateTaskInput) => tasksApi.create(dto),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['tasks'] });
+      onDone();
+    },
+  });
+
+  function submit(e: React.FormEvent): void {
+    e.preventDefault();
+    if (!title.trim()) return;
+    const dto: CreateTaskInput = {
+      title: title.trim(),
+      priority,
+    };
+    if (description.trim()) dto.description = description.trim();
+    if (dueAt) dto.dueAt = new Date(dueAt).toISOString();
+    createMut.mutate(dto);
+  }
+
+  return (
+    <GlassCard className="mb-4 p-6">
+      <h2 className="mb-4 text-lg font-medium">Task nou</h2>
+      <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2 space-y-1.5">
+          <Label htmlFor="task-title">Titlu *</Label>
+          <Input
+            id="task-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ex: Sună clientul X la ora 15"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="task-priority">Prioritate</Label>
+          <select
+            id="task-priority"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as TaskPriority)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="LOW">Scăzută</option>
+            <option value="NORMAL">Normală</option>
+            <option value="HIGH">Ridicată</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="task-due">Termen (opțional)</Label>
+          <Input
+            id="task-due"
+            type="datetime-local"
+            value={dueAt}
+            onChange={(e) => setDueAt(e.target.value)}
+          />
+        </div>
+        <div className="md:col-span-2 space-y-1.5">
+          <Label htmlFor="task-description">Descriere (opțional)</Label>
+          <Input
+            id="task-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Detalii suplimentare"
+          />
+        </div>
+        <div className="md:col-span-2">
+          {createMut.isError && (
+            <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {createMut.error instanceof Error ? createMut.error.message : 'Eroare la salvare'}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Anulează
+            </Button>
+            <Button type="submit" disabled={!title.trim() || createMut.isPending}>
+              {createMut.isPending ? 'Se salvează…' : 'Salvează'}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </GlassCard>
+  );
 }

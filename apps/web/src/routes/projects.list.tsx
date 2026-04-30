@@ -1,11 +1,14 @@
 import { createRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Briefcase, Trash2 } from 'lucide-react';
+import { Briefcase, Plus, Trash2 } from 'lucide-react';
 import { authedRoute } from './authed';
-import { projectsApi, type UpdateProjectInput } from '@/features/projects/api';
+import { projectsApi, type CreateProjectInput, type UpdateProjectInput } from '@/features/projects/api';
+import { companiesApi } from '@/features/companies/api';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   EmptyState,
   PageHeader,
@@ -23,6 +26,7 @@ export const projectsListRoute = createRoute({
 
 function ProjectsListPage(): JSX.Element {
   const qc = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['projects', 'list'],
     queryFn: () => projectsApi.list({ limit: 50 }),
@@ -45,17 +49,25 @@ function ProjectsListPage(): JSX.Element {
       <PageHeader
         title="Proiecte"
         subtitle="Proiectele apar automat când un deal e marcat câștigat — sau le poți crea manual."
+        actions={
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus size={14} className="mr-1.5" />
+            Proiect nou
+          </Button>
+        }
       />
+
+      {showCreate && <NewProjectForm onDone={() => setShowCreate(false)} />}
 
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
       <QueryError isError={isError} error={error} label="Nu am putut încărca proiectele." />
 
-      {data && data.data.length === 0 && (
+      {data && data.data.length === 0 && !showCreate && (
         <GlassCard className="overflow-hidden">
           <EmptyState
             icon={Briefcase}
             title="Niciun proiect încă"
-            description="Proiectele apar automat când un deal trece la stage-ul WON. Dacă faci kickoff-ul direct dintr-o ofertă semnată, treci deal-ul prin pipeline."
+            description={'Apasă "Proiect nou" sus pentru a crea unul, sau vor apărea automat când un deal trece la stage-ul WON.'}
           />
         </GlassCard>
       )}
@@ -215,4 +227,112 @@ const STATUS_TONES: Record<ProjectStatus, StatusBadgeTone> = {
 function formatMoney(amount: string, currency: string): string {
   const n = Number(amount);
   return new Intl.NumberFormat('ro-RO', { style: 'currency', currency }).format(n);
+}
+
+function NewProjectForm({ onDone }: { onDone: () => void }): JSX.Element {
+  const qc = useQueryClient();
+  const [name, setName] = useState('');
+  const [companyId, setCompanyId] = useState('');
+  const [status, setStatus] = useState<ProjectStatus>('PLANNED');
+  const [description, setDescription] = useState('');
+
+  const companies = useQuery({
+    queryKey: ['companies', 'for-project-create'],
+    queryFn: () => companiesApi.list(undefined, 50),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (dto: CreateProjectInput) => projectsApi.create(dto),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['projects'] });
+      onDone();
+    },
+  });
+
+  function submit(e: React.FormEvent): void {
+    e.preventDefault();
+    if (!name.trim() || !companyId) return;
+    const dto: CreateProjectInput = {
+      name: name.trim(),
+      companyId,
+      status,
+    };
+    if (description.trim()) dto.description = description.trim();
+    createMut.mutate(dto);
+  }
+
+  return (
+    <GlassCard className="mb-4 p-6">
+      <h2 className="mb-4 text-lg font-medium">Proiect nou</h2>
+      <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2 space-y-1.5">
+          <Label htmlFor="p-name">Nume *</Label>
+          <Input
+            id="p-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ex: Implementare ERP — Q1"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="p-company">Companie *</Label>
+          <select
+            id="p-company"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
+            required
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="">— alege companie —</option>
+            {companies.data?.data.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="p-status">Status</Label>
+          <select
+            id="p-status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="PLANNED">Planificat</option>
+            <option value="ACTIVE">Activ</option>
+            <option value="ON_HOLD">Pe pauză</option>
+          </select>
+        </div>
+        <div className="md:col-span-2 space-y-1.5">
+          <Label htmlFor="p-description">Descriere (opțional)</Label>
+          <Input
+            id="p-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Detalii suplimentare"
+          />
+        </div>
+        <div className="md:col-span-2">
+          {createMut.isError && (
+            <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {createMut.error instanceof Error ? createMut.error.message : 'Eroare la salvare'}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Anulează
+            </Button>
+            <Button
+              type="submit"
+              disabled={!name.trim() || !companyId || createMut.isPending}
+            >
+              {createMut.isPending ? 'Se salvează…' : 'Salvează'}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </GlassCard>
+  );
 }
