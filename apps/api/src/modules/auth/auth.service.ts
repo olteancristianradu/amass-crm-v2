@@ -215,6 +215,13 @@ export class AuthService {
     if (!tenant) {
       // Still consume a fail-counter slot to prevent user enumeration via timing.
       await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
+      // FIX (BLUE2#1): persist failed attempt for forensic trail. Best-effort,
+      // never throws — without this row, brute-force investigation post-incident
+      // is impossible (Redis counter expires in 15min).
+      void this.audit.log({
+        action: 'auth.login_failed',
+        metadata: { reason: 'tenant_not_found', tenantSlug, email: dto.email.toLowerCase(), ipAddress: meta?.ipAddress, userAgent: meta?.userAgent },
+      });
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
@@ -223,12 +230,23 @@ export class AuthService {
     });
     if (!user || !user.isActive) {
       await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
+      void this.audit.log({
+        action: 'auth.login_failed',
+        tenantId: tenant.id,
+        metadata: { reason: !user ? 'user_not_found' : 'user_inactive', email: dto.email.toLowerCase(), ipAddress: meta?.ipAddress, userAgent: meta?.userAgent },
+      });
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
       await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
+      void this.audit.log({
+        action: 'auth.login_failed',
+        tenantId: tenant.id,
+        actorId: user.id,
+        metadata: { reason: 'wrong_password', email: dto.email.toLowerCase(), ipAddress: meta?.ipAddress, userAgent: meta?.userAgent },
+      });
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 

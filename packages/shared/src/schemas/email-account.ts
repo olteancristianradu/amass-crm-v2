@@ -28,7 +28,7 @@ export const UpdateEmailAccountSchema = z
     smtpSecure: z.boolean(),
     smtpUser: z.string().trim().min(1).max(255),
     smtpPass: z.string().min(1).max(500),
-    fromName: z.string().trim().min(1).max(200),
+    fromName: z.string().trim().min(1).max(200).refine((s) => !/[\r\n]/.test(s), 'No newlines allowed'),
     fromEmail: z.string().trim().email().max(255),
     isDefault: z.boolean(),
   })

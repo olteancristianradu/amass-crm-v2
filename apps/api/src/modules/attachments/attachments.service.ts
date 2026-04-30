@@ -301,6 +301,15 @@ export class AttachmentsService {
     // inline (defense against XSS if a risky MIME ever makes it past the
     // whitelist, and against phishing via HTML/SVG preview).
     const downloadUrl = await this.storage.presignGet(a.storageKey, a.fileName);
+    // FIX (BLUE2#2): every presigned URL is an exfiltration vector if the
+    // session is compromised — log it so SIEM/alerting can spot abnormal
+    // download patterns (e.g. a single user pulling 100 attachments/hour).
+    void this.audit.log({
+      action: 'attachment.download_url_issued',
+      subjectType: a.subjectType.toLowerCase(),
+      subjectId: a.subjectId,
+      metadata: { attachmentId: id, fileName: a.fileName, expiresIn: PRESIGN_TTL_SECONDS },
+    });
     return { downloadUrl, expiresIn: PRESIGN_TTL_SECONDS, fileName: a.fileName, mimeType: a.mimeType };
   }
 

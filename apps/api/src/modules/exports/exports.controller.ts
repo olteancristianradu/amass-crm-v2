@@ -11,9 +11,21 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { ExportsService } from './exports.service';
 
+// FIX (RED2#2): Pre-fix `filters: z.record(z.unknown())` allowed an authed user
+// to override server-side filters like `deletedAt: null`, recovering soft-deleted
+// (incl. GDPR-erased) records. Now we explicitly allow-list a small set of
+// per-export filter keys; nested operators and unknown keys are rejected by Zod.
+const ExportFilterSchema = z.object({
+  ownerId: z.string().min(1).max(64).optional(),
+  status: z.string().min(1).max(64).optional(),
+  createdAfter: z.string().datetime().optional(),
+  createdBefore: z.string().datetime().optional(),
+  // No `deletedAt`, no `OR`/`NOT`/raw operators — by design.
+}).strict().optional();
+
 const RequestExportSchema = z.object({
   entityType: z.enum(['companies', 'contacts', 'clients', 'deals', 'invoices', 'quotes', 'activities']),
-  filters: z.record(z.unknown()).optional(),
+  filters: ExportFilterSchema,
 });
 
 @Controller('exports')

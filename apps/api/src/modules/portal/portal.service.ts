@@ -42,10 +42,32 @@ export class PortalService {
   // ─── Token lifecycle ────────────────────────────────────────────────────────
 
   async requestAccess(tenantId: string, dto: RequestPortalAccessDto) {
-    // The raw token leaves the API exactly once — in the response body
-    // here, which the API caller must immediately email to the recipient.
-    // After that point only the SHA-256 hash exists (in DB). Lookups in
-    // verifyToken / resolveToken hash the inbound token before findUnique.
+    // FIX (RED1#4 / RED2#1): validate companyId/clientId actually belongs to
+    // the tenant. Pre-fix, an attacker could supply any companyId from any
+    // tenant and the resulting portal token would grant access to it.
+    if (dto.companyId) {
+      const company = await this.prisma.runWithTenant(tenantId, (tx) =>
+        tx.company.findFirst({
+          where: { id: dto.companyId, deletedAt: null },
+          select: { id: true },
+        }),
+      );
+      if (!company) {
+        throw new ForbiddenException('Company not found in this tenant');
+      }
+    }
+    if (dto.clientId) {
+      const client = await this.prisma.runWithTenant(tenantId, (tx) =>
+        tx.client.findFirst({
+          where: { id: dto.clientId, deletedAt: null },
+          select: { id: true },
+        }),
+      );
+      if (!client) {
+        throw new ForbiddenException('Client not found in this tenant');
+      }
+    }
+
     const token = randomBytes(32).toString('hex');
     const tokenHash = hashPortalToken(token);
     const expiresAt = new Date(Date.now() + 24 * 3600_000); // 24 hours
@@ -63,13 +85,22 @@ export class PortalService {
       }),
     );
 
-    // In production: send email with magic link containing the *raw* token.
-    // Returning the raw token directly here for API testability (frontend
-    // should mail it). The DB row carries only the hash.
+    void this.audit.log({
+      action: 'portal.token_issued',
+      tenantId,
+      subjectId: portalToken.id,
+      metadata: { email: dto.email, companyId: dto.companyId, clientId: dto.clientId },
+    });
+
+    // The raw token leaves the API exactly once — in the response body here.
+    // The endpoint is now AUTHED (OWNER/ADMIN/MANAGER only) so a tenant member
+    // gets the token and is responsible for emailing it to the recipient.
+    // After issuance only the SHA-256 hash exists in DB (token is unrecoverable
+    // from the row — verifyToken/resolveToken hash inbound tokens before lookup).
     return {
       token,
       expiresAt: portalToken.expiresAt,
-      message: 'Access token generated. Share this link with the client.',
+      message: 'Access token generated. Share this link with the client via secure channel.',
     };
   }
 

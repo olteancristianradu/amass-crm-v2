@@ -6,11 +6,15 @@
  *   GET /health/ready     — readiness (checks DB connectivity)
  *   GET /health/detailed  — full probe: DB + Redis + queues + breakers
  */
-import { Controller, Get, HttpCode, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, HttpCode, ServiceUnavailableException, UseGuards } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { listBreakers } from '../../common/resilience/circuit-breaker';
 import { Public } from '../../common/decorators/public.decorator';
+import { JwtAuthGuard } from '../auth/jwt.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 type ProbeStatus = 'up' | 'down' | 'degraded';
 
@@ -21,7 +25,6 @@ interface Probe {
 }
 
 @Controller('health')
-@Public()
 export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
@@ -30,6 +33,7 @@ export class HealthController {
 
   /** Liveness — always 200 if the process is up */
   @Get()
+  @Public()
   @HttpCode(200)
   live() {
     return { status: 'ok', timestamp: new Date().toISOString() };
@@ -37,6 +41,7 @@ export class HealthController {
 
   /** Readiness — verifies DB connection */
   @Get('ready')
+  @Public()
   @HttpCode(200)
   async ready() {
     await this.prisma.$queryRaw`SELECT 1`;
@@ -51,8 +56,15 @@ export class HealthController {
    *
    * Returns 503 when overall status is 'down' so load-balancers can take
    * this instance out of rotation.
+   *
+   * FIX (RED2#5): pre-fix this was @Public() and exposed the integration
+   * topology (which AI provider, which payment processor, ANAF state, etc.)
+   * to anyone scraping `/health/detailed` — useful recon for spear-phishing.
+   * Now restricted to authenticated OWNER/ADMIN users.
    */
   @Get('detailed')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
   async detailed() {
     const [db, redis] = await Promise.all([this.probeDb(), this.probeRedis()]);
 
