@@ -175,8 +175,11 @@ import { SyncModule } from './modules/sync/sync.module';
     // when NODE_ENV === 'test' so CI doesn't flake on 429s.
     ThrottlerModule.forRoot({
       throttlers: [
-        { name: 'global', ttl: 60_000, limit: 60 },
-        { name: 'strict-auth', ttl: 60_000, limit: 5 },
+        { name: 'global', ttl: 60_000, limit: Number(process.env['THROTTLE_GLOBAL_LIMIT']) || 60 },
+        // strict-auth bumped from 5 → 30 because /auth/refresh runs once per
+        // ~14min normally, but each page navigation can trigger a refresh
+        // attempt during transient 401. 5/min was kicking active users out.
+        { name: 'strict-auth', ttl: 60_000, limit: Number(process.env['THROTTLE_STRICT_AUTH_LIMIT']) || 30 },
       ],
       // Bypass throttling ONLY in test environment, AND only when we are
       // NOT running in a production-labeled context. Belt-and-braces so

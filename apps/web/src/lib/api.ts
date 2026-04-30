@@ -27,20 +27,37 @@ export interface ApiErrorShape {
   timestamp?: string;
 }
 
+// Translate technical API error codes to user-friendly Romanian messages.
+// Internal codes like "Missing bearer token" should never leak to the UI —
+// they indicate transient auth state that the refresh interceptor handles.
+const FRIENDLY_MESSAGES: Record<string, string> = {
+  NO_TOKEN: 'Sesiunea a expirat. Reîncearcă în câteva secunde.',
+  INVALID_TOKEN: 'Sesiunea a expirat. Reconectează-te.',
+  TOKEN_EXPIRED: 'Sesiunea a expirat. Reconectează-te.',
+  CSRF_HEADER_MISSING: 'Eroare de securitate. Reîncearcă acțiunea.',
+  TOO_MANY_REQUESTS: 'Prea multe încercări. Așteaptă un minut.',
+  INVALID_CREDENTIALS: 'Email sau parolă incorectă.',
+};
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details: unknown;
   readonly traceId?: string;
+  /** Original technical message from API (for logging/debugging). */
+  readonly rawMessage?: string;
 
   constructor(status: number, body: ApiErrorShape | string) {
     const parsed: ApiErrorShape = typeof body === 'string' ? { message: body } : body;
-    super(parsed.message ?? `HTTP ${status}`);
+    const code = parsed.code ?? `HTTP_${status}`;
+    const friendly = FRIENDLY_MESSAGES[code];
+    super(friendly ?? parsed.message ?? `HTTP ${status}`);
     this.name = 'ApiError';
     this.status = status;
-    this.code = parsed.code ?? `HTTP_${status}`;
+    this.code = code;
     this.details = parsed.details;
     this.traceId = parsed.traceId;
+    this.rawMessage = parsed.message;
   }
 }
 
