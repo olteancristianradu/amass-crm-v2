@@ -22,6 +22,23 @@ export interface JwtPayload {
 
 /** Redis key namespace for revoked access tokens (logout, force-signout). */
 export const JWT_BLOCKLIST_PREFIX = 'auth:jwt:blocklist:';
+/**
+ * Per-user "revoked before" cutoff. When set, any access token whose `iat`
+ * (issued-at) timestamp is older than this value must be rejected at the
+ * guard layer. Used to close the post-deactivate window where stale access
+ * tokens would otherwise keep working until natural expiry. Lifetime ~ access
+ * token TTL (set with TTL = JWT_ACCESS_TTL seconds).
+ */
+export const USER_REVOKED_BEFORE_PREFIX = 'auth:user_revoked_before:';
+
+/**
+ * Per-tenant suspension flag for incident response (BLUE2#3 kill switch).
+ * Set to '1' to freeze all access for a tenant; JwtAuthGuard rejects every
+ * authed request with TENANT_SUSPENDED while still allowing public routes
+ * (login, password reset) so users see a clear error rather than a generic
+ * 401. Mirrors the Tenant.isActive=false DB column for fast Redis check.
+ */
+export const TENANT_SUSPENDED_PREFIX = 'auth:tenant_suspended:';
 
 // Bcrypt work factor + lockout policy live in auth.helpers so they're
 // unit-testable without spinning up the full auth stack. The re-exports

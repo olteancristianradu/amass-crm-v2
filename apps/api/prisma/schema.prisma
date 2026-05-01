@@ -52,6 +52,14 @@ model Tenant {
   // Read by services that route data to region-specific sub-processors.
   region                String?   @default("EU")
 
+  // Sec-kill-switch (BLUE2#3): incident response can flip this to false to
+  // freeze all access for a compromised tenant without deleting data. Checked
+  // by JwtAuthGuard / TenantContextMiddleware on every authed request.
+  // suspendedAt records when (audit) and suspendedReason captures why.
+  isActive        Boolean   @default(true)
+  suspendedAt     DateTime?
+  suspendedReason String?
+
   users User[]
 
   @@index([shardId])

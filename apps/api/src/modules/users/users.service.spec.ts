@@ -27,7 +27,8 @@ function build() {
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
   } as unknown as ConstructorParameters<typeof UsersService>[0];
   const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof UsersService>[1];
-  return { svc: new UsersService(prisma, audit), prisma, tx, audit };
+  const redis = { client: { setex: vi.fn().mockResolvedValue('OK') } } as unknown as ConstructorParameters<typeof UsersService>[2];
+  return { svc: new UsersService(prisma, audit, redis), prisma, tx, audit, redis };
 }
 
 describe('UsersService.listForCurrentTenant', () => {

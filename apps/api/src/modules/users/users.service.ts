@@ -1,9 +1,11 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { AuditService } from '../audit/audit.service';
+import { USER_REVOKED_BEFORE_PREFIX } from '../auth/auth.service';
 import { InviteUserDto, UpdateUserRoleDto } from './users.dto';
 
 const SAFE_SELECT = {
@@ -18,9 +20,12 @@ const SAFE_SELECT = {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly redis: RedisService,
   ) {}
 
   async listForCurrentTenant() {
@@ -141,7 +146,7 @@ export class UsersService {
         throw new ForbiddenException('Cannot deactivate the last OWNER of the tenant');
       }
 
-      // Revoke all active sessions.
+      // Revoke all active refresh sessions.
       await tx.session.updateMany({
         where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -152,6 +157,15 @@ export class UsersService {
         data: { isActive: false },
         select: SAFE_SELECT,
       });
+
+      // FIX (RED1#1): also kill any LIVE access JWTs by setting the per-user
+      // "revoked-before" cutoff to now. JwtAuthGuard rejects tokens with
+      // iat < cutoff. Without this, stolen 15-min access tokens kept working
+      // even after deactivation. Best-effort — done outside the tx so a Redis
+      // hiccup doesn't block the deactivation itself.
+      void this.redis.client
+        .setex(`${USER_REVOKED_BEFORE_PREFIX}${userId}`, 24 * 3600, String(Math.floor(Date.now() / 1000)))
+        .catch((err: unknown) => this.logger.warn(`failed to set revoked-before: ${String(err)}`));
 
       await this.audit.log({
         tenantId: ctx.tenantId,

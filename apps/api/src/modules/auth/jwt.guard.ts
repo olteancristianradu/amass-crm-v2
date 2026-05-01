@@ -6,7 +6,12 @@ import { loadEnv } from '../../config/env';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { RedisService } from '../../infra/redis/redis.service';
-import { JwtPayload, JWT_BLOCKLIST_PREFIX } from './auth.service';
+import {
+  JwtPayload,
+  JWT_BLOCKLIST_PREFIX,
+  USER_REVOKED_BEFORE_PREFIX,
+  TENANT_SUSPENDED_PREFIX,
+} from './auth.service';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -50,6 +55,31 @@ export class JwtAuthGuard implements CanActivate {
     const revoked = await this.redis.client.exists(`${JWT_BLOCKLIST_PREFIX}${payload.jti}`);
     if (revoked) {
       throw new UnauthorizedException({ code: 'TOKEN_REVOKED', message: 'Token has been revoked' });
+    }
+
+    // FIX (RED1#1 + BLUE2): when an admin deactivates a user (or runs a
+    // force-logout), we set `user_revoked_before:{userId}` to the current
+    // unix timestamp. ANY access token issued at iat < that value is
+    // rejected here — closing the 15-min window where stolen access tokens
+    // would otherwise keep working post-deactivation.
+    const revokedBeforeRaw = await this.redis.client.get(`${USER_REVOKED_BEFORE_PREFIX}${payload.sub}`);
+    if (revokedBeforeRaw) {
+      const revokedBefore = Number(revokedBeforeRaw);
+      const iat = (payload as JwtPayload & { iat?: number }).iat;
+      if (Number.isFinite(revokedBefore) && (!iat || iat < revokedBefore)) {
+        throw new UnauthorizedException({ code: 'TOKEN_REVOKED', message: 'Token has been revoked' });
+      }
+    }
+
+    // FIX (BLUE2#3): tenant-level kill switch. When an admin suspends a
+    // tenant (incident response), we set `tenant_suspended:{tenantId}=1`.
+    // Every authed request is rejected until explicitly unfrozen.
+    const tenantSuspended = await this.redis.client.exists(`${TENANT_SUSPENDED_PREFIX}${payload.tid}`);
+    if (tenantSuspended) {
+      throw new UnauthorizedException({
+        code: 'TENANT_SUSPENDED',
+        message: 'Acest tenant a fost suspendat. Contactează echipa pentru asistență.',
+      });
     }
 
     req.user = {

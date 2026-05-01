@@ -41,8 +41,9 @@ function build() {
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
   } as unknown as ConstructorParameters<typeof GdprService>[0];
   const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof GdprService>[1];
-  const svc = new GdprService(prisma, audit);
-  return { svc, prisma, tx, audit };
+  const storage = { remove: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof GdprService>[2];
+  const svc = new GdprService(prisma, audit, storage);
+  return { svc, prisma, tx, audit, storage };
 }
 
 describe('Anonymisation patch helpers', () => {
