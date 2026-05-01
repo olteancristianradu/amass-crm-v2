@@ -74,57 +74,64 @@ export class GdprService {
 
   // ── Data export ──────────────────────────────────────────────────────────
 
+  // FIX (P1-1, audit 4-agent): all queries below MUST run inside
+  // runWithTenant() so the Prisma extension auto-injects tenantId AND
+  // Postgres RLS (`SET LOCAL ROLE app_user`) provides defense-in-depth.
+  // Pre-fix, these used `this.prisma.X.findMany` directly — manual tenant
+  // filter was correct (Layer 1) but Layer 2 + Layer 3 were bypassed.
+  // A future bug forgetting the manual filter would silently leak data.
+
   async exportContact(id: string): Promise<Record<string, unknown>> {
     const { tenantId } = requireTenantContext();
-    const contact = await this.prisma.contact.findFirst({
-      where: { id, tenantId, deletedAt: null },
+    const result = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const contact = await tx.contact.findFirst({ where: { id, deletedAt: null } });
+      if (!contact) throw new NotFoundException({ code: 'CONTACT_NOT_FOUND' });
+      const [notes, activities, attachments, reminders] = await Promise.all([
+        tx.note.findMany({ where: { subjectType: 'CONTACT', subjectId: id } }),
+        tx.activity.findMany({ where: { subjectType: 'CONTACT', subjectId: id } }),
+        tx.attachment.findMany({ where: { subjectType: 'CONTACT', subjectId: id } }),
+        tx.reminder.findMany({ where: { subjectType: 'CONTACT', subjectId: id } }),
+      ]);
+      return { contact, notes, activities, attachments, reminders };
     });
-    if (!contact) throw new NotFoundException({ code: 'CONTACT_NOT_FOUND' });
-
-    const [notes, activities, attachments, reminders] = await Promise.all([
-      this.prisma.note.findMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } }),
-      this.prisma.activity.findMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } }),
-      this.prisma.attachment.findMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } }),
-      this.prisma.reminder.findMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } }),
-    ]);
 
     await this.audit.log({ action: 'gdpr.export_contact', subjectType: 'contact', subjectId: id });
 
     return {
       exportedAt: new Date().toISOString(),
       subject: 'CONTACT',
-      contact,
-      notes,
-      activities,
-      attachments: attachments.map((a) => ({ ...a, storageKey: '[REDACTED]' })),
-      reminders,
+      contact: result.contact,
+      notes: result.notes,
+      activities: result.activities,
+      attachments: result.attachments.map((a) => ({ ...a, storageKey: '[REDACTED]' })),
+      reminders: result.reminders,
     };
   }
 
   async exportClient(id: string): Promise<Record<string, unknown>> {
     const { tenantId } = requireTenantContext();
-    const client = await this.prisma.client.findFirst({
-      where: { id, tenantId, deletedAt: null },
+    const result = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const client = await tx.client.findFirst({ where: { id, deletedAt: null } });
+      if (!client) throw new NotFoundException({ code: 'CLIENT_NOT_FOUND' });
+      const [notes, activities, attachments, reminders] = await Promise.all([
+        tx.note.findMany({ where: { subjectType: 'CLIENT', subjectId: id } }),
+        tx.activity.findMany({ where: { subjectType: 'CLIENT', subjectId: id } }),
+        tx.attachment.findMany({ where: { subjectType: 'CLIENT', subjectId: id } }),
+        tx.reminder.findMany({ where: { subjectType: 'CLIENT', subjectId: id } }),
+      ]);
+      return { client, notes, activities, attachments, reminders };
     });
-    if (!client) throw new NotFoundException({ code: 'CLIENT_NOT_FOUND' });
-
-    const [notes, activities, attachments, reminders] = await Promise.all([
-      this.prisma.note.findMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } }),
-      this.prisma.activity.findMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } }),
-      this.prisma.attachment.findMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } }),
-      this.prisma.reminder.findMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } }),
-    ]);
 
     await this.audit.log({ action: 'gdpr.export_client', subjectType: 'client', subjectId: id });
 
     return {
       exportedAt: new Date().toISOString(),
       subject: 'CLIENT',
-      client,
-      notes,
-      activities,
-      attachments: attachments.map((a) => ({ ...a, storageKey: '[REDACTED]' })),
-      reminders,
+      client: result.client,
+      notes: result.notes,
+      activities: result.activities,
+      attachments: result.attachments.map((a) => ({ ...a, storageKey: '[REDACTED]' })),
+      reminders: result.reminders,
     };
   }
 
@@ -135,10 +142,11 @@ export class GdprService {
    */
   async exportLead(id: string): Promise<Record<string, unknown>> {
     const { tenantId } = requireTenantContext();
-    const lead = await this.prisma.lead.findFirst({
-      where: { id, tenantId, deletedAt: null },
+    const lead = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const row = await tx.lead.findFirst({ where: { id, deletedAt: null } });
+      if (!row) throw new NotFoundException({ code: 'LEAD_NOT_FOUND' });
+      return row;
     });
-    if (!lead) throw new NotFoundException({ code: 'LEAD_NOT_FOUND' });
 
     await this.audit.log({ action: 'gdpr.export_lead', subjectType: 'lead', subjectId: id });
 
@@ -153,17 +161,21 @@ export class GdprService {
 
   async eraseContact(id: string): Promise<{ erased: true }> {
     const { tenantId } = requireTenantContext();
-    // Only act on live rows — re-erasing a soft-deleted contact is a no-op.
-    const contact = await this.prisma.contact.findFirst({ where: { id, tenantId, deletedAt: null } });
-    if (!contact) throw new NotFoundException({ code: 'CONTACT_NOT_FOUND' });
+    // Single transaction: lookup + collect blob keys + anonymise. Everything
+    // runs through tenantExtension + RLS — Layer 2 + Layer 3 enforced.
+    const { attachmentKeys, callRecordingKeys } = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const contact = await tx.contact.findFirst({ where: { id, deletedAt: null } });
+      if (!contact) throw new NotFoundException({ code: 'CONTACT_NOT_FOUND' });
 
-    // FIX (BLUE3#1): collect attachment storage keys + call recordings BEFORE
-    // the transaction so we can delete them from MinIO after the DB commits.
-    // Pre-fix the rows were anonymised but the binary blobs lived on forever.
-    const attachmentKeys = await this.collectAttachmentKeysForSubject(tenantId, 'CONTACT', id);
-    const callRecordingKeys = await this.collectCallRecordingKeys(tenantId, contact.email ?? null, id);
-
-    await this.prisma.runWithTenant(tenantId, async (tx) => {
+      // Collect blob keys BEFORE deleting rows (so we can scrub MinIO after).
+      const attachments = await tx.attachment.findMany({
+        where: { subjectType: 'CONTACT', subjectId: id },
+        select: { storageKey: true },
+      });
+      const calls = await tx.call.findMany({
+        where: { subjectType: 'CONTACT', subjectId: id, recordingStorageKey: { not: null } },
+        select: { recordingStorageKey: true },
+      });
       // Anonymise PII fields + mark deleted
       await tx.contact.update({
         where: { id },
@@ -178,27 +190,32 @@ export class GdprService {
           deletedAt: new Date(),
         },
       });
-      // Hard-delete related polymorphic data
-      await tx.note.deleteMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } });
-      await tx.reminder.deleteMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } });
+      // Hard-delete related polymorphic data (tenantId auto-injected by extension).
+      await tx.note.deleteMany({ where: { subjectType: 'CONTACT', subjectId: id } });
+      await tx.reminder.deleteMany({ where: { subjectType: 'CONTACT', subjectId: id } });
       // Activities and attachments: hard-delete (Art. 17)
-      await tx.activity.deleteMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } });
-      await tx.attachment.deleteMany({ where: { tenantId, subjectType: 'CONTACT', subjectId: id } });
+      await tx.activity.deleteMany({ where: { subjectType: 'CONTACT', subjectId: id } });
+      await tx.attachment.deleteMany({ where: { subjectType: 'CONTACT', subjectId: id } });
       // Calls + transcripts: anonymise transcript text, drop recording URL.
       // Both use polymorphic subjectType+subjectId (not a contactId FK).
       await tx.callTranscript.updateMany({
-        where: { tenantId, call: { subjectType: 'CONTACT', subjectId: id } },
+        where: { call: { subjectType: 'CONTACT', subjectId: id } },
         data: { rawText: ANON, redactedText: ANON, summary: ANON },
       });
       await tx.call.updateMany({
-        where: { tenantId, subjectType: 'CONTACT', subjectId: id },
+        where: { subjectType: 'CONTACT', subjectId: id },
         data: { recordingUrl: null, recordingStorageKey: null, fromNumber: ANON, toNumber: ANON },
       });
       // Email messages: anonymise body + recipients. subject is required NOT NULL.
       await tx.emailMessage.updateMany({
-        where: { tenantId, subjectType: 'CONTACT', subjectId: id },
+        where: { subjectType: 'CONTACT', subjectId: id },
         data: { bodyHtml: ANON, bodyText: null, toAddresses: [], ccAddresses: [], bccAddresses: [], subject: ANON },
       });
+
+      return {
+        attachmentKeys: attachments.map((a) => a.storageKey).filter((k): k is string => Boolean(k)),
+        callRecordingKeys: calls.map((c) => c.recordingStorageKey).filter((k): k is string => Boolean(k)),
+      };
     });
 
     // After DB commits, scrub binary blobs (best-effort — failures land in
@@ -220,12 +237,15 @@ export class GdprService {
 
   async eraseClient(id: string): Promise<{ erased: true }> {
     const { tenantId } = requireTenantContext();
-    const client = await this.prisma.client.findFirst({ where: { id, tenantId, deletedAt: null } });
-    if (!client) throw new NotFoundException({ code: 'CLIENT_NOT_FOUND' });
+    const attachmentKeys = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const client = await tx.client.findFirst({ where: { id, deletedAt: null } });
+      if (!client) throw new NotFoundException({ code: 'CLIENT_NOT_FOUND' });
 
-    const attachmentKeys = await this.collectAttachmentKeysForSubject(tenantId, 'CLIENT', id);
+      const attachments = await tx.attachment.findMany({
+        where: { subjectType: 'CLIENT', subjectId: id },
+        select: { storageKey: true },
+      });
 
-    await this.prisma.runWithTenant(tenantId, async (tx) => {
       await tx.client.update({
         where: { id },
         data: {
@@ -239,10 +259,12 @@ export class GdprService {
           deletedAt: new Date(),
         },
       });
-      await tx.note.deleteMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } });
-      await tx.reminder.deleteMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } });
-      await tx.activity.deleteMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } });
-      await tx.attachment.deleteMany({ where: { tenantId, subjectType: 'CLIENT', subjectId: id } });
+      await tx.note.deleteMany({ where: { subjectType: 'CLIENT', subjectId: id } });
+      await tx.reminder.deleteMany({ where: { subjectType: 'CLIENT', subjectId: id } });
+      await tx.activity.deleteMany({ where: { subjectType: 'CLIENT', subjectId: id } });
+      await tx.attachment.deleteMany({ where: { subjectType: 'CLIENT', subjectId: id } });
+
+      return attachments.map((a) => a.storageKey).filter((k): k is string => Boolean(k));
     });
 
     await Promise.allSettled(attachmentKeys.map((k) => this.storage.remove(k)));
@@ -264,10 +286,9 @@ export class GdprService {
    */
   async eraseLead(id: string): Promise<{ erased: true }> {
     const { tenantId } = requireTenantContext();
-    const lead = await this.prisma.lead.findFirst({ where: { id, tenantId, deletedAt: null } });
-    if (!lead) throw new NotFoundException({ code: 'LEAD_NOT_FOUND' });
-
     await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const lead = await tx.lead.findFirst({ where: { id, deletedAt: null } });
+      if (!lead) throw new NotFoundException({ code: 'LEAD_NOT_FOUND' });
       await tx.lead.update({
         where: { id },
         data: {
@@ -288,43 +309,6 @@ export class GdprService {
     return { erased: true };
   }
 
-  /**
-   * Helper — collect MinIO storage keys for all attachments owned by a
-   * subject before the DB rows are deleted. Without this, binary blobs
-   * orphan in object storage and the user's "erasure" is incomplete.
-   */
-  private async collectAttachmentKeysForSubject(
-    tenantId: string,
-    subjectType: 'CONTACT' | 'CLIENT' | 'COMPANY',
-    subjectId: string,
-  ): Promise<string[]> {
-    const rows = await this.prisma.attachment.findMany({
-      where: { tenantId, subjectType, subjectId },
-      select: { storageKey: true },
-    });
-    return rows.map((r) => r.storageKey).filter((k): k is string => Boolean(k));
-  }
-
-  /**
-   * Helper — collect MinIO storage keys for call recordings owned by a
-   * contact (via the polymorphic subjectType+subjectId pattern). Twilio URLs
-   * cannot be deleted remotely (they live on Twilio's side per their TOS),
-   * so we only return our internal MinIO keys.
-   */
-  private async collectCallRecordingKeys(
-    tenantId: string,
-    _contactEmail: string | null,
-    contactId: string,
-  ): Promise<string[]> {
-    const rows = await this.prisma.call.findMany({
-      where: { tenantId, subjectType: 'CONTACT', subjectId: contactId, recordingStorageKey: { not: null } },
-      select: { recordingStorageKey: true },
-    });
-    return rows
-      .map((r) => r.recordingStorageKey)
-      .filter((k): k is string => Boolean(k));
-  }
-
   // ── Retention sweep ──────────────────────────────────────────────────────
 
   /**
@@ -336,24 +320,19 @@ export class GdprService {
     const { tenantId } = requireTenantContext();
     const cutoff = new Date(Date.now() - retentionDays * 86400000);
 
-    const [staleContacts, staleClients] = await Promise.all([
-      this.prisma.contact.findMany({
-        where: {
-          tenantId,
-          deletedAt: { lte: cutoff },
-          NOT: { firstName: ANON },
-        },
-        select: { id: true },
-      }),
-      this.prisma.client.findMany({
-        where: {
-          tenantId,
-          deletedAt: { lte: cutoff },
-          NOT: { firstName: ANON },
-        },
-        select: { id: true },
-      }),
-    ]);
+    const { staleContacts, staleClients } = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const [contacts, clients] = await Promise.all([
+        tx.contact.findMany({
+          where: { deletedAt: { lte: cutoff }, NOT: { firstName: ANON } },
+          select: { id: true },
+        }),
+        tx.client.findMany({
+          where: { deletedAt: { lte: cutoff }, NOT: { firstName: ANON } },
+          select: { id: true },
+        }),
+      ]);
+      return { staleContacts: contacts, staleClients: clients };
+    });
 
     for (const { id } of staleContacts) {
       await this.eraseContact(id).catch((err) =>

@@ -1,6 +1,6 @@
 # STATUS.md — Stadiul Proiectului Amass CRM v2
 
-> Actualizat: 2026-04-28 (sesiune 2) | Sprint curent: autonomous overnight pass + continuare — DB migrate deploy live (82 tabele OK), mock infrastructure (mailpit + stripe-mock + 7 custom mocks pe profile `mocks`), `*_BASE_URL` plumbing live (SMS verificat end-to-end prin twilio-mock), Cedar coverage 18/64 → **48/64** (105 handlers noi pe 29 controllere), dark theme tri-state, main bundle **440 KB → 337 KB / 106 → 86 KB gzip** (–23% prin lazy-load pe 12 rute heavy), bug fix raw-SQL camelCase pe `/reports/dashboard`. Vezi `docs/VERIFICATION_REPORT_2026-04-28.md`, `docs/SESSION_REPORT_2026-04-28.md`, `docs/UNFINISHED.md`.
+> Actualizat: 2026-05-01 — wave 2/3 security audit (4-agent independent audit). Fix-uri P0/P1 aplicate: GDPR helpers wrap în runWithTenant, calls.service findUnique pe webhooks, ANAF upsert tenant-scoped, +35 indexuri (tenantId, deletedAt) compound, +tenantId pe 5 sub-modele (WebhookDelivery/OrderItem/ProductBundleItem/TerritoryAssignment/EventAttendee), tour-progress runWithTenant, reports limit clamp 10k, Contact/Lead [tenantId,email] index. Vezi commits 1521b96, 4403ba1, plus pending wave 3.
 
 **Acest fișier e ONEST. Ceea ce e „implementat complet" e cu adevărat funcțional; ceea ce e parțial sau stub e marcat ca atare. Coordonează cu [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md) pentru punctele care mai necesită verificare runtime pe Docker real.**
 
@@ -10,11 +10,12 @@
 
 | Indicator | Valoare | Verificare |
 |-----------|---------|------------|
-| Module backend total | **64** (din care 5 scaffold 501) | `find apps/api/src/modules -mindepth 1 -maxdepth 1 -type d \| wc -l` |
-| Module backend funcționale | **59** | subtract SCIM/WebAuthn/Sync/Push/AccessControl scaffolds |
-| Modele Prisma (tabele) | **80+** | `grep -c '^model ' apps/api/prisma/schema.prisma` |
-| Pagini frontend | **45–49** | `find apps/web/src/routes -name '*.tsx' \| wc -l` — minus 5 lazy wrappers |
-| Unit tests API | **638+ passing** în 64 fișiere | `pnpm --filter @amass/api vitest run --config vitest.config.unit.ts` |
+| Module backend total | **67** (din care 5 scaffold 501) | `find apps/api/src/modules -mindepth 1 -maxdepth 1 -type d \| wc -l` |
+| Module backend funcționale | **62** | subtract SCIM/WebAuthn/Sync/Push/AccessControl scaffolds |
+| Modele Prisma (tabele) | **83** | `grep -c '^model ' apps/api/prisma/schema.prisma` |
+| Migrări Prisma | **49** | `ls apps/api/prisma/migrations \| grep -E '^[0-9]+_' \| wc -l` |
+| Pagini frontend | **~75** | `find apps/web/src/routes -name '*.tsx' \| wc -l` = 80 minus ~5 lazy wrappers |
+| Unit tests API | **88 spec files** | `find apps/api/src -name '*.spec.ts' \| wc -l` |
 | E2e tests API | **13 fișiere** (necesită Docker: Postgres + Redis + MinIO) | în `apps/api/test/` |
 | Web tests | **38 passing** în 7 fișiere | `pnpm --filter @amass/web test` |
 | TypeScript errors | **0** (api + web) | `pnpm typecheck` |

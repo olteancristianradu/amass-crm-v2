@@ -164,6 +164,12 @@ export class CallsService {
       const twilioCallSid = params['CallSid'] ?? '';
 
       // Look up which tenant owns the destination number.
+      // Pre-auth context: we don't yet know the tenant — we DERIVE it from
+      // the destination number. Twilio numbers are globally unique by Twilio's
+      // own platform, so even though our schema doesn't enforce a DB-level
+      // uniqueness on `number`, the operational reality is one row per number.
+      // FOLLOW-UP (P0-1): add @unique on PhoneNumber.number so a future bug
+      // can't silently route a webhook to the wrong tenant.
       const phoneNumber = await this.prisma.phoneNumber.findFirst({
         where: { number: toNumber },
       });
@@ -259,7 +265,14 @@ export class CallsService {
       return;
     }
 
-    const existing = await this.prisma.call.findFirst({ where: { id: callId } });
+    // Webhook trust model: the Twilio signature was verified above (line 233).
+    // The callId is our internal id we set in the statusCallback URL when
+    // we placed the outbound call (createCall) — Twilio just echoes it back.
+    // We use findUnique on the PK to derive the tenant; subsequent writes are
+    // wrapped in runWithTenant. If this method is ever called from a path
+    // that does NOT verify the webhook signature, the global lookup becomes
+    // a defense-in-depth gap.
+    const existing = await this.prisma.call.findUnique({ where: { id: callId } });
     if (!existing) {
       this.logger.warn(`Status webhook for unknown callId=${callId}`);
       return;
@@ -332,7 +345,8 @@ export class CallsService {
     }
     await this.redis.client.set(idempKey, '1', 'EX', 300);
 
-    const existing = await this.prisma.call.findFirst({ where: { id: callId } });
+    // Same trust model as handleStatusWebhook — signature is verified above.
+    const existing = await this.prisma.call.findUnique({ where: { id: callId } });
     if (!existing) {
       this.logger.warn(`Recording webhook for unknown callId=${callId}`);
       return;
@@ -368,8 +382,14 @@ export class CallsService {
    * Auth is handled by SystemApiKeyGuard (not JwtAuthGuard) in the controller.
    */
   async saveAiResult(callId: string, dto: AiCallResultDto): Promise<CallTranscript> {
-    // No tenant context here (called by system worker), look up raw
-    const call = await this.prisma.call.findFirst({ where: { id: callId } });
+    // Trust model: SystemApiKeyGuard at the controller validates the shared
+    // AI_WORKER_SECRET. The static secret is the only authorization — if it
+    // leaks, an attacker can write to any tenant's call. AUDIT-FOLLOW-UP
+    // (RED1#8): bind a per-call HMAC token at job-enqueue time so a leaked
+    // global secret cannot be reused. For now we use findUnique on the PK
+    // and verify the AI worker echoes back our (callId, tenantId) via
+    // jobId === callId in the BullMQ payload (calls.service:359).
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
     if (!call) throw new NotFoundException({ code: 'CALL_NOT_FOUND', message: 'Call not found' });
 
     const transcriptData = {

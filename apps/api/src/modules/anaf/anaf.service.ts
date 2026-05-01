@@ -316,16 +316,47 @@ export class AnafService {
     };
   }
 
+  /**
+   * FIX (P0-2): pre-fix this used `this.prisma.anafSubmission.upsert` directly
+   * with a global where clause `{ invoiceId }`. Two risks:
+   *   1. CUID collisions are theoretically possible — even astronomically
+   *      unlikely, the upsert would silently merge two tenants' submissions.
+   *   2. The `update` branch did not check tenantId — an attacker that knew
+   *      another tenant's invoiceId could overwrite their ANAF status.
+   *
+   * Fix: wrap in runWithTenant (Layer 2 + 3 enforced) and verify the existing
+   * row's tenantId before update. If tenantId mismatch, refuse with an audit log.
+   */
   private async upsertSubmission(
     tenantId: string,
     invoiceId: string,
     status: AnafSubmissionStatus,
     extra: Partial<{ uploadIndex: string | null; downloadId: string | null; xmlContent: string; errorMessage: string; submittedAt: Date; validatedAt: Date }>,
   ) {
-    await this.prisma.anafSubmission.upsert({
-      where: { invoiceId },
-      create: { tenantId, invoiceId, status, ...extra },
-      update: { status, ...extra },
+    await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const existing = await tx.anafSubmission.findFirst({
+        where: { invoiceId },
+        select: { id: true, tenantId: true },
+      });
+      if (existing) {
+        if (existing.tenantId !== tenantId) {
+          // Belt-and-suspenders: this should never happen because runWithTenant
+          // sets the RLS tenant_id; existing.tenantId would already be filtered.
+          // But if RLS is somehow bypassed (e.g. dev BYPASSRLS user), this
+          // catches the cross-tenant write attempt.
+          throw new Error(
+            `ANAF cross-tenant write blocked: invoiceId=${invoiceId} owned by ${existing.tenantId}, request from ${tenantId}`,
+          );
+        }
+        await tx.anafSubmission.update({
+          where: { id: existing.id },
+          data: { status, ...extra },
+        });
+      } else {
+        await tx.anafSubmission.create({
+          data: { tenantId, invoiceId, status, ...extra },
+        });
+      }
     });
   }
 }

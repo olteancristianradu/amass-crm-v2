@@ -17,14 +17,19 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 export class TourProgressService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // FIX (P1-2): pre-fix the user.update calls used `where: { id: userId }`
+  // without runWithTenant, bypassing Layer 2 + Layer 3 of the multi-tenant
+  // defense. A token from tenant A could update a user row by id even if
+  // that user belonged to tenant B (because RLS wasn't engaged).
+  // Now everything runs through runWithTenant + RLS enforces tenant scope.
+
   /** All tour IDs the current user has completed or dismissed. */
   async getCompletedTours(): Promise<string[]> {
-    const { userId } = requireTenantContext();
+    const { tenantId, userId } = requireTenantContext();
     if (!userId) return [];
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { completedTours: true },
-    });
+    const user = await this.prisma.runWithTenant(tenantId, async (tx) =>
+      tx.user.findFirst({ where: { id: userId }, select: { completedTours: true } }),
+    );
     const raw = user?.completedTours;
     if (!Array.isArray(raw)) return [];
     return raw.filter((v): v is string => typeof v === 'string');
@@ -35,12 +40,11 @@ export class TourProgressService {
     const current = await this.getCompletedTours();
     if (current.includes(tourId)) return current;
     const next = [...current, tourId];
-    const { userId } = requireTenantContext();
+    const { tenantId, userId } = requireTenantContext();
     if (!userId) return next;
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { completedTours: next },
-    });
+    await this.prisma.runWithTenant(tenantId, async (tx) =>
+      tx.user.update({ where: { id: userId }, data: { completedTours: next } }),
+    );
     return next;
   }
 
@@ -49,12 +53,11 @@ export class TourProgressService {
     const current = await this.getCompletedTours();
     const next = current.filter((id) => id !== tourId);
     if (next.length === current.length) return current;
-    const { userId } = requireTenantContext();
+    const { tenantId, userId } = requireTenantContext();
     if (!userId) return next;
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { completedTours: next },
-    });
+    await this.prisma.runWithTenant(tenantId, async (tx) =>
+      tx.user.update({ where: { id: userId }, data: { completedTours: next } }),
+    );
     return next;
   }
 }

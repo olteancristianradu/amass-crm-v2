@@ -119,11 +119,18 @@ export class ReportBuilderService {
     };
 
     const orderField = config.orderBy && allowed.has(config.orderBy) ? config.orderBy : 'createdAt';
+    // FIX (P1-4): clamp `limit` to 10_000 server-side. A user submitting
+    // limit=9_999_999 with 500k matching rows could OOM the API process and
+    // bring down the tenant. 10k is generous for ad-hoc reports — exports
+    // beyond that should use the async export pipeline.
+    const REPORT_HARD_LIMIT = 10_000;
+    const requestedLimit = config.limit ?? 100;
+    const safeLimit = Math.max(1, Math.min(requestedLimit, REPORT_HARD_LIMIT));
     const results = await delegate.findMany({
       where,
       select: { ...select, tenantId: false },
       orderBy: { [orderField]: config.orderDir ?? 'desc' },
-      take: config.limit ?? 100,
+      take: safeLimit,
     });
 
     if (!config.groupBy || !allowed.has(config.groupBy)) return results as unknown[];
