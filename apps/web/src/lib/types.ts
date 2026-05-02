@@ -289,6 +289,8 @@ export interface CallTranscript {
   actionItems?: string[] | null;
   sentiment?: 'positive' | 'neutral' | 'negative' | null;
   topics?: string[] | null;
+  scriptComplianceScore?: number | null;
+  scriptMissedItems?: string[] | null;
   model?: string | null;
   processedAt: string;
 }

@@ -834,10 +834,12 @@ model CallTranscript {
   redactedText String? // text after Presidio PII redaction
   summary      String? // short Claude-generated summary
   actionItems  Json? // array of extracted action items (strings)
-  sentiment    String? // positive / neutral / negative
-  topics       Json? // array of topics
-  processedAt  DateTime @default(now())
-  model        String? // which Claude model was used
+  sentiment              String? // positive / neutral / negative
+  topics                 Json? // array of topics
+  scriptComplianceScore  Int? // 0–100: % of sales script covered
+  scriptMissedItems      Json? // array of string — script points not covered
+  processedAt            DateTime @default(now())
+  model                  String? // which Claude model was used
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

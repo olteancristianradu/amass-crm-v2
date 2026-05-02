@@ -6,11 +6,16 @@ vi.mock('../../infra/prisma/tenant-context', () => ({
 }));
 
 function build() {
+  // P1-2 fix: service now uses runWithTenant for all user reads/writes.
+  // tx carries the methods the service calls inside the transaction.
+  const tx = {
+    user: { findFirst: vi.fn(), update: vi.fn() },
+  };
   const prisma = {
-    user: { findUnique: vi.fn(), update: vi.fn() },
+    runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
   } as unknown as ConstructorParameters<typeof TourProgressService>[0];
   const svc = new TourProgressService(prisma);
-  return { svc, prisma };
+  return { svc, prisma, tx };
 }
 
 describe('TourProgressService.getCompletedTours', () => {
@@ -18,23 +23,23 @@ describe('TourProgressService.getCompletedTours', () => {
 
   it('returns array from User.completedTours', async () => {
     const h = build();
-    vi.mocked(h.prisma.user.findUnique).mockResolvedValueOnce({
+    h.tx.user.findFirst.mockResolvedValueOnce({
       completedTours: ['companies-list', 'deals-kanban'],
-    } as never);
+    });
     expect(await h.svc.getCompletedTours()).toEqual(['companies-list', 'deals-kanban']);
   });
 
   it('returns empty array when user not found', async () => {
     const h = build();
-    vi.mocked(h.prisma.user.findUnique).mockResolvedValueOnce(null);
+    h.tx.user.findFirst.mockResolvedValueOnce(null);
     expect(await h.svc.getCompletedTours()).toEqual([]);
   });
 
   it('filters non-string values defensively', async () => {
     const h = build();
-    vi.mocked(h.prisma.user.findUnique).mockResolvedValueOnce({
+    h.tx.user.findFirst.mockResolvedValueOnce({
       completedTours: ['valid-id', 42, null, 'another-valid', { junk: true }],
-    } as never);
+    });
     expect(await h.svc.getCompletedTours()).toEqual(['valid-id', 'another-valid']);
   });
 });
@@ -44,13 +49,13 @@ describe('TourProgressService.markCompleted', () => {
 
   it('appends new tour id', async () => {
     const h = build();
-    vi.mocked(h.prisma.user.findUnique).mockResolvedValueOnce({
-      completedTours: ['existing'],
-    } as never);
-    vi.mocked(h.prisma.user.update).mockResolvedValueOnce({} as never);
+    h.tx.user.findFirst
+      .mockResolvedValueOnce({ completedTours: ['existing'] }) // getCompletedTours inside markCompleted
+      .mockResolvedValueOnce({ completedTours: ['existing'] }); // second getCompletedTours call won't happen, but defensive
+    h.tx.user.update.mockResolvedValueOnce({});
     const r = await h.svc.markCompleted('new-tour');
     expect(r).toEqual(['existing', 'new-tour']);
-    expect(h.prisma.user.update).toHaveBeenCalledWith({
+    expect(h.tx.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: { completedTours: ['existing', 'new-tour'] },
     });
@@ -58,12 +63,10 @@ describe('TourProgressService.markCompleted', () => {
 
   it('idempotent — does not duplicate', async () => {
     const h = build();
-    vi.mocked(h.prisma.user.findUnique).mockResolvedValueOnce({
-      completedTours: ['already-done'],
-    } as never);
+    h.tx.user.findFirst.mockResolvedValueOnce({ completedTours: ['already-done'] });
     const r = await h.svc.markCompleted('already-done');
     expect(r).toEqual(['already-done']);
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.tx.user.update).not.toHaveBeenCalled();
   });
 });
 
@@ -72,21 +75,17 @@ describe('TourProgressService.markIncomplete', () => {
 
   it('removes tour id when present', async () => {
     const h = build();
-    vi.mocked(h.prisma.user.findUnique).mockResolvedValueOnce({
-      completedTours: ['a', 'b', 'c'],
-    } as never);
-    vi.mocked(h.prisma.user.update).mockResolvedValueOnce({} as never);
+    h.tx.user.findFirst.mockResolvedValueOnce({ completedTours: ['a', 'b', 'c'] });
+    h.tx.user.update.mockResolvedValueOnce({});
     const r = await h.svc.markIncomplete('b');
     expect(r).toEqual(['a', 'c']);
   });
 
   it('idempotent — no-op when tour was not completed', async () => {
     const h = build();
-    vi.mocked(h.prisma.user.findUnique).mockResolvedValueOnce({
-      completedTours: ['a'],
-    } as never);
+    h.tx.user.findFirst.mockResolvedValueOnce({ completedTours: ['a'] });
     const r = await h.svc.markIncomplete('not-there');
     expect(r).toEqual(['a']);
-    expect(h.prisma.user.update).not.toHaveBeenCalled();
+    expect(h.tx.user.update).not.toHaveBeenCalled();
   });
 });

@@ -19,7 +19,13 @@ const ORIG_ENV = { ...process.env };
 function build() {
   const tx = {
     invoice: { findFirst: vi.fn() },
-    anafSubmission: { findUnique: vi.fn(), upsert: vi.fn() },
+    // upsertSubmission uses a manual find+create/update pattern (not Prisma .upsert).
+    anafSubmission: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
   };
   const prisma = {
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
@@ -33,6 +39,7 @@ function build() {
         redisStore.set(k, v);
         return 'OK';
       }),
+      del: vi.fn(async (k: string) => { redisStore.delete(k); return 1; }),
     },
   } as unknown as ConstructorParameters<typeof AnafService>[1];
   const svc = new AnafService(prisma, redis);
@@ -125,11 +132,11 @@ describe('AnafService.submitInvoice', () => {
     const uploadCall = fetchSpy.mock.calls[1];
     expect(String(uploadCall[0])).toContain('webservicesp.anaf.ro');
     expect(String(uploadCall[0])).toContain('cif=12345678'); // RO prefix stripped
-    // Submission row written with UPLOADED status + the XML
-    const upsertArgs = vi.mocked(h.prisma.anafSubmission.upsert).mock.calls[0][0];
-    expect(upsertArgs.create.status).toBe('UPLOADED');
-    expect(upsertArgs.create.uploadIndex).toBe('IDX-9');
-    expect(upsertArgs.create.xmlContent).toContain('<Invoice');
+    // Submission row created (no existing row → create path in upsertSubmission).
+    const createArgs = h.tx.anafSubmission.create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(createArgs.data.status).toBe('UPLOADED');
+    expect(createArgs.data.uploadIndex).toBe('IDX-9');
+    expect(String(createArgs.data.xmlContent)).toContain('<Invoice');
     fetchSpy.mockRestore();
   });
 
@@ -167,9 +174,9 @@ describe('AnafService.submitInvoice', () => {
       } as Response);
 
     await expect(h.svc.submitInvoice('inv-1')).rejects.toThrow(/CIF inactiv/);
-    const upsertArgs = vi.mocked(h.prisma.anafSubmission.upsert).mock.calls[0][0];
-    expect(upsertArgs.create.status).toBe('FAILED');
-    expect(upsertArgs.create.errorMessage).toBe('CIF inactiv');
+    const createArgs = h.tx.anafSubmission.create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(createArgs.data.status).toBe('FAILED');
+    expect(createArgs.data.errorMessage).toBe('CIF inactiv');
     fetchSpy.mockRestore();
   });
 });
@@ -201,6 +208,8 @@ describe('AnafService.checkStatus', () => {
       downloadId: null,
       validatedAt: null,
     });
+    // upsertSubmission (called by checkStatus) uses findFirst to decide create vs update.
+    h.tx.anafSubmission.findFirst.mockResolvedValueOnce({ id: 'sub-1', tenantId: 'tenant-1' });
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce({
         ok: true,
@@ -213,10 +222,10 @@ describe('AnafService.checkStatus', () => {
         json: async () => ({ stare: 'ok', id_descarcare: 'DL-1' }),
       } as Response);
     await h.svc.checkStatus('inv-1');
-    const upsertArgs = vi.mocked(h.prisma.anafSubmission.upsert).mock.calls[0][0];
-    expect(upsertArgs.update.status).toBe('OK');
-    expect(upsertArgs.update.downloadId).toBe('DL-1');
-    expect(upsertArgs.update.validatedAt).toBeInstanceOf(Date);
+    const updateArgs = h.tx.anafSubmission.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(updateArgs.data.status).toBe('OK');
+    expect(updateArgs.data.downloadId).toBe('DL-1');
+    expect(updateArgs.data.validatedAt).toBeInstanceOf(Date);
     fetchSpy.mockRestore();
   });
 });

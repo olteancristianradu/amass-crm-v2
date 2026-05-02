@@ -113,7 +113,7 @@ export class WebhooksService {
 
     const body = JSON.stringify({ event, tenantId, timestamp: new Date().toISOString(), data: payload });
 
-    await Promise.allSettled(endpoints.map((ep) => this.deliver(ep, event, body, payload)));
+    await Promise.allSettled(endpoints.map((ep) => this.deliver(ep, event, body, payload, tenantId)));
   }
 
   private async deliver(
@@ -121,6 +121,7 @@ export class WebhooksService {
     event: WebhookEvent,
     body: string,
     payload: Record<string, unknown>,
+    tenantId: string,
   ): Promise<void> {
     const sig = `sha256=${createHmac('sha256', ep.secret).update(body).digest('hex')}`;
 
@@ -149,6 +150,7 @@ export class WebhooksService {
 
     await this.prisma.webhookDelivery.create({
       data: {
+        tenantId,
         endpointId: ep.id,
         event,
         payload: payload as Prisma.InputJsonObject,

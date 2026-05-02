@@ -16,28 +16,47 @@ import {
 } from './gdpr.service';
 
 function build() {
+  // tx carries ALL methods that eraseContact/eraseClient/export* call inside
+  // runWithTenant. Methods not relevant to a specific test default to vi.fn()
+  // (resolves undefined) or mockResolvedValue([]) for findMany queries.
   const tx = {
-    contact: { update: vi.fn() },
-    client: { update: vi.fn() },
-    note: { deleteMany: vi.fn() },
-    reminder: { deleteMany: vi.fn() },
-    activity: { deleteMany: vi.fn() },
-  };
-  const prisma = {
     contact: {
       findFirst: vi.fn(),
-      findMany: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn(),
     },
     client: {
       findFirst: vi.fn(),
-      findMany: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn(),
     },
-    note: { findMany: vi.fn().mockResolvedValue([]) },
-    activity: { findMany: vi.fn().mockResolvedValue([]) },
-    attachment: { findMany: vi.fn().mockResolvedValue([]) },
-    reminder: { findMany: vi.fn().mockResolvedValue([]) },
+    note: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn(),
+    },
+    reminder: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn(),
+    },
+    activity: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn(),
+    },
+    attachment: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn(),
+    },
+    call: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn(),
+    },
+    callTranscript: { updateMany: vi.fn() },
+    emailMessage: { updateMany: vi.fn() },
+  };
+  const prisma = {
+    // Direct (outside runWithTenant) — used by sweepAllTenants only.
+    contact: { findMany: vi.fn(), update: vi.fn() },
+    client: { findMany: vi.fn(), update: vi.fn() },
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
   } as unknown as ConstructorParameters<typeof GdprService>[0];
   const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof GdprService>[1];
@@ -72,14 +91,14 @@ describe('GdprService.exportContact', () => {
 
   it('throws CONTACT_NOT_FOUND when missing', async () => {
     const h = build();
-    vi.mocked(h.prisma.contact.findFirst).mockResolvedValueOnce(null);
+    h.tx.contact.findFirst.mockResolvedValueOnce(null);
     await expect(h.svc.exportContact('ghost')).rejects.toThrow(NotFoundException);
   });
 
   it('returns the data package and redacts attachment storageKey', async () => {
     const h = build();
-    vi.mocked(h.prisma.contact.findFirst).mockResolvedValueOnce({ id: 'c-1', firstName: 'A' } as never);
-    vi.mocked(h.prisma.attachment.findMany).mockResolvedValueOnce([
+    h.tx.contact.findFirst.mockResolvedValueOnce({ id: 'c-1', firstName: 'A' } as never);
+    h.tx.attachment.findMany.mockResolvedValueOnce([
       { id: 'att-1', storageKey: 'tenant-1/abc/file.pdf', fileName: 'x.pdf' } as never,
     ]);
     const out = await h.svc.exportContact('c-1');
@@ -96,14 +115,14 @@ describe('GdprService.eraseContact', () => {
 
   it('refuses to act on a non-existent / already-deleted contact', async () => {
     const h = build();
-    vi.mocked(h.prisma.contact.findFirst).mockResolvedValueOnce(null);
+    h.tx.contact.findFirst.mockResolvedValueOnce(null);
     await expect(h.svc.eraseContact('ghost')).rejects.toThrow(NotFoundException);
     expect(h.tx.contact.update).not.toHaveBeenCalled();
   });
 
   it('anonymises PII + hard-deletes notes/reminders/activities + audits', async () => {
     const h = build();
-    vi.mocked(h.prisma.contact.findFirst).mockResolvedValueOnce({ id: 'c-1' } as never);
+    h.tx.contact.findFirst.mockResolvedValueOnce({ id: 'c-1' } as never);
     h.tx.contact.update.mockResolvedValueOnce({});
     h.tx.note.deleteMany.mockResolvedValueOnce({ count: 3 });
     h.tx.reminder.deleteMany.mockResolvedValueOnce({ count: 2 });
@@ -129,7 +148,7 @@ describe('GdprService.eraseClient', () => {
 
   it('also nulls addressLine (clients have addresses, contacts do not)', async () => {
     const h = build();
-    vi.mocked(h.prisma.client.findFirst).mockResolvedValueOnce({ id: 'cl-1' } as never);
+    h.tx.client.findFirst.mockResolvedValueOnce({ id: 'cl-1' } as never);
     h.tx.client.update.mockResolvedValueOnce({});
     h.tx.note.deleteMany.mockResolvedValueOnce({ count: 0 });
     h.tx.reminder.deleteMany.mockResolvedValueOnce({ count: 0 });
@@ -146,16 +165,16 @@ describe('GdprService.retentionSweep', () => {
 
   it('finds stale records past the cutoff and anonymises each', async () => {
     const h = build();
-    vi.mocked(h.prisma.contact.findMany).mockResolvedValueOnce([
+    h.tx.contact.findMany.mockResolvedValueOnce([
       { id: 'c-1' },
       { id: 'c-2' },
     ] as never);
-    vi.mocked(h.prisma.client.findMany).mockResolvedValueOnce([{ id: 'cl-1' }] as never);
-    // Each erase{Contact,Client} re-runs findFirst inside erase* — set up.
-    vi.mocked(h.prisma.contact.findFirst)
+    h.tx.client.findMany.mockResolvedValueOnce([{ id: 'cl-1' }] as never);
+    // Each erase{Contact,Client} re-runs findFirst inside its own runWithTenant call.
+    h.tx.contact.findFirst
       .mockResolvedValueOnce({ id: 'c-1' } as never)
       .mockResolvedValueOnce({ id: 'c-2' } as never);
-    vi.mocked(h.prisma.client.findFirst).mockResolvedValueOnce({ id: 'cl-1' } as never);
+    h.tx.client.findFirst.mockResolvedValueOnce({ id: 'cl-1' } as never);
 
     const out = await h.svc.retentionSweep(30);
 
@@ -176,11 +195,11 @@ describe('GdprService.retentionSweep', () => {
 
   it('uses cutoff = now - retentionDays * 86400000 ms in the where filter', async () => {
     const h = build();
-    vi.mocked(h.prisma.contact.findMany).mockResolvedValueOnce([] as never);
-    vi.mocked(h.prisma.client.findMany).mockResolvedValueOnce([] as never);
+    h.tx.contact.findMany.mockResolvedValueOnce([] as never);
+    h.tx.client.findMany.mockResolvedValueOnce([] as never);
     const before = Date.now();
     await h.svc.retentionSweep(7);
-    const where = vi.mocked(h.prisma.contact.findMany).mock.calls[0][0]!.where as {
+    const where = vi.mocked(h.tx.contact.findMany).mock.calls[0]![0]!.where as {
       deletedAt: { lte: Date };
     };
     const cutoff = where.deletedAt.lte.getTime();

@@ -272,7 +272,7 @@ export class CallsService {
     // wrapped in runWithTenant. If this method is ever called from a path
     // that does NOT verify the webhook signature, the global lookup becomes
     // a defense-in-depth gap.
-    const existing = await this.prisma.call.findUnique({ where: { id: callId } });
+    const existing = await this.prisma.call.findFirst({ where: { id: callId } });
     if (!existing) {
       this.logger.warn(`Status webhook for unknown callId=${callId}`);
       return;
@@ -346,7 +346,7 @@ export class CallsService {
     await this.redis.client.set(idempKey, '1', 'EX', 300);
 
     // Same trust model as handleStatusWebhook — signature is verified above.
-    const existing = await this.prisma.call.findUnique({ where: { id: callId } });
+    const existing = await this.prisma.call.findFirst({ where: { id: callId } });
     if (!existing) {
       this.logger.warn(`Recording webhook for unknown callId=${callId}`);
       return;
@@ -389,7 +389,7 @@ export class CallsService {
     // global secret cannot be reused. For now we use findUnique on the PK
     // and verify the AI worker echoes back our (callId, tenantId) via
     // jobId === callId in the BullMQ payload (calls.service:359).
-    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    const call = await this.prisma.call.findFirst({ where: { id: callId } });
     if (!call) throw new NotFoundException({ code: 'CALL_NOT_FOUND', message: 'Call not found' });
 
     const transcriptData = {
@@ -401,6 +401,8 @@ export class CallsService {
       actionItems: dto.actionItems ? (dto.actionItems as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
       sentiment: dto.sentiment ?? null,
       topics: dto.topics ? (dto.topics as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+      scriptComplianceScore: dto.scriptComplianceScore ?? null,
+      scriptMissedItems: dto.scriptMissedItems ? (dto.scriptMissedItems as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
       model: dto.model ?? null,
     };
 

@@ -250,6 +250,11 @@ async function main(): Promise<void> {
         ],
         sentiment: 'positive',
         topics: ['contract', 'facturare', 'licente', 'plata'],
+        scriptComplianceScore: 73,
+        scriptMissedItems: [
+          'Nu a menționat garanția de 12 luni',
+          'Nu a obținut o dată fermă de semnare a contractului',
+        ],
         model: 'claude-sonnet-4-6',
         processedAt: new Date(callStartedAt.getTime() + 10 * 60 * 1000),
       },

@@ -88,6 +88,8 @@ export const AiCallResultSchema = z.object({
   actionItems: z.array(z.string()).optional(),
   sentiment: z.enum(['positive', 'neutral', 'negative']).optional(),
   topics: z.array(z.string()).optional(),
+  scriptComplianceScore: z.number().int().min(0).max(100).optional(),
+  scriptMissedItems: z.array(z.string()).optional(),
   model: z.string().trim().max(64).optional(),
 });
 export type AiCallResultDto = z.infer<typeof AiCallResultSchema>;

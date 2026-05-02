@@ -78,7 +78,7 @@ export class TerritoriesService {
     const ctx = requireTenantContext();
     try {
       return await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
-        tx.territoryAssignment.create({ data: { territoryId, userId } }),
+        tx.territoryAssignment.create({ data: { tenantId: ctx.tenantId, territoryId, userId } }),
       );
     } catch {
       // Unique (territory_id, user_id) violation → user already assigned.

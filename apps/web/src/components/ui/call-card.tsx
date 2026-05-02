@@ -79,6 +79,10 @@ export interface CallCardData {
   actionItems?: string[];
   /** Optional sentiment label / score from AI. */
   sentiment?: string | null;
+  /** 0–100: % of sales script points covered during the call. */
+  scriptComplianceScore?: number | null;
+  /** Script points that were NOT covered (complement of above). */
+  scriptMissedItems?: string[] | null;
   /** Transcript segments (already redacted server-side). */
   transcript?: CallTranscriptSegment[];
 }
@@ -174,6 +178,12 @@ export function CallCard({
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     Ton: <span className="font-medium">{call.sentiment}</span>
                   </p>
+                )}
+                {call.scriptComplianceScore != null && (
+                  <ScriptComplianceBar
+                    score={call.scriptComplianceScore}
+                    missedItems={call.scriptMissedItems ?? []}
+                  />
                 )}
               </div>
             </div>
@@ -325,6 +335,49 @@ function renderRedactions(text: string): ReactNode {
     }
     return p;
   });
+}
+
+function ScriptComplianceBar({
+  score,
+  missedItems,
+}: {
+  score: number;
+  missedItems: string[];
+}): JSX.Element {
+  const color =
+    score >= 80
+      ? 'bg-accent-green'
+      : score >= 50
+        ? 'bg-amber-400'
+        : 'bg-destructive';
+  const label =
+    score >= 80 ? 'Excelent' : score >= 50 ? 'Parțial' : 'Incomplet';
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>Script de vânzare respectat</span>
+        <span className="font-semibold tabular-nums">
+          {score}% — {label}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+        <div
+          className={cn('h-full rounded-full transition-all', color)}
+          style={{ width: `${score}%` }}
+        />
+      </div>
+      {missedItems.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5 text-[11px] text-muted-foreground">
+          {missedItems.map((item, i) => (
+            <li key={i} className="flex items-start gap-1">
+              <span className="mt-px shrink-0 text-destructive">✗</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function labelForSpeaker(s: CallTranscriptSegment['speaker']): string {

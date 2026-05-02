@@ -151,6 +151,8 @@ function toCallCardData(call: Call): CallCardData {
     summary: t?.summary ?? null,
     actionItems: t?.actionItems ?? undefined,
     sentiment: t?.sentiment ?? null,
+    scriptComplianceScore: t?.scriptComplianceScore ?? null,
+    scriptMissedItems: t?.scriptMissedItems ?? null,
     transcript: t?.segments?.map((seg) => ({
       speaker: seg.speaker,
       text: seg.text,

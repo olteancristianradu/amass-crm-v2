@@ -85,6 +85,7 @@ export class EventsService {
     return this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.eventAttendee.create({
         data: {
+          tenantId: ctx.tenantId,
           eventId,
           contactId: dto.contactId ?? null,
           clientId: dto.clientId ?? null,

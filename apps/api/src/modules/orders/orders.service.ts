@@ -34,6 +34,7 @@ export class OrdersService {
       const items = dto.items.map((it) => {
         const total = new Prisma.Decimal(it.quantity).mul(new Prisma.Decimal(it.unitPrice));
         return {
+          tenantId: ctx.tenantId,
           productId: it.productId ?? null,
           description: it.description,
           quantity: new Prisma.Decimal(it.quantity),

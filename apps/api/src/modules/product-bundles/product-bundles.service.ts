@@ -22,7 +22,7 @@ export class ProductBundlesService {
           price: new Prisma.Decimal(dto.price),
           currency: dto.currency,
           isActive: dto.isActive,
-          items: { create: dto.items.map((i) => ({ productId: i.productId, quantity: i.quantity })) },
+          items: { create: dto.items.map((i) => ({ tenantId: ctx.tenantId, productId: i.productId, quantity: i.quantity })) },
         },
         include: { items: true },
       }),
@@ -67,7 +67,7 @@ export class ProductBundlesService {
         // Replace items atomically: simplest correct semantics for small bundles.
         await tx.productBundleItem.deleteMany({ where: { bundleId: id } });
         await tx.productBundleItem.createMany({
-          data: dto.items.map((i) => ({ bundleId: id, productId: i.productId, quantity: i.quantity })),
+          data: dto.items.map((i) => ({ tenantId: ctx.tenantId, bundleId: id, productId: i.productId, quantity: i.quantity })),
         });
       }
       return tx.productBundle.update({ where: { id }, data, include: { items: true } });
