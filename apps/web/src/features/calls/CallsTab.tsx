@@ -151,9 +151,10 @@ function toCallCardData(call: Call): CallCardData {
     summary: t?.summary ?? null,
     actionItems: t?.actionItems ?? undefined,
     sentiment: t?.sentiment ?? null,
-    // Transcript segments not surfaced via the current API yet — the
-    // CallCard renders a "Transcript" toggle only when the segments
-    // array is non-empty, so this gracefully falls back to "no toggle".
-    transcript: undefined,
+    transcript: t?.segments?.map((seg) => ({
+      speaker: seg.speaker,
+      text: seg.text,
+      startSec: seg.start,
+    })),
   };
 }

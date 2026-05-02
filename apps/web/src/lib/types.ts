@@ -271,11 +271,19 @@ export interface PhoneNumber {
   updatedAt: string;
 }
 
+export interface CallTranscriptSegment {
+  start: number;
+  end: number;
+  speaker: 'agent' | 'customer' | 'unknown';
+  text: string;
+}
+
 export interface CallTranscript {
   id: string;
   callId: string;
   language?: string | null;
   rawText: string;
+  segments: CallTranscriptSegment[];
   redactedText?: string | null;
   summary?: string | null;
   actionItems?: string[] | null;

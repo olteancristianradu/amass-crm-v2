@@ -460,10 +460,10 @@ export class CallsService {
         take: q.limit + 1,
         ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        include: { phoneNumber: true },
+        include: { phoneNumber: true, transcript: true },
       }),
     );
-    return makeCursorPage(items as Call[], q.limit);
+    return makeCursorPage(items as unknown as Call[], q.limit);
   }
 
   async findOne(id: string): Promise<Call & { transcript: CallTranscript | null }> {

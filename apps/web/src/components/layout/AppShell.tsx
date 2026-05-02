@@ -316,6 +316,7 @@ const ADMIN_SECTION: NavSection = {
   title: 'Administrare',
   items: [
     { to: '/app/settings/users', label: 'Utilizatori', icon: Users },
+    { to: '/app/settings/approvals', label: 'Politici aprobare', icon: ClipboardList },
     { to: '/app/settings/custom-fields', label: 'Câmpuri custom', icon: Rows3 },
     { to: '/app/settings/webhooks', label: 'Webhook-uri', icon: Webhook },
     { to: '/app/settings/billing', label: 'Facturare', icon: CreditCard },

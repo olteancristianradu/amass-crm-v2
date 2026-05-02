@@ -46,6 +46,7 @@ import { approvalsRoute } from './routes/approvals.list';
 import { calendarRoute } from './routes/calendar';
 import { settingsBillingRoute } from './routes/settings.billing';
 import { settingsWebhooksRoute } from './routes/settings.webhooks';
+import { settingsApprovalsRoute } from './routes/settings.approvals';
 import { leadsListRoute } from './routes/leads.list';
 import { contractsListRoute } from './routes/contracts.list';
 import { forecastingRoute } from './routes/forecasting';
@@ -121,6 +122,7 @@ const routeTree = rootRoute.addChildren([
     calendarRoute,
     settingsBillingRoute,
     settingsWebhooksRoute,
+    settingsApprovalsRoute,
     leadsListRoute,
     contractsListRoute,
     forecastingRoute,
