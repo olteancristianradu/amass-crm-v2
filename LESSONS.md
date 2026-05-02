@@ -34,6 +34,37 @@
 
 ## Entries
 
+### 2026-05-02 — Prisma client in Docker not regenerated after schema change
+- **Sprint / area:** tags / docker deployment
+- **Symptom:** `GET /api/v1/tags` → 500 "Cannot read properties of undefined (reading 'findMany')" even after fixing TagsModule and redeploying dist. `EntityTag` model existed in schema.prisma but not in the runtime Prisma client.
+- **Root cause:** The Docker image bakes in a Prisma client generated at build time. When new models are added (e.g. `EntityTag` in `feat(tags)` commit), the schema is copied to the container but the client is NOT regenerated. `typeof prismaClient.entityTag` returns `undefined`.
+- **Fix:** Run `docker exec amass-api node_modules/.pnpm/node_modules/.bin/prisma generate --schema=apps/api/prisma/schema.prisma` then restart.
+- **Lesson:** After any `prisma schema` change that adds/removes models, regenerate the client inside the container (`prisma generate`). The `docker cp dist` only copies compiled JS — it does NOT update the Prisma client in `node_modules/@prisma/client`.
+
+### 2026-05-02 — TagsModule missing PrismaModule import
+- **Sprint / area:** tags / nestjs modules
+- **Symptom:** All tag endpoints 500 with "Cannot read properties of undefined (reading 'findMany')" — TagsService couldn't use PrismaService.
+- **Root cause:** `TagsModule` imports only `[AuthModule, AccessControlModule]`. `PrismaModule` was not imported, so NestJS DI couldn't inject `PrismaService` into `TagsService`.
+- **Fix:** Added `PrismaModule` to imports array in `tags.module.ts`.
+- **Lesson:** Every NestJS module that uses `PrismaService` must import `PrismaModule`. Check this when creating new modules.
+
+### 2026-05-02 — A-Z test: endpoint API shape learnings
+- **Sprint / area:** testing
+- **Symptom:** Multiple curl tests returning VALIDATION_ERROR or INTERNAL_ERROR due to wrong field names / shapes.
+- **Root cause:** API schemas are strict and different from what one might guess. Key discoveries:
+  - Notes/Timeline URL: `/:subjectType/:subjectId/notes` — subjectType must be singular UPPERCASE (`COMPANY`, not `COMPANIES`)
+  - Deals: `pipelineId` required separately from `stageId`; `value` must be string `"5000.00"` (decimal), not number
+  - Invoices: field is `lines` (not `items`); `unitPrice`/`quantity`/`vatRate` are all strings (decimal format)
+  - Tasks: status changes via `POST /tasks/:id/complete` and `POST /tasks/:id/reopen` (not PATCH); reopen status = `OPEN`
+  - Tags: unassign is `DELETE /tags/:id/assign/:entityId` (entityId in path, not body)
+  - Webhooks: events enum is `COMPANY_CREATED` (not `company.created`)
+  - Lead source enum: `WEB` (not `WEBSITE`)
+  - Custom field bulk set: `{values: [{fieldDefId, value: string}]}`
+  - Download URL field: `downloadUrl` (not `url`)
+  - Attachments in dev: presigned URL uses `minio:9000` (internal Docker host) — PUT from host fails with 403 (signature mismatch); workaround: upload directly via `mc` from MinIO container
+- **Fix:** Documented all shapes above.
+- **Lesson:** Before writing API consumers or tests, read the Zod schema in `packages/shared/src/schemas/`. Don't guess field names.
+
 ### 2026-04-28 — `@map` is the exception in this schema, not the rule
 - **Sprint / area:** reports / raw SQL
 - **Symptom:** `GET /reports/dashboard` returned 500 with `column d.stage_id does not exist`. Three of the five raw `$queryRaw` blocks in `ReportsService` referenced `tenant_id`, `created_at`, `deleted_at`, `stage_id`, `duration_sec` — and those columns don't exist; the actual columns are `tenantId`, `createdAt`, `deletedAt`, `stageId`, `durationSec`.
