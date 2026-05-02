@@ -38,7 +38,7 @@ describe('ProductBundlesService', () => {
     expect(arg.data.tenantId).toBe('tenant-1');
     expect(arg.data.price).toBeInstanceOf(Prisma.Decimal);
     expect(arg.data.items.create).toHaveLength(2);
-    expect(arg.data.items.create[0]).toEqual({ productId: 'p-1', quantity: 2 });
+    expect(arg.data.items.create[0]).toEqual({ tenantId: 'tenant-1', productId: 'p-1', quantity: 2 });
     expect(arg.include).toEqual({ items: true });
   });
 
@@ -65,7 +65,7 @@ describe('ProductBundlesService', () => {
 
     expect(deleteMany).toHaveBeenCalledWith({ where: { bundleId: 'b-2' } });
     expect(createMany).toHaveBeenCalledWith({
-      data: [{ bundleId: 'b-2', productId: 'p-9', quantity: 3 }],
+      data: [{ tenantId: 'tenant-1', bundleId: 'b-2', productId: 'p-9', quantity: 3 }],
     });
     expect(update).toHaveBeenCalled();
   });

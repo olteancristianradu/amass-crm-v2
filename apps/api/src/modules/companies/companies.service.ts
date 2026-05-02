@@ -62,6 +62,7 @@ export class CompaniesService {
     cursor: string | undefined,
     limit: number,
     q: string | undefined,
+    tagIds?: string[],
   ): Promise<CursorPage<Company>> {
     const ctx = requireTenantContext();
     const where: Prisma.CompanyWhereInput = {
@@ -76,11 +77,23 @@ export class CompaniesService {
             ],
           }
         : {}),
+      ...(tagIds && tagIds.length > 0
+        ? { id: { in: await this.getEntityIdsWithTags(ctx.tenantId, 'COMPANY', tagIds) } }
+        : {}),
     };
     const items = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.company.findMany({ where, ...buildCursorArgs(cursor, limit) }),
     );
     return makeCursorPage(items, limit);
+  }
+
+  private async getEntityIdsWithTags(tenantId: string, entityType: string, tagIds: string[]): Promise<string[]> {
+    const rows = await this.prisma.entityTag.findMany({
+      where: { tenantId, entityType, tagId: { in: tagIds } },
+      select: { entityId: true },
+      distinct: ['entityId'],
+    });
+    return rows.map((r) => r.entityId);
   }
 
   async findOne(id: string): Promise<Company> {

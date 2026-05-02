@@ -45,3 +45,4 @@ export * from './schemas/chatter';
 export * from './schemas/events';
 export * from './schemas/saved-view';
 export * from './schemas/email-draft';
+export * from './schemas/tag';

@@ -66,8 +66,8 @@ interface RequestOptions {
   body?: unknown;
   /** When true (internal), do NOT try to refresh on 401 — prevents loops. */
   skipRefresh?: boolean;
-  /** Extra query params serialised as URLSearchParams. */
-  query?: Record<string, string | number | undefined>;
+  /** Extra query params serialised as URLSearchParams. Arrays become repeated keys. */
+  query?: Record<string, string | number | string[] | undefined>;
 }
 
 let refreshPromise: Promise<boolean> | null = null;
@@ -104,7 +104,12 @@ async function rawFetch<T = unknown>(path: string, opts: RequestOptions = {}): P
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
-      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
+      if (v === undefined || v === null || v === '') continue;
+      if (Array.isArray(v)) {
+        v.forEach((item) => url.searchParams.append(k, String(item)));
+      } else {
+        url.searchParams.set(k, String(v));
+      }
     }
   }
 

@@ -400,3 +400,14 @@ export interface Call {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Tag {
+  id: string;
+  tenantId: string;
+  name: string;
+  color?: string | null;
+  createdAt: string;
+  _count?: { entityTags: number };
+}
+
+export type TagEntityType = 'COMPANY' | 'CONTACT' | 'CLIENT' | 'DEAL' | 'LEAD';

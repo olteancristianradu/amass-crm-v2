@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { Building2, Download, Plus, Search, Trash2 } from 'lucide-react';
+import { Building2, Download, Filter, Plus, Search, Trash2, X } from 'lucide-react';
 import { companiesApi } from '@/features/companies/api';
+import { tagsApi } from '@/features/tags/api';
 import { CreateCompanySchema, type CreateCompanyDto, type RelationshipStatus } from '@amass/shared';
 import type { Company } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -25,11 +26,12 @@ import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { downloadCsv } from '@/lib/csv';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { SavedViewsDropdown } from '@/components/saved-views/SavedViewsDropdown';
+import { TagInput } from '@/components/ui/TagInput';
 import { companiesRoute } from './companies.list';
 import { useTour } from '@/lib/tours/useTour';
 
 export function CompaniesListPage(): JSX.Element {
-  const { q } = companiesRoute.useSearch();
+  const { q, tagIds } = companiesRoute.useSearch();
   const navigate = companiesRoute.useNavigate();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -41,8 +43,8 @@ export function CompaniesListPage(): JSX.Element {
   useTour('companies-list');
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['companies', { q }],
-    queryFn: () => companiesApi.list(undefined, 50, q),
+    queryKey: ['companies', { q, tagIds }],
+    queryFn: () => companiesApi.list(undefined, 50, q, tagIds),
   });
 
   const bulkDeleteMut = useMutation({
@@ -58,6 +60,29 @@ export function CompaniesListPage(): JSX.Element {
 
   const rows = data?.data ?? [];
   const allIds = rows.map((c) => c.id);
+
+  // Load all tenant tags for the filter UI
+  const { data: allTags = [] } = useQuery({
+    queryKey: ['tags', 'COMPANY'],
+    queryFn: () => tagsApi.list({ entityType: 'COMPANY' }),
+    staleTime: 30_000,
+  });
+
+  // Batch-load tags for the visible companies
+  const { data: entityTagsMap = {} } = useQuery({
+    queryKey: ['tags', 'batch', 'COMPANY', allIds],
+    queryFn: () => tagsApi.batchByEntities('COMPANY', allIds),
+    enabled: allIds.length > 0,
+    staleTime: 30_000,
+  });
+
+  function toggleTagFilter(tagId: string): void {
+    const current = tagIds ?? [];
+    const next = current.includes(tagId)
+      ? current.filter((id) => id !== tagId)
+      : [...current, tagId];
+    void navigate({ search: (prev) => ({ ...prev, tagIds: next.length > 0 ? next : undefined }) });
+  }
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
 
   function toggleAll(): void {
@@ -144,11 +169,44 @@ export function CompaniesListPage(): JSX.Element {
             placeholder="Caută după nume, CUI, email…"
             defaultValue={q ?? ''}
             onChange={(e) => {
-              void navigate({ search: { q: e.target.value || undefined } });
+              void navigate({ search: (prev) => ({ ...prev, q: e.target.value || undefined }) });
             }}
             className="pl-9"
           />
         </div>
+        {/* Tag filter chips */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 ml-2">
+            <Filter size={13} className="text-muted-foreground shrink-0" />
+            {allTags.map((tag) => {
+              const active = tagIds?.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTagFilter(tag.id)}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border transition-colors ${
+                    active
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border hover:border-primary hover:text-primary'
+                  }`}
+                >
+                  {tag.name}
+                  {active && <X size={10} />}
+                </button>
+              );
+            })}
+            {tagIds && tagIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void navigate({ search: (prev) => ({ ...prev, tagIds: undefined }) })}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Resetează
+              </button>
+            )}
+          </div>
+        )}
       </Toolbar>
 
       <BulkActionsBar
@@ -217,6 +275,7 @@ export function CompaniesListPage(): JSX.Element {
                     <th scope="col" className="px-4 py-3 font-medium">Status</th>
                     <th scope="col" className="px-4 py-3 font-medium">CUI</th>
                     <th scope="col" className="px-4 py-3 font-medium">Industrie</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Etichete</th>
                     <th scope="col" className="px-4 py-3 font-medium">Oraș</th>
                     <th scope="col" className="px-4 py-3 font-medium">Creat</th>
                   </tr>
@@ -261,6 +320,16 @@ export function CompaniesListPage(): JSX.Element {
                           placeholder="Industrie"
                           onSave={(v) => companiesApi.update(c.id, { industry: v || null } as Partial<Company>)
                             .then(() => qc.invalidateQueries({ queryKey: ['companies'] }))}
+                        />
+                      </td>
+                      <td className="px-4 py-3 min-w-[160px]">
+                        <TagInput
+                          entityType="COMPANY"
+                          entityId={c.id}
+                          value={entityTagsMap[c.id] ?? []}
+                          onChange={() => {
+                            void qc.invalidateQueries({ queryKey: ['tags', 'batch', 'COMPANY'] });
+                          }}
                         />
                       </td>
                       <td className="px-4 py-3">

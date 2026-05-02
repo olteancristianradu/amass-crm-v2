@@ -10,6 +10,7 @@ const CompaniesListPage = lazy(() =>
 
 const searchSchema = z.object({
   q: z.string().optional(),
+  tagIds: z.array(z.string()).optional(),
 });
 
 export const companiesRoute = createRoute({

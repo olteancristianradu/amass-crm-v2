@@ -21,6 +21,12 @@ import {
 import { UserRole } from '@prisma/client';
 import { z } from 'zod';
 
+const CompanyListQuerySchema = PaginationSchema.extend({
+  tagIds: z.union([z.string(), z.array(z.string())]).optional().transform((v) =>
+    v === undefined ? undefined : Array.isArray(v) ? v : [v],
+  ),
+});
+
 /**
  * Faza-D bulk-delete payload. Capped at 200 ids per call so a runaway
  * client can't soft-delete an entire tenant in one request.
@@ -49,8 +55,8 @@ export class CompaniesController {
 
   @Get()
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
-  list(@Query(new ZodValidationPipe(PaginationSchema)) q: PaginationDto) {
-    return this.companies.list(q.cursor, q.limit, q.q);
+  list(@Query(new ZodValidationPipe(CompanyListQuerySchema)) q: PaginationDto & { tagIds?: string[] }) {
+    return this.companies.list(q.cursor, q.limit, q.q, q.tagIds);
   }
 
   @Get(':id')

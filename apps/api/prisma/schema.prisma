@@ -2560,3 +2560,38 @@ enum ConsentStatus {
   EXPIRED
   PENDING
 }
+
+// ─── Tags ─────────────────────────────────────────────────────────────────────
+/// Freeform labels tenants apply to any CRM entity for rapid segmentation.
+/// E.g. "are pompă căldură Aer-Apă", "consum 1000-2000 lei/lună".
+
+model Tag {
+  id        String    @id @default(cuid())
+  tenantId  String    @map("tenant_id")
+  name      String
+  color     String?   // hex or tailwind color token
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  entityTags EntityTag[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("tags")
+}
+
+/// Polymorphic junction — tag applied to an entity.
+/// entityType: COMPANY | CONTACT | CLIENT | DEAL | LEAD
+model EntityTag {
+  id         String @id @default(cuid())
+  tenantId   String @map("tenant_id")
+  tagId      String @map("tag_id")
+  entityType String @map("entity_type")
+  entityId   String @map("entity_id")
+
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, entityId])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, tagId])
+  @@map("entity_tags")
+}

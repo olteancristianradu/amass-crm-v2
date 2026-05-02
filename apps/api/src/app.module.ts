@@ -81,6 +81,7 @@ import { WebauthnModule } from './modules/webauthn/webauthn.module';
 import { AccessControlModule } from './modules/access-control/access-control.module';
 import { ConditionalAccessMiddleware } from './modules/access-control/conditional-access.middleware';
 import { SyncModule } from './modules/sync/sync.module';
+import { TagsModule } from './modules/tags/tags.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -253,6 +254,7 @@ import { SyncModule } from './modules/sync/sync.module';
     ChatterModule,
     EventsModule,
     SavedViewsModule,
+    TagsModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,
