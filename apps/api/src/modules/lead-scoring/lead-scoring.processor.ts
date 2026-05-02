@@ -9,7 +9,12 @@ interface RecomputeSinglePayload {
   entityId: string;
 }
 
-@Processor('lead-scoring')
+// P2-9: lockDuration so a stuck scoring job doesn't block the queue.
+@Processor('lead-scoring', {
+  lockDuration: 60_000,
+  stalledInterval: 30_000,
+  maxStalledCount: 1,
+})
 export class LeadScoringProcessor extends WorkerHost {
   private readonly logger = new Logger(LeadScoringProcessor.name);
 

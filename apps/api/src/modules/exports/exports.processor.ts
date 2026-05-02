@@ -11,7 +11,12 @@ interface ExportJobPayload {
   filters?: Record<string, unknown>;
 }
 
-@Processor(QUEUE_EXPORT)
+// P2-9: large exports may take minutes — lockDuration 10min covers ~100k rows.
+@Processor(QUEUE_EXPORT, {
+  lockDuration: 600_000,
+  stalledInterval: 30_000,
+  maxStalledCount: 1,
+})
 export class ExportsProcessor extends WorkerHost {
   private readonly logger = new Logger(ExportsProcessor.name);
 

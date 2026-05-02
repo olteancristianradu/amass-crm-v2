@@ -18,7 +18,12 @@ import type { EmailJobPayload } from './email.service';
  * On failure: status → FAILED, errorMessage stored. BullMQ's default
  * retry policy applies (3 attempts with backoff).
  */
-@Processor(QUEUE_EMAIL)
+// P2-9: SMTP delivery can be slow with bad TLS handshakes — 60s lock.
+@Processor(QUEUE_EMAIL, {
+  lockDuration: 60_000,
+  stalledInterval: 30_000,
+  maxStalledCount: 1,
+})
 export class EmailProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailProcessor.name);
 

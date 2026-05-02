@@ -18,7 +18,12 @@ import type { ReminderJobPayload } from './reminders.service';
  * was reminded". S11 (Email) and S12+ (push/Twilio) plug into the
  * activities row downstream.
  */
-@Processor(QUEUE_REMINDERS)
+// P2-9: reminder fire is sub-second; 30s lock is plenty.
+@Processor(QUEUE_REMINDERS, {
+  lockDuration: 30_000,
+  stalledInterval: 30_000,
+  maxStalledCount: 1,
+})
 export class RemindersProcessor extends WorkerHost {
   private readonly logger = new Logger(RemindersProcessor.name);
 
