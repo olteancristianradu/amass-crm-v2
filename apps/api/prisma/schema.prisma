@@ -2595,3 +2595,29 @@ model EntityTag {
   @@index([tenantId, tagId])
   @@map("entity_tags")
 }
+
+// ─── Outlook Email Integration ────────────────────────────────────────────────
+/// Per-user Outlook OAuth token for reading + sending email via Microsoft Graph.
+/// Scopes requested: openid email profile offline_access Mail.ReadWrite Mail.Send
+/// Separate from CalendarIntegration (which only has Calendars.ReadWrite scope).
+
+model OutlookToken {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  userId          String    @map("user_id")
+  email           String    // the connected Outlook email address
+  displayName     String?   @map("display_name")
+  accessTokenEnc  String    @map("access_token_enc")
+  refreshTokenEnc String    @map("refresh_token_enc")
+  tokenExpiresAt  DateTime  @map("token_expires_at")
+  // Inbox delta link from Graph /me/mailFolders/inbox/messages/delta — used for
+  // incremental sync so we don't re-fetch the entire inbox on every sync call.
+  inboxDeltaLink  String?   @map("inbox_delta_link")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@map("outlook_tokens")
+}

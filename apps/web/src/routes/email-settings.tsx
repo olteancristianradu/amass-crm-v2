@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GlassCard } from '@/components/ui/glass-card';
 import { EmptyState, PageHeader, StatusBadge } from '@/components/ui/page-header';
+import { OutlookConnect } from '@/components/outlook/OutlookConnect';
 
 export const emailSettingsRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -35,14 +36,22 @@ function EmailSettingsPage(): JSX.Element {
     <div>
       <PageHeader
         title="Setări email"
-        subtitle="Conturi SMTP folosite pentru a trimite email-uri din CRM (notificări, secvențe, transactional)."
+        subtitle="Conturi de email pentru a trimite din CRM — Outlook OAuth2 sau SMTP clasic."
         actions={
           <Button size="sm" onClick={() => setShowForm((v) => !v)}>
             <Plus size={14} className="mr-1.5" />
-            {showForm ? 'Anulează' : 'Adaugă cont'}
+            {showForm ? 'Anulează' : 'Adaugă cont SMTP'}
           </Button>
         }
       />
+
+      {/* Outlook / Microsoft 365 — OAuth2, no SMTP config needed */}
+      <div className="mb-6">
+        <h2 className="mb-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">Integrare Microsoft</h2>
+        <OutlookConnect />
+      </div>
+
+      <h2 className="mb-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">Conturi SMTP</h2>
 
       {showForm && (
         <AddAccountForm

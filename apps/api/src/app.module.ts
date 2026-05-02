@@ -82,6 +82,7 @@ import { AccessControlModule } from './modules/access-control/access-control.mod
 import { ConditionalAccessMiddleware } from './modules/access-control/conditional-access.middleware';
 import { SyncModule } from './modules/sync/sync.module';
 import { TagsModule } from './modules/tags/tags.module';
+import { OutlookEmailModule } from './modules/outlook-email/outlook-email.module';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -255,6 +256,7 @@ import { TagsModule } from './modules/tags/tags.module';
     EventsModule,
     SavedViewsModule,
     TagsModule,
+    OutlookEmailModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,
