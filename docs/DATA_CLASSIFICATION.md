@@ -10,6 +10,18 @@ Last updated: 2026-04-29 · v1.0
 - Authentication secrets: passwords (bcrypt-hashed in DB), TOTP seeds (AES-256-GCM at rest), backup codes (SHA-256 hashed)
 - Payment data: handled by Stripe (PCI scope) — we never store card numbers
 - Sensitive personal data subject to special category (Art. 9 GDPR): voice content (potentially), medical/political/religious if disclosed in notes
+- **CNP (Cod Numeric Personal — Romanian national ID, 13 digits)**:
+  Romanian Law 506/2004 + Law 363/2018 require enhanced protection. Treated
+  as RESTRICTED. Detection: regex `\b[1-9]\d{12}\b` with checksum validation.
+  Storage: never log; encrypt with ENCRYPTION_KEY when stored; redact in
+  AI worker via Presidio-RO ruleset (or fallback regex when Presidio not
+  installed). Currently visible in: Contact.notes, Call transcripts (auto-
+  redacted before storage), invoice PDF customer block (legitimate fiscal
+  use under ANAF mandate).
+- **IBAN (Romanian + EU bank account)**: financial data, breach risk for
+  fraud. Treated as RESTRICTED. Detection: regex `[A-Z]{2}\d{2}[A-Z0-9]{4,30}`
+  with mod-97 checksum. Storage: never log; redact in AI summaries; audit
+  every access. Currently in: invoice payment metadata, supplier records.
 - Production database credentials, JWT signing key, encryption keys
 - Data subject access request payloads
 
@@ -61,6 +73,9 @@ Last updated: 2026-04-29 · v1.0
 | OAuthIntegration.refreshToken | OAuthIntegration | AES-256-GCM |
 | ConsentRecord.* | ConsentRecord | RLS-isolated; append-only at DB layer (REVOKE UPDATE/DELETE) |
 | Call.recordingUrl | Call | URL is transient (S3 presigned 15min); recordings on MinIO with bucket policy |
+| Contact.notes / Lead.notes / Client.notes | various | redacted by AI worker before LLM submission; CNP/IBAN redacted via Presidio-RO ruleset |
+| CallTranscript.redactedText | CallTranscript | post-redaction artifact (CNP, IBAN, phones, emails black-pilled) |
+| Invoice.notes / customer block | Invoice | CNP+IBAN appear by fiscal mandate (ANAF e-Factura UBL 2.1); cannot redact, must encrypt at rest |
 
 ## Data retention enforcement
 

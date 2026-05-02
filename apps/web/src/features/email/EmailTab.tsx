@@ -31,9 +31,22 @@ export function EmailTab({ subjectType, subjectId }: Props): JSX.Element {
       searchApi.emailDraft({ contactId: subjectId, intent: aiIntent, tone: aiTone }),
     onSuccess: (data: EmailDraftResponse) => {
       setSubject(data.subject);
-      // Backend returns plain-text with paragraph breaks (\n\n).
-      // Convert to HTML so the editor + tracked-pixel rewrite work correctly.
-      setBodyHtml(data.body.split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`).join(''));
+      // FIX (P1-8): AI worker output is untrusted — if the worker's prompt is
+      // compromised or the LLM hallucinates a `<script>` tag, the resulting
+      // string flows into bodyHtml and ends up in outbound email (recipient
+      // email clients vary in how they handle script tags). Escape user-
+      // facing characters first, THEN wrap the safe paragraphs in <p>/<br/>.
+      // We never call DOMPurify here because we are NOT rendering with
+      // dangerouslySetInnerHTML — the value sits in a Textarea (safe). The
+      // escape protects the OUTBOUND mail.
+      const escape = (s: string): string =>
+        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const safeBody = data.body
+        .split(/\n{2,}/)
+        .map((p) => `<p>${escape(p).replace(/\n/g, '<br/>')}</p>`)
+        .join('');
+      setBodyHtml(safeBody);
     },
   });
 

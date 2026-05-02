@@ -34,7 +34,17 @@ interface RowError {
  * On duplicate we count it as `skipped`, not `failed` — re-running an
  * import must be safe.
  */
-@Processor(QUEUE_IMPORT)
+// FIX (P1-10): set BullMQ worker options so a stuck import (e.g. worker
+// process killed mid-run) doesn't tie up the queue indefinitely.
+//   - lockDuration 600s: BullMQ marks the job as stalled after this and
+//     other workers can pick it up. Was unset → infinite hold.
+//   - stalledInterval 30s + maxStalledCount 1: re-queue once if stalled,
+//     then mark failed (avoids infinite retry loops).
+@Processor(QUEUE_IMPORT, {
+  lockDuration: 600_000,
+  stalledInterval: 30_000,
+  maxStalledCount: 1,
+})
 export class ImportProcessor extends WorkerHost {
   private readonly logger = new Logger(ImportProcessor.name);
 

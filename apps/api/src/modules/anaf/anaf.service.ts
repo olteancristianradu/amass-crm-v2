@@ -281,25 +281,53 @@ export class AnafService {
     const cached = await this.redis.client.get(cacheKey);
     if (cached) return cached;
 
-    const oauthOverride = loadEnv().ANAF_OAUTH_BASE_URL;
-    const base = oauthOverride
-      ? oauthOverride.replace(/\/$/, '')
-      : 'https://logincert.anaf.ro/anaf-oauth2/v1';
-    const res = await getBreaker('anaf').exec(() =>
-      fetch(`${base}/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
+    // FIX (P1-3): pre-fix two concurrent invoice submissions that both
+    // missed the cache would each fire a token-fetch (cache miss → 2 OAuth
+    // requests in parallel → wasted client-credentials calls + ANAF rate-
+    // limit risk + last-writer-wins on cache SET). Acquire a short-lived
+    // distributed lock via SET NX EX. Loser of the race waits then re-reads
+    // the cache (winner has populated it). Lock TTL 10s covers OAuth latency.
+    const lockKey = `anaf:token:lock:${tenantId}:${config.sandbox ? 'sbx' : 'prod'}`;
+    const lockId = `${process.pid}-${Date.now()}-${Math.random()}`;
+    const acquired = await this.redis.client.set(lockKey, lockId, 'EX', 10, 'NX');
+    if (!acquired) {
+      // Lost the race: poll briefly for the winner to populate cache.
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        const fresh = await this.redis.client.get(cacheKey);
+        if (fresh) return fresh;
+      }
+      // Winner crashed or lock expired without setting cache — fall through
+      // and try ourselves; lockKey is gone so we'll proceed.
+    }
+
+    try {
+      const oauthOverride = loadEnv().ANAF_OAUTH_BASE_URL;
+      const base = oauthOverride
+        ? oauthOverride.replace(/\/$/, '')
+        : 'https://logincert.anaf.ro/anaf-oauth2/v1';
+      const res = await getBreaker('anaf').exec(() =>
+        fetch(`${base}/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: config.clientId,
+            client_secret: config.clientSecret,
+          }),
         }),
-      }),
-    );
-    const data = (await res.json()) as { access_token?: string };
-    if (!data.access_token) throw new Error('Failed to get ANAF access token');
-    await this.redis.client.set(cacheKey, data.access_token, 'EX', 3000);
-    return data.access_token;
+      );
+      const data = (await res.json()) as { access_token?: string };
+      if (!data.access_token) throw new Error('Failed to get ANAF access token');
+      await this.redis.client.set(cacheKey, data.access_token, 'EX', 3000);
+      return data.access_token;
+    } finally {
+      // Release lock only if we still own it (Lua-style compare-and-delete).
+      const current = await this.redis.client.get(lockKey);
+      if (current === lockId) {
+        await this.redis.client.del(lockKey);
+      }
+    }
   }
 
   private async getAnafConfig(tenantId: string): Promise<AnafConfig> {

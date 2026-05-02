@@ -359,4 +359,18 @@ export class WorkflowsService {
       }),
     );
   }
+
+  /**
+   * P1-9 — system-level force-fail without tenant context. Called by the
+   * processor when a run hits the MAX_STEPS_PER_RUN cap (loop detection).
+   * Runs through runWithTenant for RLS coverage.
+   */
+  async markFailed(runId: string, tenantId: string, error: string): Promise<void> {
+    await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.workflowRun.updateMany({
+        where: { id: runId, status: 'RUNNING' },
+        data: { status: 'FAILED', error, completedAt: new Date() },
+      }),
+    );
+  }
 }
