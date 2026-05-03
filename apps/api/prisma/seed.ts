@@ -22,6 +22,12 @@ import {
   CallStatus,
   TranscriptionStatus,
   SubjectType,
+  TaskStatus,
+  TaskPriority,
+  InvoiceStatus,
+  InvoiceCurrency,
+  LeadStatus,
+  LeadSource,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -34,6 +40,7 @@ const PASSWORD = 'AmassCRM2026!';
 const ACCOUNTS: { email: string; fullName: string; role: UserRole }[] = [
   { email: 'admin@amass-demo.ro', fullName: 'Administrator Demo', role: UserRole.OWNER },
   { email: 'agent@amass-demo.ro', fullName: 'Agent Vanzari Demo', role: UserRole.AGENT },
+  { email: 'danarulea@test.ro', fullName: 'Dana Rulea', role: UserRole.OWNER },
 ];
 
 async function main(): Promise<void> {
@@ -285,6 +292,275 @@ async function main(): Promise<void> {
   } else {
     // eslint-disable-next-line no-console
     console.log('✓ Politică aprobare existentă');
+  }
+
+  // ── Demo tags ──────────────────────────────────────────────────────────────
+  const existingTagCount = await prisma.tag.count({ where: { tenantId: tenant.id } });
+  if (existingTagCount === 0) {
+    const tagDefs = [
+      { name: 'VIP', color: '#f59e0b' },
+      { name: 'Urgent', color: '#ef4444' },
+      { name: 'Enterprise', color: '#6366f1' },
+      { name: 'Partener', color: '#10b981' },
+    ];
+    const createdTags: { id: string; name: string }[] = [];
+    for (const t of tagDefs) {
+      const tag = await prisma.tag.create({ data: { tenantId: tenant.id, ...t } });
+      createdTags.push({ id: tag.id, name: t.name });
+    }
+    const vipTag = createdTags.find((t) => t.name === 'VIP')!;
+    const enterpriseTag = createdTags.find((t) => t.name === 'Enterprise')!;
+    const urgentTag = createdTags.find((t) => t.name === 'Urgent')!;
+    await prisma.entityTag.createMany({
+      data: [
+        { tenantId: tenant.id, tagId: vipTag.id, entityType: 'COMPANY', entityId: alfaTechId },
+        { tenantId: tenant.id, tagId: enterpriseTag.id, entityType: 'COMPANY', entityId: alfaTechId },
+        { tenantId: tenant.id, tagId: urgentTag.id, entityType: 'COMPANY', entityId: betaConstructId },
+        { tenantId: tenant.id, tagId: vipTag.id, entityType: 'COMPANY', entityId: betaConstructId },
+      ],
+      skipDuplicates: true,
+    });
+    console.log('✓ 4 tag-uri demo create + asociate cu companii');
+  }
+
+  // ── Demo notes ─────────────────────────────────────────────────────────────
+  const existingNoteCount = await prisma.note.count({ where: { tenantId: tenant.id } });
+  if (existingNoteCount === 0) {
+    await prisma.note.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          subjectType: SubjectType.COMPANY,
+          subjectId: alfaTechId,
+          authorId: agentId,
+          body: 'Director Ionescu a confirmat verbal că bugetul de 12.000 EUR este aprobat de board. Solicitat contract digital. Prioritate maximă.',
+        },
+        {
+          tenantId: tenant.id,
+          subjectType: SubjectType.COMPANY,
+          subjectId: betaConstructId,
+          authorId: agentId,
+          body: 'Discuție inițiată cu Maria Popescu. Interesată de modulul de devize integrat. Programat demo tehnic pentru săptămâna viitoare.',
+        },
+        {
+          tenantId: tenant.id,
+          subjectType: SubjectType.COMPANY,
+          subjectId: gammaLogisticsId,
+          authorId: agentId,
+          body: 'Contact rece identificat la expo logistică. Cosmin Radu manager achiziții, caută soluție ERP cu modul transport. Follow-up planificat.',
+        },
+      ],
+    });
+    console.log('✓ 3 note demo create');
+  }
+
+  // ── Demo tasks ─────────────────────────────────────────────────────────────
+  const existingTaskCount = await prisma.task.count({ where: { tenantId: tenant.id } });
+  if (existingTaskCount === 0) {
+    const deals = await prisma.deal.findMany({ where: { tenantId: tenant.id }, take: 2 });
+    await prisma.task.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          title: 'Trimite contractul Alfa Tech pentru semnare digitală',
+          priority: TaskPriority.HIGH,
+          status: TaskStatus.OPEN,
+          assigneeId: agentId,
+          dueAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+          ...(deals[2] ? { dealId: deals[2].id } : { subjectType: SubjectType.COMPANY, subjectId: alfaTechId }),
+        },
+        {
+          tenantId: tenant.id,
+          title: 'Pregătire demo tehnic Beta Construct',
+          priority: TaskPriority.NORMAL,
+          status: TaskStatus.OPEN,
+          assigneeId: agentId,
+          dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          subjectType: SubjectType.COMPANY,
+          subjectId: betaConstructId,
+        },
+        {
+          tenantId: tenant.id,
+          title: 'Verificare documente onboarding Gamma Logistics',
+          priority: TaskPriority.LOW,
+          status: TaskStatus.OPEN,
+          assigneeId: agentId,
+          dueAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          subjectType: SubjectType.COMPANY,
+          subjectId: gammaLogisticsId,
+        },
+        {
+          tenantId: tenant.id,
+          title: 'Review raport lunar vânzări',
+          priority: TaskPriority.NORMAL,
+          status: TaskStatus.DONE,
+          assigneeId: agentId,
+          completedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        },
+      ],
+    });
+    console.log('✓ 4 task-uri demo create');
+  }
+
+  // ── Demo reminders ─────────────────────────────────────────────────────────
+  const existingReminderCount = await prisma.reminder.count({ where: { tenantId: tenant.id } });
+  if (existingReminderCount === 0) {
+    await prisma.reminder.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          subjectType: SubjectType.COMPANY,
+          subjectId: alfaTechId,
+          actorId: agentId,
+          title: 'Follow-up semnare contract Alfa Tech',
+          body: 'Verifică dacă contractul a fost semnat și trimite copie la contabilitate.',
+          remindAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        },
+        {
+          tenantId: tenant.id,
+          subjectType: SubjectType.COMPANY,
+          subjectId: betaConstructId,
+          actorId: agentId,
+          title: 'Apel de calificare Beta Construct',
+          body: 'Sunați Maria Popescu să confirmați participarea la demo tehnic.',
+          remindAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+        },
+        {
+          tenantId: tenant.id,
+          subjectType: SubjectType.COMPANY,
+          subjectId: gammaLogisticsId,
+          actorId: agentId,
+          title: 'Re-contact Gamma Logistics',
+          body: 'A trecut 2 săptămâni de la primul contact. Reactivare lead.',
+          remindAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+        },
+      ],
+    });
+    console.log('✓ 3 reminder-uri demo create');
+  }
+
+  // ── Demo leads ─────────────────────────────────────────────────────────────
+  const existingLeadCount = await prisma.lead.count({ where: { tenantId: tenant.id } });
+  if (existingLeadCount === 0) {
+    await prisma.lead.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          firstName: 'Ioana',
+          lastName: 'Mihalache',
+          email: 'ioana.mihalache@deltasoft.ro',
+          company: 'Delta Software SRL',
+          jobTitle: 'CEO',
+          source: LeadSource.WEB,
+          status: LeadStatus.NEW,
+          score: 85,
+          ownerId: agentId,
+          notes: 'Completat formularul de contact pentru demo. Companie 80 angajați.',
+        },
+        {
+          tenantId: tenant.id,
+          firstName: 'Vlad',
+          lastName: 'Constantin',
+          email: 'vlad.constantin@epsilonmed.ro',
+          company: 'Epsilon Medical SA',
+          jobTitle: 'Director IT',
+          source: LeadSource.EVENT,
+          status: LeadStatus.CONTACTED,
+          score: 72,
+          ownerId: agentId,
+          notes: 'Întâlnit la Health Tech Summit. Caută soluție CRM pentru echipa de vânzări medicamente.',
+        },
+        {
+          tenantId: tenant.id,
+          firstName: 'Roxana',
+          lastName: 'Stoica',
+          email: 'roxana.stoica@zetaretail.ro',
+          company: 'Zeta Retail Group',
+          jobTitle: 'Manager Operațional',
+          source: LeadSource.REFERRAL,
+          status: LeadStatus.QUALIFIED,
+          score: 91,
+          ownerId: agentId,
+          notes: 'Referată de Alfa Tech. Rețea de 12 magazine, buget confirmat 8-10k EUR/an.',
+        },
+      ],
+    });
+    console.log('✓ 3 lead-uri demo create');
+  }
+
+  // ── Demo invoices ──────────────────────────────────────────────────────────
+  const existingInvoiceCount = await prisma.invoice.count({ where: { tenantId: tenant.id } });
+  if (existingInvoiceCount === 0) {
+    const deals = await prisma.deal.findMany({ where: { tenantId: tenant.id }, take: 4 });
+    const alfaDeal = deals.find((d) => d.companyId === alfaTechId);
+    const betaDeal = deals.find((d) => d.companyId === betaConstructId);
+
+    const inv1 = await prisma.invoice.create({
+      data: {
+        tenantId: tenant.id,
+        companyId: alfaTechId,
+        dealId: alfaDeal?.id,
+        series: 'FC',
+        number: 1,
+        issueDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        dueDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+        subtotal: 12000,
+        vatAmount: 2280,
+        total: 14280,
+        currency: InvoiceCurrency.EUR,
+        status: InvoiceStatus.ISSUED,
+        notes: 'Licențe software enterprise 50 utilizatori — contract semnat 2026-04-23',
+      },
+    });
+    await prisma.invoiceLine.create({
+      data: {
+        tenantId: tenant.id,
+        invoiceId: inv1.id,
+        position: 0,
+        description: 'Licențe software enterprise (50 utilizatori × 240 EUR)',
+        quantity: 50,
+        unitPrice: 240,
+        vatRate: 19,
+        subtotal: 12000,
+        vatAmount: 2280,
+        total: 14280,
+      },
+    });
+
+    if (betaDeal) {
+      const inv2 = await prisma.invoice.create({
+        data: {
+          tenantId: tenant.id,
+          companyId: betaConstructId,
+          dealId: betaDeal.id,
+          series: 'FC',
+          number: 2,
+          issueDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000),
+          dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          subtotal: 3200,
+          vatAmount: 608,
+          total: 3808,
+          currency: InvoiceCurrency.EUR,
+          status: InvoiceStatus.OVERDUE,
+          notes: 'Software devize construcții — licență anuală',
+        },
+      });
+      await prisma.invoiceLine.create({
+        data: {
+          tenantId: tenant.id,
+          invoiceId: inv2.id,
+          position: 0,
+          description: 'Software Devize Construcții — licență anuală',
+          quantity: 1,
+          unitPrice: 3200,
+          vatRate: 19,
+          subtotal: 3200,
+          vatAmount: 608,
+          total: 3808,
+        },
+      });
+    }
+    console.log('✓ 2 facturi demo create (1 emisă, 1 restantă)');
   }
 
   // eslint-disable-next-line no-console

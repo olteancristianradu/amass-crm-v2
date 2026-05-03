@@ -26,6 +26,17 @@
 		reverse_proxy ai-worker:8000
 	}
 
+	# MinIO presigned upload/download proxy.
+	# Presigned URLs are generated with the app's public origin so the browser
+	# can PUT/GET on port 80 without crossing origins (no CORS required).
+	# We preserve the original Host header so MinIO can validate the HMAC
+	# signature, which was computed against this same public hostname.
+	handle /amass-files/* {
+		reverse_proxy minio:9000 {
+			header_up Host {http.request.host}
+		}
+	}
+
 	# Everything else → frontend
 	# web container runs nginx-unprivileged on 8080 (apps/web/Dockerfile),
 	# not 80 — hitting :80 here used to 502 on every non-/api request.

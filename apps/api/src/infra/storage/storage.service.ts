@@ -19,19 +19,28 @@ const PRESIGN_TTL_SECONDS = 15 * 60; // 15 min — matches the FE upload UX wind
 export class StorageService implements OnModuleInit {
   private readonly logger = new Logger(StorageService.name);
   private readonly env = loadEnv();
+  // Internal client — used for bucket ops (exists, head, copy, delete).
   private readonly client: MinioClient;
+  // Presign client — configured with the PUBLIC URL so generated URLs work in the browser.
+  // When MINIO_PUBLIC_URL differs from MINIO_ENDPOINT (e.g. http://localhost vs
+  // http://minio:9000), the browser can follow the presigned URL via Caddy's proxy.
+  private readonly presignClient: MinioClient;
   readonly bucket: string;
 
   constructor() {
-    const url = new URL(this.env.MINIO_ENDPOINT);
+    const internalUrl = new URL(this.env.MINIO_ENDPOINT);
+    const publicUrl = new URL(this.env.MINIO_PUBLIC_URL ?? this.env.MINIO_ENDPOINT);
     this.bucket = this.env.MINIO_BUCKET;
-    this.client = new MinioClient({
-      endPoint: url.hostname,
-      port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80),
-      useSSL: url.protocol === 'https:',
+    const mkClient = (u: URL) => new MinioClient({
+      endPoint: u.hostname,
+      port: Number(u.port) || (u.protocol === 'https:' ? 443 : 80),
+      useSSL: u.protocol === 'https:',
       accessKey: this.env.MINIO_ACCESS_KEY,
       secretKey: this.env.MINIO_SECRET_KEY,
     });
+    this.client = mkClient(internalUrl);
+    // Only create a separate client if the public URL differs from the internal one.
+    this.presignClient = (publicUrl.href === internalUrl.href) ? this.client : mkClient(publicUrl);
   }
 
   /**
@@ -63,11 +72,11 @@ export class StorageService implements OnModuleInit {
    */
   presignPut(storageKey: string, mimeType?: string): Promise<string> {
     if (!mimeType) {
-      return this.client.presignedPutObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS);
+      return this.presignClient.presignedPutObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS);
     }
     // Some MinIO SDK versions support passing request headers as a 4th arg.
     // Cast defensively so we don't break if the type only lists 3 args.
-    return (this.client.presignedPutObject as unknown as (
+    return (this.presignClient.presignedPutObject as unknown as (
       bucket: string,
       key: string,
       ttl: number,
@@ -109,7 +118,7 @@ export class StorageService implements OnModuleInit {
     } else {
       reqParams['response-content-disposition'] = 'attachment';
     }
-    return this.client.presignedGetObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS, reqParams);
+    return this.presignClient.presignedGetObject(this.bucket, storageKey, PRESIGN_TTL_SECONDS, reqParams);
   }
 
   /**

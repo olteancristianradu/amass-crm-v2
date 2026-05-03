@@ -227,12 +227,7 @@ export class TasksService {
         message: 'task cannot link to both a deal and a subject',
       });
     }
-    if (!hasDeal && !hasSubject) {
-      throw new BadRequestException({
-        code: 'TASK_LINK_INVALID',
-        message: 'task must link to a deal or a subject',
-      });
-    }
+    // standalone tasks (no dealId, no subject) are valid — e.g. created from /tasks page
   }
 
   private async assertDealExists(dealId: string): Promise<void> {
