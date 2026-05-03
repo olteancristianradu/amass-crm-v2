@@ -11,7 +11,7 @@ import { PrismaService } from '../src/infra/prisma/prisma.service';
  *  - create linked to a subject (COMPANY)
  *  - create linked to a deal
  *  - reject create with both dealId AND subject
- *  - reject create with neither
+ *  - create standalone tasks from /tasks
  *  - list filter by dealId / subjectId
  *  - /tasks/me → current user's OPEN tasks
  *  - complete → DONE, completedAt set; reopen → OPEN, completedAt null
@@ -134,12 +134,16 @@ describe('Tasks (e2e)', () => {
       .expect(400);
   });
 
-  it('rejects task with neither dealId nor subject', async () => {
-    await request(app.getHttpServer())
+  it('creates a standalone task with neither dealId nor subject', async () => {
+    const res = await request(app.getHttpServer())
       .post('/api/v1/tasks')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({ title: 'orphan' })
-      .expect(400);
+      .expect(201);
+    expect(res.body.title).toBe('orphan');
+    expect(res.body.dealId).toBeNull();
+    expect(res.body.subjectType).toBeNull();
+    expect(res.body.subjectId).toBeNull();
   });
 
   it('lists tasks filtered by dealId', async () => {

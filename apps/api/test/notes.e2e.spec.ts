@@ -135,7 +135,7 @@ describe('Notes + Timeline (e2e)', () => {
     await request(app.getHttpServer())
       .get(`/api/v1/DEAL/${companyId}/notes`)
       .set('Authorization', `Bearer ${tokenA}`)
-      .expect(500); // Zod throws → caught by exception filter
+      .expect(400);
   });
 
   it('VIEWER can read timeline but NOT create notes', async () => {
