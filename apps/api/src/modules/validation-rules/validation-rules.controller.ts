@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
@@ -30,8 +31,12 @@ export class ValidationRulesController {
   @Get()
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   findAll(@Query('entityType') entityType?: string) {
-    const parsed = entityType ? ValidationEntityTypeSchema.parse(entityType) : undefined;
-    return this.rules.findAll(parsed);
+    if (entityType) {
+      const r = ValidationEntityTypeSchema.safeParse(entityType);
+      if (!r.success) throw new BadRequestException({ code: 'INVALID_ENTITY_TYPE', message: `Invalid entity type: ${entityType}` });
+      return this.rules.findAll(r.data);
+    }
+    return this.rules.findAll(undefined);
   }
 
   @Get(':id')

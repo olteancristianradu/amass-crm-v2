@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -20,7 +20,9 @@ export class AuditController {
 
   @Get()
   async list(@Query() raw: Record<string, string>) {
-    const { cursor, limit, action } = QuerySchema.parse(raw);
+    const r = QuerySchema.safeParse(raw);
+    if (!r.success) throw new BadRequestException({ code: 'INVALID_QUERY', message: r.error.errors[0]?.message ?? 'Invalid query params' });
+    const { cursor, limit, action } = r.data;
     return this.audit.list({ cursor, limit, action });
   }
 }

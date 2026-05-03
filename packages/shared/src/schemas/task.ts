@@ -26,12 +26,7 @@ const assertOneLink = (
       message: 'task can link to EITHER a deal OR a subject, not both',
     });
   }
-  if (!hasDeal && !hasSubject) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'task must link to a deal or a subject',
-    });
-  }
+  // Standalone tasks (no link) are allowed — e.g. personal tasks from /tasks page.
   if (val.subjectType && !val.subjectId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

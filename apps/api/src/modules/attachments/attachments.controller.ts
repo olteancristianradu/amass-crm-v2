@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -41,7 +42,11 @@ export class AttachmentsController {
   constructor(private readonly attachments: AttachmentsService) {}
 
   private parseSubject(raw: string): SubjectTypeDto {
-    return SubjectTypeSchema.parse(raw.toUpperCase());
+    const result = SubjectTypeSchema.safeParse(raw.toUpperCase());
+    if (!result.success) {
+      throw new BadRequestException({ code: 'INVALID_SUBJECT_TYPE', message: `Invalid subject type: ${raw}. Must be one of: COMPANY, CONTACT, CLIENT` });
+    }
+    return result.data;
   }
 
   @Post(':subjectType/:subjectId/attachments/presign')

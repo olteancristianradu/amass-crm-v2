@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -45,7 +46,11 @@ export class RemindersController {
   constructor(private readonly reminders: RemindersService) {}
 
   private parseSubject(raw: string): SubjectTypeDto {
-    return SubjectTypeSchema.parse(raw.toUpperCase());
+    const result = SubjectTypeSchema.safeParse(raw.toUpperCase());
+    if (!result.success) {
+      throw new BadRequestException({ code: 'INVALID_SUBJECT_TYPE', message: `Invalid subject type: ${raw}. Must be one of: COMPANY, CONTACT, CLIENT` });
+    }
+    return result.data;
   }
 
   @Post(':subjectType/:subjectId/reminders')

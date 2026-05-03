@@ -69,8 +69,7 @@ export class EmailController {
   @Get('accounts/:id')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   findAccount(@Param('id') id: string) {
-    // findAccount returns the full account — sanitise for response
-    return this.email.listAccounts().then((accs) => accs.find((a) => a.id === id) ?? null);
+    return this.email.findAccount(id);
   }
 
   @Patch('accounts/:id')

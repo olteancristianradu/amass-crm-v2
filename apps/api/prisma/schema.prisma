@@ -738,7 +738,7 @@ model PhoneNumber {
   tenantId  String
   userId    String? // null = tenant-level, used by everyone
   twilioSid String    @unique
-  number    String // E.164: +40712345678
+  number    String    @unique // E.164: +40712345678 — globally unique: one number can only belong to one tenant
   label     String?
   isDefault Boolean   @default(false)
   createdAt DateTime  @default(now())

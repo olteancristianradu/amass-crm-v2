@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -108,8 +109,9 @@ export class ConsentsController {
     resource: (req) => `ConsentRecord::${(req as { params: { id: string } }).params.id}`,
   })
   list(@Param('type') type: string, @Param('id') id: string) {
-    const subjectType = ConsentSubjectTypeSchema.parse(type);
-    return this.consents.listForSubject(subjectType, id);
+    const r = ConsentSubjectTypeSchema.safeParse(type);
+    if (!r.success) throw new BadRequestException({ code: 'INVALID_SUBJECT_TYPE', message: `Invalid subject type: ${type}. Must be CONTACT or CLIENT` });
+    return this.consents.listForSubject(r.data, id);
   }
 
   /** Current state per purpose for a subject (one row per purpose, most recent). */
@@ -120,8 +122,9 @@ export class ConsentsController {
     resource: (req) => `ConsentRecord::${(req as { params: { id: string } }).params.id}`,
   })
   current(@Param('type') type: string, @Param('id') id: string) {
-    const subjectType = ConsentSubjectTypeSchema.parse(type);
-    return this.consents.currentByPurpose(subjectType, id);
+    const r = ConsentSubjectTypeSchema.safeParse(type);
+    if (!r.success) throw new BadRequestException({ code: 'INVALID_SUBJECT_TYPE', message: `Invalid subject type: ${type}. Must be CONTACT or CLIENT` });
+    return this.consents.currentByPurpose(r.data, id);
   }
 
   /** Pre-flight check: can we send marketing email/SMS to this subject? */
@@ -133,9 +136,11 @@ export class ConsentsController {
     @Query('subjectId') subjectId: string,
     @Query('purpose') purpose: string,
   ) {
-    const st = ConsentSubjectTypeSchema.parse(subjectType);
-    const p = z.nativeEnum(ConsentPurpose).parse(purpose);
-    const has = await this.consents.hasConsent(st, subjectId, p);
+    const rst = ConsentSubjectTypeSchema.safeParse(subjectType);
+    if (!rst.success) throw new BadRequestException({ code: 'INVALID_SUBJECT_TYPE', message: `Invalid subject type: ${subjectType}. Must be CONTACT or CLIENT` });
+    const rp = z.nativeEnum(ConsentPurpose).safeParse(purpose);
+    if (!rp.success) throw new BadRequestException({ code: 'INVALID_PURPOSE', message: `Invalid consent purpose: ${purpose}` });
+    const has = await this.consents.hasConsent(rst.data, subjectId, rp.data);
     return { hasConsent: has };
   }
 }

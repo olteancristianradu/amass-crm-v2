@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
@@ -31,8 +32,12 @@ export class FormulaFieldsController {
   @Get()
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   findAll(@Query('entityType') entityType?: string) {
-    const parsed = entityType ? ValidationEntityTypeSchema.parse(entityType) : undefined;
-    return this.formulas.findAll(parsed);
+    if (entityType) {
+      const r = ValidationEntityTypeSchema.safeParse(entityType);
+      if (!r.success) throw new BadRequestException({ code: 'INVALID_ENTITY_TYPE', message: `Invalid entity type: ${entityType}` });
+      return this.formulas.findAll(r.data);
+    }
+    return this.formulas.findAll(undefined);
   }
 
   @Post('evaluate')
