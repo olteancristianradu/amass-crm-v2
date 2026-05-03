@@ -39,13 +39,13 @@ export function WhatsAppInboxPage(): JSX.Element {
   });
 
   const { data: messagesData, isLoading: messagesLoading, isError: messagesError, error: messagesErr } = useQuery({
-    queryKey: ['whatsapp', 'messages', selectedAccountId],
-    queryFn: () => whatsappApi.listMessages(selectedAccountId),
+    queryKey: ['whatsapp', 'messages', 'account', selectedAccountId],
+    queryFn: () => whatsappApi.listMessagesByAccount(selectedAccountId),
     enabled: Boolean(selectedAccountId),
   });
 
-  const accounts = accountsData?.data ?? [];
-  const messages = messagesData?.data ?? [];
+  const accounts = accountsData ?? [];
+  const messages = messagesData ?? [];
 
   return (
     <div className="space-y-4">
@@ -64,7 +64,6 @@ export function WhatsAppInboxPage(): JSX.Element {
       {showConnectForm && <ConnectAccountForm onDone={() => setShowConnectForm(false)} />}
       {showSendForm && (
         <SendMessageForm
-          accounts={accounts}
           onDone={() => setShowSendForm(false)}
         />
       )}
@@ -107,7 +106,7 @@ export function WhatsAppInboxPage(): JSX.Element {
                     className={`border-b last:border-0 hover:bg-muted/30 ${selectedAccountId === a.id ? 'bg-primary/5' : ''}`}
                   >
                     <td className="px-4 py-2 font-mono text-xs">{a.phoneNumberId}</td>
-                    <td className="px-4 py-2">{a.displayName ?? '—'}</td>
+                    <td className="px-4 py-2">{a.displayPhoneNumber}</td>
                     <td className="px-4 py-2">
                       <span
                         className={statusBadgeClasses(a.isActive ? 'success' : 'neutral')}
@@ -259,14 +258,39 @@ function ConnectAccountForm({ onDone }: { onDone: () => void }): JSX.Element {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="verifyToken">Verify Token *</Label>
+            <Label htmlFor="displayPhoneNumber">Număr afișat *</Label>
             <Input
-              id="verifyToken"
-              placeholder="Token webhook verificare"
-              {...register('verifyToken', { required: 'Verify Token este obligatoriu' })}
+              id="displayPhoneNumber"
+              placeholder="+40712345678"
+              {...register('displayPhoneNumber', { required: 'Numărul afișat este obligatoriu' })}
             />
-            {errors.verifyToken && (
-              <p className="text-xs text-destructive">{errors.verifyToken.message}</p>
+            {errors.displayPhoneNumber && (
+              <p className="text-xs text-destructive">{errors.displayPhoneNumber.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="webhookVerifyToken">Verify Token *</Label>
+            <Input
+              id="webhookVerifyToken"
+              placeholder="Token webhook verificare"
+              {...register('webhookVerifyToken', { required: 'Verify Token este obligatoriu' })}
+            />
+            {errors.webhookVerifyToken && (
+              <p className="text-xs text-destructive">{errors.webhookVerifyToken.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="metaAppSecret">Meta App Secret *</Label>
+            <Input
+              id="metaAppSecret"
+              type="password"
+              placeholder="App Secret din Meta Developer"
+              {...register('metaAppSecret', { required: 'Meta App Secret este obligatoriu' })}
+            />
+            {errors.metaAppSecret && (
+              <p className="text-xs text-destructive">{errors.metaAppSecret.message}</p>
             )}
           </div>
 
@@ -301,13 +325,7 @@ function ConnectAccountForm({ onDone }: { onDone: () => void }): JSX.Element {
   );
 }
 
-function SendMessageForm({
-  accounts,
-  onDone,
-}: {
-  accounts: Array<{ id: string; phoneNumberId: string; displayName?: string | null }>;
-  onDone: () => void;
-}): JSX.Element {
+function SendMessageForm({ onDone }: { onDone: () => void }): JSX.Element {
   const qc = useQueryClient();
   const {
     register,
@@ -353,23 +371,33 @@ function SendMessageForm({
             )}
           </div>
 
-          {accounts.length > 0 && (
-            <div className="space-y-1">
-              <Label htmlFor="sendAccountId">Cont (opțional)</Label>
-              <select
-                id="sendAccountId"
-                {...register('accountId')}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-              >
-                <option value="">— cont implicit —</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.displayName ?? a.phoneNumberId}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="space-y-1">
+            <Label htmlFor="subjectType">Entitate *</Label>
+            <select
+              id="subjectType"
+              {...register('subjectType', { required: 'Entitatea este obligatorie' })}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+            >
+              <option value="CLIENT">Client</option>
+              <option value="CONTACT">Contact</option>
+              <option value="COMPANY">Companie</option>
+            </select>
+            {errors.subjectType && (
+              <p className="text-xs text-destructive">{errors.subjectType.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="subjectId">ID entitate *</Label>
+            <Input
+              id="subjectId"
+              placeholder="cuid client/contact/companie"
+              {...register('subjectId', { required: 'ID-ul entității este obligatoriu' })}
+            />
+            {errors.subjectId && (
+              <p className="text-xs text-destructive">{errors.subjectId.message}</p>
+            )}
+          </div>
 
           <div className="space-y-1 md:col-span-2">
             <Label htmlFor="sendBody">Mesaj *</Label>

@@ -57,9 +57,10 @@ export class WhatsappController {
   @UseGuards(JwtAuthGuard, RolesGuard, CedarGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
   listMessages(
-    @Query('subjectType') subjectType: string,
-    @Query('subjectId') subjectId: string,
-  ) { return this.svc.listMessages(subjectType, subjectId); }
+    @Query('accountId') accountId?: string,
+    @Query('subjectType') subjectType?: string,
+    @Query('subjectId') subjectId?: string,
+  ) { return this.svc.listMessages({ accountId, subjectType, subjectId }); }
 
   // ─── Meta Webhook (public) ─────────────────────────────────────────────────
   // M-8: throttle both handlers per-IP. Meta's normal traffic is orders of
@@ -90,12 +91,12 @@ export class WhatsappController {
   @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: 300 } })
   async receiveWebhook(
-    @Req() req: Request,
+    @Req() req: Request & { rawBody?: Buffer },
     @Query('tenantId') tenantId: string,
   ) {
     const sig = req.headers['x-hub-signature-256'] as string ?? '';
     try {
-      await this.svc.handleWebhook(tenantId, req.body, sig);
+      await this.svc.handleWebhook(tenantId, req.body, req.rawBody ?? Buffer.alloc(0), sig);
     } catch {
       // Swallow errors — Meta retries on non-200; we must always return 200
     }

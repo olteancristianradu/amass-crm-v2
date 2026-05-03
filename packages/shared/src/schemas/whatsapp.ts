@@ -5,6 +5,7 @@ export const CreateWhatsappAccountSchema = z.object({
   displayPhoneNumber: z.string().min(1).max(20),
   accessToken: z.string().min(1),
   webhookVerifyToken: z.string().min(8).max(100),
+  metaAppSecret: z.string().min(8).max(200),
 });
 export type CreateWhatsappAccountDto = z.infer<typeof CreateWhatsappAccountSchema>;
 

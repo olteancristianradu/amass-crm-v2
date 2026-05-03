@@ -1,4 +1,5 @@
-// AMASS-CRM service worker — v3 (offline-capable mobile shell + selective API cache).
+// AMASS-CRM service worker — offline-capable mobile shell. Authenticated API
+// responses are intentionally network-only.
 //
 // Bump CACHE on any breaking change so old clients purge on activate. Past
 // regression: when a deploy changed hashed filenames, the SW served a stale
@@ -9,27 +10,15 @@
 //   - Hashed Vite assets ("/assets/*.[hash].js|.css") → CACHE-FIRST. They are
 //     content-addressed; if the hash matches, the content matches — cache
 //     forever, never stale.
-//   - GET /api/v1/companies + /api/v1/contacts (list + detail) →
-//     STALE-WHILE-REVALIDATE so offline mobile shows last-seen data with a
-//     background refresh on reconnect.
-//   - Everything else on /api/* → network-only (auth, mutations, sensitive
-//     reads).
+//   - Every /api/* request → network-only. API responses are authenticated
+//     tenant data and must not be cached under URL-only service-worker keys.
 //
-// Cross-tenant safety: cache keys are URL-only. The cache is shared across
-// users on the same browser profile. We mitigate by:
-//   1. Clearing caches on logout (FE responsibility — already wired in
-//      AppShell.handleLogout via queryClient.clear() + caches.delete()).
-//   2. Limiting API caching to non-sensitive endpoints.
-//   3. Always revalidating in the background.
-
 // Bump on every breaking change so old clients purge on activate.
 // v4: tenant-removed login + 3 themes shipped → ensure stale HTML pointing
 // at deleted bundle hashes (from the v3 build) gets evicted.
-const CACHE = 'amass-shell-v4';
+// v5: remove all authenticated API response caching.
+const CACHE = 'amass-shell-v5';
 const STATIC_ASSETS = ['/manifest.webmanifest', '/icon-192.svg', '/icon-512.svg'];
-
-// API paths we DO want to cache for offline UX. Keep this list narrow.
-const CACHEABLE_API_PREFIXES = ['/api/v1/companies', '/api/v1/contacts'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(STATIC_ASSETS)));
@@ -53,11 +42,8 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(req.url);
 
-  // 1. API — only cache the explicit prefixes; everything else network-only.
+  // 1. API — network-only. Do not cache tenant/user data in a URL-keyed SW cache.
   if (url.pathname.startsWith('/api/')) {
-    if (CACHEABLE_API_PREFIXES.some((p) => url.pathname.startsWith(p))) {
-      e.respondWith(staleWhileRevalidate(req));
-    }
     return;
   }
 
@@ -112,18 +98,4 @@ async function cacheFirst(request) {
   } catch {
     return Response.error();
   }
-}
-
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE);
-  const cached = await cache.match(request);
-  const fetchPromise = fetch(request)
-    .then((fresh) => {
-      if (fresh.ok) cache.put(request, fresh.clone());
-      return fresh;
-    })
-    .catch(() => null);
-  // If we have a cached copy, serve it immediately and update in the
-  // background. Otherwise wait for the network.
-  return cached ?? (await fetchPromise) ?? Response.error();
 }

@@ -1533,6 +1533,7 @@ model WhatsappAccount {
   displayPhoneNumber String    @map("display_phone_number")
   accessTokenEnc     String    @map("access_token_enc")
   webhookVerifyToken String    @map("webhook_verify_token")
+  metaAppSecretEnc   String?   @map("meta_app_secret_enc")
   isActive           Boolean   @default(true) @map("is_active")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")

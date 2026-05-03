@@ -422,11 +422,31 @@ export class AuthService {
       throw new UnauthorizedException({ code: 'INVALID_REFRESH', message: 'Refresh token invalid or expired' });
     }
 
-    // Rotate: revoke old, issue new. Single-use refresh tokens prevent replay attacks.
-    await this.prisma.session.update({
-      where: { id: session.id },
-      data: { revokedAt: new Date() },
+    // Rotate atomically: only one concurrent request may consume this refresh
+    // token. A plain update by id lets two racing requests both read
+    // revokedAt=null before either write lands, issuing a shadow session.
+    const revokedAt = new Date();
+    const consumed = await this.prisma.session.updateMany({
+      where: { id: session.id, revokedAt: null, expiresAt: { gt: revokedAt } },
+      data: { revokedAt },
     });
+    if (consumed.count !== 1) {
+      this.logger.warn(
+        `Refresh-token race/reuse detected (session ${session.id}, user ${session.userId}). Revoking all active sessions for this user.`,
+      );
+      await this.prisma.session.updateMany({
+        where: { userId: session.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      void this.audit.log({
+        action: 'auth.refresh_reuse_detected',
+        actorId: session.userId,
+        subjectType: 'user',
+        subjectId: session.userId,
+        metadata: { sessionId: session.id, ipAddress: meta.ipAddress, userAgent: meta.userAgent, reason: 'race_lost' },
+      });
+      throw new UnauthorizedException({ code: 'INVALID_REFRESH', message: 'Refresh token invalid or expired' });
+    }
 
     const tokens = await this.issueTokens(user, meta);
     return { tokens };

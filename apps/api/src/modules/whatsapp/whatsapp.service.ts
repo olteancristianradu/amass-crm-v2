@@ -40,6 +40,7 @@ export class WhatsappService {
           displayPhoneNumber: dto.displayPhoneNumber,
           accessTokenEnc: encryptSecret(dto.accessToken),
           webhookVerifyToken: dto.webhookVerifyToken,
+          metaAppSecretEnc: encryptSecret(dto.metaAppSecret),
         },
       }),
     );
@@ -155,21 +156,20 @@ export class WhatsappService {
     return challenge;
   }
 
-  async handleWebhook(tenantId: string, body: unknown, signature: string): Promise<void> {
+  async handleWebhook(tenantId: string, body: unknown, rawBody: Buffer, signature: string): Promise<void> {
     const account = await this.prisma.runWithTenant(tenantId, (tx) =>
       tx.whatsappAccount.findFirst({
         where: { tenantId, isActive: true, deletedAt: null },
       }),
     );
     if (!account) return;
+    if (!account.metaAppSecretEnc) {
+      throw new UnauthorizedException('WhatsApp Meta App Secret is not configured');
+    }
 
-    // HMAC secret for inbound-webhook verification is `webhookVerifyToken`,
-    // which is a Meta-provided secret distinct from the access token used
-    // for outbound API calls. Reusing accessToken was an anti-pattern —
-    // a leaked access token should not also let an attacker forge inbound
-    // webhooks. See https://developers.facebook.com/docs/graph-api/webhooks
-    const expected = `sha256=${createHmac('sha256', account.webhookVerifyToken)
-      .update(JSON.stringify(body))
+    const metaAppSecret = decryptSecret(account.metaAppSecretEnc);
+    const expected = `sha256=${createHmac('sha256', metaAppSecret)
+      .update(rawBody)
       .digest('hex')}`;
     // timingSafeEqual to prevent timing oracles on the signature check.
     const sigBuf = Buffer.from(signature);
@@ -210,11 +210,34 @@ export class WhatsappService {
     }
   }
 
-  async listMessages(subjectType: string, subjectId: string) {
+  async listMessages(query: { accountId?: string; subjectType?: string; subjectId?: string }) {
     const { tenantId } = requireTenantContext();
+    let where: {
+      tenantId: string;
+      accountId?: string;
+      subjectType?: SubjectType;
+      subjectId?: string;
+    };
+
+    if (query.accountId) {
+      where = { tenantId, accountId: query.accountId };
+    } else {
+      if (!query.subjectType || !query.subjectId) {
+        throw new BadRequestException('Either accountId or subjectType + subjectId is required');
+      }
+      if (!Object.values(SubjectType).includes(query.subjectType as SubjectType)) {
+        throw new BadRequestException('Invalid WhatsApp message subjectType');
+      }
+      where = {
+        tenantId,
+        subjectType: query.subjectType as SubjectType,
+        subjectId: query.subjectId,
+      };
+    }
+
     return this.prisma.runWithTenant(tenantId, (tx) =>
       tx.whatsappMessage.findMany({
-        where: { tenantId, subjectType: subjectType as SubjectType, subjectId },
+        where,
         orderBy: { createdAt: 'asc' },
         take: 200,
       }),

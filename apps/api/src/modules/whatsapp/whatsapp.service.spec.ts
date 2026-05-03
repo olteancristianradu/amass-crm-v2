@@ -46,9 +46,11 @@ describe('WhatsappService.createAccount', () => {
       displayPhoneNumber: '+40712345678',
       accessToken: 'plain-token',
       webhookVerifyToken: 'wh-token',
+      metaAppSecret: 'meta-secret',
     } as never);
     const data = h.tx.whatsappAccount.create.mock.calls[0][0].data;
     expect(data.accessTokenEnc).toBe('ENC(plain-token)');
+    expect(data.metaAppSecretEnc).toBe('ENC(meta-secret)');
     // Verify token stays plaintext (it's compared in equality check, not encrypted-at-rest design).
     expect(data.webhookVerifyToken).toBe('wh-token');
   });
@@ -172,8 +174,8 @@ describe('WhatsappService.verifyWebhook', () => {
 describe('WhatsappService.handleWebhook', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  function signedSig(secret: string, body: unknown): string {
-    return `sha256=${createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex')}`;
+  function signedSig(secret: string, rawBody: Buffer): string {
+    return `sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`;
   }
 
   it('refuses a tampered signature (HMAC mismatch)', async () => {
@@ -182,8 +184,9 @@ describe('WhatsappService.handleWebhook', () => {
       id: 'wa-1',
       displayPhoneNumber: '+40700000000',
       webhookVerifyToken: 'sec',
+      metaAppSecretEnc: 'ENC(meta-secret)',
     });
-    await expect(h.svc.handleWebhook('tenant-1', { entry: [] }, 'sha256=00')).rejects.toThrow(
+    await expect(h.svc.handleWebhook('tenant-1', { entry: [] }, Buffer.from('{"entry":[]}'), 'sha256=00')).rejects.toThrow(
       UnauthorizedException,
     );
   });
@@ -191,7 +194,7 @@ describe('WhatsappService.handleWebhook', () => {
   it('returns silently when tenant has no active account (signature not even checked)', async () => {
     const h = build();
     h.tx.whatsappAccount.findFirst.mockResolvedValueOnce(null);
-    await expect(h.svc.handleWebhook('tenant-1', {}, 'sha256=anything')).resolves.toBeUndefined();
+    await expect(h.svc.handleWebhook('tenant-1', {}, Buffer.from('{}'), 'sha256=anything')).resolves.toBeUndefined();
   });
 
   it('persists INBOUND messages and skips already-stored externalIds (idempotent)', async () => {
@@ -200,6 +203,7 @@ describe('WhatsappService.handleWebhook', () => {
       id: 'wa-1',
       displayPhoneNumber: '+40700000000',
       webhookVerifyToken: 'sec',
+      metaAppSecretEnc: 'ENC(meta-secret)',
     });
     const body = {
       entry: [
@@ -221,11 +225,66 @@ describe('WhatsappService.handleWebhook', () => {
       .mockResolvedValueOnce(null) // wamid.A is new
       .mockResolvedValueOnce({ id: 'pre-existing' } as never); // wamid.B is duplicate
     h.tx.whatsappMessage.create.mockResolvedValueOnce({});
-    await h.svc.handleWebhook('tenant-1', body, signedSig('sec', body));
+    const rawBody = Buffer.from(JSON.stringify(body));
+    await h.svc.handleWebhook('tenant-1', body, rawBody, signedSig('meta-secret', rawBody));
     expect(h.tx.whatsappMessage.create).toHaveBeenCalledTimes(1);
     const data = h.tx.whatsappMessage.create.mock.calls[0][0].data;
     expect(data.externalId).toBe('wamid.A');
     expect(data.direction).toBe('INBOUND');
+  });
+
+  it('does not accept signatures made with webhookVerifyToken over reserialized JSON', async () => {
+    const h = build();
+    h.tx.whatsappAccount.findFirst.mockResolvedValueOnce({
+      id: 'wa-1',
+      displayPhoneNumber: '+40700000000',
+      webhookVerifyToken: 'verify-token',
+      metaAppSecretEnc: 'ENC(meta-secret)',
+    });
+    const body = { entry: [] };
+    const legacySig = `sha256=${createHmac('sha256', 'verify-token').update(JSON.stringify(body)).digest('hex')}`;
+    await expect(h.svc.handleWebhook('tenant-1', body, Buffer.from(JSON.stringify(body)), legacySig))
+      .rejects.toThrow(UnauthorizedException);
+  });
+});
+
+describe('WhatsappService.listMessages', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('lists all messages for a WhatsApp account when accountId is supplied', async () => {
+    const h = build();
+    h.tx.whatsappMessage.findMany.mockResolvedValueOnce([{ id: 'm-1' }]);
+    const result = await h.svc.listMessages({ accountId: 'wa-1' });
+    expect(result).toEqual([{ id: 'm-1' }]);
+    expect(h.tx.whatsappMessage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: 'tenant-1', accountId: 'wa-1' },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+      }),
+    );
+  });
+
+  it('lists messages by subject when subjectType + subjectId are supplied', async () => {
+    const h = build();
+    h.tx.whatsappMessage.findMany.mockResolvedValueOnce([]);
+    await h.svc.listMessages({ subjectType: 'CONTACT', subjectId: 'c-1' });
+    expect(h.tx.whatsappMessage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: 'tenant-1', subjectType: 'CONTACT', subjectId: 'c-1' },
+      }),
+    );
+  });
+
+  it('rejects missing filters instead of returning a misleading inbox', async () => {
+    const h = build();
+    await expect(h.svc.listMessages({})).rejects.toThrow(BadRequestException);
+    expect(h.tx.whatsappMessage.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid subjectType values', async () => {
+    const h = build();
+    await expect(h.svc.listMessages({ subjectType: 'ACCOUNT', subjectId: 'x' })).rejects.toThrow(BadRequestException);
   });
 });
 

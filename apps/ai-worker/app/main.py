@@ -16,7 +16,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from .config import settings
@@ -101,12 +101,21 @@ class ManualProcessRequest(BaseModel):
 
 
 @app.post("/process/call")
-async def manual_process(req: ManualProcessRequest) -> dict[str, Any]:
+async def manual_process(
+    req: ManualProcessRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
     """
     Manually trigger the pipeline for a call (admin/debug use only).
     In production this endpoint should be protected by a firewall or
     the same AI_WORKER_SECRET as the API callback.
     """
+    expected = f"Bearer {settings.AI_WORKER_SECRET}" if settings.AI_WORKER_SECRET else ""
+    if not expected:
+        raise HTTPException(status_code=503, detail="Manual processing is disabled")
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     try:
         result = await process_call(req.model_dump())
         return {"status": "ok", "callId": req.callId, "result": result}

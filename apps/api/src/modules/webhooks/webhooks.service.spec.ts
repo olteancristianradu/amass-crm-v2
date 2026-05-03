@@ -76,11 +76,16 @@ describe('WebhooksService', () => {
 
     it('returns the endpoint when found', async () => {
       const ep = { id: 'ep1', url: 'https://a.example/hook', events: [], isActive: true };
+      const findFirst = vi.fn().mockResolvedValue(ep);
       mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
-        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(ep) } }),
+        fn({ webhookEndpoint: { findFirst } }),
       );
       const out = await svc.get('ep1');
       expect(out).toEqual(ep);
+      expect(findFirst).toHaveBeenCalledWith({
+        where: { id: 'ep1', tenantId: 'tenant-1' },
+        select: { id: true, url: true, events: true, isActive: true, createdAt: true },
+      });
     });
   });
 
@@ -107,6 +112,13 @@ describe('WebhooksService', () => {
 
       await svc.update('ep1', { isActive: false });
       expect(update.mock.calls[0][0].data).toEqual({ isActive: false });
+      expect(update.mock.calls[0][0].select).toEqual({
+        id: true,
+        url: true,
+        events: true,
+        isActive: true,
+        createdAt: true,
+      });
     });
   });
 

@@ -5,7 +5,9 @@
  *
  * Signature: X-Amass-Signature: sha256=<hmac-hex>  (same scheme as GitHub webhooks)
  */
-import { createHmac, randomBytes } from 'crypto';
+import { createHmac, randomBytes } from 'node:crypto';
+import { request as httpRequest, type RequestOptions } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { lookup } from 'dns/promises';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, WebhookEvent } from '@prisma/client';
@@ -21,6 +23,19 @@ export interface UpdateWebhookEndpointDto {
   url?: string;
   events?: WebhookEvent[];
   isActive?: boolean;
+}
+
+const PUBLIC_ENDPOINT_SELECT = {
+  id: true,
+  url: true,
+  events: true,
+  isActive: true,
+  createdAt: true,
+} as const;
+
+interface ValidatedWebhookUrl {
+  parsed: URL;
+  pinnedAddress?: { address: string; family: number };
 }
 
 @Injectable()
@@ -55,7 +70,10 @@ export class WebhooksService {
   async get(id: string) {
     const { tenantId } = requireTenantContext();
     const ep = await this.prisma.runWithTenant(tenantId, (tx) =>
-      tx.webhookEndpoint.findFirst({ where: { id, tenantId } }),
+      tx.webhookEndpoint.findFirst({
+        where: { id, tenantId },
+        select: PUBLIC_ENDPOINT_SELECT,
+      }),
     );
     if (!ep) throw new NotFoundException('Webhook endpoint not found');
     return ep;
@@ -73,6 +91,7 @@ export class WebhooksService {
           ...(dto.events !== undefined ? { events: { set: dto.events } } : {}),
           ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         },
+        select: PUBLIC_ENDPOINT_SELECT,
       }),
     );
   }
@@ -133,16 +152,14 @@ export class WebhooksService {
       // Re-validate at delivery time to defeat DNS rebinding: attacker registers
       // an endpoint whose DNS resolves to a public IP at creation, but flips to
       // 127.0.0.1 before the webhook fires.
-      await this.validateUrl(ep.url);
-      const res = await fetch(ep.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Amass-Signature': sig, 'X-Amass-Event': event },
-        body,
-        signal: AbortSignal.timeout(10_000),
-        redirect: 'error',
-      });
+      const target = await this.validateUrl(ep.url);
+      const res = await this.postJson(target, {
+        'Content-Type': 'application/json',
+        'X-Amass-Signature': sig,
+        'X-Amass-Event': event,
+      }, body);
       statusCode = res.status;
-      responseBody = (await res.text()).slice(0, 2000);
+      responseBody = res.text.slice(0, 2000);
       success = res.ok;
     } catch (err) {
       responseBody = String(err).slice(0, 2000);
@@ -173,7 +190,7 @@ export class WebhooksService {
    *   - Host must resolve to a PUBLIC IP. Private / loopback / link-local /
    *     reserved / cloud-metadata ranges are rejected on ALL resolved IPs.
    */
-  private async validateUrl(url: string): Promise<void> {
+  private async validateUrl(url: string): Promise<ValidatedWebhookUrl> {
     let parsed: URL;
     try { parsed = new URL(url); } catch { throw new BadRequestException('Invalid webhook URL'); }
 
@@ -188,13 +205,13 @@ export class WebhooksService {
     }
 
     // In test env, skip DNS lookups — tests use fake hostnames.
-    if (process.env['NODE_ENV'] === 'test') return;
+    if (process.env['NODE_ENV'] === 'test') return { parsed };
 
     // Dev escape hatch: comma-separated allow-list of hostnames whose
     // private/loopback resolution is acceptable. Use ONLY for the local
     // mock-services container (`webhook-mock` etc.) — empty in prod.
     const trusted = (process.env['WEBHOOK_TRUSTED_HOSTS'] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (trusted.includes(parsed.hostname)) return;
+    if (trusted.includes(parsed.hostname)) return { parsed };
 
     let records: Array<{ address: string; family: number }>;
     try {
@@ -208,6 +225,70 @@ export class WebhooksService {
         throw new BadRequestException('Webhook URL must resolve to a public address');
       }
     }
+
+    return { parsed, pinnedAddress: records[0] };
+  }
+
+  private async postJson(
+    target: ValidatedWebhookUrl,
+    headers: Record<string, string>,
+    body: string,
+  ): Promise<{ status: number; ok: boolean; text: string }> {
+    if (!target.pinnedAddress) {
+      const res = await fetch(target.parsed.toString(), {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(10_000),
+        redirect: 'error',
+      });
+      return { status: res.status, ok: res.ok, text: await res.text() };
+    }
+
+    const pinnedAddress = target.pinnedAddress;
+    return new Promise((resolve, reject) => {
+      const isHttps = target.parsed.protocol === 'https:';
+      const requestFn = isHttps ? httpsRequest : httpRequest;
+      const options: RequestOptions & { servername?: string } = {
+        protocol: target.parsed.protocol,
+        hostname: pinnedAddress.address,
+        port: Number(target.parsed.port) || (isHttps ? 443 : 80),
+        method: 'POST',
+        path: `${target.parsed.pathname}${target.parsed.search}`,
+        headers: {
+          ...headers,
+          Host: target.parsed.host,
+          'Content-Length': Buffer.byteLength(body),
+        },
+        timeout: 10_000,
+      };
+      if (isHttps) options.servername = target.parsed.hostname;
+
+      const req = requestFn(options, (res) => {
+        const chunks: Buffer[] = [];
+        let captured = 0;
+        res.on('data', (chunk: Buffer | string) => {
+          if (captured >= 2000) return;
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          const remaining = 2000 - captured;
+          chunks.push(buf.subarray(0, remaining));
+          captured += Math.min(buf.length, remaining);
+        });
+        res.on('end', () => {
+          const status = res.statusCode ?? 0;
+          resolve({
+            status,
+            ok: status >= 200 && status < 300,
+            text: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      });
+
+      req.on('timeout', () => req.destroy(new Error('Webhook request timed out')));
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
   }
 }
 

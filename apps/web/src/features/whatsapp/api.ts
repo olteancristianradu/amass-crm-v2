@@ -1,5 +1,4 @@
 import { api } from '@/lib/api';
-import type { CursorPage } from '@/lib/types';
 
 export type WhatsAppMessageDirection = 'INBOUND' | 'OUTBOUND';
 export type WhatsAppMessageStatus = 'QUEUED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
@@ -8,8 +7,7 @@ export interface WhatsAppAccount {
   id: string;
   tenantId: string;
   phoneNumberId: string;
-  /** accessToken is never returned in full — masked by the backend */
-  displayName?: string | null;
+  displayPhoneNumber: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -33,22 +31,27 @@ export interface WhatsAppMessage {
 
 export interface ConnectAccountDto {
   phoneNumberId: string;
+  displayPhoneNumber: string;
   accessToken: string;
-  verifyToken: string;
+  webhookVerifyToken: string;
+  metaAppSecret: string;
 }
 
 export interface SendWhatsAppDto {
+  subjectType: 'COMPANY' | 'CONTACT' | 'CLIENT';
+  subjectId: string;
   toNumber: string;
   body: string;
-  accountId?: string;
 }
 
 export const whatsappApi = {
-  listAccounts: () => api.get<CursorPage<WhatsAppAccount>>('/whatsapp/accounts'),
+  listAccounts: () => api.get<WhatsAppAccount[]>('/whatsapp/accounts'),
   connectAccount: (dto: ConnectAccountDto) =>
     api.post<WhatsAppAccount>('/whatsapp/accounts', dto),
-  listMessages: (accountId: string) =>
-    api.get<CursorPage<WhatsAppMessage>>('/whatsapp/messages', { accountId }),
+  listMessagesByAccount: (accountId: string) =>
+    api.get<WhatsAppMessage[]>('/whatsapp/messages', { accountId }),
+  listMessagesBySubject: (subjectType: SendWhatsAppDto['subjectType'], subjectId: string) =>
+    api.get<WhatsAppMessage[]>('/whatsapp/messages', { subjectType, subjectId }),
   sendMessage: (dto: SendWhatsAppDto) =>
-    api.post<WhatsAppMessage>('/whatsapp/send', dto),
+    api.post<WhatsAppMessage>('/whatsapp/messages', dto),
 };

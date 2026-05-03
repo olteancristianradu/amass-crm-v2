@@ -411,19 +411,37 @@ describe('AuthService.refresh', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
-  it('happy path — revokes the old session + issues new tokens', async () => {
+  it('happy path — atomically revokes the old session + issues new tokens', async () => {
     const h = build();
     vi.mocked(h.prisma.session.findUnique).mockResolvedValue({
       id: 'sess-old', userId: 'u-1', refreshTokenHash: 'h',
       revokedAt: null, expiresAt: new Date('2099-01-01'),
     } as never);
     vi.mocked(h.prisma.user.findUnique).mockResolvedValue(makeUser() as never);
-    vi.mocked(h.prisma.session.update).mockResolvedValue({ id: 'sess-old', revokedAt: new Date() } as never);
+    vi.mocked(h.prisma.session.updateMany).mockResolvedValue({ count: 1 } as never);
     vi.mocked(h.prisma.session.create).mockResolvedValue({ id: 'sess-new' } as never);
     const out = await h.svc.refresh({ refreshToken: 'rt' } as never);
     expect(out.tokens.accessToken).toBe('signed.jwt.token');
-    expect(vi.mocked(h.prisma.session.update).mock.calls[0]![0]).toMatchObject({
-      where: { id: 'sess-old' },
+    expect(vi.mocked(h.prisma.session.updateMany).mock.calls[0]![0]).toMatchObject({
+      where: { id: 'sess-old', revokedAt: null },
+    });
+    expect(h.prisma.session.update).not.toHaveBeenCalled();
+  });
+
+  it('revokes all active sessions when atomic refresh rotation loses the race', async () => {
+    const h = build();
+    vi.mocked(h.prisma.session.findUnique).mockResolvedValue({
+      id: 'sess-old', userId: 'u-1', refreshTokenHash: 'h',
+      revokedAt: null, expiresAt: new Date('2099-01-01'),
+    } as never);
+    vi.mocked(h.prisma.user.findUnique).mockResolvedValue(makeUser() as never);
+    vi.mocked(h.prisma.session.updateMany)
+      .mockResolvedValueOnce({ count: 0 } as never)
+      .mockResolvedValueOnce({ count: 3 } as never);
+    await expect(h.svc.refresh({ refreshToken: 'rt' } as never)).rejects.toThrow(UnauthorizedException);
+    expect(h.prisma.session.create).not.toHaveBeenCalled();
+    expect(vi.mocked(h.prisma.session.updateMany).mock.calls[1]![0]).toMatchObject({
+      where: { userId: 'u-1', revokedAt: null },
     });
   });
 });

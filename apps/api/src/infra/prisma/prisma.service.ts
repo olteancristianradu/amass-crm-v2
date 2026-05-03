@@ -73,6 +73,9 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'SsoConfig',
   'Task',
   'Territory',
+  'Tag',
+  'EntityTag',
+  'OutlookToken',
   'User',
   'ValidationRule',
   'WebhookEndpoint',
@@ -306,4 +309,3 @@ export function tenantExtension() {
     },
   });
 }
-
