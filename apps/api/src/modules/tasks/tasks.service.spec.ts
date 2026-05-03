@@ -43,11 +43,13 @@ describe('TasksService.create — exactly-one link rule', () => {
     expect(h.tx.task.create).not.toHaveBeenCalled();
   });
 
-  it('rejects when neither dealId nor subject is set', async () => {
+  it('allows standalone tasks (no dealId and no subject) — created from /tasks page', async () => {
     const h = build();
+    h.tx.task.create.mockResolvedValueOnce({ id: 't-1', title: 'X', dealId: null, subjectType: null, subjectId: null });
     await expect(
       h.svc.create({ title: 'X', priority: 'NORMAL' } as never),
-    ).rejects.toThrow(BadRequestException);
+    ).resolves.toMatchObject({ id: 't-1' });
+    expect(h.tx.task.create).toHaveBeenCalledOnce();
   });
 
   it('rejects with DEAL_NOT_FOUND when dealId is bogus', async () => {
