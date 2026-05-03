@@ -83,6 +83,7 @@ import { ConditionalAccessMiddleware } from './modules/access-control/conditiona
 import { SyncModule } from './modules/sync/sync.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { OutlookEmailModule } from './modules/outlook-email/outlook-email.module';
+import { resolveLogLevel } from './config/logging';
 
 /**
  * Root NestJS module. Wires together every feature + infrastructure
@@ -128,7 +129,7 @@ import { OutlookEmailModule } from './modules/outlook-email/outlook-email.module
     //   - the standard email + phone fields
     LoggerModule.forRoot({
       pinoHttp: {
-        level: process.env['LOG_LEVEL'] ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug'),
+        level: resolveLogLevel(),
         autoLogging: { ignore: (req) => req.url === '/metrics' || req.url === '/api/v1/metrics' },
         // M-2: derive req.id from the X-Request-Id header stamped by
         // RequestContextMiddleware. Pino then prints it on every log line,

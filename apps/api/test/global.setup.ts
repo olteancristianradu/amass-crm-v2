@@ -41,4 +41,5 @@ export function setup(): void {
   process.env.ENCRYPTION_KEY ??= '0000000000000000000000000000000000000000000000000000000000000000';
   process.env.JWT_SECRET ??= 'test-secret-at-least-16-chars-ok';
   process.env.JWT_REFRESH_SECRET ??= 'test-refresh-secret-16chars-ok!';
+  process.env.AI_WORKER_SECRET = 'test-ai-worker-secret-16chars';
 }

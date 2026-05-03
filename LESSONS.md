@@ -1,4 +1,66 @@
-# LESSONS.md — running log of mistakes, fixes & gotchas
+# LESSONS.md — Running Log of Mistakes, Fixes, and Gotchas
+
+## Rule
+
+Every repeated mistake or non-obvious project-specific trap must be documented here. Entries must be factual, actionable, and tied to root cause.
+
+## Entry format
+
+```markdown
+### YYYY-MM-DD — Short title
+
+- Area:
+- Symptom:
+- Root cause:
+- Fix:
+- Prevention rule:
+- Related files:
+- Related tests:
+```
+
+## Entries
+
+### 2026-05-03 — Empty env vars must not bypass defaults
+
+- Area: env/config/logging
+- Symptom: `pnpm --filter @amass/api test:e2e` failed at Nest startup with Pino `default level: must be included in custom levels`.
+- Root cause: local `.env` had `LOG_LEVEL=`; code used `process.env['LOG_LEVEL'] ?? fallback`, so the empty string bypassed the default log level.
+- Fix: added `resolveLogLevel()` to trim `LOG_LEVEL` and fall back to `debug`/`info` when it is empty.
+- Prevention rule: for optional env vars, normalize empty strings before passing values into strict libraries.
+- Related files: `apps/api/src/config/logging.ts`, `apps/api/src/config/logging.spec.ts`, `apps/api/src/app.module.ts`
+- Related tests: `pnpm --filter @amass/api exec vitest run --config vitest.config.unit.ts src/config/logging.spec.ts`, `pnpm --filter @amass/api test:e2e`
+
+### 2026-05-03 — Test env required by import-time loadEnv must be set in setup files
+
+- Area: tests/env/Nest module imports
+- Symptom: `test/calls.e2e.spec.ts` failed with expected `200`, got `403` on `POST /api/v1/calls/:id/ai-result`.
+- Root cause: `AI_WORKER_SECRET` was set in `beforeAll`, but `AppModule` imports triggered `loadEnv()` earlier and cached env without the test secret.
+- Fix: set deterministic `AI_WORKER_SECRET` in `apps/api/test/env.setup.ts` and `apps/api/test/global.setup.ts` before application modules import.
+- Prevention rule: if production code reads env at module construction/import time, test-only env values must be set in Vitest setup/global setup, not inside `beforeAll`.
+- Related files: `apps/api/test/calls.e2e.spec.ts`, `apps/api/test/env.setup.ts`, `apps/api/test/global.setup.ts`, `apps/api/src/config/env.ts`
+- Related tests: `pnpm --filter @amass/api exec vitest run test/calls.e2e.spec.ts`, `pnpm --filter @amass/api test:e2e`
+
+### 2026-05-03 — Runtime checks need repo-specific paths and prefixes
+
+- Area: runtime verification / Docker / API smoke
+- Symptom: `docker compose ps` from repo root failed with "no configuration file provided"; `curl http://localhost:3000/health` returned 404.
+- Root cause: compose files live under `infra/`, and Nest sets the global API prefix to `/api/v1`.
+- Fix: use `docker compose -f infra/docker-compose.yml ps` and smoke `http://localhost:3000/api/v1/health` / `http://localhost:3000/api/v1/health/ready`.
+- Prevention rule: before declaring runtime health, verify the repo-specific compose file and API prefix instead of assuming root compose or root health routes.
+- Related files: `package.json`, `infra/docker-compose.yml`, `apps/api/src/main.ts`, `apps/api/src/modules/health/health.controller.ts`
+- Related tests: `curl -fsS http://localhost:3000/api/v1/health`, `curl -fsS http://localhost:3000/api/v1/health/ready`
+
+### 2026-05-03 — Current-session verification must be separated from historical notes
+
+- Area: release workflow / documentation
+- Symptom: `STATUS.md` contained many older claims about test counts, coverage, modules, and launch readiness that could be misread as verified today.
+- Root cause: project status docs accumulated useful history without a current-session truth block at the top.
+- Fix: add a current-session audit section and explicitly label older content as historical unless rechecked.
+- Prevention rule: always separate current verification from historical context in `STATUS.md`, `TEST_REPORT.md`, and final reports.
+- Related files: `STATUS.md`, `TEST_REPORT.md`, `AGENTS.md`
+- Related tests: not applicable; documentation/process change
+
+## Historical Entries
 
 > This file is maintained by Claude Code across sessions. Every time
 > something breaks, surprises, or wastes time, add an entry here so
