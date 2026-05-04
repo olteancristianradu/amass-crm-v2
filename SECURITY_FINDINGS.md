@@ -1,58 +1,60 @@
 # SECURITY_FINDINGS.md
 
-Last updated: 2026-05-03 23:10 Europe/Bucharest
+Last updated: 2026-05-04 00:31 Europe/Bucharest
 
 Security status must be based on evidence, not impressions. Do not mark a finding fixed unless the fix and verification are documented.
 
-## Severity scale
+## Severity Scale
 
 - P0: exploitable data leak / auth bypass / tenant isolation break
 - P1: serious security weakness
 - P2: defense-in-depth / hardening
 - P3: documentation/config risk
 
-## Open findings
+## Open Findings
 
 | ID | Severity | Finding | Evidence | Risk | Fix plan | Status |
 |---|---:|---|---|---|---|---|
-| SEC-001 | P3 | Production security readiness is not verified in this session. | Local-only checks were run; no production/demo URL, production env, real provider credentials, backup, or monitoring checks were run. | Unknown launch security posture until production context is checked. | Run focused production security review for auth, tenant isolation, RLS, webhooks, secrets, exposed ops endpoints, CORS, rate limits, and provider callbacks. | open |
-| SEC-002 | P2 | Moderate dependency advisories remain in non-production audit output. | `pnpm audit --json` exited `1`: `vite` CVE-2026-39365, `esbuild` GHSA-67mh-4wv8-2f99, `postcss` CVE-2026-41305. `pnpm audit --prod --audit-level=high` passed. | Mostly dev/tooling exposure based on current audit scope, but dev-server and build-chain vulnerabilities should not be ignored. | Update affected dependency chain or add controlled overrides, then rerun `pnpm audit`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and relevant builds. | open |
-| SEC-003 | P3 | No local secret-scanner evidence exists in this session. | `command -v gitleaks` returned exit `1`; local `.env` is ignored/untracked, but no local gitleaks scan was run. | Secrets may be missed by local review if committed under unexpected names. | Install/use an approved secret scanner or rely on documented CI secret scanning if configured and verified. | open |
+| SEC-001 | P3 | Production security readiness is not verified. | Local checks only; no production env, stable domain, backup, monitoring, or real provider credentials verified. | Unknown launch security posture. | Run production-context security/release review after infra and credentials exist. | open |
+| SEC-002 | P2 | Moderate dependency advisories remain in non-production audit output. | `pnpm audit --json` previously reported `vite` CVE-2026-39365, `esbuild` GHSA-67mh-4wv8-2f99, `postcss` CVE-2026-41305. | Dev/build-chain exposure should not be ignored. | Update affected dependency chain or controlled overrides; rerun audit and test suite. | open |
+| SEC-003 | P3 | No local secret-scanner evidence exists. | `command -v gitleaks` unavailable in this environment. | Secrets may be missed if committed under unexpected names. | Install/use approved scanner or verify CI secret scanning. | open |
+| SEC-004 | P1 | RLS policies are fail-open when tenant context is missing. | `BEGIN; SET LOCAL ROLE app_user; SELECT current_setting('app.tenant_id', true), count(*) FROM companies; ROLLBACK;` returned `122` companies with empty tenant setting. Policies include `current_tenant_id() IS NULL OR ...`. | If any app/query path runs as restricted DB role without tenant context, RLS does not protect tenant data. | Replace fail-open policies with deny-by-default tenant match; introduce explicit migration/test path for tenant-less auth lookups if needed. Add regression SQL test. | open |
+| SEC-005 | P1 | Notifications Socket.IO gateway bypasses main CORS allow-list and reads wrong tenant claim. | `apps/api/src/modules/notifications/notifications.gateway.ts` uses `@WebSocketGateway({ cors: { origin: '*' }})`; `AuthService` JWT payload uses `tid`, gateway verifies `{ tenantId: string }`. | Wildcard WS origin weakens browser boundary; tenant room binding may be wrong, causing missed or misrouted realtime events. | Reuse `CORS_ALLOWED_ORIGINS`; verify token payload as `{ tid }`; add gateway unit/e2e test. | open |
+| SEC-006 | P1 | AI worker manual `/process/call` can fetch arbitrary recording URLs after static bearer auth. | Unauth valid request returned `401`; source in `apps/ai-worker/app/main.py` protects with bearer, but `pipeline.py` follows redirects for caller-supplied `recordingUrl`. Docker maps worker on port `8000`. | If bearer leaks or endpoint is exposed, attacker can use worker for SSRF or large outbound downloads. | Restrict endpoint network exposure; add Twilio host allow-list/private-IP block/max redirect policy; consider disabling manual endpoint outside dev. | open |
+| SEC-007 | P2 | `WEBHOOK_TRUSTED_HOSTS` is a production SSRF footgun. | `webhooks.service.ts` bypasses DNS/IP check if hostname is in env allow-list; `env.ts` documents dev-only but does not reject it in production. | Accidental prod config can bypass webhook SSRF protections. | Reject non-empty `WEBHOOK_TRUSTED_HOSTS` in production or rename to explicit dev-only env guarded by `NODE_ENV`. | open |
+| SEC-008 | P3 | Webhook creation returns raw secret; policy needs explicit decision. | `webhooks.service.ts create()` selects `secret`; list/get/update use public select. | One-time display may be acceptable, but it conflicts with a stricter "never return secrets after creation" reading unless documented. | Decide policy. If one-time display is accepted, document and avoid returning on any later read; otherwise remove from create response and add rotate/reveal flow. | open |
 
-## Fixed findings
+## Fixed Findings
 
 | ID | Severity | Finding | Fixed in commit | Verification |
 |---|---:|---|---|---|
 
-## Disproven findings
+## Disproven / Controlled Findings
 
 | ID | Claim | How it was checked | Result |
 |---|---|---|---|
-| DISP-001 | Authenticated API responses are cached by the service worker. | Code inspection: `sed -n '1,140p' apps/web/public/sw.js`. | Disproven for current code: `/api/` GET requests return before `respondWith`, so the SW does not cache them. |
-| DISP-002 | Detailed health is public without auth. | `curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/v1/health/detailed`. | Disproven in local runtime: returned `401` without token. |
-| DISP-003 | Local public tenant-scoped tables lack RLS by default. | `docker exec amass-postgres psql ...` listed non-RLS public tables. | Local check found `83/87` public tables with RLS enabled/forced; the four non-RLS tables were `_prisma_migrations`, `email_verification_tokens`, `password_reset_tokens`, `tenants`. Production not checked. |
+| DISP-001 | Authenticated API responses are cached by service worker. | Code inspection of `apps/web/public/sw.js`. | Disproven: `/api/` GET requests return before `respondWith`; SW does not cache API. |
+| DISP-002 | Detailed health is public without auth. | `curl ... http://localhost:3000/api/v1/health/detailed` in this session. | Disproven locally: returned `401`. |
+| DISP-003 | Metrics are public without auth. | Security explorer checked `curl http://localhost:3000/metrics`. | Disproven locally: returned `403`. |
+| DISP-004 | Main HTTP CORS uses wildcard. | Code inspection of `apps/api/src/main.ts` and env validation. | Disproven for main API; exception is notifications gateway (`SEC-005`). |
+| DISP-005 | Refresh token rotation is non-atomic. | Code inspection of `auth.service.ts` and existing tests. | Controlled: refresh uses guarded `updateMany`, revokes family on reuse/race, and e2e covers old token failure. |
 
-## Required security checks before production
+## Required Security Checks Before Production
 
-- [x] RLS enabled/forced on tenant-scoped tables in local DB
+- [ ] RLS deny-by-default on tenant-scoped tables
 - [x] no authenticated API cached by service worker
-- [ ] refresh token rotation atomic
-- [ ] webhook secrets never returned after creation
-- [ ] webhook SSRF protection checked
-- [ ] WhatsApp/Meta webhook signature verified over raw body
-- [ ] AI worker internal/manual endpoints protected
-- [ ] CORS restricted to real domains
-- [ ] rate limiter verified
+- [x] refresh token rotation checked in code/tests
+- [ ] webhook secrets policy finalized
+- [ ] webhook SSRF protection production footgun fixed
+- [ ] WhatsApp/Meta webhook signature verified over raw body with current docs/real setup
+- [ ] AI worker internal/manual endpoints protected and SSRF-hardened
+- [ ] CORS restricted to real domains, including Socket.IO gateways
+- [x] rate limiter behavior observed locally
 - [ ] JWT secrets strong and rotated
-- [ ] no secrets committed to Git
+- [ ] no secrets committed to Git verified by secret scanner
 
-## Current session notes
+## Current Session Notes
 
-- No full security scan has been run yet in this session.
-- `GET /api/v1/health/detailed` returned HTTP 401 without a token on 2026-05-03, which verifies it is not public in the currently running local API.
-- Local RLS state was checked on 2026-05-03: `83` public tables had RLS enabled and forced; non-RLS public tables were `_prisma_migrations`, `email_verification_tokens`, `password_reset_tokens`, and `tenants`.
-- Service worker API caching was checked by reading `apps/web/public/sw.js`; `/api/` requests are network-only in current code.
-- `pnpm audit --prod --audit-level=high` passed, but full audit still reports moderate dev/transitive advisories in `vite`, `esbuild`, and `postcss`.
-- `AI_WORKER_SECRET` callback protection is covered by `test/calls.e2e.spec.ts`: correct secret returns 200, wrong secret returns 403. Broader internal/manual endpoint protection remains to audit.
-- Local `.env` is ignored/untracked (`git ls-files .env .env.example` listed only `.env.example`; `git check-ignore -v .env` matched `.gitignore`), but no local gitleaks scan was run because `gitleaks` is not installed.
-- Credential-dependent providers remain unverified with real credentials unless separately documented: Twilio, Stripe, Google OAuth, Microsoft Graph, Anthropic, SMTP, ANAF.
+- Browser smoke hit auth rate limiter with `429 Too Many Requests` during an early critical-smoke design; test was changed to avoid double login.
+- Real provider behavior was not verified: Twilio, Stripe, Google OAuth, Microsoft Graph, Anthropic, SMTP, ANAF.
+- Current findings are local/source-based unless explicitly marked production.

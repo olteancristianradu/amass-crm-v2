@@ -42,8 +42,8 @@ export function AttachmentsTab({ subjectType, subjectId }: Props): JSX.Element {
   });
 
   const handleDownload = async (id: string): Promise<void> => {
-    const { url } = await attachmentsApi.download(id);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const { downloadUrl } = await attachmentsApi.download(id);
+    window.open(downloadUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (

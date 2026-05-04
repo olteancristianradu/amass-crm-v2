@@ -20,6 +20,56 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
 
 ## Entries
 
+### 2026-05-04 — Playwright e2e specs need explicit match and Docker Caddy base URL
+
+- Area: web/e2e/runtime smoke
+- Symptom: `pnpm exec playwright test e2e/auth-smoke.e2e.ts` initially reported `No tests found`; Docker smoke against `localhost:5173` can miss Caddy-routed API behavior.
+- Root cause: Playwright default test matching did not include `*.e2e.ts`; Docker stack's correct browser origin is Caddy at `http://localhost`, not raw Vite/nginx port assumptions.
+- Fix: added `testMatch: '**/*.e2e.ts'` and defaulted Playwright `baseURL` to `http://localhost`.
+- Prevention rule: e2e files with non-default suffixes must be included in `testMatch`; Docker browser smoke should use the same origin users hit through Caddy.
+- Related files: `apps/web/playwright.config.ts`, `infra/caddy/Caddyfile`
+- Related tests: `PLAYWRIGHT_BASE_URL=http://localhost ... pnpm exec playwright test e2e/auth-smoke.e2e.ts`
+
+### 2026-05-04 — Run Playwright from the web workspace
+
+- Area: web/e2e/workspace tooling
+- Symptom: root-level `pnpm exec playwright test e2e/auth-smoke.e2e.ts` failed with `Command "playwright" not found`.
+- Root cause: `@playwright/test` is installed in `apps/web/package.json`, not root `package.json`.
+- Fix: run Playwright from `apps/web` with `pnpm exec playwright ...` or use a filtered workspace command.
+- Prevention rule: workspace-local CLI dependencies must be run from the owning package or through `pnpm --filter`.
+- Related files: `apps/web/package.json`, `apps/web/playwright.config.ts`
+- Related tests: auth smoke and critical CRM smoke passed from `apps/web`.
+
+### 2026-05-04 — Do not navigate away before auth request settles
+
+- Area: web/e2e/auth
+- Symptom: critical browser smoke got redirected back to `/login?redirect=/app/companies`.
+- Root cause: the test clicked `Conectare` and immediately navigated to `/app/companies`, aborting the in-flight `POST /api/v1/auth/login`.
+- Fix: separated UI auth coverage into `auth-smoke.e2e.ts`; critical CRM smoke uses one API login and seeds the browser session.
+- Prevention rule: after UI auth submit, wait for the auth response or authenticated URL before any explicit navigation.
+- Related files: `apps/web/e2e/auth-smoke.e2e.ts`, `apps/web/e2e/critical-crm-smoke.e2e.ts`
+- Related tests: auth smoke and critical CRM smoke both passed.
+
+### 2026-05-04 — Cookie banner can intercept browser smoke actions
+
+- Area: web/e2e/UI overlays
+- Symptom: critical smoke hung around the reminder form with the cookie banner still visible.
+- Root cause: fixed cookie banner can cover or intercept lower-right UI actions in headless browser viewports.
+- Fix: added `dismissCookieBanner()` at the start of the critical CRM smoke.
+- Prevention rule: browser smoke tests should close global overlays before interacting with page workflows.
+- Related files: `apps/web/e2e/critical-crm-smoke.e2e.ts`
+- Related tests: `PLAYWRIGHT_BASE_URL=http://localhost ... pnpm exec playwright test e2e/critical-crm-smoke.e2e.ts`
+
+### 2026-05-04 — Attachment download response is `downloadUrl`, not `url`
+
+- Area: web/API contract
+- Symptom: attachment UI would call `window.open(undefined, ...)` for downloads.
+- Root cause: API returns `{ downloadUrl, expiresIn, fileName, mimeType }`, but web client typed and read `{ url }`.
+- Fix: updated web attachment client/component to use `downloadUrl`; added a regression test.
+- Prevention rule: before wiring UI to API responses, check the controller/service or shared schema; do not guess response field names.
+- Related files: `apps/web/src/features/attachments/api.ts`, `apps/web/src/features/attachments/AttachmentsTab.tsx`, `apps/web/src/features/attachments/AttachmentsTab.test.tsx`, `apps/api/src/modules/attachments/attachments.service.ts`
+- Related tests: `pnpm --filter @amass/web test -- src/features/attachments/AttachmentsTab.test.tsx`
+
 ### 2026-05-03 — Empty env vars must not bypass defaults
 
 - Area: env/config/logging

@@ -1,10 +1,10 @@
 # RELEASE_CHECKLIST.md
 
-Last updated: 2026-05-03 23:53 EEST
+Last updated: 2026-05-04 06:45 EEST
 
-This checklist is the release gate for AMASS CRM. Do not mark an item complete unless it was verified in the current release context.
+This checklist is the release gate for AMASS CRM. Do not mark production items complete unless they were verified in the current production/release context.
 
-## Production readiness
+## Production Readiness
 
 ### Required
 
@@ -14,23 +14,38 @@ This checklist is the release gate for AMASS CRM. Do not mark an item complete u
 - [ ] `.env.production` complete
 - [ ] strong JWT secrets
 - [ ] encryption key generated
-- [ ] database migrations applied
-- [ ] Prisma client generated
-- [ ] RLS checked
-- [ ] API health green
-- [ ] web health green
-- [ ] attachments upload/download verified
-- [ ] tasks verified
-- [ ] reminders verified
-- [ ] auth verified
-- [ ] tenant isolation verified
-- [ ] email SMTP verified
+- [ ] database migrations applied in production
+- [ ] Prisma client generated in production image
+- [ ] RLS deny-by-default checked in production
+- [ ] API health green on production/stable demo
+- [ ] web health green on production/stable demo
+- [ ] attachments upload/download verified on production/stable demo
+- [ ] tasks verified on production/stable demo
+- [ ] reminders verified on production/stable demo
+- [ ] auth verified on production/stable demo
+- [ ] tenant isolation verified with adversarial tests
+- [ ] email SMTP verified with real provider
 - [ ] Twilio verified if calls/SMS are part of launch
 - [ ] Stripe verified if billing is part of launch
+- [ ] Google OAuth verified if calendar/email integrations launch
+- [ ] Microsoft Graph verified if Microsoft integrations launch
+- [ ] ANAF verified if e-Factura launches
 - [ ] backups configured
 - [ ] monitoring/logging configured
 
-## Push/release protocol
+## Local Runtime Readiness Snapshot
+
+- [x] Local Docker web rebuilt after web source changes
+- [x] Local web container restarted and healthy
+- [x] Local web root via Caddy returned `200`
+- [x] Local API health via Caddy returned `200`
+- [x] Cloudflare quick tunnel web root returned `200` after web restart
+- [x] Cloudflare quick tunnel API health returned `200` after web restart
+- [x] Auth browser smoke passed
+- [x] Critical CRM browser smoke passed: company, attachment upload/download content, task, reminder, cleanup
+- [x] Local smoke data cleanup checked
+
+## Push/Release Protocol
 
 Before push:
 
@@ -38,10 +53,9 @@ Before push:
 - [x] `pnpm lint`
 - [x] `pnpm typecheck`
 - [x] `pnpm test`
-- [x] focused/API e2e tests for affected flows
-- [x] affected API Docker service rebuilt and restarted
-- [x] local smoke tests for health endpoints
-- [x] Cloudflare quick tunnel health smoke for affected runtime
+- [x] focused tests for changed web code
+- [x] affected Docker service rebuilt if needed (`web`)
+- [x] smoke tests for affected browser/runtime flows
 
 After push:
 
@@ -53,12 +67,12 @@ After push:
 - [ ] `STATUS.md` updated
 - [ ] `TEST_REPORT.md` updated
 
-## Current readiness
+## Current Readiness
 
 - Status: not release-ready.
-- Reason: production credentials, production/demo environment, provider integrations, backups, monitoring, browser smoke, and CI for local uncommitted changes have not been verified in this session.
-- Locally verified: `pnpm lint`, `pnpm typecheck`, `pnpm test`, focused logging test, calls e2e, full API e2e, Prisma generate/migrate/drift, API Docker rebuild/restart, local Docker/API/web/AI worker health, Cloudflare quick tunnel HTTP checks, local RLS state, and service-worker API cache code inspection.
-- Not verified: production/stable demo infrastructure, browser UI smoke, live provider integrations, backups, monitoring, and CI for the uncommitted local changes.
-- Verified real: 70%
-- Unverified: 20%
+- Reason: production/stable demo infrastructure, real provider credentials, backups, monitoring, and RLS deny-by-default hardening remain open.
+- Locally verified now: lint, typecheck, tests, web build/restart, local/Cloudflare health, auth browser smoke, critical CRM browser smoke.
+- Not verified now: production deployment, CI for uncommitted changes, real providers, backup/restore, monitoring.
+- Verified real: 75%
+- Unverified: 15%
 - Blocked: 10%

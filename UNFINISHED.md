@@ -1,40 +1,43 @@
 # UNFINISHED.md
 
-Last updated: 2026-05-03 23:50 Europe/Bucharest
+Last updated: 2026-05-04 00:31 Europe/Bucharest
 
-## P0 — Must fix before demo/launch
-
-| ID | Task | Why it matters | Status | Owner | Evidence |
-|---|---|---|---|---|---|
-| P0-001 | Verify production/demo environment readiness. | Launch cannot be called ready without domain, HTTPS, env, secrets, migrations, health, backups, and monitoring. | open | Codex + human for credentials/infrastructure | `RELEASE_CHECKLIST.md` production readiness items remain unchecked. |
-| P0-002 | Complete focused security audit for auth, tenant isolation, RLS, webhooks, service worker caching, secrets, exposed ops endpoints, and dependency hygiene. | These are the highest-risk areas for tenant data leaks and auth bypass. | in-progress | Codex | Partial checks: RLS local query, service worker code inspection, `/api/v1/health/detailed` 401, dependency audit. Full security scan not complete. |
-| P0-003 | Verify launch-critical providers with real credentials. | Twilio, Stripe, Google, Microsoft, Anthropic, SMTP, and ANAF behavior cannot be honestly claimed from mocks alone. | blocked | human provides credentials; Codex verifies | No real provider credential tests were run in this session. |
-| P0-004 | Run authenticated browser/manual smoke tests for auth, tenant CRUD, attachments, tasks, and reminders. | API e2e passing is useful, but launch/demo needs a browser/runtime path check too. | in-progress | Codex | API e2e passed (`105` files / `1086` tests); API Docker rebuilt/restarted and Cloudflare health returned `200`; browser/manual smoke not run. |
-| P0-005 | Approve the AMASS Pro CRM product/design wedge before feature expansion. | A generic "more modules" CRM will not beat Salesforce/HubSpot/Pipedrive/Attio; the product needs a clear action-first wedge and first demo workflow. | open | human + Codex | Repo has strong modules, command palette, semantic search, AI/calls/ANAF positioning; next step is to select the first flagship workflow before implementation. |
-
-## P1 — Important before production
+## P0 — Must Fix Before Demo/Launch
 
 | ID | Task | Why it matters | Status | Owner | Evidence |
 |---|---|---|---|---|---|
-| P1-001 | Run Docker-backed e2e tests under `apps/api/test/` if environment supports them. | Unit tests passed, but e2e coverage is needed for full API confidence. | done | Codex | `pnpm --filter @amass/api test:e2e` -> `105` files / `1086` tests passed. |
-| P1-002 | Run Prisma migration/drift verification. | Schema drift has broken CI before and can break deployments. | done | Codex | `prisma migrate deploy` had no pending migrations; `prisma migrate diff ... --exit-code` reported no difference detected. |
-| P1-003 | Reconcile old `LAUNCH_CHECKLIST.md` with `RELEASE_CHECKLIST.md`. | Two launch checklists can diverge and mislead release decisions. | open | Codex | `rg --files -g '*.md'` shows both files. |
-| P1-004 | Verify current CI after the next push. | Existing CI is green for `d325637`, but docs are currently uncommitted and no new CI run exists for them. | open | Codex | `gh run list --limit 5` checked previous `main` run only. |
-| P1-005 | Fix or explicitly accept moderate dependency advisories. | `vite`, `esbuild`, and `postcss` advisories remain in non-production audit output. | open | Codex | `pnpm audit --json` reported 3 moderate advisories; `pnpm audit --prod --audit-level=high` passed. |
-| P1-006 | Add local secrets scanner or document CI-only coverage. | Local `gitleaks` was unavailable, so no local secret scan evidence exists. | open | Codex | `command -v gitleaks` exit `1`; GitHub CodeQL success does not equal secret scan. |
-| P1-007 | Design and build AMASS Pro Cockpit + Focus Queue. | The CRM should start with prioritized work, not passive dashboards and route navigation. | open | Codex | Current dashboard has AI brief/KPIs/pipeline foundation in `apps/web/src/routes/dashboard.tsx`. |
-| P1-008 | Redesign Entity 360 pages around timeline, next action, relationship graph, and audit-safe AI suggestions. | Users should understand and act on a customer record in seconds. | open | Codex | Existing modules cover companies/contacts/clients/deals/tasks/reminders; workflow needs consolidation into one action surface. |
-| P1-009 | Upgrade Command Palette into a safe action engine. | Cmd/Ctrl+K is already a differentiator; it should create/update/search with confirmation, permissions, and audit trail. | open | Codex | Existing global palette and `/ai/search` integration are in `apps/web/src/components/ui/command-palette.tsx` and `apps/web/src/features/search/api.ts`. |
-| P1-010 | Establish UX performance budgets and browser smoke automation. | "Faster than large CRMs" needs measured latency and interaction targets, not opinion. | open | Codex | No browser/UI smoke or p95 route performance checks were run in this session. |
+| P0-001 | Verify production/demo environment readiness. | Launch cannot be called ready without stable domain, HTTPS, env, secrets, migrations, backups, monitoring, and provider checks. | open | Codex + human | `RELEASE_CHECKLIST.md` production items remain unchecked. |
+| P0-002 | Fix RLS fail-open policy when tenant context is missing. | RLS should be the last line of tenant isolation defense; current local DB returns tenant rows as `app_user` with no `app.tenant_id`. | open | Codex | `SEC-004`; local query returned `122` companies without tenant context. |
+| P0-003 | Fix notifications Socket.IO CORS and JWT tenant payload mismatch. | Realtime notifications should not accept wildcard origins and should join the correct tenant room. | open | Codex | `SEC-005`; gateway uses `origin: '*'` and `payload.tenantId`, JWT uses `tid`. |
+| P0-004 | Decide and harden AI worker manual `/process/call` exposure. | Static bearer auth exists, but arbitrary recording URL fetch after auth is an SSRF/exfiltration risk if endpoint is exposed. | open | Codex + human for deployment boundary | `SEC-006`; unauth local request returns `401`; source follows redirects for caller-supplied `recordingUrl`. |
+| P0-005 | Verify launch-critical providers with real credentials. | Twilio, Stripe, Google, Microsoft, Anthropic, SMTP, and ANAF cannot be honestly claimed from mocks or source inspection. | blocked | human provides credentials; Codex verifies | No real provider credential tests were run. |
+| P0-006 | Approve first flagship product/design workflow. | A generic module-heavy CRM will not beat Salesforce/HubSpot/Pipedrive/Attio. AMASS needs a focused action-first wedge. | needs input | human + Codex | Product/design audit recommends AMASS Pro Cockpit + Romania/EU wedge. |
 
-## P2 — Polish / post-launch
+## P1 — Important Before Production
 
 | ID | Task | Why it matters | Status | Owner | Evidence |
 |---|---|---|---|---|---|
-| P2-001 | Keep root control docs concise and current. | Long historical status blocks obscure the current truth. | in-progress | Codex | `STATUS.md` was converted to current-session format. |
-| P2-002 | Add browser-based UI smoke coverage for critical pages. | HTTP 200 on web root does not prove the UI is usable. | open | Codex | No browser or Playwright UI smoke was run in this session. |
-| P2-003 | Add Romania/EU vertical packs for sales + service + invoicing workflows. | Local compliance and ANAF/e-Factura can be a defensible wedge against generic global CRMs. | open | Codex + human domain input | Existing product copy already positions ANAF/e-Factura and RO/EU CRM behavior. |
-| P2-004 | Build integration marketplace and mobile/offline follow-up flows. | Long-term expansion needs channels and field-sales workflows beyond desktop CRM. | open | Codex | Not started. |
+| P1-001 | Reconcile `LAUNCH_CHECKLIST.md` with `RELEASE_CHECKLIST.md`. | Two launch checklists can diverge and mislead release decisions. | open | Codex | Both files exist. |
+| P1-002 | Fix or explicitly accept moderate dependency advisories. | `vite`, `esbuild`, and `postcss` advisories remain in non-production audit output. | open | Codex | `SEC-002`. |
+| P1-003 | Add local secrets scanner or document CI-only secret scanning. | Local secret-scan evidence is missing. | open | Codex | `SEC-003`; `gitleaks` unavailable locally. |
+| P1-004 | Harden `WEBHOOK_TRUSTED_HOSTS` production behavior. | A dev escape hatch can become a production SSRF bypass if set accidentally. | open | Codex | `SEC-007`. |
+| P1-005 | Decide webhook secret return policy and implement it. | If policy is "never return after creation", code is acceptable only for one-time creation display; if stricter, create must stop returning it. | open | Codex + human policy input | `SEC-008`. |
+| P1-006 | Build AMASS Pro Cockpit / Focus Queue at `/app`. | Users need a prioritized work surface, not just passive KPIs and many routes. | open | Codex | Current `dashboard.tsx` has KPI/brief foundation but not action queue. |
+| P1-007 | Redesign Entity 360 pages around next action and relationship health. | Users should understand customer state and act in seconds. | open | Codex | `company.detail.page.tsx` has tabs; no synthesized action header yet. |
+| P1-008 | Upgrade Command Palette into safe action execution. | Cmd/Ctrl+K should create/follow-up/log/update with audit and confirmation, not only navigate/search. | open | Codex | Current command palette route support exists; action execution is incomplete. |
+| P1-009 | Ship import/onboarding wedge for SmartBill/GestCom/CSV. | Romania/EU data import is a credible wedge versus generic CRMs. | open | Codex + human domain input | Product audit points to existing docs/strategy references. |
+| P1-010 | Add UX performance budgets and route smoke automation. | "Faster than big CRMs" needs measurable p95 route/action targets. | open | Codex | Browser smoke exists for auth + critical CRM; no performance budget yet. |
+| P1-011 | Verify current CI after next push. | Local checks pass, but CI has not run for the current uncommitted changes. | open | Codex | Latest CI green only for `85e74e3`. |
+
+## P2 — Polish / Post-Launch
+
+| ID | Task | Why it matters | Status | Owner | Evidence |
+|---|---|---|---|---|---|
+| P2-001 | Normalize old/new design primitives across reports, campaigns, products, exports, and builders. | Visual drift reduces perceived product quality. | open | Codex | Product/design audit found older `Card` usage on some pages. |
+| P2-002 | Redesign Report Builder into field picker/filter/preview flow. | Current comma-separated column input is not executive/admin-friendly. | open | Codex | Product/design audit. |
+| P2-003 | Build unified communication inbox for email/calls/SMS/WhatsApp. | Entity tabs are useful, but daily communication needs one queue. | open | Codex | Email/calls/SMS/WhatsApp exist as modules, not unified queue. |
+| P2-004 | Mobile/PWA field-sales mode with offline read and later sync. | Field users need fast mobile follow-up. | open | Codex | PWA exists; offline CRM flow not verified. |
+| P2-005 | Vertical Romania/EU sales/service/invoicing packs. | Local compliance and ANAF/e-Factura can differentiate AMASS. | open | Codex + human domain input | Existing ANAF/product docs; real ANAF credentials still blocked. |
 
 ## Blocked
 
@@ -43,7 +46,8 @@ Last updated: 2026-05-03 23:50 Europe/Bucharest
 | Twilio calls/SMS/WhatsApp | missing real SID/token/phone number/webhook setup | user must provide safe real/test credentials and callback URL |
 | Google OAuth | missing client ID/secret/redirect setup | user must configure OAuth app and provide test account path |
 | Microsoft Graph | missing app credentials/scopes/test mailbox | user must configure app registration and provide test account path |
-| Stripe live billing | missing real keys/webhook secret | user must provide safe Stripe test/live setup depending on launch scope |
+| Stripe billing | missing real/test keys and webhook secret | user must provide Stripe setup depending on launch scope |
 | Anthropic AI features | missing real API key | user must provide key or accept fallback-only verification |
 | SMTP real email | missing real SMTP credentials | user must provide SMTP host/user/password/from-domain and test recipient |
-| ANAF e-Factura | missing real/sandbox OAuth credentials and tenant fiscal data | user must provide ANAF credentials and safe test tenant data |
+| ANAF e-Factura | missing real/sandbox OAuth credentials and tenant fiscal data | user must provide ANAF credentials and safe fiscal test data |
+| Product/design wedge | needs human product decision | choose first flagship workflow: recommended `AMASS Pro Cockpit + Romania/EU follow-up/invoicing wedge` |

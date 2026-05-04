@@ -1,122 +1,102 @@
 # STATUS.md
 
-Last updated: 2026-05-03 23:53 Europe/Bucharest
+Last updated: 2026-05-04 06:45 Europe/Bucharest
 Updated by: Codex
 Branch: `main`
-Local HEAD: `d325637`
-Remote HEAD: `origin/main` = `d325637`
+Local HEAD: `85e74e3`
+Remote HEAD: `origin/main` = `85e74e3`
 Local ahead/behind: `0 / 0`
-Working tree: dirty; uncommitted source/test/doc changes exist pending commit
-Runtime checked: yes, local Docker runtime only
+Working tree: dirty; uncommitted web/test/doc changes exist
+Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
 
-## Current reality
+## Current Reality
 
-- App status: local Docker stack is running; API image was rebuilt and API service was recreated after the local source change. Web image was not rebuilt because no web source changed.
-- Product/design status: strategy proposal prepared from current repo inspection and current official competitor sources; no product feature implementation started.
-- API status: local API responded on `http://localhost:3000/api/v1/health` and `http://localhost:3000/api/v1/health/ready`.
-- Web status: local web root `http://localhost:5173/` returned HTTP `200`.
-- Docker status: `docker compose -f infra/docker-compose.yml ps` listed API, web, AI worker, Postgres, Redis, MinIO, Caddy, mocks, Mailpit, and Stripe mock as running; API/web/AI worker/Postgres/Redis/MinIO reported healthy.
-- Cloudflare tunnel: quick tunnel URL from `.env` was checked after API rebuild.
-- Demo URL: `https://affiliation-rated-tattoo-exports.trycloudflare.com/` returned HTTP `200` after API rebuild.
-- Demo credentials status: not verified in this session.
-- Database status: API readiness returned `db: connected`; Prisma migrations are applied locally; migration drift check reported no diff; local RLS query showed `83/87` public tables with RLS enabled and forced.
-- MinIO/attachments: MinIO container reported healthy; API e2e attachment flow passed, but no browser/manual upload-download comparison was run.
-- Mailpit/email: Mailpit container is running; email smoke was not run.
-- Redis/queues: Redis container reported healthy; API e2e and unit tests exercised queue-backed paths, but no manual queue dashboard/job smoke was run.
+- App status: local Docker stack is running. Web image was rebuilt and `amass-web` was recreated after web source changes.
+- API status: local API health via Caddy returned HTTP `200` at `http://localhost/api/v1/health`.
+- Web status: local web root via Caddy returned HTTP `200` at `http://localhost/`.
+- Docker status: `amass-api` healthy, `amass-web` healthy after rebuild, `amass-caddy` still running. Caddy/tunnel were not recreated; rechecked at 06:45.
+- Cloudflare tunnel: `https://affiliation-rated-tattoo-exports.trycloudflare.com/` and `/api/v1/health` both returned HTTP `200` after web rebuild/restart; rechecked at 06:45.
+- Demo URL: same quick tunnel URL remained reachable after web rebuild.
+- Demo credentials status: seed demo credentials were verified locally: tenant `demo`, user `admin@amass-demo.ro`, password from seed file. These are demo seed credentials, not real provider credentials.
+- Database status: local Postgres reachable; smoke test cleanup verified no live `Smoke Company %` rows remain.
+- MinIO/attachments: browser smoke verified upload through UI and download through presigned URL with content comparison after web rebuild.
+- Mailpit/email: not verified in this task.
+- Redis/queues: Redis container healthy previously; queue/job behavior not separately smoked in this task.
 
-## Verified in this session
+## Verified In This Session
 
 | Area | Result | Evidence |
 |---|---:|---|
 | git branch | pass | `git branch --show-current` -> `main` |
-| git remote | pass | `git remote -v` -> `origin https://github.com/olteancristianradu/amass-crm-v2.git` |
+| git remote | pass | `git remote -v` -> GitHub origin |
 | git fetch | pass | `git fetch origin` exit code 0 |
 | local vs remote | pass | `git rev-list --left-right --count HEAD...origin/main` -> `0 0` |
-| GitHub access | pass | `gh auth status` logged in as `olteancristianradu` with `repo`, `workflow` scopes |
-| latest GitHub checks | pass for remote only | `gh run list --limit 5` showed latest `main` CI and CodeQL success for `d325637`; no CI has run for current uncommitted changes |
-| Docker access | pass | `docker info --format '{{.ServerVersion}}'` -> `29.4.0` |
-| Docker health | pass | `docker compose -f infra/docker-compose.yml ps` |
-| API Docker build | pass | `docker compose -f infra/docker-compose.yml build api` |
-| API Docker restart | pass | `docker compose -f infra/docker-compose.yml up -d api` |
-| API health | pass | `curl -fsS http://localhost:3000/api/v1/health` rerun at 23:53 -> `status: ok` |
-| API readiness | pass | `curl -fsS http://localhost:3000/api/v1/health/ready` rerun at 23:53 -> `status: ok`, `db: connected` |
-| Cloudflare API health | pass | `curl -s -o /dev/null -w '%{http_code}' https://affiliation-rated-tattoo-exports.trycloudflare.com/api/v1/health` rerun at 23:53 -> `200` |
-| Cloudflare web root | pass | `curl -s -o /dev/null -w '%{http_code}' https://affiliation-rated-tattoo-exports.trycloudflare.com/` rerun at 23:53 -> `200` |
-| detailed health auth | pass | `curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/v1/health/detailed` -> `401` without token |
-| web health | pass | `curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/` -> `200` |
-| AI worker health | pass | `curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health` -> `200` |
-| lint | pass | `pnpm lint` rerun at 23:49 -> Turbo `3 successful, 3 total` |
-| typecheck | pass | `pnpm typecheck` rerun at 23:49 -> Turbo `4 successful, 4 total` |
-| tests | pass | `pnpm test` rerun at 23:49 -> API `92` files / `973` tests, web `10` files / `51` tests |
-| focused logging test | pass | `pnpm --filter @amass/api exec vitest run --config vitest.config.unit.ts src/config/logging.spec.ts` rerun at 23:52 -> `1` file / `3` tests passed |
-| focused calls e2e | pass | `pnpm --filter @amass/api exec vitest run test/calls.e2e.spec.ts` rerun at 23:52 -> `1` file / `9` tests passed |
-| API e2e | pass | `pnpm --filter @amass/api test:e2e` rerun at 23:52-23:53 -> `105` files / `1086` tests passed |
-| Prisma generate | pass | `pnpm --filter @amass/api exec prisma generate` |
-| Prisma migrate deploy | pass | `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/amass_crm?schema=public pnpm --filter @amass/api exec prisma migrate deploy` -> no pending migrations |
-| Prisma drift | pass | `pnpm --filter @amass/api exec prisma migrate diff ... --exit-code` against local shadow DB -> no difference detected |
-| prod dependency audit high | pass | `pnpm audit --prod --audit-level=high` -> no known vulnerabilities |
-| full dependency audit high | pass with warnings | `pnpm audit --audit-level=high` exit `0`, but moderate advisories remain |
-| RLS state | pass local | `docker exec amass-postgres psql ...` -> `83` RLS enabled/forced of `87` public tables; non-RLS tables: `_prisma_migrations`, `email_verification_tokens`, `password_reset_tokens`, `tenants` |
-| service worker API cache | pass code inspection | `apps/web/public/sw.js` returns before `respondWith` for `/api/` GET requests |
-| frontend build | not run | no frontend code changed in this task |
-| attachments | pass API e2e only | covered by `pnpm --filter @amass/api test:e2e`; browser/manual compare not run |
-| tasks | pass API e2e only | covered by `pnpm --filter @amass/api test:e2e`; browser/manual smoke not run |
-| reminders | pass API e2e only | covered by `pnpm --filter @amass/api test:e2e`; notification/job smoke not separately run |
+| GitHub access | pass | `gh auth status`; `gh run list --limit 5` showed latest remote checks green for `85e74e3` |
+| Docker access | pass | Docker compose stack inspected; web rebuilt/restarted |
+| Docker web build | pass | `docker compose -f infra/docker-compose.yml build web` |
+| Docker web restart | pass | `docker compose -f infra/docker-compose.yml up -d web` |
+| Docker health | pass | `docker compose -f infra/docker-compose.yml ps web caddy api`; rechecked at 06:45 |
+| API health | pass | `curl -s -o /dev/null -w '%{http_code}' http://localhost/api/v1/health` -> `200`; rechecked at 06:45 |
+| web health | pass | `curl -s -o /dev/null -w '%{http_code}' http://localhost/` -> `200`; rechecked at 06:45 |
+| Cloudflare API health | pass | `curl ... https://affiliation-rated-tattoo-exports.trycloudflare.com/api/v1/health` -> `200`; rechecked at 06:45 |
+| Cloudflare web root | pass | `curl ... https://affiliation-rated-tattoo-exports.trycloudflare.com/` -> `200`; rechecked at 06:45 |
+| lint | pass | `pnpm lint` -> Turbo `3 successful, 3 total` |
+| typecheck | pass | `pnpm typecheck` -> Turbo `4 successful, 4 total` |
+| tests | pass | `pnpm test` -> Turbo `4 successful, 4 total`; API cached `92` files / `973` tests, web `11` files / `52` tests |
+| web lint | pass | `pnpm --filter @amass/web lint` |
+| web typecheck | pass | `pnpm --filter @amass/web typecheck`; rerun after final attachment test typing cleanup |
+| web unit tests | pass | `pnpm --filter @amass/web test` -> `11` files / `52` tests |
+| attachment regression | pass | `pnpm --filter @amass/web test -- src/features/attachments/AttachmentsTab.test.tsx`; rerun after final attachment test typing cleanup |
+| auth browser smoke | pass | from `apps/web`: `PLAYWRIGHT_BASE_URL=http://localhost ... pnpm exec playwright test e2e/auth-smoke.e2e.ts` after web rebuild |
+| critical CRM browser smoke | pass | from `apps/web`: `PLAYWRIGHT_BASE_URL=http://localhost ... pnpm exec playwright test e2e/critical-crm-smoke.e2e.ts` after web rebuild |
+| smoke cleanup | pass | `SELECT count(*) ... WHERE name LIKE 'Smoke Company %' AND "deletedAt" IS NULL` -> `0` |
+| RLS fail-open check | fail/security finding | As `app_user` without `app.tenant_id`, `companies` returned `122` rows |
+| AI worker manual endpoint auth | pass but hardening finding remains | unauth valid-shape `POST http://localhost:8000/process/call` -> `401` |
 
-## Confirmed working
+## Confirmed Working
 
-- Local git access and remote fetch.
-- GitHub CLI access for repository and workflow inspection.
-- Local Docker daemon access.
-- Local Docker stack visibility with `infra/docker-compose.yml`.
-- Local API liveness and readiness endpoints under `/api/v1`.
-- Local web root responds HTTP `200`.
-- Cloudflare quick tunnel URL still responds after API rebuild.
-- Local AI worker health endpoint responds HTTP `200`.
-- Baseline repo checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`.
-- API e2e suite after local fixes: `105` files / `1086` tests.
-- Local Prisma migrate/drift check.
-- Local RLS state query for public tables.
+- Local repo is on `main`, matching `origin/main` at `85e74e3`.
+- Local Docker web/API stack is reachable through Caddy at `http://localhost`.
+- Rebuilding/restarting only `web` did not change the Cloudflare quick tunnel URL; the tunnel returned HTTP `200` after restart.
+- Auth smoke passed in a real browser against the rebuilt web container.
+- Critical CRM smoke passed in a real browser against the rebuilt web container: company create/read, attachment upload/download content check, task complete, reminder create/dismiss, cleanup.
+- Attachment download client contract is now aligned to API response field `downloadUrl`, with a regression test.
 
-## Known broken
+## Known Broken / Open Risks
 
-- Direct `http://localhost:3000/health` and `/health/ready` returned 404 because the API global prefix is `/api/v1`. This is a workflow gotcha, not confirmed application breakage.
-- `pnpm audit --json` reports moderate advisories in dev/transitive dependencies: `vite`, `esbuild`, and `postcss`. `pnpm audit --prod --audit-level=high` passed.
-- `gitleaks` is not installed locally, so no local gitleaks scan was run.
-- Web image was not rebuilt because no web source changed.
-- Product/design roadmap is not implemented; `UNFINISHED.md` now tracks the AMASS Pro Cockpit, Entity 360, Command Palette V2, UX performance budgets, and Romania/EU vertical packs as open work.
+- RLS policy is fail-open when `app.tenant_id` is missing: local query as `app_user` without tenant context returned tenant rows. This is now tracked as `SEC-004`.
+- Notifications Socket.IO gateway uses `origin: '*'` and expects JWT payload `tenantId`, while issued JWTs use `tid`. Tracked as `SEC-005`.
+- AI worker manual `/process/call` endpoint is bearer-protected locally, but source allows arbitrary `recordingUrl` fetch after auth. Tracked as `SEC-006`.
+- `WEBHOOK_TRUSTED_HOSTS` can bypass webhook DNS/IP SSRF checks and is not production-rejected by env validation. Tracked as `SEC-007`.
+- Webhook creation returns raw `secret`; policy needs explicit decision. Tracked as `SEC-008`.
+- Full dependency audit still has moderate dev/transitive advisories (`vite`, `esbuild`, `postcss`).
+- No local secret scanner was run; `gitleaks` is not installed locally.
+- No CI has run for the current uncommitted changes.
 
-## Blocked by missing real credentials
+## Blocked By Missing Real Credentials
 
-- Twilio: not verified with real SID/token/phone number.
-- Stripe: not verified with live or real test keys/webhook secret in this session.
-- Google OAuth: not verified with real client ID/secret in this session.
-- Microsoft Graph: not verified with real app credentials/scopes in this session.
-- Anthropic: not verified with real API key in this session.
-- SMTP real: not verified with real SMTP credentials in this session.
-- ANAF: not verified with real OAuth/client credentials in this session.
+- Twilio: not verified with real SID/token/phone number/webhook setup.
+- Stripe: not verified with real keys/webhook secret.
+- Google OAuth: not verified with real client ID/secret.
+- Microsoft Graph: not verified with real app credentials/scopes.
+- Anthropic: not verified with real API key.
+- SMTP real: not verified with real SMTP credentials.
+- ANAF: not verified with real/sandbox ANAF credentials and fiscal test data.
 
-## Do not claim verified yet
+## Do Not Claim Verified Yet
 
 - Production readiness.
-- Stability of the Cloudflare quick tunnel after process restart.
-- Demo credentials.
-- Authenticated browser UI flows.
-- Tenant isolation with real data.
+- Stable production domain/HTTPS/VPS.
+- CI for current uncommitted changes.
+- Real provider integrations.
 - Production RLS state.
-- Attachment upload/download through browser/demo URL.
-- Tasks and reminders through browser/demo URL.
-- Email sending with real SMTP.
-- Twilio calls/SMS/WhatsApp.
-- Stripe billing/webhooks.
-- Google OAuth and Microsoft Graph integrations.
-- Anthropic/OpenAI/Gemini behavior with real keys.
-- ANAF/e-Factura real integration.
+- Tenant isolation with adversarial cross-tenant browser/API tests after RLS policy hardening.
 - Backup/restore.
 - Monitoring/alerting.
+- Email SMTP delivery with a real provider.
 
-## Percentage report
+## Percentage Report
 
-- Verified real: 70%
-- Unverified: 20%
+- Verified real: 75%
+- Unverified: 15%
 - Blocked: 10%

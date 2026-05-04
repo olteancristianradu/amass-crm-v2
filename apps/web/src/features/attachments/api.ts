@@ -6,6 +6,13 @@ export interface PresignResponse {
   uploadUrl: string;
 }
 
+export interface DownloadResponse {
+  downloadUrl: string;
+  expiresIn: number;
+  fileName: string;
+  mimeType: string;
+}
+
 export interface PresignDto {
   fileName: string;
   mimeType: string;
@@ -22,7 +29,7 @@ export const attachmentsApi = {
     subjectId: string,
     dto: PresignDto & { storageKey: string },
   ) => api.post<Attachment>(`/${subjectType}/${subjectId}/attachments`, dto),
-  download: (id: string) => api.get<{ url: string }>(`/attachments/${id}/download`),
+  download: (id: string) => api.get<DownloadResponse>(`/attachments/${id}/download`),
   remove: (id: string) => api.delete<void>(`/attachments/${id}`),
 };
 
