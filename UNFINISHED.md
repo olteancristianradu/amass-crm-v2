@@ -1,15 +1,15 @@
 # UNFINISHED.md
 
-Last updated: 2026-05-04 00:31 Europe/Bucharest
+Last updated: 2026-05-05 21:50 Europe/Bucharest
 
 ## P0 — Must Fix Before Demo/Launch
 
 | ID | Task | Why it matters | Status | Owner | Evidence |
 |---|---|---|---|---|---|
 | P0-001 | Verify production/demo environment readiness. | Launch cannot be called ready without stable domain, HTTPS, env, secrets, migrations, backups, monitoring, and provider checks. | open | Codex + human | `RELEASE_CHECKLIST.md` production items remain unchecked. |
-| P0-002 | Fix RLS fail-open policy when tenant context is missing. | RLS should be the last line of tenant isolation defense; current local DB returns tenant rows as `app_user` with no `app.tenant_id`. | open | Codex | `SEC-004`; local query returned `122` companies without tenant context. |
-| P0-003 | Fix notifications Socket.IO CORS and JWT tenant payload mismatch. | Realtime notifications should not accept wildcard origins and should join the correct tenant room. | open | Codex | `SEC-005`; gateway uses `origin: '*'` and `payload.tenantId`, JWT uses `tid`. |
-| P0-004 | Decide and harden AI worker manual `/process/call` exposure. | Static bearer auth exists, but arbitrary recording URL fetch after auth is an SSRF/exfiltration risk if endpoint is exposed. | open | Codex + human for deployment boundary | `SEC-006`; unauth local request returns `401`; source follows redirects for caller-supplied `recordingUrl`. |
+| P0-002 | Fix RLS fail-open policy when tenant context is missing. | RLS should be the last line of tenant isolation defense. | **fixed `4415c21` 2026-05-05** | Codex + Claude | Migration `20260504065000_rls_deny_missing_tenant`; e2e regression 7/7; DB SET LOCAL ROLE returns 0. |
+| P0-003 | Fix notifications Socket.IO CORS and JWT tenant payload mismatch. | Realtime notifications should not accept wildcard origins and should join the correct tenant room. | **fixed 2026-05-05 (pending push)** | Claude | `SEC-005`; gateway now uses `CORS_ALLOWED_ORIGINS` and `payload.tid`; 3 unit tests cover happy/missing-token/bad-sig. |
+| P0-004 | Decide and harden AI worker manual `/process/call` exposure. | Static bearer auth exists. SSRF residual on caller-supplied `recordingUrl`. | **partially fixed `25f096b`** | Codex + human for prod boundary | Auth gate closed (401/503). SSRF host allow-list + private-IP block on `recordingUrl` still open. |
 | P0-005 | Verify launch-critical providers with real credentials. | Twilio, Stripe, Google, Microsoft, Anthropic, SMTP, and ANAF cannot be honestly claimed from mocks or source inspection. | blocked | human provides credentials; Codex verifies | No real provider credential tests were run. |
 | P0-006 | Approve first flagship product/design workflow. | A generic module-heavy CRM will not beat Salesforce/HubSpot/Pipedrive/Attio. AMASS needs a focused action-first wedge. | needs input | human + Codex | Product/design audit recommends AMASS Pro Cockpit + Romania/EU wedge. |
 

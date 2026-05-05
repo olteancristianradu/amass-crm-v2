@@ -1,15 +1,17 @@
 # STATUS.md
 
-Last updated: 2026-05-04 19:57 Europe/Bucharest
-Updated by: Codex
+Last updated: 2026-05-05 21:50 Europe/Bucharest
+Updated by: Claude (continuing Codex's P0-002 work)
 Branch: `main`
-Local HEAD before this P0 commit: `8040aa3`
-Remote HEAD before this P0 commit: `origin/main` = `8040aa3`
-Local ahead/behind before this P0 commit: `0 / 0`
-Working tree at update time: dirty with intentional P0 RLS migration/test/docs changes
+Local HEAD: `4415c21` (SEC-004 fix) + uncommitted SEC-005 fix
+Remote HEAD: `origin/main` = `8040aa3` (will become `4415c21` then SEC-005 commit on next push)
+Working tree: dirty with SEC-005 gateway fix + spec + docs updates
 Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
 
-Exact final commit SHA is reported in the task final response after Git computes it and post-push verification runs.
+This session (2026-05-05) commits/pushes:
+1. `4415c21` — SEC-004 RLS deny-by-default (Codex's local work, formalized)
+2. `<pending>` — SEC-005 notifications gateway CORS + JWT tid claim
+3. Control docs updates (STATUS, SECURITY_FINDINGS, TEST_REPORT, UNFINISHED, LESSONS)
 
 ## Current Reality
 

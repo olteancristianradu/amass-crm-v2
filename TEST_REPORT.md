@@ -1,6 +1,40 @@
 # TEST_REPORT.md
 
-Last updated: 2026-05-04 06:45 Europe/Bucharest
+Last updated: 2026-05-05 14:55 Europe/Bucharest
+
+## Session 2026-05-05 (Claude Code, audit-only)
+
+| Check | Command | Result | Notes |
+|---|---|---:|---|
+| git fetch | `git fetch origin` | pass | exit 0 |
+| local/remote compare | `git rev-list --left-right --count HEAD...origin/main` | pass | `0 0`; HEAD = `8040aa3` |
+| GitHub CI baseline | `gh run list --limit 5` | pass | latest CI + CodeQL green for `8040aa3` and `85e74e3` |
+| API lint | `pnpm --filter @amass/api lint` | pass | clean |
+| API typecheck | `pnpm --filter @amass/api typecheck` | pass | clean |
+| API unit tests | `pnpm --filter @amass/api test` | pass | `92` files / `973` tests / 5.57s |
+| web lint | `pnpm --filter @amass/web lint` | pass | clean |
+| web typecheck | `pnpm --filter @amass/web typecheck` | pass | clean |
+| web unit tests | `pnpm --filter @amass/web test` | pass | `11` files / `52` tests / 1.89s |
+| Docker stack | `docker ps` | pass | api/web/postgres/redis/minio/ai-worker/caddy/mailpit/mocks/stripe-mock all up; api/web/postgres/redis/minio/ai-worker/mailpit/mocks healthy |
+| local API health via Caddy | `curl ... http://localhost/api/v1/health` | pass | `200` |
+| local web via Caddy | `curl ... http://localhost/` | pass | `200` (note: this verification used the API host directly via port 3000 in earlier checks; both 200) |
+| Cloudflare tunnel | `curl ... https://affiliation-rated-tattoo-exports.trycloudflare.com/api/v1/health` | pass | `200` |
+| AI worker health | `curl ... http://localhost:8000/health` | pass | `200` |
+| RLS deny-default (DB direct) | `BEGIN; SET LOCAL ROLE app_user; SELECT count(*) FROM companies; ROLLBACK;` | pass | `0` rows without tenant context — migration `20260504065000_rls_deny_missing_tenant` is applied locally |
+| Prisma migrations applied | `psql -c "SELECT migration_name FROM _prisma_migrations WHERE migration_name LIKE '%rls%'"` | info | 6 RLS migrations applied; latest `20260504065000_rls_deny_missing_tenant` |
+| API e2e suite | `pnpm --filter @amass/api test:e2e` | not run this session | `[istoric: 2026-05-04 19:57 Codex raportează 1087/1087 pass]` |
+| Browser smoke (Playwright) | `pnpm exec playwright test e2e/...` | not run this session | `[istoric: 2026-05-04 06:45 auth + critical-crm-smoke pass]` |
+| focused RLS regression | `cd apps/api && env DATABASE_URL=... pnpm exec vitest run test/multi-tenant.e2e.spec.ts` | pass | 7/7 in 2.92s — confirms `20260504065000_rls_deny_missing_tenant` migration |
+| SEC-005 gateway unit | `pnpm --filter @amass/api exec vitest run src/modules/notifications/notifications.gateway.spec.ts` | pass | 3/3 in 406ms — covers happy path with `tid`, missing token, bad signature |
+| API unit after SEC-005 | `pnpm --filter @amass/api test` | pass | `93` files / `976` tests / 4.96s (3 new gateway tests) |
+
+### Working tree state at audit time
+
+- `M STATUS.md` — Codex update (2026-05-04 19:57), uncommitted
+- `M apps/api/test/multi-tenant.e2e.spec.ts` — RLS RED→GREEN regression test, uncommitted
+- `?? apps/api/prisma/migrations/20260504065000_rls_deny_missing_tenant/` — new migration, uncommitted
+
+These three changes belong together (P0-002 RLS fail-open fix). They are functionally correct locally but not yet in git.
 
 ## Latest Verification
 

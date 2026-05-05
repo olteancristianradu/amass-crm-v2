@@ -7,6 +7,18 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { loadEnv } from '../../config/env';
 
+// SEC-005: Socket.IO CORS must mirror the main HTTP allow-list. Wildcard
+// origin would allow any browser to open an authenticated WS connection
+// (CSRF + websocket-hijacking surface). Env validation already rejects '*'
+// in production for CORS_ALLOWED_ORIGINS.
+const wsCorsOrigins = (() => {
+  const raw = loadEnv().CORS_ALLOWED_ORIGINS;
+  const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  // In dev, '*' may appear; pass it through as a permissive boolean. In prod,
+  // env validation guarantees no '*'.
+  return list.includes('*') ? true : list;
+})();
+
 /**
  * WebSocket gateway for real-time notifications.
  * Clients authenticate by sending their JWT in the handshake auth:
@@ -14,7 +26,7 @@ import { loadEnv } from '../../config/env';
  * On connect the socket joins room `tenant:{tenantId}:user:{userId}`.
  * NotificationsService.emit() pushes to that room.
  */
-@WebSocketGateway({ cors: { origin: '*' }, namespace: '/notifications' })
+@WebSocketGateway({ cors: { origin: wsCorsOrigins, credentials: true }, namespace: '/notifications' })
 export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(NotificationsGateway.name);
@@ -29,11 +41,14 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
 
     try {
       const env = loadEnv();
-      const payload = this.jwt.verify<{ sub: string; tenantId: string }>(token, { secret: env.JWT_SECRET });
-      const room = `tenant:${payload.tenantId}:user:${payload.sub}`;
+      // SEC-005: AuthService signs JWT with `tid` (tenant id), not `tenantId`.
+      // Reading the wrong claim made the room key `tenant:undefined:user:<id>`,
+      // which silently dropped every realtime notification.
+      const payload = this.jwt.verify<{ sub: string; tid: string }>(token, { secret: env.JWT_SECRET });
+      const room = `tenant:${payload.tid}:user:${payload.sub}`;
       await client.join(room);
       client.data['userId'] = payload.sub;
-      client.data['tenantId'] = payload.tenantId;
+      client.data['tenantId'] = payload.tid;
     } catch {
       client.disconnect();
     }

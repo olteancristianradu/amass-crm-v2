@@ -20,6 +20,26 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
 
 ## Entries
 
+### 2026-05-05 — JWT claim shape must match between issuer and every consumer
+
+- Area: auth / websockets / notifications
+- Symptom: realtime notifications never arrived; WS connection succeeded, room join silently used `tenant:undefined:user:<id>`.
+- Root cause: `AuthService.issueTokens` signs JWT with `tid` (short, the standard short claim used elsewhere in the codebase); `NotificationsGateway.handleConnection` was reading `payload.tenantId`. TypeScript did not catch this because the gateway annotated `verify<{ tenantId: string }>`, accepting whatever shape we asked for without cross-checking the issuer.
+- Fix: gateway now reads `payload.tid`. Added `notifications.gateway.spec.ts` to lock in the contract.
+- Prevention rule: when adding any new JWT consumer (gateway, middleware, guard, BFF), grep the codebase for `signAsync\(payload` and confirm the consumer reads the same field names. Prefer a shared `JwtPayload` type imported from `auth/`.
+- Related files: `apps/api/src/modules/auth/auth.service.ts:481-493`, `apps/api/src/modules/notifications/notifications.gateway.ts`, `apps/api/src/modules/notifications/notifications.gateway.spec.ts`
+- Related tests: `notifications.gateway.spec.ts` (3 tests)
+
+### 2026-05-05 — RLS "fail-open OR" branch silently allowed unscoped reads
+
+- Area: db / multi-tenant / security
+- Symptom: as `app_user` without `app.tenant_id`, `SELECT count(*) FROM companies` returned all rows across all tenants.
+- Root cause: legacy policies used `current_tenant_id() IS NULL OR tenant_id = current_tenant_id()`. The OR was meant to allow unauthenticated migration jobs through, but it also let any `app_user` connection that forgot to `SET LOCAL app.tenant_id` read everything. RLS being the last line of defense made this a P1.
+- Fix: `current_tenant_id()` now returns a sentinel string instead of NULL when `app.tenant_id` is unset, so the OR branch is false. Migration `20260504065000_rls_deny_missing_tenant`. Regression in `multi-tenant.e2e.spec.ts`.
+- Prevention rule: every new RLS policy must be tested with `SET LOCAL ROLE app_user` AND no `app.tenant_id`. Add the assertion to `multi-tenant.e2e.spec.ts` for every new tenant-scoped table.
+- Related files: `apps/api/prisma/migrations/20260504065000_rls_deny_missing_tenant/migration.sql`, `apps/api/test/multi-tenant.e2e.spec.ts`
+- Related tests: `multi-tenant.e2e.spec.ts` (7 tests)
+
 ### 2026-05-04 — Playwright e2e specs need explicit match and Docker Caddy base URL
 
 - Area: web/e2e/runtime smoke
