@@ -17,11 +17,11 @@ Last updated: 2026-05-05 21:50 Europe/Bucharest
 
 | ID | Task | Why it matters | Status | Owner | Evidence |
 |---|---|---|---|---|---|
-| P1-001 | Reconcile `LAUNCH_CHECKLIST.md` with `RELEASE_CHECKLIST.md`. | Two launch checklists can diverge and mislead release decisions. | open | Codex | Both files exist. |
-| P1-002 | Fix or explicitly accept moderate dependency advisories. | `vite`, `esbuild`, and `postcss` advisories remain in non-production audit output. | open | Codex | `SEC-002`. |
-| P1-003 | Add local secrets scanner or document CI-only secret scanning. | Local secret-scan evidence is missing. | open | Codex | `SEC-003`; `gitleaks` unavailable locally. |
-| P1-004 | Harden `WEBHOOK_TRUSTED_HOSTS` production behavior. | A dev escape hatch can become a production SSRF bypass if set accidentally. | open | Codex | `SEC-007`. |
-| P1-005 | Decide webhook secret return policy and implement it. | If policy is "never return after creation", code is acceptable only for one-time creation display; if stricter, create must stop returning it. | open | Codex + human policy input | `SEC-008`. |
+| P1-001 | Reconcile `LAUNCH_CHECKLIST.md` with `RELEASE_CHECKLIST.md`. | Two launch checklists can diverge and mislead release decisions. | **resolved 2026-05-05** | Claude | LAUNCH_CHECKLIST.md marked DEPRECATED with redirect; RELEASE_CHECKLIST.md is now the single authoritative gate with security/secrets/RLS/smoke/integrations sections. |
+| P1-002 | Fix or explicitly accept moderate dependency advisories. | `vite`, `esbuild`, and `postcss` advisories remain in non-production audit output. | open (high/critical resolved) | Codex | `SEC-002`; HIGH advisories resolved via axios override (`63628e9`); MODERATE dev-only advisories accepted until upstream releases. |
+| P1-003 | Add local secrets scanner or document CI-only secret scanning. | Local secret-scan evidence is missing. | **resolved `855f241` 2026-05-05** | Claude | `.github/workflows/secret-scan.yml` runs gitleaks on push/PR/weekly; `SEC-003`. |
+| P1-004 | Harden `WEBHOOK_TRUSTED_HOSTS` production behavior. | A dev escape hatch can become a production SSRF bypass if set accidentally. | **resolved `6a6fc4c` 2026-05-05** | Claude | `SEC-007`. |
+| P1-005 | Decide webhook secret return policy and implement it. | If policy is "never return after creation", code is acceptable only for one-time creation display; if stricter, create must stop returning it. | **resolved `a9fca1a` 2026-05-05** | Claude | `SEC-008`; one-time display + rotate endpoint. |
 | P1-006 | Build AMASS Pro Cockpit / Focus Queue at `/app`. | Users need a prioritized work surface, not just passive KPIs and many routes. | open | Codex | Current `dashboard.tsx` has KPI/brief foundation but not action queue. |
 | P1-007 | Redesign Entity 360 pages around next action and relationship health. | Users should understand customer state and act in seconds. | open | Codex | `company.detail.page.tsx` has tabs; no synthesized action header yet. |
 | P1-008 | Upgrade Command Palette into safe action execution. | Cmd/Ctrl+K should create/follow-up/log/update with audit and confirmation, not only navigate/search. | open | Codex | Current command palette route support exists; action execution is incomplete. |

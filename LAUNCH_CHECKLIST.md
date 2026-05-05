@@ -1,6 +1,12 @@
 # LAUNCH_CHECKLIST.md
 # Citește înainte de launch / go-live.
 
+> ⚠️ **DEPRECATED 2026-05-05** — content kept as historical reference for
+> S12/S13 runtime smoke tests and known tech debt. **The active launch
+> gate is [`RELEASE_CHECKLIST.md`](./RELEASE_CHECKLIST.md)**. Items
+> in §3/§4/§5 here are absorbed into RELEASE_CHECKLIST.md "Required"
+> section. Do not add new items to this file.
+>
 > Creat după S13 (2026-04-13). Ultima actualizare majoră: 2026-04-22
 > (reconcilat cu STATUS.md după auditul extern).
 >
