@@ -41,7 +41,8 @@
       "picomatch": ">=4.0.4",
       "@xmldom/xmldom": ">=0.8.13",
       "fast-xml-parser": ">=5.7.0",
-      "uuid": ">=14.0.0"
+      "uuid": ">=14.0.0",
+      "axios": ">=1.15.2"
     }
   },
   "lint-staged": {
