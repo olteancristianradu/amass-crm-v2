@@ -77,6 +77,34 @@ describe('Multi-tenant isolation (e2e)', () => {
     expect(visibleFromA.find((u) => u.email === 'b@b.com')).toBeUndefined();
   });
 
+  it('RLS: app_user without app.tenant_id sees no tenant-scoped rows', async () => {
+    const [row] = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL ROLE app_user');
+      return tx.$queryRaw<
+        {
+          tenantContext: string;
+          userCount: number;
+          companyCount: number;
+          invoiceCount: number;
+          tagCount: number;
+        }[]
+      >`
+        SELECT
+          current_tenant_id() AS "tenantContext",
+          (SELECT COUNT(*)::int FROM "users") AS "userCount",
+          (SELECT COUNT(*)::int FROM companies) AS "companyCount",
+          (SELECT COUNT(*)::int FROM invoices) AS "invoiceCount",
+          (SELECT COUNT(*)::int FROM tags) AS "tagCount"
+      `;
+    });
+
+    expect(row?.tenantContext).toBeTruthy();
+    expect(row?.userCount).toBe(0);
+    expect(row?.companyCount).toBe(0);
+    expect(row?.invoiceCount).toBe(0);
+    expect(row?.tagCount).toBe(0);
+  });
+
   it('RLS: writing to wrong tenant from inside runWithTenant fails', async () => {
     // Inside a tenant-A transaction, attempting to insert a user with tenantId=B
     // must be rejected by the RLS WITH CHECK clause.
