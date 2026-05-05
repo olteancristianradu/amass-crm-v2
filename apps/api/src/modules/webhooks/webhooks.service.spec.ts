@@ -145,6 +145,61 @@ describe('WebhooksService', () => {
     });
   });
 
+  describe('rotateSecret (SEC-008)', () => {
+    it('throws NotFound when endpoint missing', async () => {
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(null) } }),
+      );
+      await expect(svc.rotateSecret('ghost')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('returns a fresh hex secret and persists it', async () => {
+      // get() lookup
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue({ id: 'ep1' }) } }),
+      );
+      // rotate update
+      const update = vi.fn().mockResolvedValue({ id: 'ep1' });
+      mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { update: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { update } }),
+      );
+
+      const out = await svc.rotateSecret('ep1');
+
+      expect(out.id).toBe('ep1');
+      expect(out.secret).toMatch(/^[0-9a-f]{48}$/);
+      expect(out.rotatedAt).toBeInstanceOf(Date);
+      expect(update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'ep1' },
+        data: { secret: out.secret },
+      }));
+    });
+
+    it('returns a different secret on each call', async () => {
+      const setupCall = (newSecretHolder: { value: string }) => {
+        mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+          fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue({ id: 'ep1' }) } }),
+        );
+        mockRunWithTenant.mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { update: Mock } }) => Promise<unknown>) => {
+          const update = vi.fn().mockImplementation(({ data }: { data: { secret: string } }) => {
+            newSecretHolder.value = data.secret;
+            return { id: 'ep1' };
+          });
+          return fn({ webhookEndpoint: { update } });
+        });
+      };
+      const a = { value: '' };
+      const b = { value: '' };
+      setupCall(a);
+      const r1 = await svc.rotateSecret('ep1');
+      setupCall(b);
+      const r2 = await svc.rotateSecret('ep1');
+      expect(r1.secret).not.toBe(r2.secret);
+      expect(r1.secret).toBe(a.value);
+      expect(r2.secret).toBe(b.value);
+    });
+  });
+
   describe('listDeliveries', () => {
     it('orders by createdAt desc and caps at 100', async () => {
       // get() succeeds

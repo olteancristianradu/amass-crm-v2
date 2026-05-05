@@ -104,6 +104,31 @@ export class WebhooksService {
     );
   }
 
+  /**
+   * SEC-008: webhook secret rotation.
+   *
+   * Policy: secret is shown ONCE at create() time and never returned by any
+   * read endpoint (list/get/update use PUBLIC_ENDPOINT_SELECT). If a tenant
+   * suspects leak, they call this method — we generate a new secret, persist
+   * it, and return it to the caller exactly once. The old secret stops
+   * verifying new deliveries from that point on.
+   */
+  async rotateSecret(id: string): Promise<{ id: string; secret: string; rotatedAt: Date }> {
+    await this.get(id);
+    const { tenantId } = requireTenantContext();
+    const newSecret = randomBytes(24).toString('hex');
+    const rotatedAt = new Date();
+    await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.webhookEndpoint.update({
+        where: { id },
+        data: { secret: newSecret },
+        select: { id: true },
+      }),
+    );
+    this.logger.warn(`Webhook secret rotated for endpoint ${id} (tenant ${tenantId})`);
+    return { id, secret: newSecret, rotatedAt };
+  }
+
   async listDeliveries(endpointId: string) {
     await this.get(endpointId);
     const { tenantId } = requireTenantContext();

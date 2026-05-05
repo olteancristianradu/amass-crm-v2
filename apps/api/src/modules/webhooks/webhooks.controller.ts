@@ -64,6 +64,14 @@ export class WebhooksController {
     return this.svc.delete(id);
   }
 
+  // SEC-008: secret is shown once at create. Use this endpoint to rotate
+  // when a tenant suspects leak — returns the new secret exactly once.
+  @Post('endpoints/:id/rotate-secret')
+  @RequireCedar({ action: 'webhook::update', resource: (req) => `WebhookEndpoint::${(req as { params: { id: string } }).params.id}` })
+  rotateSecret(@Param('id') id: string) {
+    return this.svc.rotateSecret(id);
+  }
+
   @Get('endpoints/:id/deliveries')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   deliveries(@Param('id') id: string) {
