@@ -10,8 +10,12 @@ For each AI job:
 """
 from __future__ import annotations
 
+import ipaddress
 import logging
+import os
+import socket
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -21,6 +25,75 @@ from .redaction import redact
 from .summary import summarise
 
 logger = logging.getLogger(__name__)
+
+
+# SEC-006 residual hardening: only fetch recordings from explicitly allowed
+# hosts (Twilio media). Comma-separated env override; default = Twilio only.
+# Suffix match (`.twilio.com` matches `api.twilio.com` and `media.twilio.com`).
+DEFAULT_ALLOWED_HOSTS = ".twilio.com,api.twilio.com,api.twiliocdn.com,media.twiliocdn.com"
+RECORDING_ALLOWED_HOSTS = tuple(
+    h.strip().lower()
+    for h in os.environ.get("RECORDING_ALLOWED_HOSTS", DEFAULT_ALLOWED_HOSTS).split(",")
+    if h.strip()
+)
+
+
+def _is_recording_url_safe(url: str) -> tuple[bool, str]:
+    """
+    Validate a caller-supplied recording URL before fetch:
+    - HTTPS only.
+    - Hostname must match RECORDING_ALLOWED_HOSTS (suffix match for
+      entries starting with '.', exact match otherwise).
+    - All resolved IPs must be public (no loopback, link-local, private,
+      multicast, reserved). Defends against DNS rebinding to internal
+      services like 169.254.169.254 (cloud metadata).
+
+    Returns (ok, reason). When ok=False, callers must refuse the URL.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception as exc:
+        return False, f"invalid url: {exc}"
+
+    if parsed.scheme != "https":
+        return False, f"scheme must be https, got {parsed.scheme!r}"
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False, "url has no hostname"
+
+    matched = False
+    for allowed in RECORDING_ALLOWED_HOSTS:
+        if allowed.startswith("."):
+            if host.endswith(allowed) or host == allowed.lstrip("."):
+                matched = True
+                break
+        elif host == allowed:
+            matched = True
+            break
+    if not matched:
+        return False, f"host {host!r} not in RECORDING_ALLOWED_HOSTS"
+
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as exc:
+        return False, f"dns resolution failed: {exc}"
+
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            return False, f"invalid ip {addr!r}"
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            return False, f"resolved ip {addr} is non-public"
+    return True, "ok"
 
 
 async def process_call(job_data: dict[str, Any]) -> dict[str, Any]:
@@ -89,6 +162,15 @@ async def _download_recording(recording_url: str) -> bytes:
 
     # Append .mp3 to get a direct audio file (Twilio redirects to the media)
     url = recording_url if recording_url.endswith(".mp3") else recording_url + ".mp3"
+
+    # SEC-006 residual: refuse caller-supplied URLs that aren't Twilio media
+    # over HTTPS resolving to public IPs. This is the last line before httpx
+    # follows redirects, so an attacker passing recordingUrl=
+    # "https://attacker.com/redirect-to-169.254.169.254" is blocked here.
+    safe, reason = _is_recording_url_safe(url)
+    if not safe:
+        logger.error("Refusing recording download: %s (url=%s)", reason, url)
+        return b""
 
     try:
         auth = None
