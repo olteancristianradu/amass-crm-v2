@@ -1,0 +1,66 @@
+name: Performance Budget
+
+# Weekly Lighthouse CI run against the live demo URL. Tracks:
+#   - Largest Contentful Paint (LCP) — should be < 2.5s
+#   - Cumulative Layout Shift (CLS) — should be < 0.1
+#   - Total Blocking Time (TBT) — should be < 300ms
+#   - Performance score — should be >= 80
+#
+# Soft fail by default (warn, not fail) — flip to fail when scores
+# stabilize. Demo URL via Cloudflare quick tunnel rotates; the workflow
+# reads it from `secrets.DEMO_URL` so we don't burn a config commit
+# every time it changes.
+
+on:
+  schedule:
+    # Sunday 03:00 UTC — quiet, no overlap with red-team Saturday job.
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to test (overrides DEMO_URL secret)'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    name: Lighthouse CI on demo URL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.14.x
+
+      - name: Determine target URL
+        id: url
+        run: |
+          URL="${{ github.event.inputs.url }}"
+          if [ -z "$URL" ]; then
+            URL="${{ secrets.DEMO_URL }}"
+          fi
+          if [ -z "$URL" ]; then
+            URL="https://affiliation-rated-tattoo-exports.trycloudflare.com"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Run Lighthouse CI
+        run: |
+          lhci autorun \
+            --collect.url="${{ steps.url.outputs.url }}" \
+            --collect.numberOfRuns=3 \
+            --upload.target=temporary-public-storage \
+            --assert.preset=lighthouse:recommended \
+            --assert.assertions.first-contentful-paint='[\"warn\",{\"maxNumericValue\":2500}]' \
+            --assert.assertions.largest-contentful-paint='[\"warn\",{\"maxNumericValue\":2500}]' \
+            --assert.assertions.cumulative-layout-shift='[\"warn\",{\"maxNumericValue\":0.1}]' \
+            --assert.assertions.total-blocking-time='[\"warn\",{\"maxNumericValue\":300}]' \
+            --assert.assertions.categories:performance='[\"warn\",{\"minScore\":0.80}]'
+        continue-on-error: true
