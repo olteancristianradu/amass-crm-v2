@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a new capability or improvement
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the pain point or use case. Avoid jumping straight to a solution.
+      placeholder: As a sales manager, I can't see at a glance which deals haven't been touched in 7+ days, so deals stall in the pipeline without me noticing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Optional. If you have an idea for how to implement, describe it.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you tried, or other tools that solve this differently.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - "Romanian-specific (ANAF, eMag, etc.)"
+        - "EU-specific (GDPR, e-invoicing)"
+        - "General CRM improvement"
+        - "Developer experience"
+    validations:
+      required: false

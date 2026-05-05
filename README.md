@@ -1,590 +1,152 @@
-# AMASS CRM v2 — Ghid tehnic developer
+# AMASS CRM
 
-CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI, redactare PII). Construit pentru IMM-uri românești și EU.
+> **Multi-tenant CRM for Romanian SMBs. ANAF e-Factura native. Onboarding under 1 hour.**
 
-> ⚠️ **Stare transcrierii + redactării PII (secțiunea AI):** default `WHISPER_MODEL=off` (stub) și Presidio neinstalat (fallback regex). Pipeline-ul complet e opt-in — vezi secțiunea **AI** de mai jos și `apps/ai-worker/requirements.txt`.
-
-**Versiune:** Tier B+C complete · **Stack:** NestJS + Prisma + Postgres + React · **Solo developer.**
-
-> Pentru manualul utilizatorului final (conducere companie), vezi **[README-CEO.md](./README-CEO.md)**.
-> Pentru catalogul tuturor funcțiilor vezi **[docs/FEATURES.md](./docs/FEATURES.md)**.
-> Pentru checklist-ul de launch vezi **[LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)**.
-
----
-
-## Cuprins
-
-1. [Stack complet](#1-stack-complet)
-2. [Arhitectura](#2-arhitectura)
-3. [Setup local](#3-setup-local)
-4. [Variabile de mediu](#4-variabile-de-mediu)
-5. [Structura monorepo](#5-structura-monorepo)
-6. [Multi-tenancy (3 straturi)](#6-multi-tenancy-3-straturi)
-7. [Convenții API REST](#7-conventii-api-rest)
-8. [Cum adaugi un feature nou](#8-cum-adaugi-un-feature-nou)
-9. [Testing](#9-testing)
-10. [CI/CD](#10-cicd)
-11. [Deployment VPS (producție)](#11-deployment-vps)
-12. [Gestionare conturi și integrări](#12-gestionare-conturi)
-13. [Debugging & troubleshooting](#13-debugging)
-14. [Cum repari erorile comune](#14-reparare-erori)
+[![CI](https://github.com/olteancristianradu/amass-crm-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/olteancristianradu/amass-crm-v2/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/olteancristianradu/amass-crm-v2/actions/workflows/codeql.yml/badge.svg)](https://github.com/olteancristianradu/amass-crm-v2/actions/workflows/codeql.yml)
+[![Secret Scan](https://github.com/olteancristianradu/amass-crm-v2/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/olteancristianradu/amass-crm-v2/actions/workflows/secret-scan.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![Built with NestJS](https://img.shields.io/badge/built%20with-NestJS-E0234E)](https://nestjs.com/)
+[![Built with React](https://img.shields.io/badge/built%20with-React_19-61DAFB)](https://react.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)](https://www.postgresql.org/)
 
 ---
 
-## 1. Stack complet
+## What is this
 
-**Backend:** Node 22 · NestJS 11 · TypeScript 6 strict · Prisma 6 · Zod · Vitest · Pino · JWT+sessions+TOTP
+A modern CRM built for the segment Salesforce won't serve well: **5–50 person SMBs in Romania and the EU** that need real sales tooling without the $150/user/month price tag, the 6-week onboarding, or the certified-admin dependency.
 
-**Data:** Postgres 16 + pgvector + pg_trgm · Redis 7 · BullMQ · MinIO · Postgres tsvector (NU Meilisearch)
+Native ANAF e-Factura. GDPR by default. Multi-tenant with row-level security. Single docker-compose to spin it up.
 
-**AI:** Python 3.12 + FastAPI · Claude `claude-sonnet-4-6` · OpenAI / Gemini embeddings.
-  - **Whisper (transcription)** — opt-in, default OFF. Set `WHISPER_MODEL=base` (or medium/large) AND uncomment whisper lines in `apps/ai-worker/requirements.txt` AND rebuild the image. Default deployment returns `"[stub transcript]"`.
-  - **Presidio (PII redaction)** — opt-in. Install `presidio-analyzer + presidio-anonymizer + spaCy models` (commented out in `requirements.txt`). Until then, a regex stub redacts Romanian CNP / phone / email only.
-  - `GET /health` on the AI worker returns `degraded: true` when either is in stub mode, so dashboards can alert on it.
+## Live demo
 
-**Frontend:** React 19 · Vite · TanStack Router/Query/Table · shadcn/ui + Tailwind · React Hook Form + Zod · Zustand · Socket.IO client
+> **Try it:** [https://affiliation-rated-tattoo-exports.trycloudflare.com](https://affiliation-rated-tattoo-exports.trycloudflare.com)
+> Demo tenant: `demo` · email: `admin@amass-demo.ro` · password: `AmassCRM2026!`
+>
+> ⚠️ The demo URL is a Cloudflare quick tunnel — it can rotate. Check the latest in [`STATUS.md`](./STATUS.md) if it doesn't load.
 
-**Infra:** Docker Compose (NU k8s) · Caddy · Twilio · pnpm + Turborepo · GitHub Actions · Sentry · Pino + Prometheus. OpenTelemetry nu e wired — deferred până avem nevoie de distributed tracing cross-service.
+## Why it might matter to you
 
-**Explicit NU folosim:** Kubernetes, Kafka, microservices, GraphQL, MongoDB, Meilisearch, Redux.
+| You are… | What this gives you |
+|---|---|
+| **Romanian SMB owner** | ANAF e-Factura submission built-in, GDPR exports one-click, onboarding under 1 hour, Romanian UI |
+| **Developer evaluating CRMs** | Modern stack (NestJS 11 + Prisma 6 + React 19 + BullMQ), multi-tenancy done right (3 layers: middleware + Prisma extension + Postgres RLS), 1000+ tests, audit log on everything |
+| **Security/compliance reviewer** | RLS deny-by-default, JWT 15-min + refresh rotation with reuse detection, audit log, Cedar policies (ABAC), TOTP 2FA, SCIM-ready |
+| **Founder considering fork** | AGPL-3.0 license — fork freely, but if you ship a SaaS competitor your modifications must be open-sourced too |
 
----
+## Features at a glance
 
-## 2. Arhitectura
+**CRM core** — Companies, Contacts, Clients (split B2B/B2C), Deals with pipelines + Kanban DnD, Tasks, Reminders, Notes (polymorphic timeline), Attachments via MinIO.
 
-### Principii de design
+**Sales** — Leads + scoring, Quotes, Invoices (with ANAF e-Factura submission), Products, Approval policies, Forecasting, Contracts, Orders, Campaigns.
 
-1. **Monolit modular** — un singur API NestJS cu 64 module, din care 5 sunt scaffold-uri explicite (vezi secțiunea 2.1). Simplitate > microservices pentru solo dev.
-2. **Multi-tenancy in-row** — toate tabelele au `tenant_id`. RLS + middleware garantează izolarea.
-3. **Outbox pattern** — evenimente scrise în DB în aceeași tranzacție, consumate async de Redis Streams.
-4. **Idempotent consumers** — toate jobs-urile BullMQ suportă retry fără efecte duble.
-5. **Presigned URLs** pentru binare — frontend upload direct spre MinIO, backend primește doar metadata.
-6. **Zod everywhere** — schema-uri partajate BE+FE în `packages/shared`.
+**Communication** — Email (SMTP + Outlook/Microsoft Graph + tracking pixel + reply detection), Calls (Twilio + AI transcription via Whisper + summary via Claude/Gemini), SMS, WhatsApp, Sequences, Calendar (Google + Outlook OAuth).
 
-### 2.1 Module scaffold (NOT IMPLEMENTED — placeholder pentru roadmap)
+**Romanian compliance** — ANAF e-Factura UBL XML submission + status tracking, CNP/IBAN validation, GDPR data export + deletion + retention policies, audit log with SIEM forwarding.
 
-Următoarele module sunt **scheleturi** cablate în `AppModule` pentru a
-discoverable API surface-ul pe care-l vom implementa când vine cererea
-reală. NU sunt funcționale. Nu promite capabilități enterprise pe bază de
-prezența lor.
+**Platform** — Multi-tenant with Postgres RLS, RBAC + Cedar policies, TOTP 2FA, JWT + refresh rotation, BullMQ queues, Redis Sentinel ready, PgBouncer ready, Prometheus metrics, Sentry integration, Pino structured logging.
 
-| Modul | Rută | Comportament acum | Pentru când e real |
-|---|---|---|---|
-| `ScimModule` | `/api/v1/scim/v2/*` | 501 cu envelope SCIM | IdP provisioning (Okta/Azure AD/JumpCloud) |
-| `WebauthnModule` | `/api/v1/webauthn/*` | 501 | FIDO2/WebAuthn passkey auth |
-| `SyncModule` | `GET /api/v1/sync` | 501 | Mobile delta-sync |
-| `PushModule` | - (service) | `PushService.send()` e no-op log | APNs/FCM push notifications |
-| `AccessControlModule` | - (middleware) | `ConditionalAccessMiddleware` e pass-through, `CedarPolicyService.check()` default-allow | ABAC + conditional access policies |
+**Frontend** — ~75 pages, glass-morphism design system, Cmd+K command palette, AI morning brief, dark mode, PWA, real-time WebSocket notifications.
 
-SSO (`SsoModule`, `@node-saml/passport-saml`) NU e scaffold — e
-implementat, merge.
+Full feature catalogue: [`docs/FEATURES.md`](./docs/FEATURES.md).
 
-### Diagramă componente
-
-```
-┌─────────────┐     HTTPS      ┌──────────────┐
-│   Browser   │◄──────────────►│    Caddy     │
-│   (React)   │                │ reverse proxy│
-└─────────────┘                └──────┬───────┘
-                                      │
-                     ┌────────────────┼────────────────┐
-                     ▼                ▼                ▼
-              ┌────────────┐   ┌────────────┐   ┌────────────┐
-              │  NestJS    │   │ AI Worker  │   │  Static    │
-              │   API      │   │  FastAPI   │   │   Web      │
-              │  :3000     │   │   :8000    │   │   :3001    │
-              └──────┬─────┘   └──────┬─────┘   └────────────┘
-                     │                │
-        ┌────────────┼────────────┐   │
-        ▼            ▼            ▼   ▼
-    ┌────────┐  ┌────────┐  ┌──────────┐
-    │Postgres│  │ Redis  │  │  MinIO   │
-    │  +pgv  │  │+BullMQ │  │(S3-like) │
-    └────────┘  └────────┘  └──────────┘
-```
-
----
-
-## 3. Setup local
-
-### Prerequisite
-- Node 22+ (`fnm use 22`)
-- pnpm 9+
-- Docker + Docker Compose
-- Git
-
-### Pași
+## Quick start (5 minutes)
 
 ```bash
+# 1. Clone
 git clone https://github.com/olteancristianradu/amass-crm-v2.git
 cd amass-crm-v2
 
+# 2. Copy env template
+cp infra/.env.example infra/.env
+# Edit if you want; defaults work for local dev.
+
+# 3. Start the stack (postgres, redis, minio, api, web, ai-worker, caddy)
+docker compose -f infra/docker-compose.yml up -d
+
+# 4. Run migrations + seed demo data
+docker exec amass-api pnpm exec prisma migrate deploy
+docker exec amass-api pnpm exec prisma db seed
+
+# 5. Open http://localhost in your browser
+# Login: admin@amass-demo.ro / AmassCRM2026!
+```
+
+Detailed setup, environment variables, and architecture: [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md).
+
+## Architecture in 30 seconds
+
+```
+Browser  →  Caddy (reverse proxy, HTTPS in prod)
+              ├─ /api/*    → NestJS API (Node 22)
+              ├─ /ai/*     → FastAPI AI worker (Python 3.12)
+              ├─ /ws/*     → Socket.IO for realtime notifications
+              ├─ /amass-files/*  → MinIO (presigned uploads/downloads)
+              └─ /         → React 19 SPA (Vite)
+
+API ─┬─ Postgres 16 (data + RLS + tsvector full-text)
+     ├─ Redis 7 (BullMQ queues, sessions, rate limiter)
+     └─ MinIO (binary storage)
+```
+
+**Multi-tenancy is enforced in three layers:**
+1. `JwtAuthGuard + TenantContextMiddleware` populate AsyncLocalStorage with tenant context.
+2. `runWithTenant(tenantId, fn)` opens a Prisma transaction with a tenant extension that auto-injects `tenantId` into every query.
+3. Postgres RLS policies enforce `tenant_id = current_tenant_id()` at the database row level. RLS is **deny-by-default** when tenant context is missing (no fail-open OR clause).
+
+Full architecture: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). Scaling primitives: [`docs/SCALING.md`](./docs/SCALING.md).
+
+## Testing & quality
+
+- **973+ unit tests** in the API, **52+ web tests**, full e2e suite (1087+ tests at last run).
+- Lint, typecheck, tests, dependency audit, secret scan, and CodeQL run on every push.
+- RLS deny-by-default has its own regression test (`apps/api/test/multi-tenant.e2e.spec.ts`).
+- Critical CRM browser flow runs in Playwright (auth, company CRUD, attachment upload+download with byte comparison, task complete, reminder dismiss).
+
+Run locally:
+```bash
 pnpm install
-
-docker compose -f infra/docker-compose.dev.yml up -d
-
-cp apps/api/.env.example apps/api/.env
-# Completează variabilele (secțiunea 4)
-
-cd apps/api
-pnpm prisma migrate deploy
-pnpm prisma generate
-pnpm prisma db seed
-cd ../..
-
-pnpm dev
-# API:  http://localhost:3000/api/v1
-# Web:  http://localhost:3001
-# Swagger: http://localhost:3000/api/docs
-# MinIO: http://localhost:9001
+pnpm lint && pnpm typecheck && pnpm test
 ```
 
-### Comenzi utile
+## Project status
 
-```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm format
+This is **alpha**. Production deployment, real provider credentials (Twilio, Stripe, Google OAuth, Microsoft Graph, Anthropic, ANAF), and operational readiness (backups, monitoring, on-call) are still in progress.
 
-pnpm --filter @amass/api dev
-pnpm --filter @amass/web dev
-pnpm --filter @amass/api test -- --watch
-```
+Current honest readiness:
+- Code/tests/security: ~80% verified
+- Production deploy: 0% (no domain, no VPS, demo URL is a Cloudflare quick tunnel)
+- Real provider integrations: blocked on credentials
+
+Live status: [`STATUS.md`](./STATUS.md). What's left: [`UNFINISHED.md`](./UNFINISHED.md). Launch gate: [`RELEASE_CHECKLIST.md`](./RELEASE_CHECKLIST.md).
+
+## Roadmap
+
+- [x] Core CRM (companies, contacts, deals, tasks, notes, attachments)
+- [x] Sales (leads, quotes, invoices, products, approvals, forecasting)
+- [x] Communication (email, calls, SMS, WhatsApp, sequences, calendar)
+- [x] ANAF e-Factura native submission
+- [x] Multi-tenant RLS deny-by-default
+- [x] Polymorphic tags
+- [x] Microsoft Graph email integration
+- [ ] Multi-format importer (CSV, Excel, SmartBill, SAGA, GestCom, PDF)
+- [ ] Pro Cockpit — selectable widget dashboard
+- [ ] Performance budgets in CI
+- [ ] Production deployment with stable domain
+- [ ] AppExchange-style marketplace integrations (Stripe, eMag, Termene.ro, Listafirme)
+
+## Contributing
+
+This is currently a solo-dev project, but PRs are welcome. See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
+For agents (Claude Code, Codex, etc.) working on this codebase, the operating rules are in [`AGENTS.md`](./AGENTS.md). Read it first.
+
+## License
+
+[AGPL-3.0](./LICENSE).
+
+If you fork this and ship a hosted SaaS based on it, your modifications must be open-sourced under AGPL-3.0 too. Commercial dual licensing is available — open an issue.
 
 ---
 
-## 4. Variabile de mediu
-
-Toate validate cu Zod la startup — **fail fast** dacă lipsește ceva obligatoriu.
-
-`apps/api/.env`:
-
-```env
-# Core
-NODE_ENV=development
-DATABASE_URL=postgresql://crm_user:PAROLA@localhost:5432/amass_crm
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=                # openssl rand -hex 64
-SESSION_SECRET=            # openssl rand -hex 64
-ENCRYPTION_KEY=            # openssl rand -hex 32
-
-# MinIO
-MINIO_ENDPOINT=localhost
-MINIO_PORT=9000
-MINIO_ACCESS_KEY=
-MINIO_SECRET_KEY=
-MINIO_BUCKET=amass-crm
-MINIO_USE_SSL=false
-
-# Twilio
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_PHONE_NUMBER=+40...
-
-# Email — SMTP via nodemailer (SendGrid SMTP works here too, but we don't ship
-# the @sendgrid/mail SDK; use any SMTP provider — SendGrid, Mailgun, self-hosted).
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
-EMAIL_FROM=noreply@amass.ro
-
-# AI (opțional)
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=
-GOOGLE_AI_API_KEY=
-
-# Monitoring
-SENTRY_DSN=
-
-# Stripe
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-
-# ANAF
-ANAF_CLIENT_ID=
-ANAF_CLIENT_SECRET=
-
-# SSO SAML
-SAML_IDP_METADATA_URL=
-SAML_SP_ENTITY_ID=
-```
-
-`apps/web/.env`:
-
-```env
-VITE_API_URL=http://localhost:3000/api/v1
-VITE_SOCKET_URL=http://localhost:3000
-VITE_SENTRY_DSN=
-```
-
----
-
-## 5. Structura monorepo
-
-```
-amass-crm-v2/
-├── apps/
-│   ├── api/                 # NestJS backend
-│   │   ├── prisma/          # schema + migrări
-│   │   └── src/
-│   │       ├── config/      # Zod env loader
-│   │       ├── infra/       # Prisma, Redis, MinIO, Queue
-│   │       ├── common/      # pagination, filters
-│   │       └── modules/     # 63 module
-│   ├── web/                 # React frontend
-│   │   ├── public/          # PWA manifest + SW
-│   │   └── src/
-│   │       ├── routes/      # 48 pagini
-│   │       ├── features/    # API clients
-│   │       ├── components/  # ui + layout
-│   │       ├── lib/
-│   │       ├── stores/      # Zustand
-│   │       └── hooks/
-│   └── ai-worker/           # FastAPI Python
-├── packages/
-│   └── shared/              # Zod schemas BE+FE
-├── infra/
-│   ├── docker-compose.dev.yml
-│   └── docker-compose.prod.yml
-├── docs/
-│   ├── ARCHITECTURE.md
-│   └── FEATURES.md
-├── .github/workflows/ci.yml
-├── CLAUDE.md
-├── LESSONS.md
-├── LAUNCH_CHECKLIST.md
-├── STATUS.md
-├── README.md
-├── README-CEO.md
-└── pnpm-workspace.yaml
-```
-
----
-
-## 6. Multi-tenancy — defense in depth
-
-**Dacă un strat pică, următoarele te acoperă.** Nu există `TenantGuard` ca un
-guard dedicat; rolul lui e împărțit între trei piese:
-
-### Stratul 1: JwtAuthGuard + RolesGuard + `TenantContextMiddleware`
-`TenantContextMiddleware` citește `req.user.tenantId` populat de
-JwtAuthGuard și îl setează în `AsyncLocalStorage` pentru restul request-ului:
-
-```typescript
-export const tenantStorage = new AsyncLocalStorage<TenantContext>();
-export const requireTenantContext = () => {
-  const ctx = tenantStorage.getStore();
-  if (!ctx) throw new Error('No tenant context');
-  return ctx;
-};
-```
-
-Toate controllerele tenant-scoped sunt decorate cu
-`@UseGuards(JwtAuthGuard, RolesGuard)`.
-
-### Stratul 2: `tenantExtension` — Prisma client extension
-Wired global în `PrismaService.onModuleInit` prin
-`this.$extends(tenantExtension())`. Orice tranzacție deschisă prin
-`runWithTenant(tenantId, mode, fn)` rulează pe clientul extins, deci tx-ul
-predat lui `fn` injectează `tenantId` pe orice `where`/`data` al modelelor
-tenant-scoped. Pure-function `applyTenantScope()` e unit-testat
-(`prisma.service.spec.ts`).
-
-### Stratul 3: Postgres RLS
-`runWithTenant` face `SET LOCAL app.tenant_id = '<id>'` +
-`SET LOCAL ROLE app_user` (NOSUPERUSER, NOBYPASSRLS). Chiar și raw SQL
-fără filtru e blocat:
-
-```sql
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON companies
-  USING (tenant_id = current_setting('app.tenant_id')::text);
-```
-
-### Audit log (supliment, nu strat independent)
-Orice acțiune senzitivă → `audit_logs`. Cu `SIEM_WEBHOOK_URL` setat,
-fiecare intrare e forwardată async (breaker-protected).
-
-### Servicii care ocolesc `runWithTenant` (pre-auth, prin design)
-`auth/auth`, `auth/totp`, `sso/sso`. Toate rulează ÎNAINTE de a exista un
-JWT — `runWithTenant` nu are ce `tenantId` să injecteze, iar RLS sub
-`app_user` ar bloca chiar lookup-ul tenantului. Fiecare astfel de serviciu:
-  - pasează `tenantId` explicit în fiecare `where`;
-  - loghează încercările eșuate în audit log (detectare de probe-uri cross-tenant);
-  - are un bloc de comentarii "Multi-tenancy note" la începutul fișierului.
-
-`ai/deal-ai`, `ai/embedding`, `ai/search`, `reports/reports` ERAU în lista
-asta până la commit-ul care adresează auditul — acum toate folosesc
-`runWithTenant` și sunt acoperite de L1 + L2 + L3.
-
----
-
-## 7. Convenții API REST
-
-- Toate rutele sub `/api/v1/`
-- **Cursor pagination:** `?cursor=abc&limit=50`
-- **Filtrare:** `?filter[status]=OPEN&filter[priority]=HIGH`
-- **Sortare:** `?sort=-createdAt`
-- **Response paginat:** `{ items: [...], nextCursor: "xyz" | null }`
-- **Eroare standard:**
-  ```json
-  {
-    "code": "COMPANY_NOT_FOUND",
-    "message": "Company not found",
-    "details": {},
-    "traceId": "uuid-v4",
-    "timestamp": "2026-04-21T10:30:00Z"
-  }
-  ```
-- **OpenAPI** la `/api/docs` (dev only)
-- **Rate limiting:** 60 req/min/IP default, 5/min pe `/auth/login`
-
----
-
-## 8. Cum adaugi un feature nou
-
-Loop strict din `CLAUDE.md`:
-
-1. **Plan** (≤15 linii) → cere aprobare
-2. **Schema Prisma** → `pnpm prisma migrate dev --name add_my_feature`
-3. **Zod schema** în `packages/shared/src/schemas/`
-4. **Service** în `apps/api/src/modules/my-feature/`
-5. **Controller** cu `@UseGuards(JwtAuthGuard, RolesGuard)` + toate query-urile prin `runWithTenant(tenantId, ..., fn)` ca să ia Layer 2 (`tenantExtension`) și Layer 3 (RLS).
-6. **Module** cu imports corecte
-7. Înregistrează în `app.module.ts`
-8. **Tests** Vitest (unit + integration)
-9. **Frontend:** feature client + pagină + link în `AppShell.tsx`
-10. `pnpm lint && pnpm test` → verzi
-11. Verificare e2e — paste evidence
-12. Commit: `feat(my-feature): add CRUD`
-
----
-
-## 9. Testing
-
-```bash
-pnpm --filter @amass/api test
-pnpm --filter @amass/web test
-pnpm --filter @amass/api test:e2e  # testcontainers Postgres real
-```
-
-**Target coverage:** ≥80% pe services (CLAUDE.md regulă #8).
-
----
-
-## 10. CI/CD
-
-`.github/workflows/ci.yml` — 3 jobs:
-
-| Job | Ce face | Durată |
-|-----|---------|--------|
-| `lint-typecheck-build` | ESLint + tsc + build | ~3 min |
-| `test-api` | Unit + integration cu Postgres+Redis | ~5 min |
-| `test-web` | Vitest + Testing Library | ~2 min |
-
-**Trigger:** push pe `main` + toate PR-urile.
-
----
-
-## 11. Deployment VPS
-
-### 11.1 VPS
-- Minim: 4 vCPU, 8 GB RAM, 100 GB SSD
-- Recomandat: Hetzner CX31 (~10 EUR/lună) sau DO Droplet 4GB
-- OS: Ubuntu 24.04 LTS
-
-### 11.2 DNS
-```
-crm.amass.ro  → IP_VPS
-api.amass.ro  → IP_VPS
-```
-
-### 11.3 Docker + pnpm + Node
-```bash
-curl -fsSL https://get.docker.com | sh
-apt install docker-compose-plugin
-curl -fsSL https://fnm.vercel.app/install | bash
-fnm use 22
-npm i -g pnpm
-```
-
-### 11.4 Firewall
-```bash
-ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw enable
-# 5432/6379/9000 NU expuse public!
-```
-
-### 11.5 Postgres + extensii
-```bash
-psql -U postgres -c "CREATE USER crm_user WITH PASSWORD 'PAROLA';"
-psql -U postgres -c "CREATE DATABASE amass_crm OWNER crm_user;"
-psql -U crm_user -d amass_crm -c "CREATE EXTENSION IF NOT EXISTS pgvector;"
-psql -U crm_user -d amass_crm -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
-
-cd apps/api
-pnpm prisma migrate deploy
-pnpm prisma generate
-```
-
-### 11.6 MinIO
-```bash
-docker run -d --name minio \
-  -p 9000:9000 -p 9001:9001 \
-  -e MINIO_ROOT_USER=ACCESS \
-  -e MINIO_ROOT_PASSWORD=SECRET \
-  -v /data/minio:/data \
-  quay.io/minio/minio server /data --console-address ":9001"
-# Creează bucket 'amass-crm' privat din http://IP:9001
-```
-
-### 11.7 Caddy (HTTPS automat)
-```bash
-apt install -y debian-keyring debian-archive-keyring apt-transport-https
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy.gpg
-echo "deb [signed-by=/usr/share/keyrings/caddy.gpg] https://dl.cloudsmith.io/public/caddy/stable/debian.bookworm main" | tee /etc/apt/sources.list.d/caddy.list
-apt update && apt install caddy
-```
-
-`/etc/caddy/Caddyfile`:
-```
-crm.amass.ro {
-  reverse_proxy localhost:3001
-}
-api.amass.ro {
-  reverse_proxy localhost:3000 {
-    transport http {
-      read_timeout 120s
-      write_timeout 120s
-    }
-  }
-}
-```
-
-```bash
-systemctl enable --now caddy
-```
-
-### 11.8 Backup Postgres
-```bash
-cat > /usr/local/bin/pg-backup.sh << 'EOF'
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-pg_dump -U crm_user amass_crm | gzip > /backups/amass_crm_$DATE.sql.gz
-find /backups -name "*.sql.gz" -mtime +30 -delete
-EOF
-chmod +x /usr/local/bin/pg-backup.sh
-mkdir -p /backups
-(crontab -l 2>/dev/null; echo "0 2 * * * /usr/local/bin/pg-backup.sh") | crontab -
-```
-
-### 11.9 Primul tenant
-```bash
-cd apps/api && pnpm prisma db seed
-# sau:
-curl -X POST https://api.amass.ro/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@amass.ro","password":"PAROLA","firstName":"Admin","lastName":"AMASS","tenantName":"AMASS SRL"}'
-```
-
----
-
-## 12. Gestionare conturi
-
-### 12.1 Twilio
-1. Cont [twilio.com](https://twilio.com) → număr RO Voice+SMS
-2. Webhook Voice inbound: `https://api.amass.ro/api/v1/calls/twilio/incoming`
-3. Webhook status: `https://api.amass.ro/api/v1/calls/twilio/status`
-4. Copiază SID + AUTH_TOKEN în `.env`
-
-### 12.2 Email (SMTP via nodemailer)
-Outbound email merge prin `nodemailer` cu orice provider SMTP — nu folosim
-SDK-ul `@sendgrid/mail`. Pași:
-1. Alege provider (SendGrid SMTP, Mailgun SMTP, Postmark SMTP, self-hosted Postfix etc.)
-2. Domain Authentication (DNS: DKIM + SPF) pentru `amass.ro`
-3. Credentials → `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` în `.env`
-
-### 12.3 Sentry
-1. [sentry.io](https://sentry.io) → proiecte separate Node.js + React
-2. DSN backend + DSN frontend în env
-
-### 12.4 Stripe
-1. [stripe.com](https://stripe.com) → Products + Prices
-2. Webhook: `https://api.amass.ro/api/v1/billing/webhooks/stripe`
-3. Secrete în `.env`
-
-### 12.5 ANAF e-Factura
-1. [anaf.ro](https://anaf.ro) → SEF → OAuth2 client
-2. Credentials în `.env`
-
-### 12.6 OAuth Google/Microsoft
-Calendar sync = consent user individual; nu config global.
-
----
-
-## 13. Debugging
-
-### Backend
-- **Logs:** Pino JSON; în dev → `pino-pretty`
-- **Sentry:** 5xx trimis automat
-- **Trace ID:** UUID propagat în logs + error response
-
-### Frontend
-- **React DevTools** + TanStack Router DevTools
-- **Sentry React** cu breadcrumbs
-
-### DB
-- **Prisma Studio:** `pnpm prisma studio`
-- **psql / pgAdmin** pentru prod
-
-### Observability
-- `/metrics` expune Prometheus (IP allow-list + bearer token prin `METRICS_ALLOWED_IPS` / `METRICS_AUTH_TOKEN`).
-- Sentry pentru error tracking (`SENTRY_DSN`).
-- `X-Trace-Id` header propagat prin `RequestContextMiddleware` + exception filter — tracing local în-process, **nu distributed**. OpenTelemetry nu e wired; se va adăuga când vom avea ≥2 servicii de corelat.
-
----
-
-## 14. Reparare erori
-
-### `Stream idle timeout - partial response received`
-**Cauză:** Claude API stream întrerupt de proxy/network.
-**Fix aplicat:** `new Anthropic({ timeout: 90_000, maxRetries: 2 })` în `enrichment.service.ts` + `deal-ai.service.ts`.
-**Dacă persistă:** crește `read_timeout` Caddy la 180s.
-
-### `ERR_PNPM_OUTDATED_LOCKFILE`
-**Fix:** `pnpm install --lockfile-only`, commit `pnpm-lock.yaml`.
-
-### `No tenant context` în service
-**Fix:** verifică că `TenantContextMiddleware` e aplicat (vezi `AppModule.configure()`) și că controllerul are `@UseGuards(JwtAuthGuard, RolesGuard)`. Dacă apelezi serviciul dintr-un job de background (BullMQ, cron), trebuie să împachetezi manual în `tenantStorage.run({ tenantId }, () => ...)`.
-
-### Migration refuză drop coloană în prod
-**Fix:** expand-contract — nullable întâi, deploy, apoi drop.
-
-### BullMQ job repetă la infinit
-**Fix:** try/catch în handler, rethrow doar errors recuperabile.
-
-### Prisma `P2002 Unique constraint failed`
-**Fix:** catch în service → `ConflictException` cu mesaj friendly.
-
-### Frontend 401 după refresh token expirat
-**Fix:** interceptor axios reîncearcă o dată cu refresh; eșec → redirect `/login`.
-
-### MinIO presigned URL 403 SignatureMismatch
-**Cauză:** clock skew > 15min.
-**Fix:** `timedatectl set-ntp true` pe VPS.
-
----
-
-## Resurse
-
-- [CLAUDE.md](./CLAUDE.md)
-- [LESSONS.md](./LESSONS.md)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- [docs/FEATURES.md](./docs/FEATURES.md)
-- [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)
-
----
-
-*Ultima actualizare: 2026-04-21*
+<sub>Built in 🇷🇴 Romania for Romanian SMBs first. EU compliance is in the bones, not bolted on.</sub>

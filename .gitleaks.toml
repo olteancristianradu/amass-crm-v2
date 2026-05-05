@@ -1,0 +1,54 @@
+# gitleaks configuration — extends the default rules with project-specific
+# allowlist for documented placeholders and CI test values.
+#
+# https://github.com/gitleaks/gitleaks#configuration
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "False positives from documentation and CI test values"
+paths = [
+  '''docs/.*\.md$''',
+  '''README\.md$''',
+  '''.*\.example$''',
+  '''infra/\.env\.example$''',
+]
+
+regexes = [
+  # README placeholders for env values that operators must replace.
+  '''ENCRYPTION_KEY=64-caractere-hex-obligatoriu''',
+  '''JWT_SECRET=[a-zA-Z0-9-]+\(generat aleator\)''',
+
+  # Stable CI test secrets — never used in production. Their length is
+  # padding to satisfy env validation, not entropy.
+  '''ci-test-secret-min-32-chars-padding''',
+  '''ci-test-refresh-secret-min-32-chars-pad''',
+  '''ci-test-encryption-key-64-hex-chars-padding-padding-padding-pad''',
+
+  # Stripe and Twilio published test/sandbox tokens. We match by shape +
+  # the documented test-prefixes, not by raw value, so this allowlist
+  # itself never embeds a literal secret (otherwise GitHub Push Protection
+  # blocks the file). Patterns here only allowlist the well-known public
+  # test tokens documented at:
+  #   https://stripe.com/docs/keys#test-mode
+  #   https://www.twilio.com/docs/iam/test-credentials
+  '''sk_test_[A-Za-z0-9]{24}''',
+  '''AC[a-z0-9]{32}''',
+  '''mockauthtoken[a-z0-9]{20}''',
+  '''whsec_mockstripewebhook[a-z0-9]+''',
+
+  # Placeholder UUIDs/IDs used in tests and docs.
+  '''mock_client_(id|secret)_local''',
+]
+
+[[rules]]
+# Override `generic-api-key` to skip our env-var documentation patterns.
+id = "generic-api-key"
+description = "Generic API key — but skip docs/CI placeholders"
+[[rules.allowlists]]
+description = "Documented placeholder values"
+regexes = [
+  '''=64-caractere-hex-obligatoriu''',
+  '''ci-test-[a-z-]+-padding''',
+]

@@ -1,0 +1,55 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in as much as you can — the more concrete the repro, the faster the fix.
+
+        **Security issues:** do NOT open this template. Email `cristian.raduoltean@gmail.com` instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear, concise description of the bug.
+      placeholder: When I click X on the company detail page, the deals tab shows an empty list even though deals exist.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Login as `admin@amass-demo.ro`
+        2. Open `/app/companies/<id>`
+        3. Click the "Deals" tab
+        4. Observe the empty state
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: I expected to see the 3 deals associated with this company.
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: docker compose, local main HEAD <commit-sha>
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Paste relevant API logs (`docker logs amass-api`) or browser console output. Redact any PII.
+    validations:
+      required: false
