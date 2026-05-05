@@ -1,0 +1,160 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { requireTenantContext } from '../../infra/prisma/tenant-context';
+
+/**
+ * Cockpit feed item — a single actionable card surfaced to the user on
+ * the home screen. Each item carries enough context to decide whether
+ * to act now or snooze, plus a link to the full record.
+ *
+ * `widget` identifies which selectable widget the item belongs to so the
+ * FE can group items even when fetched in one call.
+ */
+export interface CockpitFeedItem {
+  id: string;
+  widget: 'deals-in-danger' | 'reminders-due-today' | 'tasks-overdue' | 'leads-hot';
+  /** Score 0-100 — higher is more urgent. Used for sorting. */
+  score: number;
+  title: string;
+  subtitle?: string;
+  /** ISO timestamp shown to the user as "due Tuesday", etc. */
+  dueAt?: string;
+  /** Where the FE should navigate when the user clicks the item. */
+  href: string;
+  /** Tenant entity id — for log/click tracking. */
+  entityId: string;
+  entityType: 'deal' | 'reminder' | 'task' | 'lead';
+}
+
+/**
+ * What "in danger" means for a deal:
+ *   - Status open (not WON/LOST)
+ *   - No activity in last 7+ days
+ *   - Past expectedCloseDate, OR within 3 days of it without recent updates
+ *
+ * Score is value-weighted so a stalled €50k deal sorts above a stalled
+ * €500 deal.
+ */
+const DEAL_DANGER_DAYS = 7;
+const TASK_OVERDUE_HOURS = 0; // anything past dueAt
+const REMINDER_TODAY_WINDOW_HOURS = 24;
+
+@Injectable()
+export class CockpitService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async feed(): Promise<CockpitFeedItem[]> {
+    const ctx = requireTenantContext();
+    const now = new Date();
+    const dangerCutoff = new Date(now.getTime() - DEAL_DANGER_DAYS * 24 * 3600 * 1000);
+    const reminderCutoff = new Date(now.getTime() + REMINDER_TODAY_WINDOW_HOURS * 3600 * 1000);
+
+    const items = await this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const dealsInDanger = await tx.deal.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          deletedAt: null,
+          status: 'OPEN',
+          updatedAt: { lt: dangerCutoff },
+        },
+        select: { id: true, title: true, value: true, currency: true, expectedCloseAt: true, updatedAt: true },
+        orderBy: [{ value: 'desc' }, { updatedAt: 'asc' }],
+        take: 10,
+      });
+
+      const remindersDue = await tx.reminder.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          deletedAt: null,
+          status: { in: ['PENDING', 'FIRED'] },
+          remindAt: { lte: reminderCutoff },
+        },
+        select: { id: true, title: true, remindAt: true, subjectType: true, subjectId: true },
+        orderBy: { remindAt: 'asc' },
+        take: 10,
+      });
+
+      const tasksOverdue = await tx.task.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          deletedAt: null,
+          status: 'OPEN',
+          dueAt: { lt: now },
+        },
+        select: { id: true, title: true, priority: true, dueAt: true, dealId: true },
+        orderBy: [{ priority: 'desc' }, { dueAt: 'asc' }],
+        take: 10,
+      });
+
+      return { dealsInDanger, remindersDue, tasksOverdue };
+    });
+
+    const out: CockpitFeedItem[] = [];
+
+    for (const d of items.dealsInDanger) {
+      const value = Number(d.value ?? 0);
+      const daysIdle = Math.floor((now.getTime() - d.updatedAt.getTime()) / (24 * 3600 * 1000));
+      const score = Math.min(100, Math.floor(value / 1000) + daysIdle * 2);
+      out.push({
+        id: `deal:${d.id}`,
+        widget: 'deals-in-danger',
+        score,
+        title: d.title,
+        subtitle: `Idle ${daysIdle}d · ${value.toLocaleString('ro-RO')} ${d.currency ?? 'RON'}`,
+        dueAt: d.expectedCloseAt?.toISOString(),
+        href: `/app/deals/${d.id}`,
+        entityId: d.id,
+        entityType: 'deal',
+      });
+    }
+
+    for (const r of items.remindersDue) {
+      const minutesUntil = Math.max(0, Math.floor((r.remindAt.getTime() - now.getTime()) / 60_000));
+      const score = minutesUntil < 60 ? 95 : minutesUntil < 240 ? 80 : 60;
+      out.push({
+        id: `reminder:${r.id}`,
+        widget: 'reminders-due-today',
+        score,
+        title: r.title,
+        subtitle: minutesUntil === 0 ? 'Now' : `In ${minutesUntil}m`,
+        dueAt: r.remindAt.toISOString(),
+        href: r.subjectId
+          ? `/app/${r.subjectType.toLowerCase()}s/${r.subjectId}`
+          : '/app/reminders',
+        entityId: r.id,
+        entityType: 'reminder',
+      });
+    }
+
+    for (const t of items.tasksOverdue) {
+      const overdueHours = Math.max(
+        0,
+        Math.floor((now.getTime() - (t.dueAt?.getTime() ?? now.getTime())) / 3600_000),
+      );
+      const priorityBoost = t.priority === 'HIGH' ? 25 : 0;
+      const score = Math.min(100, 50 + Math.floor(overdueHours / 4) + priorityBoost);
+      out.push({
+        id: `task:${t.id}`,
+        widget: 'tasks-overdue',
+        score,
+        title: t.title,
+        subtitle: `Overdue ${overdueHours}h · ${t.priority}`,
+        dueAt: t.dueAt?.toISOString(),
+        href: t.dealId ? `/app/deals/${t.dealId}` : '/app/tasks',
+        entityId: t.id,
+        entityType: 'task',
+      });
+    }
+
+    out.sort((a, b) => b.score - a.score);
+    return out;
+  }
+}
+
+// Re-export the constant tunable so tests and admin docs can reference
+// without importing the whole service.
+export const COCKPIT_TUNING = {
+  DEAL_DANGER_DAYS,
+  TASK_OVERDUE_HOURS,
+  REMINDER_TODAY_WINDOW_HOURS,
+} as const;

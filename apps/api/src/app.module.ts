@@ -19,6 +19,7 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ConsentsModule } from './modules/consents/consents.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
+import { CockpitModule } from './modules/cockpit/cockpit.module';
 import { ImporterModule } from './modules/importer/importer.module';
 import { DealsModule } from './modules/deals/deals.module';
 import { AiModule } from './modules/ai/ai.module';
@@ -206,6 +207,7 @@ import { resolveLogLevel } from './config/logging';
     ConsentsModule,
     ClientsModule,
     ImporterModule,
+    CockpitModule,
     NotesModule,
     OnboardingModule,
     TourProgressModule,
