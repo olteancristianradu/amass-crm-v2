@@ -298,6 +298,15 @@ const prodOnlyChecks = (data: z.infer<typeof envSchema>): string[] => {
     errors.push('CORS_ALLOWED_ORIGINS must not contain "*" in production');
   }
 
+  // SEC-007: WEBHOOK_TRUSTED_HOSTS bypasses the SSRF DNS/IP check for any
+  // hostname listed (used to register `webhook-mock` during dev). Allowing
+  // it in production is a footgun: an operator who copies dev .env can
+  // open SSRF to internal services. Reject any non-empty value in prod.
+  const trustedHosts = (data.WEBHOOK_TRUSTED_HOSTS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (trustedHosts.length > 0) {
+    errors.push('WEBHOOK_TRUSTED_HOSTS must be empty in production (dev escape hatch only)');
+  }
+
   // /metrics must be protected in production: either a non-empty IP allow-list
   // or an explicit bearer token.
   const metricsIps = data.METRICS_ALLOWED_IPS.split(',').map((s) => s.trim()).filter(Boolean);
