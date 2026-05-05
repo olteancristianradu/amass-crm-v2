@@ -27,6 +27,12 @@ Last updated: 2026-05-05 14:55 Europe/Bucharest
 | focused RLS regression | `cd apps/api && env DATABASE_URL=... pnpm exec vitest run test/multi-tenant.e2e.spec.ts` | pass | 7/7 in 2.92s — confirms `20260504065000_rls_deny_missing_tenant` migration |
 | SEC-005 gateway unit | `pnpm --filter @amass/api exec vitest run src/modules/notifications/notifications.gateway.spec.ts` | pass | 3/3 in 406ms — covers happy path with `tid`, missing token, bad signature |
 | API unit after SEC-005 | `pnpm --filter @amass/api test` | pass | `93` files / `976` tests / 4.96s (3 new gateway tests) |
+| Importer adapter factory tests | `pnpm exec vitest run src/modules/importer/adapters/factory.spec.ts` | pass | 12/12 in 220ms |
+| Cockpit service tests | (included in full API run) | pass | 5 tests in cockpit.service.spec.ts |
+| Final API unit (post-build-out) | `pnpm --filter @amass/api test` | pass | **96 files / 1000 tests** / 5.27s |
+| Final Web unit (post-build-out) | `pnpm --filter @amass/web test` | pass | 11 files / 52 tests / 1.75s |
+| gitleaks history scan | `gitleaks detect --source . --config .gitleaks.toml` | pass | 244 commits, 4.97MB, **no leaks found** |
+| GitHub Push Protection | (server-side on every push) | pass | rejected commit `0e37dd8` for literal Stripe test key in .gitleaks.toml; fixed by switching to regex patterns; subsequent push `127a0e4` accepted |
 
 ### Working tree state at audit time
 

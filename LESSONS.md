@@ -20,6 +20,15 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
 
 ## Entries
 
+### 2026-05-05 — GitHub Push Protection blocks literal secrets even in allowlist files
+
+- Area: ci / security / secret-scanning
+- Symptom: `git push` rejected with `GH013: Repository rule violations found` because `.gitleaks.toml` contained the Stripe-documented public test key (the one that ends in `dp7dc`, sk_test_ prefix) as a literal allowlist entry.
+- Root cause: GitHub Push Protection scans all file content for secret patterns and rejects matches regardless of file purpose. It doesn't know "this is a gitleaks allowlist; the value is supposed to be here." It treats the literal as a leaked secret.
+- Fix: replace literal allowlist entries with regex patterns that match the shape (`sk_test_[A-Za-z0-9]{24}`, `AC[a-z0-9]{32}`, etc.). This still allowlists the public test tokens against gitleaks, but the file itself never embeds a real secret.
+- Prevention rule: never embed a literal secret string in any tracked file, even comments, even allowlists, even tests. Use regex / fixture / env injection instead. Run `git push` early on changes that touch security tooling so Push Protection feedback is surface-level, not at the end of a 5-commit batch.
+- Related files: `.gitleaks.toml`
+
 ### 2026-05-05 — JWT claim shape must match between issuer and every consumer
 
 - Area: auth / websockets / notifications

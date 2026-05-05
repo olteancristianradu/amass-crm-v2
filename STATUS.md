@@ -1,12 +1,12 @@
 # STATUS.md
 
-Last updated: 2026-05-05 22:05 Europe/Bucharest
+Last updated: 2026-05-05 22:55 Europe/Bucharest
 Updated by: Claude
 Branch: `main`
-Local HEAD: `a8adadb`
-Remote HEAD: `origin/main` = `a8adadb`
+Local HEAD: `127a0e4`
+Remote HEAD: `origin/main` = `127a0e4`
 Local ahead/behind: `0 / 0`
-Working tree: clean
+Working tree: clean (after this docs push)
 Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
 
 ## Session 2026-05-05 — committed and pushed
@@ -25,9 +25,29 @@ Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
 ## Findings closed this session
 SEC-003, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, SEC-AXIOS-PROTO-POLLUTION, SEC-WEBHOOK-SSRF-DNS-REBIND, P1-001 (checklist reconciliation).
 
+## Build-out shipped this session (after security wave)
+
+| Commit | What |
+|---|---|
+| `e8ad57d` | docs(repo): public-facing README, AGPL-3.0 LICENSE, CONTRIBUTING, SECURITY, CoC, CHANGELOG, .gitleaks.toml, issue/PR templates |
+| `fb84855` | feat(agents): 5 role prompts (BACKEND/FRONTEND/REDTEAM/REVIEWER/DOCS) + redteam-weekly + perf-budget workflows + lighthouserc.json |
+| `9d8badd` | feat(importer): adapter pattern; CSV adapter ACTIVE; Excel/SmartBill/SAGA/PDF scaffolds with documented activation plans |
+| `7fd93f6` | feat(cockpit): GET /api/v1/cockpit/feed with deals-in-danger / reminders-due-today / tasks-overdue ranking |
+| `127a0e4` | docs(remote-access): SSH+screen guide for phone access |
+
+## Test counts at session end
+- API unit: **1000/1000 pass** (96 files)
+- Web unit: **52/52 pass** (11 files)
+- API e2e: not rerun this session (`[istoric: 1087/1087 per Codex 2026-05-04]`)
+- Browser smoke: not rerun this session (`[istoric: auth + critical-crm pass 2026-05-04]`)
+
 ## Open
 - SEC-001 production-readiness verification (blocked by infra/credentials)
 - SEC-002 dev-only moderate advisories (vite/esbuild/postcss)
+- Importer Excel/SmartBill/SAGA/PDF adapters: scaffolded, not active — need real sample files
+- Pro Cockpit: backend feed endpoint live; FE widgets not built yet
+- Branch protection: **not enabled** in this session — gh CLI doesn't expose it via `repo edit`; needs UI or REST API call. Documented as TODO.
+- Performance budget workflow: file shipped; needs `secrets.DEMO_URL` set in repo settings to run with stable URL (currently uses Cloudflare quick tunnel default)
 
 ## Current Reality
 
