@@ -1,17 +1,33 @@
 # STATUS.md
 
-Last updated: 2026-05-05 21:50 Europe/Bucharest
-Updated by: Claude (continuing Codex's P0-002 work)
+Last updated: 2026-05-05 22:05 Europe/Bucharest
+Updated by: Claude
 Branch: `main`
-Local HEAD: `4415c21` (SEC-004 fix) + uncommitted SEC-005 fix
-Remote HEAD: `origin/main` = `8040aa3` (will become `4415c21` then SEC-005 commit on next push)
-Working tree: dirty with SEC-005 gateway fix + spec + docs updates
+Local HEAD: `a8adadb`
+Remote HEAD: `origin/main` = `a8adadb`
+Local ahead/behind: `0 / 0`
+Working tree: clean
 Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
 
-This session (2026-05-05) commits/pushes:
-1. `4415c21` — SEC-004 RLS deny-by-default (Codex's local work, formalized)
-2. `<pending>` — SEC-005 notifications gateway CORS + JWT tid claim
-3. Control docs updates (STATUS, SECURITY_FINDINGS, TEST_REPORT, UNFINISHED, LESSONS)
+## Session 2026-05-05 — committed and pushed
+
+| SHA | Subject | CI |
+|---|---|---|
+| `4415c21` | fix(security): SEC-004 RLS deny-by-default when tenant context is missing | (covered by later push) |
+| `2c2a68a` | fix(security): SEC-005 notifications gateway uses CORS allow-list and tid claim | failed via axios advisory; code re-validated by `63628e9` CI |
+| `6a6fc4c` | fix(security): SEC-007 reject WEBHOOK_TRUSTED_HOSTS in production | (covered by later push) |
+| `a9fca1a` | feat(webhooks): SEC-008 secret rotation endpoint with one-time-display policy | (cancelled by axios push) |
+| `63628e9` | fix(deps): override axios>=1.15.2 to close 4 HIGH CVEs reachable via twilio | **CI ✓ + CodeQL ✓** |
+| `a6bcc5a` | fix(security): SEC-006 residual — host allow-list + DNS-rebind block on recordingUrl | (covered by later push) |
+| `855f241` | ci(security): SEC-003 add gitleaks secret-scan workflow | **Secret Scan ✓**; CI/CodeQL in_progress |
+| `a8adadb` | docs(release): P1-001 single authoritative launch gate | pending |
+
+## Findings closed this session
+SEC-003, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, SEC-AXIOS-PROTO-POLLUTION, SEC-WEBHOOK-SSRF-DNS-REBIND, P1-001 (checklist reconciliation).
+
+## Open
+- SEC-001 production-readiness verification (blocked by infra/credentials)
+- SEC-002 dev-only moderate advisories (vite/esbuild/postcss)
 
 ## Current Reality
 
