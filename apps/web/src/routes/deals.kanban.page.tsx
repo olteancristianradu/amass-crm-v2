@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { GlassCard, StatusDot, type StatusTone } from '@/components/ui/glass-card';
 import { EmptyState, PageHeader } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { ApiError } from '@/lib/api';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
@@ -63,7 +64,7 @@ export function DealsKanbanPage(): JSX.Element {
   });
 
   if (loadingPipelines || loadingDeals) {
-    return <p className="text-sm text-muted-foreground">Se încarcă…</p>;
+    return <ListSkeleton rows={5} />;
   }
   if (!pipeline) {
     return (

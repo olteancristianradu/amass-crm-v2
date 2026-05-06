@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Users } from 'lucide-react';
 import { clientsApi } from '@/features/clients/api';
 import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
@@ -37,7 +38,7 @@ export function ClientDetailPage(): JSX.Element {
     queryFn: () => clientsApi.get(id),
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Se încarcă…</p>;
+  if (isLoading) return <ListSkeleton rows={4} />;
   if (isError) {
     return (
       <div className="space-y-2">
