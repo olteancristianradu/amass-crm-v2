@@ -47,6 +47,7 @@
     "@willsoto/nestjs-prometheus": "^6.1.0",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.21.2",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "file-type": "21",
     "helmet": "^8.1.0",
@@ -69,7 +70,6 @@
     "socket.io": "^4.8.3",
     "stripe": "^22.0.2",
     "twilio": "^5.13.1",
-    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
