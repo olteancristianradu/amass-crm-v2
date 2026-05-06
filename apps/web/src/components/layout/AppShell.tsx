@@ -250,6 +250,7 @@ const SECTIONS: NavSection[] = [
     title: 'Lucru',
     items: [
       { to: '/app', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+      { to: '/app/cockpit', label: 'Pro Cockpit', icon: Target },
       { to: '/app/tasks', label: 'Task-uri', icon: CheckSquare },
       { to: '/app/reminders', label: 'Reminder-uri', icon: Clock },
       { to: '/app/calendar', label: 'Calendar', icon: Calendar },

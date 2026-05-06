@@ -9,6 +9,7 @@ import { pricingRoute } from './routes/pricing';
 import { resetPasswordRoute } from './routes/reset-password';
 import { authedRoute } from './routes/authed';
 import { dashboardRoute } from './routes/dashboard';
+import { cockpitRoute } from './routes/cockpit';
 import { welcomeRoute } from './routes/welcome';
 import { helpRoute } from './routes/help';
 import { companiesRoute } from './routes/companies.list';
@@ -85,6 +86,7 @@ const routeTree = rootRoute.addChildren([
   pricingRoute,
   authedRoute.addChildren([
     dashboardRoute,
+    cockpitRoute,
     welcomeRoute,
     helpRoute,
     companiesRoute,
