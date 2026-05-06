@@ -10,6 +10,22 @@ vi.mock('pdf-parse', () => ({
   })),
 }));
 
+// Mock Gemini SDK so the adapter doesn't make real API calls in tests.
+// `OCR_MOCK_TEXT` lets each test set what the SDK pretends to return.
+const OCR_MOCK = { text: '' as string, throw: false };
+vi.mock('@google/generative-ai', () => {
+  return {
+    GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+      getGenerativeModel: () => ({
+        generateContent: vi.fn().mockImplementation(async () => {
+          if (OCR_MOCK.throw) throw new Error('mock OCR failure');
+          return { response: { text: () => OCR_MOCK.text } };
+        }),
+      }),
+    })),
+  };
+});
+
 import { PdfAdapter } from './pdf.adapter';
 
 describe('PdfAdapter', () => {
@@ -27,10 +43,38 @@ describe('PdfAdapter', () => {
     expect(adapter.canHandle({ mimeType: 'text/csv', fileName: 'data.csv' })).toBe(false);
   });
 
-  it('returns empty + warning when text is below threshold (scanned PDF)', async () => {
+  it('returns empty + warning when scanned PDF and OCR yields nothing', async () => {
+    OCR_MOCK.text = '';
+    OCR_MOCK.throw = false;
+    delete process.env['GEMINI_API_KEY'];
     const result = await adapter.parse(Buffer.from('short'));
     expect(result.rows).toEqual([]);
-    expect(result.warnings.join(' ')).toMatch(/scanned image PDF.*OCR/i);
+    expect(result.warnings.join(' ')).toMatch(/extraction returned only.*GEMINI_API_KEY not set/);
+  });
+
+  it('uses Gemini vision OCR fallback when scanned PDF + GEMINI_API_KEY set', async () => {
+    OCR_MOCK.text = `
+      Factura Nr. F-2026-OCR
+      Furnizor: OCR Recovered SRL
+      CIF: RO99887766
+      Total: 500,00 RON
+    `.repeat(2);
+    OCR_MOCK.throw = false;
+    process.env['GEMINI_API_KEY'] = 'mock-key';
+    const result = await adapter.parse(Buffer.from('img'));
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]!['CIF']).toBe('RO99887766');
+    expect(result.warnings.join(' ')).toMatch(/Gemini vision OCR/i);
+    delete process.env['GEMINI_API_KEY'];
+  });
+
+  it('falls back gracefully when Gemini OCR throws', async () => {
+    OCR_MOCK.throw = true;
+    process.env['GEMINI_API_KEY'] = 'mock-key';
+    const result = await adapter.parse(Buffer.from('img'));
+    expect(result.rows).toEqual([]);
+    expect(result.warnings.join(' ')).toMatch(/OCR fallback yielded nothing/i);
+    delete process.env['GEMINI_API_KEY'];
   });
 
   it('extracts Romanian invoice fields from text', async () => {

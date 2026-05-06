@@ -58,12 +58,23 @@ export class PdfAdapter implements ImporterAdapter {
       throw new Error(`Failed to parse PDF: ${(err as Error).message}`);
     }
 
-    const text = (parsed.text ?? '').trim();
+    let text = (parsed.text ?? '').trim();
     if (text.length < PdfAdapter.SCANNED_PDF_THRESHOLD_CHARS) {
-      warnings.push(
-        `PDF text extraction returned only ${text.length} chars — likely a scanned image PDF. Run OCR (Claude vision or tesseract) to recover content.`,
-      );
-      return { rows: [], warnings };
+      // Scanned PDF — attempt OCR via Gemini vision if API key is set.
+      const ocrText = await ocrWithGemini(buffer);
+      if (ocrText && ocrText.length >= PdfAdapter.SCANNED_PDF_THRESHOLD_CHARS) {
+        text = ocrText;
+        warnings.push(`Used Gemini vision OCR (${ocrText.length} chars recovered).`);
+      } else {
+        warnings.push(
+          `PDF text extraction returned only ${text.length} chars and OCR fallback yielded nothing. ${
+            process.env['GEMINI_API_KEY']
+              ? 'Gemini call may have failed — check logs.'
+              : 'GEMINI_API_KEY not set — scanned PDFs will not work.'
+          }`,
+        );
+        return { rows: [], warnings };
+      }
     }
 
     // Attempt naive Romanian-invoice heuristics. This is intentionally
@@ -104,5 +115,48 @@ export class PdfAdapter implements ImporterAdapter {
       warnings,
       detectedLocale: /\b(furnizor|factur[ăa]|cif|cnp|total)\b/i.test(text) ? 'ro' : 'unknown',
     };
+  }
+}
+
+/**
+ * Last-resort OCR via Gemini vision. Only runs when pdf-parse failed
+ * to extract usable text and GEMINI_API_KEY is present. Costs are
+ * tracked per-call by the API quota — the free tier (1500 req/day)
+ * absorbs typical SMB import volume.
+ *
+ * Returns the extracted text or `null` on any failure (missing key,
+ * network, API error). The caller decides whether the result is
+ * usable.
+ */
+async function ocrWithGemini(pdfBuffer: Buffer): Promise<string | null> {
+  const apiKey = process.env['GEMINI_API_KEY'];
+  if (!apiKey) return null;
+
+  try {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // gemini-1.5-flash supports PDFs as `inlineData` — accepts up to
+    // 1000 pages. We send the full file at once.
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: 'application/pdf',
+          data: pdfBuffer.toString('base64'),
+        },
+      },
+      {
+        text: `Extract ALL text from this PDF document, preserving line breaks. If it's a Romanian invoice, keep the field labels (CIF, Total, Furnizor, Client, Factură Nr., etc.) intact. Return ONLY the text — no commentary.`,
+      },
+    ]);
+
+    const response = result.response;
+    const text = response.text();
+    return text && text.length > 0 ? text : null;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[pdf.adapter] Gemini OCR failed:', err);
+    return null;
   }
 }
