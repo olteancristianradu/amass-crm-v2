@@ -14,6 +14,9 @@ export interface CockpitFeedItem {
 
 export const cockpitApi = {
   feed: () => api.get<CockpitFeedItem[]>('/cockpit/feed'),
+  getLayout: () => api.get<{ widgets: string[] }>('/cockpit/layout'),
+  saveLayout: (widgets: string[]) =>
+    api.put<{ widgets: string[] }>('/cockpit/layout', { widgets }),
 };
 
 export const WIDGET_LABELS: Record<CockpitFeedItem['widget'], string> = {

@@ -1,3 +1,4 @@
+import { useState, type DragEvent } from 'react';
 import { createRoute } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
@@ -18,7 +19,41 @@ export const cockpitRoute = createRoute({
 
 function Cockpit(): JSX.Element {
   usePageTitle('Pro Cockpit');
-  const { layout, toggle, moveUp, moveDown, reset } = useCockpitLayout();
+  const { layout, toggle, moveUp, moveDown, setEnabled, reset } = useCockpitLayout();
+  const [draggingWidget, setDraggingWidget] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+
+  const handleDragStart = (widget: string) => (e: DragEvent<HTMLElement>) => {
+    setDraggingWidget(widget);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', widget);
+  };
+
+  const handleDragOver = (widget: string) => (e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    if (widget !== draggingWidget) setDropTarget(widget);
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (target: string) => (e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    const source = draggingWidget;
+    setDraggingWidget(null);
+    setDropTarget(null);
+    if (!source || source === target) return;
+    const next = [...layout.enabled];
+    const fromIdx = next.indexOf(source as (typeof next)[number]);
+    const toIdx = next.indexOf(target as (typeof next)[number]);
+    if (fromIdx === -1 || toIdx === -1) return;
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, source as (typeof next)[number]);
+    setEnabled(next);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingWidget(null);
+    setDropTarget(null);
+  };
 
   const feed = useQuery({
     queryKey: ['cockpit-feed'],
@@ -98,6 +133,12 @@ function Cockpit(): JSX.Element {
                   onMoveUp={() => moveUp(w)}
                   onMoveDown={() => moveDown(w)}
                   onRemove={() => toggle(w)}
+                  onDragStart={handleDragStart(w)}
+                  onDragOver={handleDragOver(w)}
+                  onDrop={handleDrop(w)}
+                  onDragEnd={handleDragEnd}
+                  isDragging={draggingWidget === w}
+                  isDropTarget={dropTarget === w}
                 />
               ))}
             </div>

@@ -1,5 +1,6 @@
+import { useState, type DragEvent } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowUpRight, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, ChevronUp, GripVertical, X } from 'lucide-react';
 import {
   WIDGET_DESCRIPTIONS,
   WIDGET_LABELS,
@@ -14,6 +15,13 @@ interface Props {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
+  /** Drag-drop handlers from the parent — manage reorder via setEnabled. */
+  onDragStart: (e: DragEvent<HTMLElement>) => void;
+  onDragOver: (e: DragEvent<HTMLElement>) => void;
+  onDrop: (e: DragEvent<HTMLElement>) => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
+  isDropTarget: boolean;
 }
 
 export function CockpitWidget({
@@ -24,15 +32,44 @@ export function CockpitWidget({
   onMoveUp,
   onMoveDown,
   onRemove,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  isDropTarget,
 }: Props): JSX.Element {
+  const [grabbed, setGrabbed] = useState(false);
   const filtered = items.filter((i) => i.widget === widget).slice(0, 6);
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 backdrop-blur-md">
+    <section
+      draggable={grabbed}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={() => { onDragEnd(); setGrabbed(false); }}
+      className={`rounded-2xl border bg-white/[0.02] p-5 backdrop-blur-md transition ${
+        isDragging ? 'border-cyan-400/40 opacity-50' : 'border-white/10'
+      } ${isDropTarget ? 'ring-2 ring-cyan-400/40' : ''}`}
+      data-widget={widget}
+    >
       <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-white">{WIDGET_LABELS[widget]}</h2>
-          <p className="mt-0.5 text-sm text-white/60">{WIDGET_DESCRIPTIONS[widget]}</p>
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            onMouseDown={() => setGrabbed(true)}
+            onMouseUp={() => setGrabbed(false)}
+            onMouseLeave={() => setGrabbed(false)}
+            aria-label="Trage pentru reordonare"
+            className="mt-1 cursor-grab rounded-md p-1 text-white/40 transition hover:bg-white/5 hover:text-white active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <div>
+            <h2 className="text-lg font-semibold text-white">{WIDGET_LABELS[widget]}</h2>
+            <p className="mt-0.5 text-sm text-white/60">{WIDGET_DESCRIPTIONS[widget]}</p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button

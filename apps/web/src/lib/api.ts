@@ -167,5 +167,6 @@ export const api = {
     rawFetch<T>(path, { method: 'GET', query }),
   post: <T = unknown>(path: string, body?: unknown) => rawFetch<T>(path, { method: 'POST', body }),
   patch: <T = unknown>(path: string, body?: unknown) => rawFetch<T>(path, { method: 'PATCH', body }),
+  put: <T = unknown>(path: string, body?: unknown) => rawFetch<T>(path, { method: 'PUT', body }),
   delete: <T = unknown>(path: string) => rawFetch<T>(path, { method: 'DELETE' }),
 };
