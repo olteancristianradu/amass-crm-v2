@@ -4,6 +4,7 @@ import { tasksApi } from './api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { SubjectType, TaskPriority } from '@/lib/types';
 
 interface Props {
@@ -89,7 +90,7 @@ export function TasksTab({ subjectType, subjectId }: Props): JSX.Element {
         </Button>
       </form>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={3} />}
       {data && data.data.length === 0 && (
         <p className="text-sm text-muted-foreground">Niciun task.</p>
       )}

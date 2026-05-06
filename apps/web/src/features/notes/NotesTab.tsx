@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { notesApi } from './api';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { SubjectType } from '@/lib/types';
 
 interface Props {
@@ -57,7 +58,7 @@ export function NotesTab({ subjectType, subjectId }: Props): JSX.Element {
           {create.isPending ? 'Se salvează…' : 'Adaugă notă'}
         </Button>
       </div>
-      {notesQ.isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {notesQ.isLoading && <ListSkeleton rows={3} />}
       {notesQ.data && notesQ.data.length === 0 && (
         <p className="text-sm text-muted-foreground">Nicio notă încă.</p>
       )}

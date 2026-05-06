@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { SubjectType } from '@/lib/types';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
@@ -116,7 +117,7 @@ export function RemindersTab({ subjectType, subjectId }: Props): JSX.Element {
         {formError && <p className="text-sm text-destructive md:col-span-2">{formError}</p>}
       </form>
 
-      {listQ.isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {listQ.isLoading && <ListSkeleton rows={3} />}
       {listQ.data && listQ.data.length === 0 && (
         <p className="text-sm text-muted-foreground">Niciun reminder programat.</p>
       )}

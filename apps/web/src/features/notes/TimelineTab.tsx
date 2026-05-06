@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { notesApi } from './api';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { SubjectType, TimelineItem } from '@/lib/types';
 
 interface Props {
@@ -13,7 +14,7 @@ export function TimelineTab({ subjectType, subjectId }: Props): JSX.Element {
     queryFn: () => notesApi.timeline(subjectType, subjectId, undefined, 50),
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Se încarcă…</p>;
+  if (isLoading) return <ListSkeleton rows={4} />;
   if (!data || data.data.length === 0) {
     return <p className="text-sm text-muted-foreground">Fără activitate.</p>;
   }
