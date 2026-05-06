@@ -1,12 +1,12 @@
 # STATUS.md
 
-Last updated: 2026-05-05 22:55 Europe/Bucharest
+Last updated: 2026-05-06 16:30 Europe/Bucharest
 Updated by: Claude
 Branch: `main`
-Local HEAD: `127a0e4`
-Remote HEAD: `origin/main` = `127a0e4`
+Local HEAD: `1ff36c9`
+Remote HEAD: `origin/main` = `1ff36c9`
 Local ahead/behind: `0 / 0`
-Working tree: clean (after this docs push)
+Working tree: dirty with this final docs update only
 Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
 
 ## Session 2026-05-05 — committed and pushed
@@ -35,19 +35,30 @@ SEC-003, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, SEC-AXIOS-PROTO-POLLUTION,
 | `7fd93f6` | feat(cockpit): GET /api/v1/cockpit/feed with deals-in-danger / reminders-due-today / tasks-overdue ranking |
 | `127a0e4` | docs(remote-access): SSH+screen guide for phone access |
 
-## Test counts at session end
-- API unit: **1000/1000 pass** (96 files)
-- Web unit: **52/52 pass** (11 files)
+## Test counts at session end (2026-05-06)
+- API unit: **1015/1015 pass** (98 files) — added Excel + PDF adapter tests
+- Web unit: **56/56 pass** (12 files) — added usePageTitle tests
+- RLS audit: **46 tables × 0 fail-open** (`scripts/rls-audit.sh`)
 - API e2e: not rerun this session (`[istoric: 1087/1087 per Codex 2026-05-04]`)
 - Browser smoke: not rerun this session (`[istoric: auth + critical-crm pass 2026-05-04]`)
+
+## Build-out shipped 2026-05-06
+
+| Commit | What |
+|---|---|
+| `324317b` | feat(importer): Excel adapter ACTIVE with SheetJS (xlsx/xls/xlsm), 8 tests |
+| `ea8397c` | feat(importer): PDF text adapter ACTIVE with Romanian invoice heuristics, 7 tests |
+| `1528152` | feat(cockpit): Pro Cockpit FE with selectable widgets, localStorage layout, /app/cockpit route, +4 tests via usePageTitle hook |
+| `83f49b0` | feat(scripts): start-agents.sh + setup-branch-protection.sh + rls-audit.sh |
+| `1ff36c9` | docs: PROVIDER_SETUP runbook + PRODUCT_DECISIONS defaults |
 
 ## Open
 - SEC-001 production-readiness verification (blocked by infra/credentials)
 - SEC-002 dev-only moderate advisories (vite/esbuild/postcss)
-- Importer Excel/SmartBill/SAGA/PDF adapters: scaffolded, not active — need real sample files
-- Pro Cockpit: backend feed endpoint live; FE widgets not built yet
-- Branch protection: **not enabled** in this session — gh CLI doesn't expose it via `repo edit`; needs UI or REST API call. Documented as TODO.
-- Performance budget workflow: file shipped; needs `secrets.DEMO_URL` set in repo settings to run with stable URL (currently uses Cloudflare quick tunnel default)
+- Importer SmartBill/SAGA/GestCom-DBF adapters: scaffolds, blocked on real sample files
+- Importer PDF OCR fallback (Claude vision / tesseract.js) for scanned PDFs
+- Branch protection: not enabled yet — operator runs `bash scripts/setup-branch-protection.sh` (one-shot)
+- Performance budget workflow: file shipped; needs `secrets.DEMO_URL` set in repo settings (operator action)
 
 ## Current Reality
 
