@@ -10,6 +10,10 @@ export interface CockpitFeedItem {
   href: string;
   entityId: string;
   entityType: 'deal' | 'reminder' | 'task' | 'lead';
+  /** Populated when the underlying record links to that entity. */
+  relatedCompanyId?: string;
+  relatedContactId?: string;
+  relatedClientId?: string;
 }
 
 export const cockpitApi = {

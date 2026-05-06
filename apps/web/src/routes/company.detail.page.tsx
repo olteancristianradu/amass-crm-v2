@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Building2 } from 'lucide-react';
 import { companiesApi } from '@/features/companies/api';
-import { NextActionHeader } from '@/features/companies/NextActionHeader';
+import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
@@ -110,7 +110,7 @@ export function CompanyDetailPage(): JSX.Element {
         </>
       }
     >
-      <NextActionHeader companyId={id} />
+      <NextActionHeader entityType="COMPANY" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="COMPANY" subjectId={id} />}

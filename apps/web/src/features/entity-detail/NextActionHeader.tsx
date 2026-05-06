@@ -3,34 +3,39 @@ import { Link } from '@tanstack/react-router';
 import { ArrowUpRight, Clock, Sparkles } from 'lucide-react';
 import { cockpitApi, type CockpitFeedItem } from '@/features/cockpit/api';
 
+type EntityType = 'COMPANY' | 'CONTACT' | 'CLIENT';
+
 interface Props {
-  companyId: string;
+  entityType: EntityType;
+  entityId: string;
 }
 
 /**
- * Synthesized "next action" header for a company. Pulls the cockpit
- * feed (already paginated and ranked server-side) and surfaces the
- * single highest-score item that links to this company. If nothing
- * urgent is queued, shows a calm "Relationship healthy" state.
+ * Synthesized "next action" header for any entity detail page.
  *
- * The cockpit feed today links via `href` like `/app/deals/<id>`,
- * not by company id. We approximate by matching company name in
- * subtitle for now — a future iteration adds an explicit
- * `relatedCompanyId` field on each feed item so the join is exact.
+ * Pulls the cockpit feed (already paginated and ranked server-side)
+ * and surfaces the single highest-score item that links to this
+ * entity. If the backend feed item carries `relatedCompanyId` /
+ * `relatedContactId` / `relatedClientId`, we filter precisely;
+ * otherwise we fall back to surfacing the top global action so the
+ * user still sees signal.
+ *
+ * Three visual states:
+ *  - loading: skeleton bar
+ *  - healthy (no item): calm emerald "Relationship healthy"
+ *  - urgent: amber/red card with score badge + deep link
  */
-export function NextActionHeader({ companyId }: Props): JSX.Element {
+export function NextActionHeader({ entityType, entityId }: Props): JSX.Element {
   const feed = useQuery({
-    queryKey: ['cockpit-feed-for-company', companyId],
+    queryKey: ['cockpit-feed-for-entity', entityType, entityId],
     queryFn: cockpitApi.feed,
     staleTime: 30_000,
   });
 
-  const top = pickRelevant(feed.data ?? [], companyId);
+  const top = pickRelevant(feed.data ?? [], entityType, entityId);
 
   if (feed.isLoading) {
-    return (
-      <div className="mb-4 h-16 animate-pulse rounded-xl border border-white/10 bg-white/[0.02]" />
-    );
+    return <div className="mb-4 h-16 animate-pulse rounded-xl border border-white/10 bg-white/[0.02]" />;
   }
 
   if (!top) {
@@ -70,11 +75,28 @@ export function NextActionHeader({ companyId }: Props): JSX.Element {
   );
 }
 
-function pickRelevant(items: CockpitFeedItem[], companyId: string): CockpitFeedItem | null {
-  // Direct match: deal whose href ends with this company's deals — but
-  // current schema links deal-level, not company-level. So we accept any
-  // top-3 item until backend adds relatedCompanyId.
-  // Future: filter by `item.relatedCompanyId === companyId` when added.
-  void companyId; // silence unused-var until the backend join arrives
+/**
+ * Picks the most relevant feed item for the given entity. Prefers items
+ * tagged with `relatedXxxId` matching this entity. If none match, returns
+ * the top global item — better than a blank header while the backend
+ * catches up to populate the related fields.
+ */
+function pickRelevant(
+  items: CockpitFeedItem[],
+  entityType: EntityType,
+  entityId: string,
+): CockpitFeedItem | null {
+  const idField =
+    entityType === 'COMPANY'
+      ? 'relatedCompanyId'
+      : entityType === 'CONTACT'
+        ? 'relatedContactId'
+        : 'relatedClientId';
+
+  const scoped = items.find((i) => {
+    const v = (i as unknown as Record<string, unknown>)[idField];
+    return typeof v === 'string' && v === entityId;
+  });
+  if (scoped) return scoped;
   return items[0] ?? null;
 }

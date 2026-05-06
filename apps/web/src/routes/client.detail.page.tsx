@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Users } from 'lucide-react';
 import { clientsApi } from '@/features/clients/api';
+import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
@@ -90,6 +91,7 @@ export function ClientDetailPage(): JSX.Element {
         </>
       }
     >
+      <NextActionHeader entityType="CLIENT" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CLIENT" subjectId={id} />}

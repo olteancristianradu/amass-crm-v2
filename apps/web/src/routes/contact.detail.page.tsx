@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Contact2 } from 'lucide-react';
 import { contactsApi } from '@/features/contacts/api';
+import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
@@ -88,6 +89,7 @@ export function ContactDetailPage(): JSX.Element {
         </>
       }
     >
+      <NextActionHeader entityType="CONTACT" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CONTACT" subjectId={id} />}
