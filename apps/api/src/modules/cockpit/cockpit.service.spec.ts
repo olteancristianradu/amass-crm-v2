@@ -35,8 +35,8 @@ describe('CockpitService.feed', () => {
   it('ranks high-value stalled deals above low-value ones', async () => {
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 3600 * 1000);
     dealsFindMany.mockResolvedValueOnce([
-      { id: 'd-big', title: 'Enterprise deal', value: 50000, currency: 'EUR', expectedCloseAt: null, updatedAt: tenDaysAgo },
-      { id: 'd-small', title: 'Tiny deal', value: 500, currency: 'RON', expectedCloseAt: null, updatedAt: tenDaysAgo },
+      { id: 'd-big', title: 'Enterprise deal', value: 50000, currency: 'EUR', expectedCloseAt: null, updatedAt: tenDaysAgo, companyId: null, contactId: null },
+      { id: 'd-small', title: 'Tiny deal', value: 500, currency: 'RON', expectedCloseAt: null, updatedAt: tenDaysAgo, companyId: null, contactId: null },
     ]);
     const out = await svc.feed();
     expect(out[0]?.entityId).toBe('d-big');
@@ -57,8 +57,8 @@ describe('CockpitService.feed', () => {
   it('boosts HIGH priority overdue tasks above NORMAL ones', async () => {
     const oneHourAgo = new Date(Date.now() - 3600 * 1000);
     tasksFindMany.mockResolvedValueOnce([
-      { id: 't-high', title: 'High task', priority: 'HIGH', dueAt: oneHourAgo, dealId: null },
-      { id: 't-normal', title: 'Normal task', priority: 'NORMAL', dueAt: oneHourAgo, dealId: null },
+      { id: 't-high', title: 'High task', priority: 'HIGH', dueAt: oneHourAgo, dealId: null, subjectType: null, subjectId: null },
+      { id: 't-normal', title: 'Normal task', priority: 'NORMAL', dueAt: oneHourAgo, dealId: null, subjectType: null, subjectId: null },
     ]);
     const out = await svc.feed();
     const h = out.find((i) => i.entityId === 't-high');
@@ -68,18 +68,40 @@ describe('CockpitService.feed', () => {
 
   it('builds correct deep-link URLs', async () => {
     dealsFindMany.mockResolvedValueOnce([
-      { id: 'd-1', title: 'Test', value: 1000, currency: 'RON', expectedCloseAt: null, updatedAt: new Date(Date.now() - 10 * 24 * 3600 * 1000) },
+      { id: 'd-1', title: 'Test', value: 1000, currency: 'RON', expectedCloseAt: null, updatedAt: new Date(Date.now() - 10 * 24 * 3600 * 1000), companyId: null, contactId: null },
     ]);
     remindersFindMany.mockResolvedValueOnce([
       { id: 'r-1', title: 'Call', remindAt: new Date(), subjectType: 'CONTACT', subjectId: 'c-1' },
     ]);
     tasksFindMany.mockResolvedValueOnce([
-      { id: 't-1', title: 'Send quote', priority: 'NORMAL', dueAt: new Date(Date.now() - 3600 * 1000), dealId: 'd-1' },
+      { id: 't-1', title: 'Send quote', priority: 'NORMAL', dueAt: new Date(Date.now() - 3600 * 1000), dealId: 'd-1', subjectType: null, subjectId: null },
     ]);
     const out = await svc.feed();
     expect(out.find((i) => i.entityId === 'd-1')?.href).toBe('/app/deals/d-1');
     expect(out.find((i) => i.entityId === 'r-1')?.href).toBe('/app/contacts/c-1');
     expect(out.find((i) => i.entityId === 't-1')?.href).toBe('/app/deals/d-1');
+  });
+
+  it('exposes relatedCompanyId/relatedContactId for filtering', async () => {
+    dealsFindMany.mockResolvedValueOnce([
+      {
+        id: 'd-1', title: 'Big', value: 50000, currency: 'EUR',
+        expectedCloseAt: null,
+        updatedAt: new Date(Date.now() - 10 * 24 * 3600 * 1000),
+        companyId: 'co-A',
+        contactId: null,
+      },
+    ]);
+    remindersFindMany.mockResolvedValueOnce([
+      { id: 'r-1', title: 'Call client', remindAt: new Date(Date.now() - 5 * 60 * 1000), subjectType: 'CLIENT', subjectId: 'cl-A' },
+    ]);
+    tasksFindMany.mockResolvedValueOnce([
+      { id: 't-1', title: 'Email contact', priority: 'NORMAL', dueAt: new Date(Date.now() - 3600 * 1000), dealId: null, subjectType: 'CONTACT', subjectId: 'ct-A' },
+    ]);
+    const out = await svc.feed();
+    expect(out.find((i) => i.entityId === 'd-1')?.relatedCompanyId).toBe('co-A');
+    expect(out.find((i) => i.entityId === 'r-1')?.relatedClientId).toBe('cl-A');
+    expect(out.find((i) => i.entityId === 't-1')?.relatedContactId).toBe('ct-A');
   });
 });
 

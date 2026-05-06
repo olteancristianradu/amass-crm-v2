@@ -25,6 +25,15 @@ export interface CockpitFeedItem {
   /** Tenant entity id — for log/click tracking. */
   entityId: string;
   entityType: 'deal' | 'reminder' | 'task' | 'lead';
+  /**
+   * Related entity refs — populated when the underlying record carries
+   * a foreign key to that entity. Lets the FE filter the feed for an
+   * Entity 360 "next action" header (`apps/web/src/features/entity-detail/`)
+   * without re-fetching.
+   */
+  relatedCompanyId?: string;
+  relatedContactId?: string;
+  relatedClientId?: string;
 }
 
 /**
@@ -58,7 +67,16 @@ export class CockpitService {
           status: 'OPEN',
           updatedAt: { lt: dangerCutoff },
         },
-        select: { id: true, title: true, value: true, currency: true, expectedCloseAt: true, updatedAt: true },
+        select: {
+          id: true,
+          title: true,
+          value: true,
+          currency: true,
+          expectedCloseAt: true,
+          updatedAt: true,
+          companyId: true,
+          contactId: true,
+        },
         orderBy: [{ value: 'desc' }, { updatedAt: 'asc' }],
         take: 10,
       });
@@ -82,7 +100,15 @@ export class CockpitService {
           status: 'OPEN',
           dueAt: { lt: now },
         },
-        select: { id: true, title: true, priority: true, dueAt: true, dealId: true },
+        select: {
+          id: true,
+          title: true,
+          priority: true,
+          dueAt: true,
+          dealId: true,
+          subjectType: true,
+          subjectId: true,
+        },
         orderBy: [{ priority: 'desc' }, { dueAt: 'asc' }],
         take: 10,
       });
@@ -106,12 +132,15 @@ export class CockpitService {
         href: `/app/deals/${d.id}`,
         entityId: d.id,
         entityType: 'deal',
+        ...(d.companyId ? { relatedCompanyId: d.companyId } : {}),
+        ...(d.contactId ? { relatedContactId: d.contactId } : {}),
       });
     }
 
     for (const r of items.remindersDue) {
       const minutesUntil = Math.max(0, Math.floor((r.remindAt.getTime() - now.getTime()) / 60_000));
       const score = minutesUntil < 60 ? 95 : minutesUntil < 240 ? 80 : 60;
+      const subjectKey = subjectIdField(r.subjectType, r.subjectId);
       out.push({
         id: `reminder:${r.id}`,
         widget: 'reminders-due-today',
@@ -124,6 +153,7 @@ export class CockpitService {
           : '/app/reminders',
         entityId: r.id,
         entityType: 'reminder',
+        ...subjectKey,
       });
     }
 
@@ -134,6 +164,7 @@ export class CockpitService {
       );
       const priorityBoost = t.priority === 'HIGH' ? 25 : 0;
       const score = Math.min(100, 50 + Math.floor(overdueHours / 4) + priorityBoost);
+      const subjectKey = t.subjectType && t.subjectId ? subjectIdField(t.subjectType, t.subjectId) : {};
       out.push({
         id: `task:${t.id}`,
         widget: 'tasks-overdue',
@@ -144,11 +175,33 @@ export class CockpitService {
         href: t.dealId ? `/app/deals/${t.dealId}` : '/app/tasks',
         entityId: t.id,
         entityType: 'task',
+        ...subjectKey,
       });
     }
 
     out.sort((a, b) => b.score - a.score);
     return out;
+  }
+}
+
+/**
+ * Map a polymorphic subject (CONTACT/CLIENT/COMPANY) to the typed
+ * `relatedXxxId` field on a feed item. Reminders + Tasks both use this.
+ */
+function subjectIdField(subjectType: string, subjectId: string): {
+  relatedCompanyId?: string;
+  relatedContactId?: string;
+  relatedClientId?: string;
+} {
+  switch (subjectType) {
+    case 'COMPANY':
+      return { relatedCompanyId: subjectId };
+    case 'CONTACT':
+      return { relatedContactId: subjectId };
+    case 'CLIENT':
+      return { relatedClientId: subjectId };
+    default:
+      return {};
   }
 }
 
