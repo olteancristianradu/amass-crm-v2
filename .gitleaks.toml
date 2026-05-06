@@ -7,12 +7,19 @@
 useDefault = true
 
 [allowlist]
-description = "False positives from documentation and CI test values"
+description = "False positives from documentation, CI test values, and unit test fixtures"
 paths = [
   '''docs/.*\.md$''',
   '''README\.md$''',
   '''.*\.example$''',
   '''infra/\.env\.example$''',
+  # Unit/integration test files frequently embed throwaway high-entropy
+  # strings (`test-secret-min-32-chars-padding`, `0`*64) to satisfy env
+  # validation. They are not real secrets — they are static, public, and
+  # rotate every CI run. Allow them in any *.spec.ts / *.test.ts under
+  # the apps/ tree.
+  '''apps/.*/src/.*\.(spec|test)\.ts$''',
+  '''apps/api/test/.*\.spec\.ts$''',
 ]
 
 regexes = [
