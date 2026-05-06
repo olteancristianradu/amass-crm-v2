@@ -2622,3 +2622,22 @@ model OutlookToken {
   @@index([tenantId])
   @@map("outlook_tokens")
 }
+
+// ─── Pro Cockpit ──────────────────────────────────────────────────────────────
+/// Per-user widget layout for the Pro Cockpit page (`/app/cockpit`). Stores
+/// the ordered list of enabled widgets so the layout follows the user across
+/// devices. Falls back to localStorage on the FE if the API is unreachable.
+model CockpitLayout {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  /// Ordered list of widget ids: ["deals-in-danger","reminders-due-today",...]
+  /// Stored as JSON to keep order without an extra junction table.
+  widgets   Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@map("cockpit_layouts")
+}

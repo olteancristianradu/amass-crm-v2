@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 
@@ -158,3 +159,46 @@ export const COCKPIT_TUNING = {
   TASK_OVERDUE_HOURS,
   REMINDER_TODAY_WINDOW_HOURS,
 } as const;
+
+/** Default widget layout used when a user has never customized theirs. */
+const DEFAULT_WIDGETS = ['deals-in-danger', 'reminders-due-today', 'tasks-overdue'] as const;
+const VALID_WIDGETS = new Set([...DEFAULT_WIDGETS, 'leads-hot']);
+
+@Injectable()
+export class CockpitLayoutService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async get(): Promise<{ widgets: string[] }> {
+    const ctx = requireTenantContext();
+    const row = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.cockpitLayout.findUnique({
+        where: { tenantId_userId: { tenantId: ctx.tenantId, userId: ctx.userId ?? '' } },
+      }),
+    );
+    if (!row) return { widgets: [...DEFAULT_WIDGETS] };
+    const widgets = Array.isArray(row.widgets) ? (row.widgets as string[]) : [...DEFAULT_WIDGETS];
+    return { widgets: widgets.filter((w) => VALID_WIDGETS.has(w)) };
+  }
+
+  async upsert(widgets: string[]): Promise<{ widgets: string[] }> {
+    const ctx = requireTenantContext();
+    if (!ctx.userId) {
+      // Layout is per-user; without userId there's nothing to key on.
+      return { widgets };
+    }
+    // Reject unknown widget ids — keeps a stale FE from corrupting the layout.
+    const cleaned = widgets.filter((w) => VALID_WIDGETS.has(w));
+    await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.cockpitLayout.upsert({
+        where: { tenantId_userId: { tenantId: ctx.tenantId, userId: ctx.userId! } },
+        update: { widgets: cleaned as Prisma.InputJsonValue },
+        create: {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId!,
+          widgets: cleaned as Prisma.InputJsonValue,
+        },
+      }),
+    );
+    return { widgets: cleaned };
+  }
+}

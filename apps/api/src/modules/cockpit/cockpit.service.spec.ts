@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CockpitService } from './cockpit.service';
+import { CockpitLayoutService, CockpitService } from './cockpit.service';
 
 vi.mock('../../infra/prisma/tenant-context', () => ({
   requireTenantContext: () => ({ tenantId: 'tenant-1', userId: 'user-1' }),
@@ -80,5 +80,45 @@ describe('CockpitService.feed', () => {
     expect(out.find((i) => i.entityId === 'd-1')?.href).toBe('/app/deals/d-1');
     expect(out.find((i) => i.entityId === 'r-1')?.href).toBe('/app/contacts/c-1');
     expect(out.find((i) => i.entityId === 't-1')?.href).toBe('/app/deals/d-1');
+  });
+});
+
+describe('CockpitLayoutService', () => {
+  let svc: CockpitLayoutService;
+  let upsert: ReturnType<typeof vi.fn>;
+  let findUnique: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    upsert = vi.fn().mockResolvedValue({});
+    findUnique = vi.fn();
+    const tx = { cockpitLayout: { findUnique, upsert } };
+    const prisma = {
+      runWithTenant: vi.fn(async (_tid: string, fn: (t: typeof tx) => unknown) => fn(tx)),
+    } as unknown as ConstructorParameters<typeof CockpitLayoutService>[0];
+    svc = new CockpitLayoutService(prisma);
+  });
+
+  it('returns the default layout when no row exists for the user', async () => {
+    findUnique.mockResolvedValueOnce(null);
+    const out = await svc.get();
+    expect(out.widgets).toEqual(['deals-in-danger', 'reminders-due-today', 'tasks-overdue']);
+  });
+
+  it('returns the persisted layout when a row exists', async () => {
+    findUnique.mockResolvedValueOnce({ widgets: ['leads-hot', 'tasks-overdue'] });
+    const out = await svc.get();
+    expect(out.widgets).toEqual(['leads-hot', 'tasks-overdue']);
+  });
+
+  it('strips unknown widget ids from a stale layout row', async () => {
+    findUnique.mockResolvedValueOnce({ widgets: ['leads-hot', 'unknown-widget', 'tasks-overdue'] });
+    const out = await svc.get();
+    expect(out.widgets).toEqual(['leads-hot', 'tasks-overdue']);
+  });
+
+  it('upsert filters unknown widget ids before persisting', async () => {
+    await svc.upsert(['deals-in-danger', 'fake-widget', 'leads-hot']);
+    const args = upsert.mock.calls[0][0] as { create: { widgets: string[] } };
+    expect(args.create.widgets).toEqual(['deals-in-danger', 'leads-hot']);
   });
 });
