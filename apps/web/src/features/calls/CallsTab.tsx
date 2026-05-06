@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { CallCard, type CallCardData } from '@/components/ui/call-card';
 import { GlassCard } from '@/components/ui/glass-card';
 import { EmptyState } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { Call, SubjectType } from '@/lib/types';
 
 interface Props {
@@ -112,7 +113,7 @@ export function CallsTab({ subjectType, subjectId }: Props): JSX.Element {
       )}
 
       {/* Call history */}
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={3} />}
       {calls && calls.data.length === 0 && (
         <GlassCard className="overflow-hidden">
           <EmptyState

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { companiesApi } from './api';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 
 interface Props {
   companyId: string;
@@ -16,7 +17,7 @@ export function SubsidiariesTab({ companyId }: Props): JSX.Element {
     queryFn: () => companiesApi.subsidiaries(companyId),
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Se încarcă…</p>;
+  if (isLoading) return <ListSkeleton rows={3} />;
   if (!data || data.length === 0) {
     return <p className="text-sm text-muted-foreground">Nu există subsidiare.</p>;
   }

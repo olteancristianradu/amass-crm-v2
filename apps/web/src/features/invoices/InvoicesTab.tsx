@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { InvoiceCurrency, InvoiceStatus } from '@/lib/types';
 
 interface Props {
@@ -42,7 +43,7 @@ export function InvoicesTab({ companyId }: Props): JSX.Element {
         />
       )}
 
-      {listQ.isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {listQ.isLoading && <ListSkeleton rows={3} />}
       {listQ.data && listQ.data.data.length === 0 && !showForm && (
         <p className="text-sm text-muted-foreground">Nicio factură emisă.</p>
       )}

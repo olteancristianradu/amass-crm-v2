@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { dealsApi } from './api';
 import { pipelinesApi } from '@/features/pipelines/api';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 
 interface Props {
   companyId: string;
@@ -32,7 +33,7 @@ export function DealsTab({ companyId }: Props): JSX.Element {
     return '—';
   };
 
-  if (isLoading) return <p className="pt-4 text-sm text-muted-foreground">Se încarcă…</p>;
+  if (isLoading) return <div className="pt-4"><ListSkeleton rows={3} /></div>;
   if (!deals || deals.data.length === 0) {
     return <p className="pt-4 text-sm text-muted-foreground">Niciun deal.</p>;
   }
