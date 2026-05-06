@@ -1,10 +1,10 @@
 # STATUS.md
 
-Last updated: 2026-05-06 16:45 Europe/Bucharest
+Last updated: 2026-05-06 22:30 Europe/Bucharest
 Updated by: Claude
 Branch: `main`
-Local HEAD: `4877f8b`
-Remote HEAD: `origin/main` = `4877f8b`
+Local HEAD: `a26c056`
+Remote HEAD: `origin/main` = `a26c056`
 Local ahead/behind: `0 / 0`
 Working tree: dirty with this final docs update only
 Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
@@ -35,11 +35,13 @@ SEC-003, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, SEC-AXIOS-PROTO-POLLUTION,
 | `7fd93f6` | feat(cockpit): GET /api/v1/cockpit/feed with deals-in-danger / reminders-due-today / tasks-overdue ranking |
 | `127a0e4` | docs(remote-access): SSH+screen guide for phone access |
 
-## Test counts at session end (2026-05-06 second wave)
-- API unit: **1025/1025 pass** (99 files) — added activities spec, Cockpit layout spec, PDF OCR specs
+## Test counts at session end (2026-05-06 third wave)
+- API unit: **1051/1051 pass** (100 files) — added enrichment + products + projects + email-verification specs, exceljs migration
 - Web unit: **56/56 pass** (12 files)
 - Lint+typecheck: clean on both API and web
 - RLS audit: **46 tables × 0 fail-open** (`scripts/rls-audit.sh`)
+- gitleaks: **0 leaks** (267 commits scanned)
+- pnpm audit (HIGH+CRITICAL prod): **No known vulnerabilities found**
 - API e2e: not rerun this session (`[istoric: 1087/1087 per Codex 2026-05-04]`)
 - Browser smoke: not rerun this session (`[istoric: auth + critical-crm pass 2026-05-04]`)
 
