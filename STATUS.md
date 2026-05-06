@@ -1,10 +1,10 @@
 # STATUS.md
 
-Last updated: 2026-05-06 16:30 Europe/Bucharest
+Last updated: 2026-05-06 16:45 Europe/Bucharest
 Updated by: Claude
 Branch: `main`
-Local HEAD: `1ff36c9`
-Remote HEAD: `origin/main` = `1ff36c9`
+Local HEAD: `4877f8b`
+Remote HEAD: `origin/main` = `4877f8b`
 Local ahead/behind: `0 / 0`
 Working tree: dirty with this final docs update only
 Runtime checked: yes, local Docker runtime + current Cloudflare quick tunnel
@@ -35,9 +35,10 @@ SEC-003, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, SEC-AXIOS-PROTO-POLLUTION,
 | `7fd93f6` | feat(cockpit): GET /api/v1/cockpit/feed with deals-in-danger / reminders-due-today / tasks-overdue ranking |
 | `127a0e4` | docs(remote-access): SSH+screen guide for phone access |
 
-## Test counts at session end (2026-05-06)
-- API unit: **1015/1015 pass** (98 files) — added Excel + PDF adapter tests
-- Web unit: **56/56 pass** (12 files) — added usePageTitle tests
+## Test counts at session end (2026-05-06 second wave)
+- API unit: **1025/1025 pass** (99 files) — added activities spec, Cockpit layout spec, PDF OCR specs
+- Web unit: **56/56 pass** (12 files)
+- Lint+typecheck: clean on both API and web
 - RLS audit: **46 tables × 0 fail-open** (`scripts/rls-audit.sh`)
 - API e2e: not rerun this session (`[istoric: 1087/1087 per Codex 2026-05-04]`)
 - Browser smoke: not rerun this session (`[istoric: auth + critical-crm pass 2026-05-04]`)
@@ -46,11 +47,17 @@ SEC-003, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, SEC-AXIOS-PROTO-POLLUTION,
 
 | Commit | What |
 |---|---|
-| `324317b` | feat(importer): Excel adapter ACTIVE with SheetJS (xlsx/xls/xlsm), 8 tests |
-| `ea8397c` | feat(importer): PDF text adapter ACTIVE with Romanian invoice heuristics, 7 tests |
-| `1528152` | feat(cockpit): Pro Cockpit FE with selectable widgets, localStorage layout, /app/cockpit route, +4 tests via usePageTitle hook |
-| `83f49b0` | feat(scripts): start-agents.sh + setup-branch-protection.sh + rls-audit.sh |
+| `324317b` | feat(importer): Excel adapter ACTIVE with SheetJS, 8 tests |
+| `ea8397c` | feat(importer): PDF text adapter ACTIVE with RO invoice heuristics, 7 tests |
+| `1528152` | feat(cockpit): Pro Cockpit FE with selectable widgets + usePageTitle |
+| `83f49b0` | feat(scripts): start-agents + setup-branch-protection + rls-audit |
 | `1ff36c9` | docs: PROVIDER_SETUP runbook + PRODUCT_DECISIONS defaults |
+| `3b51a35` | feat(importer): PDF OCR fallback via Gemini vision for scanned PDFs |
+| `f6361f6` | feat(cockpit): Prisma cockpit_layouts + GET/PUT /cockpit/layout endpoints |
+| `22ddd3b` | feat(cockpit-fe): layout wired to backend + HTML5 drag-drop reorder |
+| `cd802fa` | feat(ui): reusable loading-skeleton + empty-state primitives |
+| `25d6077` | feat(entity360): next-action header on company detail page |
+| `4877f8b` | test+docs: activities spec, cockpit Playwright smoke, agent HANDOFF.md |
 
 ## Open
 - SEC-001 production-readiness verification (blocked by infra/credentials)
