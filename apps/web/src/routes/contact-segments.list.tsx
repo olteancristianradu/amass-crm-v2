@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -142,7 +143,7 @@ function SegmentPreview({ segmentId }: { segmentId: string }): JSX.Element {
     queryFn: () => contactSegmentsApi.preview(segmentId, 20),
   });
 
-  if (isLoading) return <p className="text-xs mt-2 text-muted-foreground">Se încarcă preview…</p>;
+  if (isLoading) return <ListSkeleton rows={2} />;
   const contacts = data ?? [];
   if (contacts.length === 0) return <p className="text-xs mt-2 text-muted-foreground">Niciun contact corespunde filtrelor.</p>;
 

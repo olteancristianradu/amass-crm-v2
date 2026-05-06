@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 import { QueryError } from '@/components/ui/QueryError';
@@ -66,7 +67,7 @@ function EmailSequencesPage(): JSX.Element {
 
       {showForm && <NewSequenceForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={5} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca secvențele de email." />
 
       <div className="space-y-3">

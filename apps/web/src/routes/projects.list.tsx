@@ -7,6 +7,7 @@ import { projectsApi, type CreateProjectInput, type UpdateProjectInput } from '@
 import { companiesApi } from '@/features/companies/api';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -59,7 +60,7 @@ function ProjectsListPage(): JSX.Element {
 
       {showCreate && <NewProjectForm onDone={() => setShowCreate(false)} />}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={5} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca proiectele." />
 
       {data && data.data.length === 0 && !showCreate && (

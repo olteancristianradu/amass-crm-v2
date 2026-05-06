@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { QueryError } from '@/components/ui/QueryError';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ export function WorkflowsPage(): JSX.Element {
         <Button onClick={() => setShowForm(true)}>+ Workflow nou</Button>
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={5} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca workflow-urile." />
 
       {!isLoading && workflows.length === 0 && (
