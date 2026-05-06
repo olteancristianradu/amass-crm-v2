@@ -6,6 +6,7 @@ import { notificationsApi, type Notification, type NotificationType } from '@/fe
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { QueryError } from '@/components/ui/QueryError';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 
 /**
  * M-13 — Notification center.
@@ -101,7 +102,7 @@ function NotificationsPage(): JSX.Element {
         </div>
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={6} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca notificările." />
 
       {data && data.length === 0 && !isLoading && (

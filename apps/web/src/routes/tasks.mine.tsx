@@ -9,6 +9,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EmptyState, PageHeader } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -93,7 +94,7 @@ function TasksMinePage(): JSX.Element {
 
       {showCreate && <NewTaskForm onDone={() => setShowCreate(false)} />}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={5} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca taskurile." />
 
       {data && data.data.length === 0 && (
