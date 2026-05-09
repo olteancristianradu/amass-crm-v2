@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { EmailStatus, SubjectType } from '@/lib/types';
 
 interface Props {
@@ -196,7 +197,7 @@ export function EmailTab({ subjectType, subjectId }: Props): JSX.Element {
 
       <div className="border-t pt-4">
         <h3 className="mb-2 text-sm font-medium">Email-uri trimise</h3>
-        {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+        {isLoading && <ListSkeleton rows={3} />}
         {messages && messages.data.length === 0 && (
           <p className="text-sm text-muted-foreground">Niciun email trimis.</p>
         )}

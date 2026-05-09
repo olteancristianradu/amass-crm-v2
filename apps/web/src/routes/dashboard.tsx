@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/auth';
 import { GlassCard } from '@/components/ui/glass-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { QueryError } from '@/components/ui/QueryError';
+import { CardGridSkeleton, Skeleton } from '@/components/ui/loading-skeleton';
 
 export const dashboardRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -247,7 +248,7 @@ function Dashboard(): JSX.Element {
         )}
       </div>
 
-      {!data && <p className="mt-4 text-sm text-muted-foreground">Se încarcă statisticile…</p>}
+      {!data && <div className="mt-4"><CardGridSkeleton cards={6} /></div>}
     </div>
   );
 }
@@ -318,7 +319,7 @@ function BriefStrip({
           </div>
 
           {isLoading && !brief && (
-            <p className="text-sm text-muted-foreground">Se încarcă rezumatul…</p>
+            <Skeleton className="h-24 w-full" />
           )}
           {showSummary && (
             <p className="text-sm leading-relaxed text-foreground">{showSummary}</p>

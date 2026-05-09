@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Building2 } from 'lucide-react';
 import { companiesApi } from '@/features/companies/api';
 import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
 import { TimelineTab } from '@/features/notes/TimelineTab';
@@ -52,7 +53,7 @@ export function CompanyDetailPage(): JSX.Element {
     queryFn: () => companiesApi.get(id),
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Se încarcă…</p>;
+  if (isLoading) return <ListSkeleton rows={4} />;
   if (isError) {
     return (
       <div className="space-y-2">

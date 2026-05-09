@@ -10,6 +10,7 @@ import { CreatePhoneNumberSchema, type CreatePhoneNumberDto } from '@amass/share
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { GlassCard } from '@/components/ui/glass-card';
 import {
   EmptyState,
@@ -64,7 +65,7 @@ function PhoneSettingsPage(): JSX.Element {
 
       {showForm && <NewPhoneForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={3} />}
       {isError && (
         <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {error instanceof ApiError ? error.message : 'Eroare'}

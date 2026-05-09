@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { QueryError } from '@/components/ui/QueryError';
+import { ListSkeleton, Skeleton } from '@/components/ui/loading-skeleton';
 
 interface DealStats {
   total: number; open: number; won: number; lost: number;
@@ -151,7 +152,7 @@ export function ReportsPage(): JSX.Element {
       </div>
 
       {isLoading && activeTab === 'overview' && (
-        <p className="text-sm text-muted-foreground">Se încarcă rapoartele…</p>
+        <ListSkeleton rows={5} />
       )}
       <QueryError isError={isError} error={error} label="Nu am putut încărca rapoartele." />
 
@@ -234,7 +235,7 @@ export function ReportsPage(): JSX.Element {
       {activeTab === 'financial' && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">Perioadă: {from} → {to}</p>
-          {!financial && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+          {!financial && <Skeleton className="h-32 w-full" />}
           {financial && financial.length === 0 && (
             <p className="text-sm text-muted-foreground">Nicio factură în perioada selectată.</p>
           )}

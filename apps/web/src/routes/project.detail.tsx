@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { GlassCard } from '@/components/ui/glass-card';
 import { DetailField, DetailFields, DetailLayout } from '@/components/ui/detail-layout';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import {
   EmptyState,
   ListSurface,
@@ -103,7 +104,7 @@ function ProjectDetailPage(): JSX.Element {
     onError: (e) => setErr(e instanceof ApiError ? e.message : 'Eroare'),
   });
 
-  if (projectQ.isLoading) return <p className="text-sm text-muted-foreground">Se încarcă…</p>;
+  if (projectQ.isLoading) return <ListSkeleton rows={4} />;
   if (!projectQ.data) return <p className="text-sm text-muted-foreground">Proiectul nu a fost găsit.</p>;
   const p = projectQ.data;
 
@@ -245,7 +246,7 @@ function ProjectDetailPage(): JSX.Element {
           </p>
         </header>
         {invoicesQ.isLoading && (
-          <p className="px-5 py-4 text-sm text-muted-foreground">Se încarcă…</p>
+          <div className="px-5 py-4"><ListSkeleton rows={3} /></div>
         )}
         {invoicesQ.data && invoicesQ.data.data.length === 0 && (
           <EmptyState

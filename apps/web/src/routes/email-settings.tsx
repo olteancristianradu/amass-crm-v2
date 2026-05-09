@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GlassCard } from '@/components/ui/glass-card';
 import { EmptyState, PageHeader, StatusBadge } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { OutlookConnect } from '@/components/outlook/OutlookConnect';
 
 export const emailSettingsRoute = createRoute({
@@ -63,7 +64,7 @@ function EmailSettingsPage(): JSX.Element {
         />
       )}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={3} />}
       {accounts && accounts.length === 0 && !showForm && (
         <GlassCard className="overflow-hidden">
           <EmptyState

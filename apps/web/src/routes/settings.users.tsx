@@ -16,6 +16,7 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 
 export const settingsUsersRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -114,7 +115,7 @@ function SettingsUsersPage(): JSX.Element {
         />
       )}
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
+      {isLoading && <ListSkeleton rows={3} />}
 
       <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         Utilizatori activi <span className="tabular-nums">({activeUsers.length})</span>
