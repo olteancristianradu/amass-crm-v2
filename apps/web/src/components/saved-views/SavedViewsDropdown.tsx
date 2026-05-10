@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { SavedViewResource } from '@amass/shared';
 import { savedViewsApi, type SavedView } from '@/features/saved-views/api';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/loading-skeleton';
 import { ApiError } from '@/lib/api';
 
 /**
@@ -111,7 +112,11 @@ export function SavedViewsDropdown({
             {createMut.isPending ? 'Se salvează…' : 'Salvează vizualizarea curentă'}
           </button>
           {isLoading ? (
-            <p className="px-3 py-3 text-xs text-muted-foreground">Se încarcă…</p>
+            <div className="space-y-2 px-3 py-3">
+              <Skeleton className="h-7 w-full" />
+              <Skeleton className="h-7 w-full" />
+              <Skeleton className="h-7 w-full" />
+            </div>
           ) : views.length === 0 ? (
             <p className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
               <Plus size={12} /> Nu ai încă vizualizări salvate.

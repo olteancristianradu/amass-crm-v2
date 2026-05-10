@@ -7,6 +7,7 @@ import { exportsApi, type RequestExportDto, type ExportEntityType } from '@/feat
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
@@ -62,7 +63,7 @@ function ExportsPage(): JSX.Element {
 
       {showForm && <RequestExportForm onDone={() => setShowForm(false)} />}
 
-      {isLoading && <div className="animate-pulse h-8 bg-secondary rounded w-full" />}
+      {isLoading && <ListSkeleton rows={4} />}
       {isError && (
         <p className="text-red-500 text-sm">
           {error instanceof ApiError ? error.message : String(error)}

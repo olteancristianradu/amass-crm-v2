@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { authedRoute } from './authed';
 import { searchApi } from '@/features/search/api';
 import type { SearchResult } from '@/lib/types';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 
 const searchParamsSchema = z.object({
   q: z.string().default(''),
@@ -44,7 +45,7 @@ function SearchPage(): JSX.Element {
     <div className="max-w-2xl mx-auto space-y-4">
       <h1 className="text-xl font-semibold">Rezultate pentru „{q}"</h1>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Se caută…</p>}
+      {isLoading && <ListSkeleton rows={5} />}
 
       {!isLoading && results.length === 0 && (
         <p className="text-sm text-muted-foreground">

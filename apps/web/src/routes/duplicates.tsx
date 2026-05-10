@@ -6,6 +6,7 @@ import { duplicatesApi, type DuplicateCandidate } from '@/features/duplicates/ap
 import { companiesApi } from '@/features/companies/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton, ListSkeleton } from '@/components/ui/loading-skeleton';
 import { ApiError } from '@/lib/api';
 
 export const duplicatesRoute = createRoute({
@@ -108,7 +109,7 @@ function DuplicatesPage(): JSX.Element {
               Selectează compania sursă
             </label>
             {companiesLoading ? (
-              <div className="animate-pulse h-9 bg-secondary rounded w-full" />
+              <Skeleton className="h-9 w-full" />
             ) : (
               <select
                 id="companySelect"
@@ -134,9 +135,7 @@ function DuplicatesPage(): JSX.Element {
         </CardContent>
       </Card>
 
-      {dupeLoading && isFetching && (
-        <div className="animate-pulse h-8 bg-secondary rounded w-full" />
-      )}
+      {dupeLoading && isFetching && <ListSkeleton rows={3} />}
 
       {dupeError && (
         <p className="text-red-500 text-sm">

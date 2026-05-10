@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
 import { EmptyState, ListSurface, PageHeader } from '@/components/ui/page-header';
+import { ListSkeleton } from '@/components/ui/loading-skeleton';
 
 interface AuditLog {
   id: string;
@@ -60,7 +61,7 @@ export function AuditPage(): JSX.Element {
 
       <ListSurface>
         {isLoading ? (
-          <p className="px-5 py-6 text-sm text-muted-foreground">Se încarcă…</p>
+          <ListSkeleton rows={6} />
         ) : rows.length === 0 ? (
           <EmptyState
             icon={Activity}
