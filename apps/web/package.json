@@ -11,7 +11,8 @@
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:smoke": "playwright test --grep smoke"
   },
   "dependencies": {
     "@amass/shared": "workspace:*",
