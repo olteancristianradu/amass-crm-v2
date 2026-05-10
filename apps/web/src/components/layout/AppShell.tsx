@@ -157,8 +157,19 @@ export function AppShell({ children }: Props): JSX.Element {
 
   return (
     <div className="flex min-h-screen">
+      {/* Skip-to-content for keyboard users (visible only when focused). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+      >
+        Sari la conținutul principal
+      </a>
+
       {/* ── Sidebar (desktop) ─────────────────────────────────────────── */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col p-3 md:flex">
+      <aside
+        aria-label="Navigare principală"
+        className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col p-3 md:flex"
+      >
         <div className="glass-card flex h-full flex-col overflow-hidden">
           <Brand />
           <SidebarNav isAdmin={isAdmin} />
@@ -202,7 +213,13 @@ export function AppShell({ children }: Props): JSX.Element {
           onMenu={() => setDrawerOpen(true)}
           onSearch={() => setPaletteOpen(true)}
         />
-        <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 px-4 py-6 md:px-8 focus:outline-none"
+        >
+          {children}
+        </main>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Toaster />
@@ -545,7 +562,11 @@ function UserMenu({
         <ChevronDown size={14} className="hidden text-muted-foreground sm:inline" />
       </button>
       {open && (
-        <div className="glass-card glass-elev absolute right-0 top-12 z-50 w-60 overflow-hidden p-2">
+        <div
+          role="menu"
+          aria-label="Meniu utilizator"
+          className="glass-card glass-elev absolute right-0 top-12 z-50 w-60 overflow-hidden p-2"
+        >
           {user && (
             <div className="border-b border-border/70 px-3 py-2 text-sm">
               <div className="font-medium leading-tight">{user.fullName}</div>
