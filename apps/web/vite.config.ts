@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { visualizer } from 'rollup-plugin-visualizer';
 import { fileURLToPath, URL } from 'node:url';
+
+// Bundle analyzer is opt-in: ANALYZE=1 pnpm --filter @amass/web build
+// produces dist/stats.html with a tree-map of every chunk.
+const isAnalyze = process.env.ANALYZE === '1';
 
 /**
  * Dev setup:
@@ -10,7 +15,17 @@ import { fileURLToPath, URL } from 'node:url';
  *    in dev. The FE always talks to its own origin.
  */
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    isAnalyze &&
+      visualizer({
+        filename: 'dist/stats.html',
+        template: 'treemap',
+        gzipSize: true,
+        brotliSize: true,
+        open: false,
+      }),
+  ].filter(Boolean),
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
