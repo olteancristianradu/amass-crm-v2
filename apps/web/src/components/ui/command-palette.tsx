@@ -58,6 +58,11 @@ import {
 import { useAuthStore } from '@/stores/auth';
 import { searchApi, type ParsedIntent } from '@/features/search/api';
 import { cn } from '@/lib/cn';
+import {
+  PALETTE_ACTIONS,
+  PaletteActionForm,
+  type PaletteActionKey,
+} from './command-palette-actions';
 
 // ─── nav catalog ──────────────────────────────────────────────────────────
 
@@ -193,6 +198,10 @@ function PaletteBody({
   const [query, setQuery] = React.useState('');
   const [debounced, setDebounced] = React.useState('');
   const [highlightedRaw, setHighlighted] = React.useState(0);
+  // When set, the palette body switches from "search" view to "action" view —
+  // the input + results panel are replaced with a confirmation form. Setting
+  // back to null returns to search mode without re-mounting the palette.
+  const [actionMode, setActionMode] = React.useState<PaletteActionKey | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
 
@@ -236,6 +245,22 @@ function PaletteBody({
   // Build flat row list (used for keyboard nav).
   const rows = React.useMemo<FlatRow[]>(() => {
     const out: FlatRow[] = [];
+    // Quick-actions appear ONLY when the user hasn't typed anything yet —
+    // once they start a search, the palette is in nav-find mode and the
+    // actions would just dilute the results.
+    if (!query.trim()) {
+      for (const a of PALETTE_ACTIONS) {
+        out.push({
+          kind: 'nav',
+          id: `action:${a.key}`,
+          primary: a.label,
+          secondary: a.hint,
+          icon: a.icon,
+          group: 'Acțiuni rapide',
+          onSelect: () => setActionMode(a.key),
+        });
+      }
+    }
     for (const c of visibleNav) {
       out.push({
         kind: 'nav',
@@ -334,36 +359,46 @@ function PaletteBody({
       />
 
       <div className="glass-card glass-elev relative z-10 flex w-full max-w-xl flex-col overflow-hidden">
-        {/* Search input */}
-        <div className="flex items-center gap-3 border-b border-border/70 px-4 py-3">
-          <Search size={16} className="shrink-0 text-muted-foreground" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Caută pagini, companii, contacte…"
-            className="min-w-0 flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
-            autoComplete="off"
-            spellCheck={false}
+        {actionMode ? (
+          <PaletteActionForm
+            action={actionMode}
+            onDone={close}
+            onCancel={() => setActionMode(null)}
           />
-          <kbd className="hidden items-center gap-1 rounded-md border border-border/70 bg-secondary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:inline-flex">
-            esc
-          </kbd>
-        </div>
-
-        {/* Results */}
-        <div ref={listRef} className="max-h-[55vh] overflow-y-auto p-2">
-          <ResultGroups rows={rows} highlighted={highlighted} setHighlighted={setHighlighted} />
-
-          {rows.length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              {debounced.length >= 2 && remote.isPending
-                ? 'Se caută…'
-                : 'Niciun rezultat. Încearcă un alt termen.'}
+        ) : (
+          <>
+            {/* Search input */}
+            <div className="flex items-center gap-3 border-b border-border/70 px-4 py-3">
+              <Search size={16} className="shrink-0 text-muted-foreground" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Caută pagini, companii, contacte…"
+                className="min-w-0 flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <kbd className="hidden items-center gap-1 rounded-md border border-border/70 bg-secondary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:inline-flex">
+                esc
+              </kbd>
             </div>
-          )}
-        </div>
+
+            {/* Results */}
+            <div ref={listRef} className="max-h-[55vh] overflow-y-auto p-2">
+              <ResultGroups rows={rows} highlighted={highlighted} setHighlighted={setHighlighted} />
+
+              {rows.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  {debounced.length >= 2 && remote.isPending
+                    ? 'Se caută…'
+                    : 'Niciun rezultat. Încearcă un alt termen.'}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Footer hints */}
         <div className="flex items-center justify-between border-t border-border/70 bg-secondary/30 px-4 py-2 text-[11px] text-muted-foreground">
