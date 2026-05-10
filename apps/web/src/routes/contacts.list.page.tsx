@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { Contact2, Download, Plus, Search, Trash2 } from 'lucide-react';
+import { Download, Plus, Search, Trash2 } from 'lucide-react';
 import { contactsApi } from '@/features/contacts/api';
 import { CreateContactSchema, type CreateContactDto } from '@amass/shared';
 import { Button } from '@/components/ui/button';
@@ -164,7 +164,7 @@ export function ContactsListPage(): JSX.Element {
         <ListSurface data-tour="contacts-table">
           {rows.length === 0 ? (
             <EmptyState
-              icon={Contact2}
+              illustration={q ? 'no-results' : 'empty-list'}
               title={q ? 'Niciun contact găsit' : 'Niciun contact încă'}
               description={
                 q

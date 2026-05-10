@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { Plus, Search, Users } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { clientsApi } from '@/features/clients/api';
 import { CreateClientSchema, type CreateClientDto } from '@amass/shared';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,7 @@ export function ClientsListPage(): JSX.Element {
         <ListSurface>
           {rows.length === 0 ? (
             <EmptyState
-              icon={Users}
+              illustration={q ? 'no-results' : 'empty-list'}
               title={q ? 'Niciun client găsit' : 'Niciun client încă'}
               description={
                 q

@@ -84,27 +84,80 @@ export function Toolbar({
 }
 
 interface EmptyStateProps {
-  /** Lucide icon component (optional). */
+  /** Lucide icon component (optional). Mutually exclusive with `illustration`. */
   icon?: React.ComponentType<{ size?: number; className?: string }>;
+  /**
+   * Inline-SVG illustration variant. When set, replaces the small icon
+   * with a larger illustrated card. Variants are decorative only — keep
+   * page semantics in `title`/`description` for screen readers.
+   */
+  illustration?: 'empty-list' | 'no-results' | 'error';
   title: string;
   description?: ReactNode;
   /** Primary CTA — usually a Button. */
   action?: ReactNode;
 }
 
-export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps): JSX.Element {
+export function EmptyState({
+  icon: Icon,
+  illustration,
+  title,
+  description,
+  action,
+}: EmptyStateProps): JSX.Element {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
-      {Icon && (
-        <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-          <Icon size={22} />
-        </span>
+      {illustration ? (
+        <EmptyStateIllustration variant={illustration} />
+      ) : (
+        Icon && (
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+            <Icon size={22} />
+          </span>
+        )
       )}
       <p className="text-base font-medium text-foreground">{title}</p>
       {description && (
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
       )}
       {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+// Decorative-only inline SVGs. aria-hidden + role-less because the
+// title/description carry the meaning for screen readers.
+function EmptyStateIllustration({
+  variant,
+}: {
+  variant: NonNullable<EmptyStateProps['illustration']>;
+}): JSX.Element {
+  return (
+    <div className="mb-5 text-muted-foreground" aria-hidden="true">
+      {variant === 'empty-list' && (
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+          <rect x="20" y="28" width="80" height="64" rx="6" stroke="currentColor" strokeWidth="2" opacity="0.4" />
+          <line x1="32" y1="44" x2="76" y2="44" stroke="currentColor" strokeWidth="2" opacity="0.5" strokeLinecap="round" />
+          <line x1="32" y1="58" x2="88" y2="58" stroke="currentColor" strokeWidth="2" opacity="0.3" strokeLinecap="round" />
+          <line x1="32" y1="72" x2="68" y2="72" stroke="currentColor" strokeWidth="2" opacity="0.3" strokeLinecap="round" />
+          <circle cx="92" cy="86" r="14" fill="currentColor" opacity="0.08" />
+          <path d="M92 80v12M86 86h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
+        </svg>
+      )}
+      {variant === 'no-results' && (
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+          <circle cx="52" cy="52" r="26" stroke="currentColor" strokeWidth="2.5" opacity="0.5" />
+          <line x1="72" y1="72" x2="92" y2="92" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+          <path d="M44 52h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.7" />
+        </svg>
+      )}
+      {variant === 'error' && (
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none">
+          <path d="M60 22L100 90H20L60 22z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" opacity="0.5" />
+          <line x1="60" y1="50" x2="60" y2="68" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="60" cy="78" r="2" fill="currentColor" />
+        </svg>
+      )}
     </div>
   );
 }

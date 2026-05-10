@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { Building2, Download, Filter, Plus, Search, Trash2, X } from 'lucide-react';
+import { Download, Filter, Plus, Search, Trash2, X } from 'lucide-react';
 import { companiesApi } from '@/features/companies/api';
 import { tagsApi } from '@/features/tags/api';
 import { CreateCompanySchema, type CreateCompanyDto, type RelationshipStatus } from '@amass/shared';
@@ -241,7 +241,7 @@ export function CompaniesListPage(): JSX.Element {
         <ListSurface data-tour="companies-table">
           {rows.length === 0 ? (
             <EmptyState
-              icon={Building2}
+              illustration={q ? 'no-results' : 'empty-list'}
               title={q ? 'Nicio companie găsită' : 'Nicio companie încă'}
               description={
                 q
