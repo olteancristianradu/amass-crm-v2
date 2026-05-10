@@ -1,0 +1,11 @@
+User-agent: *
+# App is a private SaaS — disallow indexing of authenticated routes.
+# Marketing landing (/) is allowed for SEO when it lands.
+Disallow: /app
+Disallow: /api
+Disallow: /admin
+Disallow: /settings
+Disallow: /auth
+Allow: /
+
+Sitemap: /sitemap.xml
