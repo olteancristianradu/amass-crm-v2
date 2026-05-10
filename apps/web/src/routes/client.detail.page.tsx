@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Users } from 'lucide-react';
 import { clientsApi } from '@/features/clients/api';
 import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
+import { RelationshipHealthCard } from '@/features/entity-detail/RelationshipHealthCard';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
@@ -93,6 +94,7 @@ export function ClientDetailPage(): JSX.Element {
       }
     >
       <NextActionHeader entityType="CLIENT" entityId={id} />
+      <RelationshipHealthCard entityType="CLIENT" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CLIENT" subjectId={id} />}

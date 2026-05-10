@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Contact2 } from 'lucide-react';
 import { contactsApi } from '@/features/contacts/api';
 import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
+import { RelationshipHealthCard } from '@/features/entity-detail/RelationshipHealthCard';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
@@ -91,6 +92,7 @@ export function ContactDetailPage(): JSX.Element {
       }
     >
       <NextActionHeader entityType="CONTACT" entityId={id} />
+      <RelationshipHealthCard entityType="CONTACT" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CONTACT" subjectId={id} />}

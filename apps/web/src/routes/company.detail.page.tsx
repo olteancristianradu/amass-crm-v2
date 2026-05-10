@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Building2 } from 'lucide-react';
 import { companiesApi } from '@/features/companies/api';
 import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
+import { RelationshipHealthCard } from '@/features/entity-detail/RelationshipHealthCard';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { DetailField, DetailFields, DetailLayout, TabBar } from '@/components/ui/detail-layout';
 import { NotesTab } from '@/features/notes/NotesTab';
@@ -112,6 +113,7 @@ export function CompanyDetailPage(): JSX.Element {
       }
     >
       <NextActionHeader entityType="COMPANY" entityId={id} />
+      <RelationshipHealthCard entityType="COMPANY" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="COMPANY" subjectId={id} />}
