@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('pdf-parse', () => ({
-  // Minimal mock: returns whatever text we encoded into the fake buffer's
-  // string content. Tests pass a Buffer.from(text) and the mock yields
-  // that exact text back, plus numpages = 1.
-  default: vi.fn(async (b: Buffer) => ({
-    text: b.toString('utf8'),
-    numpages: 1,
+  // pdf-parse v2+ exports a `PDFParse` class — mock it accordingly so the
+  // adapter's `new mod.PDFParse({ data }).getText()` path works.
+  PDFParse: vi.fn().mockImplementation(({ data }: { data: Buffer }) => ({
+    getText: vi.fn(async () => ({ text: data.toString('utf8'), total: 1 })),
   })),
 }));
 

@@ -1,5 +1,6 @@
 import { CsvAdapter } from './csv.adapter';
 import { ExcelAdapter } from './excel.adapter';
+import { GestComAdapter } from './gestcom.adapter';
 import { PdfAdapter } from './pdf.adapter';
 import { SagaAdapter } from './saga.adapter';
 import { SmartBillAdapter } from './smartbill.adapter';
@@ -14,8 +15,10 @@ import type { ImporterAdapter } from './types';
  * status in its file header (see csv.adapter.ts as the reference shape).
  */
 // Order matters: more specific adapters first (SAGA matches `saga-*.csv`,
-// SmartBill matches `smartbill-*.xml`), then generic CSV/Excel, then PDF.
+// SmartBill matches `smartbill-*.xml`, GestCom matches gestcom-*.pdf), then
+// generic CSV/Excel, then PDF as the fallback for unhinted PDFs.
 export const REGISTERED_ADAPTERS: ImporterAdapter[] = [
+  new GestComAdapter(),
   new SagaAdapter(),
   new SmartBillAdapter(),
   new CsvAdapter(),

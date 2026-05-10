@@ -48,7 +48,7 @@ describe('importer adapter factory', () => {
   it('lists all registered adapters with stable ids', () => {
     const list = listAdapters();
     const ids = list.map((a) => a.id);
-    expect(ids).toEqual(['saga', 'smartbill', 'csv', 'excel', 'pdf']);
+    expect(ids).toEqual(['gestcom-pdf', 'saga', 'smartbill', 'csv', 'excel', 'pdf']);
     for (const adapter of list) {
       expect(adapter.label).toBeTruthy();
     }

@@ -36,29 +36,26 @@ export class PdfAdapter implements ImporterAdapter {
   async parse(buffer: Buffer): Promise<ParseResult> {
     const warnings: string[] = [];
 
-    // Dynamic import: pdf-parse pulls in heavy deps and we don't want
-    // them in the bundle until a PDF actually shows up. The dependency
-    // also has a side effect at require time (reads a sample file)
-    // that crashes if the package is in an unusual layout — dynamic
-    // import keeps this isolated to the call site.
-    let pdfParse: (b: Buffer) => Promise<{ text: string; numpages: number; info?: Record<string, unknown> }>;
+    // pdf-parse v2+ ships a `PDFParse` class (no callable default).
+    // Dynamic import keeps the lib out of the cold-start path so a
+    // server that never imports a PDF doesn't pay for it.
+    let text: string;
+    let numpages = 0;
     try {
       const mod = (await import('pdf-parse')) as unknown as {
-        default: typeof pdfParse;
+        PDFParse: new (init: { data: Buffer }) => {
+          getText(): Promise<{ text: string; total?: number; pages?: unknown[] }>;
+        };
       };
-      pdfParse = mod.default;
-    } catch (err) {
-      throw new Error(`PDF parser unavailable: ${(err as Error).message}`);
-    }
-
-    let parsed: Awaited<ReturnType<typeof pdfParse>>;
-    try {
-      parsed = await pdfParse(buffer);
+      const parser = new mod.PDFParse({ data: buffer });
+      const result = await parser.getText();
+      text = (result.text ?? '').trim();
+      numpages = result.total ?? result.pages?.length ?? 0;
     } catch (err) {
       throw new Error(`Failed to parse PDF: ${(err as Error).message}`);
     }
 
-    let text = (parsed.text ?? '').trim();
+    const parsed = { text, numpages };
     if (text.length < PdfAdapter.SCANNED_PDF_THRESHOLD_CHARS) {
       // Scanned PDF — attempt OCR via Gemini vision if API key is set.
       const ocrText = await ocrWithGemini(buffer);
