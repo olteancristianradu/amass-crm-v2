@@ -127,17 +127,23 @@ export class GestComAdapter implements ImporterAdapter {
  *   • Record N's body cannot bleed into Record N+1's block because the
  *     header line starts right after the previous body ends.
  */
-const RECORD_HEADER_RE =
-  /\b(?:RADIATOARE|INCALZIRE_PARDOSEALA)(?:[ _]RADIATOARE)?\s+(?:SITE|SMS|MAIL)\s+\d+\s+(?:CONTRACTATA|ANULATA|VALABILA)\s+[a-z][\w.-]+\s+[A-Z][A-Z\s-]+\s+(?:FUNDATIE|RENOVARE|CONSTRUCTIE|FINISAJE)\s+\d{2}\.\d{2}\.\d{4}/;
+// Record header anchor — the table-row line that starts each record:
+// `<APLICATIE> <SURSA> <SUPRAFATA> <SITUATIE> <agent> <JUDET> <STADIU> <DATE>`.
+// Kept as a literal with `/g` baked in so each splitIntoRecordBlocks call
+// gets a fresh lastIndex via matchAll. eslint's security/detect-non-literal-regexp
+// only allows literals — avoid the `new RegExp(...)` form.
+const RECORD_HEADER_RE_G =
+  /\b(?:RADIATOARE|INCALZIRE_PARDOSEALA)(?:[ _]RADIATOARE)?\s+(?:SITE|SMS|MAIL)\s+\d+\s+(?:CONTRACTATA|ANULATA|VALABILA)\s+[a-z][\w.-]+\s+[A-Z][A-Z\s-]+\s+(?:FUNDATIE|RENOVARE|CONSTRUCTIE|FINISAJE)\s+\d{2}\.\d{2}\.\d{4}/g;
 
 export function splitIntoRecordBlocks(text: string): string[] {
-  const headerRe = new RegExp(RECORD_HEADER_RE.source, 'g');
   // Walk through all header line positions. For each match, find the
   // start of the line ABOVE it (the slug line) and use that as the
   // record's start. The end is the next header's slug line start, or EOF.
+  // matchAll gives us a fresh iterator without sharing lastIndex state.
   const headerPositions: number[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = headerRe.exec(text)) !== null) headerPositions.push(m.index);
+  for (const match of text.matchAll(RECORD_HEADER_RE_G)) {
+    if (match.index !== undefined) headerPositions.push(match.index);
+  }
 
   if (headerPositions.length === 0) {
     // No table-row headers detected — fall back to Domeniu de utilizare
@@ -195,7 +201,10 @@ export function parseRecord(block: string): RawRow {
   const email = grab('Email', /\bEmail:[ \t]+(\S+@\S+)/);
   const telefon = grab('Telefon', /\bTelefon:[ \t]+(\+?\d[\d\s().-]{6,})/);
   const oras = grab('Oras', /^[ \t]*Oras:[ \t]+([^\n\r]+?)[ \t]*$/m);
-  const suprafataField = grab('Suprafata', /\bSuprafata:[ \t]+(\d+(?:\.\d+)?)/);
+  // Suprafata in GestCom is always an integer (no decimals observed in
+  // 808+ records). Keep the regex linear — eslint's safe-regex flags
+  // anything with nested quantifiers.
+  const suprafataField = grab('Suprafata', /\bSuprafata:[ \t]+(\d+)/);
 
   if (nume) row['Nume'] = nume;
   if (prenume) row['Prenume'] = prenume;
