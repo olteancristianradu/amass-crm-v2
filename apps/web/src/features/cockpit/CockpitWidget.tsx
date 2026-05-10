@@ -49,9 +49,9 @@ export function CockpitWidget({
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={() => { onDragEnd(); setGrabbed(false); }}
-      className={`rounded-2xl border bg-white/[0.02] p-5 backdrop-blur-md transition ${
-        isDragging ? 'border-cyan-400/40 opacity-50' : 'border-white/10'
-      } ${isDropTarget ? 'ring-2 ring-cyan-400/40' : ''}`}
+      className={`relative rounded-2xl border bg-white/[0.02] p-5 backdrop-blur-md transition-all duration-200 ease-out ${
+        isDragging ? 'scale-[0.98] border-cyan-400/50 opacity-60 shadow-2xl' : 'border-white/10'
+      } ${isDropTarget ? 'border-cyan-400/60 ring-2 ring-cyan-400/40 shadow-[0_0_24px_rgba(34,211,238,0.15)]' : ''}`}
       data-widget={widget}
     >
       <header className="mb-4 flex items-start justify-between gap-3">
@@ -62,7 +62,11 @@ export function CockpitWidget({
             onMouseUp={() => setGrabbed(false)}
             onMouseLeave={() => setGrabbed(false)}
             aria-label="Trage pentru reordonare"
-            className="mt-1 cursor-grab rounded-md p-1 text-white/40 transition hover:bg-white/5 hover:text-white active:cursor-grabbing"
+            aria-grabbed={grabbed}
+            title="Apasă și trage pentru reordonare"
+            className={`mt-1 cursor-grab rounded-md p-1 transition-all duration-150 hover:bg-white/10 active:cursor-grabbing active:scale-95 ${
+              grabbed ? 'bg-white/10 text-cyan-300' : 'text-white/40 hover:text-white'
+            }`}
           >
             <GripVertical className="h-4 w-4" />
           </button>
