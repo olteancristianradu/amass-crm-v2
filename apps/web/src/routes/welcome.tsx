@@ -146,14 +146,15 @@ function StepWelcome({ onNext, userName }: { onNext: () => void; userName: strin
         <h1 className="text-2xl font-bold">Bine ai venit{userName ? `, ${userName.split(' ')[0]}` : ''}!</h1>
       </div>
       <p className="text-muted-foreground leading-relaxed">
-        AMASS CRM e gata de folosit. În următorii 2 minute, îți arăt cele mai importante
-        capabilități și îți dau opțiunea să adaugi date de demo ca să poți explora rapid.
+        Hai să faci cunoștință cu AMASS CRM în mai puțin de 2 minute. Îți arăt
+        ce poți face aici și, dacă vrei, îți pun la dispoziție câteva date de
+        exemplu ca să te poți juca cu aplicația imediat.
       </p>
       <ul className="space-y-2 text-sm">
-        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> Multi-tenant cu izolare la 3 straturi (RLS Postgres + Cedar + audit)</li>
-        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> Voice intelligence (transcripție + AI summary apeluri)</li>
-        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> ANAF e-Factura built-in (UBL 2.1)</li>
-        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> GDPR-ready (consent tracking, audit log append-only)</li>
+        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> Companii, contacte și clienți într-un singur loc</li>
+        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> Apeluri transcrise automat și sumarizate de AI</li>
+        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> Facturi e-Factura conforme ANAF, generate cu un click</li>
+        <li className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" /> Conform GDPR — date izolate per cont, consimțăminte trasabile</li>
       </ul>
       <div className="flex justify-end pt-4">
         <Button onClick={onNext}>Începem →</Button>
@@ -165,14 +166,38 @@ function StepWelcome({ onNext, userName }: { onNext: () => void; userName: strin
 function StepFeatures({ onNext, onBack }: { onNext: () => void; onBack: () => void }): JSX.Element {
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Capabilitățile principale</h2>
+      <h2 className="text-xl font-semibold">Ce poți face cu AMASS CRM</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FeatureCard icon={Building2} title="Companii & Contacte" body="Gestionează firme și persoane cu istoric complet, embeddinguri AI pentru căutare semantică și polymorphic notes/reminders." />
-        <FeatureCard icon={Users} title="Pipeline Deal-uri" body="Kanban drag-and-drop pe etape configurabile. Probabilități de win, valori multi-currency, închidere automată." />
-        <FeatureCard icon={PhoneCall} title="Apeluri & Voice AI" body="Twilio + Whisper transcripție RO + Claude summary 3-puncte. Redactare PII automată cu Presidio (opt-in)." />
-        <FeatureCard icon={Sparkles} title="Cmd-K Intent" body="Tastează ce vrei într-un text box (ex: «sună Acme mâine»), AI parsează în acțiune concretă cu draft pre-completat." />
-        <FeatureCard icon={Zap} title="Workflows" body="Trigger pe events (deal_won, contact_created etc) → acțiuni automate (email, task, webhook outbound)." />
-        <FeatureCard icon={Database} title="Audit & GDPR" body="Audit log append-only la nivel DB. Right to erasure (anonimizare), portabilitate (JSON export), consent granular." />
+        <FeatureCard
+          icon={Building2}
+          title="Companii și contacte"
+          body="Toate firmele și persoanele tale, cu istoric complet de discuții, note și taskuri. Caută rapid după nume, telefon sau ce-ai discutat ultima dată."
+        />
+        <FeatureCard
+          icon={Users}
+          title="Pipeline de vânzări"
+          body="Kanban cu drag-and-drop pe etapele tale. Vezi imediat ce e aproape de închidere și ce a rămas în standby."
+        />
+        <FeatureCard
+          icon={PhoneCall}
+          title="Apeluri inteligente"
+          body="Suni dintr-un click. La sfârșit găsești transcrierea apelului și un rezumat în 3 puncte, gata de citit."
+        />
+        <FeatureCard
+          icon={Sparkles}
+          title="Comandă rapidă (Cmd+K)"
+          body={'Scrii ce vrei să faci („sună Acme mâine la 10") și AI-ul te duce direct la acțiune, cu detaliile pre-completate.'}
+        />
+        <FeatureCard
+          icon={Zap}
+          title="Automatizări"
+          body="Setezi reguli simple — când câștigi un deal, se trimite mulțumire pe email. Când apare un contact nou, se programează un follow-up."
+        />
+        <FeatureCard
+          icon={Database}
+          title="Audit și GDPR"
+          body="Tot ce se întâmplă în CRM este înregistrat. Poți șterge sau exporta datele unui client la cerere, în câteva click-uri."
+        />
       </div>
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={onBack}>← Înapoi</Button>
@@ -208,37 +233,37 @@ function StepSampleData({
 }): JSX.Element {
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Date de demo (opțional)</h2>
+      <h2 className="text-xl font-semibold">Date de exemplu (opțional)</h2>
       <p className="text-muted-foreground text-sm leading-relaxed">
-        Dacă vrei să explorezi imediat fără să introduci date manual, pot adăuga
-        <strong> 30 de companii, ~50 de contacte și ~20 de deal-uri</strong> demo
-        scoped la tenant-ul tău. Datele sunt clar marcate (RO99000001+) ca să le poți
-        identifica ulterior. Vor fi vizibile în liste alături de datele tale reale.
+        Vrei să te uiți peste cum arată CRM-ul cu date înăuntru? Adaug{' '}
+        <strong>30 de companii, ~50 de contacte și ~20 de deal-uri</strong> de exemplu,
+        special pentru contul tău. Sunt marcate clar (CIF de tipul RO99000001) ca să le
+        recunoști oricând și să le poți șterge dintr-un click.
       </p>
 
       {sampleLoaded || sampleResult?.alreadyLoaded ? (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
           <CheckCircle2 className="size-5 text-emerald-500 inline mr-2" />
-          Datele de demo au fost deja încărcate.
+          Datele de exemplu sunt deja încărcate. Le găsești în Companii, Contacte și Deal-uri.
         </div>
       ) : sampleResult ? (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
           <CheckCircle2 className="size-5 text-emerald-500 inline mr-2" />
-          Adăugat: <strong>{sampleResult.companies}</strong> companii,{' '}
-          <strong>{sampleResult.contacts}</strong> contacte,{' '}
-          <strong>{sampleResult.deals}</strong> deal-uri.
+          Gata! Am adăugat <strong>{sampleResult.companies}</strong> companii,{' '}
+          <strong>{sampleResult.contacts}</strong> contacte și{' '}
+          <strong>{sampleResult.deals}</strong> deal-uri pentru tine.
         </div>
       ) : null}
 
       {sampleError ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Eroare la încărcare: {String((sampleError as Error).message ?? sampleError)}
+          Hopa, ceva n-a mers: {String((sampleError as Error).message ?? sampleError)}
         </div>
       ) : null}
 
       {!isOwner ? (
         <p className="text-xs text-muted-foreground italic">
-          Doar OWNER-ul tenant-ului poate încărca date de demo. Continuă fără pentru a finaliza tour-ul.
+          Doar proprietarul contului poate adăuga date de exemplu. Tu poți merge mai departe — ai acces complet la celelalte funcționalități.
         </p>
       ) : null}
 
@@ -247,10 +272,10 @@ function StepSampleData({
         <div className="flex gap-2">
           {isOwner && !sampleLoaded && !sampleResult ? (
             <Button variant="outline" onClick={onLoadSample} disabled={loadingSample}>
-              {loadingSample ? <><Loader2 className="size-4 animate-spin mr-2" />Se încarcă…</> : 'Încarcă date demo'}
+              {loadingSample ? <><Loader2 className="size-4 animate-spin mr-2" />Se încarcă…</> : 'Adaugă date de exemplu'}
             </Button>
           ) : null}
-          <Button onClick={onNext}>{sampleLoaded || sampleResult ? 'Continuă →' : 'Sari peste'}</Button>
+          <Button onClick={onNext}>{sampleLoaded || sampleResult ? 'Continuă →' : 'Sari peste pasul ăsta'}</Button>
         </div>
       </div>
     </div>
@@ -273,18 +298,18 @@ function StepFinish({
         <h2 className="text-2xl font-bold">Gata!</h2>
       </div>
       <p className="text-muted-foreground leading-relaxed">
-        Ești pregătit să folosești AMASS CRM. Apăsând <strong>„Finalizează"</strong>, marchezi
-        onboarding-ul ca terminat și mergi direct la dashboard.
+        Atât a fost! Apasă <strong>„Finalizează"</strong> și te trimit direct la
+        dashboard. Poți reveni oricând la acest tour din meniul de ajutor.
       </p>
       <ul className="space-y-2 text-sm text-muted-foreground">
-        <li>📍 <strong>Dashboard</strong> e prima ta destinație — vezi KPI-uri în timp real.</li>
-        <li>📍 <strong>Cmd-K</strong> oriunde îți deschide command palette cu AI intent parsing.</li>
-        <li>📍 <strong>Setări</strong> găsești config-uri pentru email, telefon, calendar, billing.</li>
+        <li>📍 <strong>Dashboard</strong> îți arată cum stai — apeluri, deal-uri, taskuri și venituri pe ultima perioadă.</li>
+        <li>📍 <strong>Cmd+K</strong> îți deschide căutarea rapidă oriunde — caută clienți sau scrie ce vrei să faci.</li>
+        <li>📍 <strong>Setări</strong> e locul în care îți conectezi emailul, telefonul, calendarul și facturarea.</li>
       </ul>
       {completeError ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Eroare: {String((completeError as Error).message ?? completeError)}
-          {!isOwner ? <p className="mt-2 text-xs">Notă: doar OWNER-ul tenant-ului poate finaliza wizard-ul.</p> : null}
+          N-a mers: {String((completeError as Error).message ?? completeError)}
+          {!isOwner ? <p className="mt-2 text-xs">Doar proprietarul contului poate finaliza tour-ul. Cere-i OWNER-ului să apese „Finalizează".</p> : null}
         </div>
       ) : null}
       <div className="flex justify-between pt-4">
