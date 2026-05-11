@@ -142,6 +142,39 @@ ${'Padding text to cross the 200-char threshold. '.repeat(10)}`;
     expect(result.rows).toEqual([]);
     expect(result.warnings.join(' ')).toMatch(/no.*records.*detected/i);
   });
+
+  it('recovers records that omit the "Domeniu de utilizare:" line', async () => {
+    // Real GestCom exports sometimes skip the Domeniu line — only the
+    // contact form fields appear (Andine Justinian example). The
+    // splitter falls back on orphan-Nume anchors.
+    const noDomeniu = `Andine Justinian - constanta (2)
+RADIATOARE SITE 100 ANULATA radu.oltean CONSTANTA RENOVARE 31.01.2025 -
+a blocat apelurile,lucrarea anulata
+casa 100 mp
+ct gaz+radiatoare si in baie are incalzire in pardoseala.
+Nume: Andone
+Prenume: Justinian
+Email: justi_33@yahoo.com
+Telefon: 0722392497
+Suprafata: 100
+Oras: Constanta
+Sologon Sorin - Botosani (3)
+RADIATOARE SITE 200 VALABILA radu.oltean BOTOSANI RENOVARE 22.10.2025 -
+Domeniu de utilizare: AMASS.RO
+Nume: SOLOGON
+Prenume: Sorin
+Email: Sologon.sorin1967@gmail.com
+Telefon: 0741177157
+Suprafata: 200
+Oras: BOTOȘANI
+${'padding to cross 200-char min text gate. '.repeat(3)}`;
+    const result = await adapter.parse(Buffer.from(noDomeniu));
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0]!['Nume']).toBe('Andone');
+    expect(result.rows[0]!['Email']).toBe('justi_33@yahoo.com');
+    expect(result.rows[1]!['Nume']).toBe('SOLOGON');
+    expect(result.rows[1]!['Email']).toBe('Sologon.sorin1967@gmail.com');
+  });
 });
 
 describe('GestCom parser helpers', () => {

@@ -127,7 +127,7 @@ export class GestComAdapter implements ImporterAdapter {
  *   • Record N's body cannot bleed into Record N+1's block because the
  *     header line starts right after the previous body ends.
  */
-// Record header anchor — the table-row line that starts each record:
+// Record header anchor — the table-row line for each record:
 // `<APLICATIE> <SURSA> <SUPRAFATA> <SITUATIE> <agent> <JUDET> <STADIU> <DATE>`.
 // Kept as a literal with `/g` baked in so each splitIntoRecordBlocks call
 // gets a fresh lastIndex via matchAll. eslint's security/detect-non-literal-regexp
@@ -135,45 +135,102 @@ export class GestComAdapter implements ImporterAdapter {
 const RECORD_HEADER_RE_G =
   /\b(?:RADIATOARE|INCALZIRE_PARDOSEALA)(?:[ _]RADIATOARE)?\s+(?:SITE|SMS|MAIL)\s+\d+\s+(?:CONTRACTATA|ANULATA|VALABILA)\s+[a-z][\w.-]+\s+[A-Z][A-Z\s-]+\s+(?:FUNDATIE|RENOVARE|CONSTRUCTIE|FINISAJE)\s+\d{2}\.\d{2}\.\d{4}/g;
 
+// Anchor at the OBSERVATII column header — exactly one occurrence per
+// record. Reliable because pdf-parse text-extraction can reorder the
+// table-row HEADER (slug + APLICATIE + ...) vs the OBSERVATII fields
+// across page breaks (the OBSERVATII column extends down further than
+// the left-side cells, so its text often appears AHEAD of the
+// table-row header for the same record).
+const DOMENIU_RE_G = /Domeniu de utilizare:/g;
+
+// "Nume: " with a non-empty value on the same line. Catches contact-form
+// rows where the export skipped the "Domeniu de utilizare:" prefix.
+// The leading look-behind avoids matching "Prenume:".
+const NUME_FIELD_RE_G = /(?<![A-Za-z])Nume:[ \t]+\S[^\n\r]*/g;
+
 export function splitIntoRecordBlocks(text: string): string[] {
-  // Walk through all header line positions. For each match, find the
-  // start of the line ABOVE it (the slug line) and use that as the
-  // record's start. The end is the next header's slug line start, or EOF.
-  // matchAll gives us a fresh iterator without sharing lastIndex state.
-  const headerPositions: number[] = [];
-  for (const match of text.matchAll(RECORD_HEADER_RE_G)) {
-    if (match.index !== undefined) headerPositions.push(match.index);
+  const domeniuPositions: number[] = [];
+  for (const m of text.matchAll(DOMENIU_RE_G)) {
+    if (m.index !== undefined) domeniuPositions.push(m.index);
   }
 
-  if (headerPositions.length === 0) {
-    // No table-row headers detected — fall back to Domeniu de utilizare
-    // anchoring (less precise but still recovers contact fields).
-    return text
-      .split(/(?=Domeniu de utilizare:)/g)
-      .filter((b) => b.trim().length > 0 && /\bNume:[ \t]/.test(b));
+  // Supplement: records like "Andine Justinian" in the real GestCom
+  // export skip the "Domeniu de utilizare:" line entirely. For each
+  // Nume: position, check whether a Domeniu anchor sits CLOSELY BEFORE
+  // it (within 100 chars — matches "Domeniu de utilizare: AMASS.RO\n"
+  // immediately followed by Nume:). If not, this Nume is the actual
+  // record anchor (the export skipped Domeniu).
+  const orphanNume: number[] = [];
+  for (const m of text.matchAll(NUME_FIELD_RE_G)) {
+    if (m.index === undefined) continue;
+    const before = domeniuPositions.filter((p) => p < m.index!).pop();
+    if (before === undefined || m.index - before > 100) {
+      orphanNume.push(m.index);
+    }
+  }
+  const anchors = [...domeniuPositions, ...orphanNume].sort((a, b) => a - b);
+
+  if (anchors.length === 0) {
+    // No anchor at all — likely an image-only PDF. Return nothing.
+    return [];
   }
 
-  const slugStartFor = (headerPos: number): number => {
-    // Walk backwards from headerPos to find the previous line's start.
-    // The slug sits on its own line immediately above the header.
-    let i = headerPos - 1;
-    // Skip the newline(s) immediately before the header.
-    while (i >= 0 && (text[i] === '\n' || text[i] === '\r')) i--;
-    // Walk back to the start of that line.
-    while (i >= 0 && text[i] !== '\n' && text[i] !== '\r') i--;
-    return i + 1;
-  };
+  // For each anchor, look BACK for the most recent table-row header
+  // (RECORD_HEADER_RE_G match). If one sits within a reasonable distance
+  // of the anchor AND no contact-field marker stands between the header
+  // and the anchor, include the header in this record's block. Otherwise
+  // the block starts at the anchor itself. This handles both:
+  //   - Synthetic test fixtures: header is immediately above "Domeniu…"
+  //   - Real PDFs: pdf-parse reads OBSERVATII before the table-row
+  //     header, so the header sits AFTER "Domeniu…" (already inside the
+  //     forward span — no look-back needed).
+  const tableHeaderPositions: number[] = [];
+  for (const m of text.matchAll(RECORD_HEADER_RE_G)) {
+    if (m.index !== undefined) tableHeaderPositions.push(m.index);
+  }
 
+  // For each anchor i, find the largest tableHeaderPositions value that
+  // is < anchor[i] and > anchor[i-1] (or 0). That's "the header from
+  // this record's left-column block, rendered before its observatii".
   const blocks: string[] = [];
-  for (let i = 0; i < headerPositions.length; i++) {
-    const start = slugStartFor(headerPositions[i]!);
-    const end =
-      i + 1 < headerPositions.length
-        ? slugStartFor(headerPositions[i + 1]!)
-        : text.length;
+  for (let i = 0; i < anchors.length; i++) {
+    const anchor = anchors[i]!;
+    const prevAnchor = i === 0 ? 0 : anchors[i - 1]!;
+    // Largest table-header position < anchor and > prevAnchor.
+    let candidate = -1;
+    for (const hp of tableHeaderPositions) {
+      if (hp > prevAnchor && hp < anchor) candidate = Math.max(candidate, hp);
+      else if (hp >= anchor) break;
+    }
+    // Look-back start: the header position if found close enough, else
+    // the anchor itself. Cap distance at 200 chars so we don't pull in
+    // previous-record tail data when the records are tightly packed.
+    let start = anchor;
+    if (candidate >= 0 && anchor - candidate <= 200) {
+      // Walk back from `candidate` to the START of its line (so we
+      // include the slug line above the header too).
+      let i2 = candidate;
+      while (i2 > prevAnchor && text[i2] !== '\n' && text[i2] !== '\r') i2--;
+      // One line up — the slug line.
+      let i3 = i2 - 1;
+      while (i3 > prevAnchor && (text[i3] === '\n' || text[i3] === '\r')) i3--;
+      while (i3 > prevAnchor && text[i3] !== '\n' && text[i3] !== '\r') i3--;
+      start = Math.max(prevAnchor, i3 + 1);
+    }
+
+    const end = i + 1 < anchors.length ? anchors[i + 1]! : text.length;
     blocks.push(text.slice(start, end));
   }
   return blocks.filter((b) => /(?<![A-Za-z])Nume:/.test(b));
+}
+
+/**
+ * Page-break detector — used by tests + the warning path to confirm
+ * we still find table-row headers across the whole document even when
+ * they're no longer the split anchor.
+ */
+export function countTableRowHeaders(text: string): number {
+  return Array.from(text.matchAll(RECORD_HEADER_RE_G)).length;
 }
 
 /**
