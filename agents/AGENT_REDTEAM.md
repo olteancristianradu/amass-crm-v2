@@ -78,7 +78,7 @@ After each session:
 
 1. Update `SECURITY_FINDINGS.md` with new findings (severity, evidence, status, fix plan).
 2. If you wrote regression tests, commit them with `test(security): add regression for SEC-N`.
-3. Update `STATUS.md` with which categories you ran this session.
+3. Append a `CHANGELOG.md` entry naming the categories you ran this session + any findings opened or closed.
 4. Hand off open findings to AGENT_BACKEND.md (or fix yourself if scope is narrow).
 
 ## Hard rules

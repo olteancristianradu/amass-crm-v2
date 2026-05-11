@@ -4,6 +4,25 @@ All notable changes to AMASS CRM are documented here. Format roughly follows [Ke
 
 ## [Unreleased]
 
+### Added (2026-05-10 / 2026-05-11 — D-task sweep)
+
+- **Entity 360 relationship health** (`feat(entity360)` `13faa8c`): new `/entity-health/:type/:id` endpoint returning a 0–100 score, per-signal breakdown, and a Romanian one-sentence summary. New `RelationshipHealthCard` (SVG dial + 4 signal tiles) mounted on company/contact/client detail pages. No LLM calls on the hot path.
+- **Command Palette quick actions** (`feat(cmdk)` `83b3a8a`): three new "Acțiuni rapide" — Adaugă task / Înregistrează apel / Trimite email — open inline confirmation forms inside the Cmd-K modal; audit log entries are created automatically by the underlying controllers.
+- **GestCom PDF importer** (`feat(importer)` `38b265f`): adapter for `gestcom.ro/<tenant>/lucrari` PDF exports. Splits the table-row anchor, extracts contact identity (Nume/Prenume/Email/Telefon/Oras/Suprafata) plus GestCom-specific metadata (situatie, judet, stadiu, data_decizie, observatii). Activates only when filename contains `gestcom|lucrari|amass-export`. Also fixes a hidden `pdf-parse` v2 API breaking change in the generic `PdfAdapter`.
+- **Illustrated EmptyState** (`feat(ui)` `cb427c4`): 3 inline-SVG variants (`empty-list` / `no-results` / `error`) replace the icon badge on companies, contacts, clients list pages.
+- **Bundle analyzer** (`chore(web)` `bf7dab2`): `pnpm build:analyze` (or `ANALYZE=1 vite build`) produces `dist/stats.html` via rollup-plugin-visualizer.
+- **PWA browser smoke** (`test(web)` `a036948`): `pwa-smoke.e2e.ts` verifies manifest + icons + sw.js + robots.txt + meta tags on any deployed URL. `pnpm e2e:smoke` runs only the smoke files. Docs in `apps/web/e2e/README.md`.
+- **Service worker unit test** (`test(web)` `3f81d96`): runs `public/sw.js` in a vm sandbox with mocked Cache API to verify the 4 routing rules (cache-first assets, network-first HTML, network-only `/api/*`, CLEAR_CACHES logout flow).
+- **+20 unit specs** (`test(api)` `12055bf`): `OutlookEmailService` (OAuth CSRF/replay defenses), `ai/SearchService`, `JwtAuthGuard` (NO_TOKEN / INVALID_TOKEN / TOKEN_REVOKED / TENANT_SUSPENDED paths). Suite total now **1087** API tests across 108 files.
+
+### Changed (2026-05-10 / 2026-05-11)
+
+- **Onboarding wizard copy** (`feat(ui)` `5c2f453`): replaced dev jargon (RLS / Cedar / Whisper / Presidio / UBL) with plain-Romanian user benefits across all 4 wizard steps.
+- **Cockpit drag-drop polish** (`feat(ui)` `0bc0d73`): scale + shadow + cyan glow on drag and drop targets; grip handle highlights when grabbed.
+- **A11y** (`feat(a11y)` `a587b30`): skip-to-content link, `<main id="main-content">`, `aria-label` on sidebar, `role="menu"` on UserMenu dropdown.
+- **Favicon + SEO** (`feat(web)` `f93d16f`): voice-wave accent on the `A` mark, OpenGraph + Twitter meta tags, `lang="ro"`, `robots.txt`.
+- **Docs hygiene** (2026-05-11): removed point-in-time snapshot files (`STATUS.md`, `TEST_REPORT.md`, `UNFINISHED.md`, `docs/UNFINISHED.md`, `docs/SESSION_REPORT_2026-04-28.md`, `docs/VERIFICATION_REPORT_2026-04-28.md`, `LAUNCH_CHECKLIST.md`). `CHANGELOG.md` + `git log` are the cross-session history; `RELEASE_CHECKLIST.md` is the live launch gate. Agent prompts (`AGENTS.md`, `agents/*.md`) updated to match.
+
 ### Security
 
 - SEC-004: RLS deny-by-default when tenant context is missing — migration `20260504065000_rls_deny_missing_tenant` (`4415c21`)

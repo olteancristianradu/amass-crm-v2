@@ -135,8 +135,8 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
 - Symptom: `STATUS.md` contained many older claims about test counts, coverage, modules, and launch readiness that could be misread as verified today.
 - Root cause: project status docs accumulated useful history without a current-session truth block at the top.
 - Fix: add a current-session audit section and explicitly label older content as historical unless rechecked.
-- Prevention rule: always separate current verification from historical context in `STATUS.md`, `TEST_REPORT.md`, and final reports.
-- Related files: `STATUS.md`, `TEST_REPORT.md`, `AGENTS.md`
+- Prevention rule: every status doc must distinguish current verification from historical claims. (As of 2026-05-11 those snapshot docs — `STATUS.md`, `TEST_REPORT.md`, `UNFINISHED.md`, `LAUNCH_CHECKLIST.md` — were removed because they degraded into the same trap. Use `CHANGELOG.md` + `git log` for history and `RELEASE_CHECKLIST.md` for the live launch gate.)
+- Related files: `RELEASE_CHECKLIST.md`, `CHANGELOG.md`, `AGENTS.md`
 - Related tests: not applicable; documentation/process change
 
 ## Historical Entries

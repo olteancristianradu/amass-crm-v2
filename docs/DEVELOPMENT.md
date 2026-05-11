@@ -8,7 +8,7 @@ CRM multi-tenant B2B+B2C cu voice intelligence (apeluri transcrise, rezumate AI,
 
 > Pentru manualul utilizatorului final (conducere companie), vezi **[README-CEO.md](./README-CEO.md)**.
 > Pentru catalogul tuturor funcțiilor vezi **[docs/FEATURES.md](./docs/FEATURES.md)**.
-> Pentru checklist-ul de launch vezi **[LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)**.
+> Pentru checklist-ul de launch vezi **[RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md)**.
 
 ---
 
@@ -255,8 +255,8 @@ amass-crm-v2/
 ├── .github/workflows/ci.yml
 ├── CLAUDE.md
 ├── LESSONS.md
-├── LAUNCH_CHECKLIST.md
-├── STATUS.md
+├── CHANGELOG.md
+├── RELEASE_CHECKLIST.md
 ├── README.md
 ├── README-CEO.md
 └── pnpm-workspace.yaml
@@ -583,7 +583,8 @@ Calendar sync = consent user individual; nu config global.
 - [LESSONS.md](./LESSONS.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/FEATURES.md](./docs/FEATURES.md)
-- [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md)
+- [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md)
+- [CHANGELOG.md](../CHANGELOG.md)
 
 ---
 

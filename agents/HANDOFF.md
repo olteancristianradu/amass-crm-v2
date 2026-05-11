@@ -1,23 +1,23 @@
 # Agent hand-off contract
 
-When agent A finishes a task and agent B (or a future you) picks up, **the only context that survives is what's written to the control docs**. Memory in a screen session does not transfer.
+When agent A finishes a task and agent B (or a future you) picks up, **the only context that survives is what's written down**. Memory in a screen session does not transfer.
 
 ## At end of every task
 
-1. **Update `STATUS.md`** — what changed, what's still true, what's now broken.
-2. **Update `UNFINISHED.md`** — close items you finished, open items you discovered.
-3. **Update `TEST_REPORT.md`** — exact commands run, exact pass/fail counts.
-4. **Update `SECURITY_FINDINGS.md`** — if you touched anything security-related.
-5. **Update `LESSONS.md`** — if you hit a non-obvious trap.
-6. **Update `RELEASE_CHECKLIST.md`** — if launch readiness changed.
-7. Commit + push to `main`.
-8. Verify: `git fetch origin && gh run list --limit 5` — CI must be green.
-9. Final sentence: *"Pushed `<sha>`. CI: <pass/fail/in_progress>. Health: <200/non-200>."*
+1. **Commit + push to `main`** with a Conventional-Commit message that documents the *why* and the *what*.
+2. **Update `CHANGELOG.md`** for any user-visible change.
+3. **Update `LESSONS.md`** if anything broke, surprised, or wasted time.
+4. **Update `RELEASE_CHECKLIST.md`** if launch readiness changed.
+5. **Update `SECURITY_FINDINGS.md`** if you touched anything security-related.
+6. Verify: `git fetch origin && gh run list --limit 5` — CI must be green.
+7. Final sentence: *"Pushed `<sha>`. CI: <pass/fail/in_progress>. Health: <200/non-200>."*
+
+History (what was done when, by whom) lives in `git log` and `CHANGELOG.md`. Don't try to maintain a separate "status snapshot" file — those age into traps within days. See `LESSONS.md` 2026-05-03 entry for the lesson learned.
 
 ## At start of every task
 
-1. Read `AGENTS.md` (the rules).
-2. Read all 6 control docs above.
+1. Read `AGENTS.md` (the rules) and `CLAUDE.md` (the project mandates).
+2. Read `CHANGELOG.md` recent entries + `LESSONS.md` to catch context.
 3. Run startup checks:
    ```bash
    git status --short
@@ -28,14 +28,14 @@ When agent A finishes a task and agent B (or a future you) picks up, **the only 
    docker ps | head
    ```
 4. State concretely: branch, ahead/behind, dirty?, Docker accessible?, GitHub accessible?
-5. Identify the next task from `UNFINISHED.md` (lowest open ID, not blocked).
+5. Identify the next task from open issues / `RELEASE_CHECKLIST.md` items / the user's request.
 6. **Stop and propose the ≤15-line plan.** Only proceed when approved (or, if the user explicitly said "work autonomously", proceed but report at end).
 
 ## What never goes into agent-to-agent comms
 
 - "I'll remember to..." (no, you won't — write it down)
 - "Last time we discussed..." (the next agent didn't have that conversation)
-- "I think the plan was..." (find it in `STATUS.md` or `UNFINISHED.md`)
+- "I think the plan was..." (read the commit message + `CHANGELOG.md` entry)
 - "It worked on my machine" (paste the command + output)
 
 ## Conflict resolution between agents
@@ -44,19 +44,11 @@ Two agents touching the same file:
 
 1. The agent that pushed first wins on `main`.
 2. The second agent rebases their work on top, resolves conflicts, retests.
-3. If a third agent comes in and finds the previous two contradict each other in `STATUS.md` or `UNFINISHED.md`, **stop** and surface the contradiction. Don't pick a side silently.
+3. If a third agent comes in and finds the previous two contradict each other in a commit message or doc entry, **stop** and surface the contradiction. Don't pick a side silently.
 
 ## Bouncing a task back to a different agent
 
-If you're AGENT_BACKEND and you find a UI issue mid-task, do **not** fix it yourself. Add an entry to `UNFINISHED.md` for AGENT_FRONTEND with:
-
-```markdown
-| ID | Task | Owner | Notes |
-|---|---|---|---|
-| FE-XXX | Fix X | AGENT_FRONTEND | discovered while doing BE-YYY; affects file Z:line N |
-```
-
-Then keep doing BE work. The next FE session picks it up from `UNFINISHED.md`.
+If you're AGENT_BACKEND and you find a UI issue mid-task, do **not** fix it yourself. Open a GitHub issue (or add a TODO in the relevant file with a `// TODO(AGENT_FRONTEND):` marker) and continue your BE work. The next FE session picks it up from there.
 
 ## Honesty rules — non-negotiable
 
@@ -72,17 +64,17 @@ Anti-patterns to refuse, even under pressure:
 - Skipping `pnpm test` because "the change is small"
 - Using `--no-verify` to bypass pre-commit hooks
 - Force-pushing to `main` (CLAUDE.md rule 7)
-- Marking `STATUS.md` as updated when you didn't run the verification commands listed in it
+- Marking `RELEASE_CHECKLIST.md` items complete without the listed verification commands
 
 ## Quickstart for a new agent session
 
 ```bash
 cd ~/amass-crm-v2
-cat AGENTS.md
-cat STATUS.md
-cat UNFINISHED.md
+cat AGENTS.md CLAUDE.md
+sed -n '1,80p' CHANGELOG.md
+sed -n '1,80p' LESSONS.md
 git fetch origin && git status --short && git rev-list --left-right --count HEAD...origin/main
 docker ps | head
 ```
 
-Now you have the same baseline every other agent has. Pick the lowest-ID open item from `UNFINISHED.md` and start.
+Now you have the same baseline every other agent has. Pick the next task from open issues / `RELEASE_CHECKLIST.md` / the user's request and start.

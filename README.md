@@ -23,7 +23,7 @@ Native ANAF e-Factura. GDPR by default. Multi-tenant with row-level security. Si
 > **Try it:** [https://affiliation-rated-tattoo-exports.trycloudflare.com](https://affiliation-rated-tattoo-exports.trycloudflare.com)
 > Demo tenant: `demo` · email: `admin@amass-demo.ro` · password: `AmassCRM2026!`
 >
-> ⚠️ The demo URL is a Cloudflare quick tunnel — it can rotate. Check the latest in [`STATUS.md`](./STATUS.md) if it doesn't load.
+> ⚠️ The demo URL is a Cloudflare quick tunnel — it can rotate. If it doesn't load, ping the maintainer for the current URL.
 
 ## Why it might matter to you
 
@@ -118,7 +118,7 @@ Current honest readiness:
 - Production deploy: 0% (no domain, no VPS, demo URL is a Cloudflare quick tunnel)
 - Real provider integrations: blocked on credentials
 
-Live status: [`STATUS.md`](./STATUS.md). What's left: [`UNFINISHED.md`](./UNFINISHED.md). Launch gate: [`RELEASE_CHECKLIST.md`](./RELEASE_CHECKLIST.md).
+Launch gate: [`RELEASE_CHECKLIST.md`](./RELEASE_CHECKLIST.md). Recent changes: [`CHANGELOG.md`](./CHANGELOG.md). Past mistakes worth remembering: [`LESSONS.md`](./LESSONS.md).
 
 ## Roadmap
 

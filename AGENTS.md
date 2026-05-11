@@ -27,11 +27,10 @@ At the start of every new session:
 
 1. Read:
    - `AGENTS.md`
-   - `STATUS.md`
-   - `UNFINISHED.md`
-   - `TEST_REPORT.md`
-   - `SECURITY_FINDINGS.md`
+   - `CLAUDE.md`
+   - recent entries in `CHANGELOG.md`
    - `LESSONS.md`
+   - `SECURITY_FINDINGS.md`
    - `RELEASE_CHECKLIST.md`
 
 2. Run or inspect:
@@ -143,23 +142,20 @@ Allowed post-push statuses:
 
 ## Required documentation after every task
 
-- `STATUS.md`: current truth, with verified / unverified / blocked percentage.
-- `UNFINISHED.md`: remaining work and blockers.
-- `TEST_REPORT.md`: exact tests and smoke checks run, with results.
-- `SECURITY_FINDINGS.md`: new, fixed, deferred, or disproven security findings.
+- `CHANGELOG.md`: every user-visible change goes here. This is the cross-session history substitute — `git log` and `CHANGELOG.md` together replace the per-session `STATUS.md` / `TEST_REPORT.md` / `UNFINISHED.md` snapshot files we used to keep (removed 2026-05-11; see `LESSONS.md`).
 - `LESSONS.md`: mistakes, traps, or project-specific discoveries that should not repeat.
+- `SECURITY_FINDINGS.md`: new, fixed, deferred, or disproven security findings.
 - `RELEASE_CHECKLIST.md`: launch/readiness state when it changes.
 
 ## Documentation update rules
 
 At the end of every task:
 
-- update `STATUS.md` with what changed
-- update `UNFINISHED.md` with remaining work
-- update `TEST_REPORT.md` with exact commands and results
+- update `CHANGELOG.md` for every user-visible change (one line under the unreleased section is fine — match existing style)
 - update `LESSONS.md` if a mistake, trap, or project-specific discovery occurred
 - update `SECURITY_FINDINGS.md` if a security issue was found, fixed, deferred, or disproven
 - update `RELEASE_CHECKLIST.md` if launch readiness changed
+- the commit message itself carries the *why*; don't duplicate it in a separate status file
 
 ## Anti-repeat rule
 
@@ -183,7 +179,7 @@ Use specialized sidecar agents when work can be split safely and verified indepe
 - runtime tester: Docker, health, smoke, browser/API checks
 - code implementer: focused patches with clear file ownership
 - junior implementer: narrow mechanical tasks under review
-- documentation writer: `STATUS.md`, `TEST_REPORT.md`, `UNFINISHED.md`, release notes
+- documentation writer: `CHANGELOG.md`, `docs/*`, `README*`, release notes
 - auditor/reviewer: contradictions, missing evidence, unverified claims
 - project manager/release owner: P0/P1/P2 plan, blockers, readiness gates
 - research agent: official docs/current internet research for provider-specific behavior

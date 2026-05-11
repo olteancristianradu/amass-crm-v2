@@ -3,8 +3,8 @@
 Last updated: 2026-05-05 22:00 EEST
 
 This is the **single authoritative launch gate** for AMASS CRM. The older
-`LAUNCH_CHECKLIST.md` is kept as historical S12/S13 reference but is
-deprecated; do not add new items there.
+`LAUNCH_CHECKLIST.md` was removed 2026-05-11 (its content was absorbed
+here months earlier).
 
 Do not mark production items complete unless they were verified in the
 current production/release context. Each item must reference an evidence
@@ -96,8 +96,8 @@ After push:
 - [ ] GitHub Actions checked, if available
 - [ ] if no CI, this is explicitly stated
 - [ ] demo URL health checked if runtime affected
-- [ ] `STATUS.md` updated
-- [ ] `TEST_REPORT.md` updated
+- [ ] `CHANGELOG.md` updated for user-visible changes
+- [ ] `LESSONS.md` updated if anything surprised or broke
 
 ## Current Readiness — 2026-05-05
 

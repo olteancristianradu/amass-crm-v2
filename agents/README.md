@@ -39,8 +39,10 @@ Detach with `Ctrl+A D`, reattach with `screen -r <name>`.
 
 When agent A finishes a task and agent B picks up:
 
-1. Agent A updates `STATUS.md`, `UNFINISHED.md`, `TEST_REPORT.md`, `SECURITY_FINDINGS.md`, `LESSONS.md` (per [`AGENTS.md`](../AGENTS.md)).
-2. Agent A commits and pushes to `main`.
-3. Agent B starts by reading those files (the [`AGENTS.md`](../AGENTS.md) "Required startup checklist") before any code change.
+1. Agent A commits + pushes to `main` with a Conventional-Commit message that explains the *why*.
+2. Agent A updates `CHANGELOG.md` for user-visible changes, `LESSONS.md` if anything broke or surprised, `SECURITY_FINDINGS.md` if security-relevant, `RELEASE_CHECKLIST.md` if launch-readiness changed.
+3. Agent B starts by reading the recent `CHANGELOG.md` + `LESSONS.md` entries and the [`AGENTS.md`](../AGENTS.md) "Required startup checklist" before any code change.
+
+See [`HANDOFF.md`](./HANDOFF.md) for the full contract.
 
 This way no agent needs to memorize what another did — the control docs are the truth.

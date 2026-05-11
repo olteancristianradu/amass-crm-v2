@@ -65,7 +65,7 @@ For security fixes, prefix with `fix(security):` and reference the SEC-N tracker
 ## What to work on
 
 - Open issues labeled `good first issue` or `help wanted`.
-- Anything in [`UNFINISHED.md`](./UNFINISHED.md) marked `open` and not `blocked`.
+- Items still open in [`RELEASE_CHECKLIST.md`](./RELEASE_CHECKLIST.md) (the launch gate).
 - Test coverage gaps — see modules without `.spec.ts` files.
 - Romanian-specific verticals (ANAF, eMag, Termene.ro integrations).
 

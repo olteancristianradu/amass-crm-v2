@@ -102,7 +102,7 @@ In order of fit:
 
 We can call ourselves "v1" when:
 
-- [ ] 100% of P0 in `UNFINISHED.md` is closed
+- [ ] 100% of "blocking for launch" items in `RELEASE_CHECKLIST.md` are closed
 - [ ] At least 3 paying customers
 - [ ] 99.5% uptime over rolling 30 days
 - [ ] CI green for ≥30 consecutive pushes

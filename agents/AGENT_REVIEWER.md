@@ -44,8 +44,10 @@ A structured review with these sections:
 - No premature abstractions (3 similar lines is better than a generic helper used once)
 
 ### Documentation
-- `STATUS.md`, `UNFINISHED.md`, `TEST_REPORT.md`, `SECURITY_FINDINGS.md`, `LESSONS.md` updated as appropriate?
-- README/CHANGELOG/FEATURES updated if the change is user-facing?
+- `CHANGELOG.md` updated for any user-visible change?
+- `LESSONS.md` entry added if anything broke, surprised, or wasted time?
+- `SECURITY_FINDINGS.md` updated if security-relevant?
+- `RELEASE_CHECKLIST.md` adjusted if launch-readiness changed?
 
 ## Verdict format
 

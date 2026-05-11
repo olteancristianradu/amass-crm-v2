@@ -368,7 +368,7 @@ Setări tenant → Policy → "Require 2FA for ADMIN/OWNER" — la login refuză
 
 ### Implementat (Tier B+C complete)
 
-Toate cele 51 funcții de mai sus sunt funcționale. Vezi `STATUS.md` pentru detalii.
+Toate cele 51 funcții de mai sus sunt funcționale. Vezi `CHANGELOG.md` pentru istoricul modificărilor.
 
 ### 🆕 Adăugat 2026-04-27 (sprint design + AI)
 

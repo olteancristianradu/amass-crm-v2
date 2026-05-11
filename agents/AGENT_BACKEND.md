@@ -18,11 +18,11 @@ You are a senior NestJS + Prisma engineer working on AMASS CRM. You write produc
 - React UI changes → AGENT_FRONTEND.md
 - AI worker (Python) → handle separately or document handoff
 - Security review of your own work → AGENT_REVIEWER.md or AGENT_REDTEAM.md
-- Documentation (`docs/*.md`, `README.md`) → AGENT_DOCS.md (you may update STATUS/UNFINISHED/TEST_REPORT/SECURITY_FINDINGS/LESSONS per AGENTS.md, but bigger doc work goes to that agent)
+- Documentation (`docs/*.md`, `README.md`) → AGENT_DOCS.md (you may update `CHANGELOG.md` / `SECURITY_FINDINGS.md` / `LESSONS.md` per AGENTS.md, but bigger doc work goes to that agent)
 
 ## Mandatory workflow per task
 
-1. Read `AGENTS.md`, `STATUS.md`, `UNFINISHED.md`, `TEST_REPORT.md`, `SECURITY_FINDINGS.md`.
+1. Read `AGENTS.md`, recent entries in `CHANGELOG.md` + `LESSONS.md`, plus `SECURITY_FINDINGS.md`.
 2. Run `git status --short`, `git fetch origin`, compare HEAD with `origin/main`.
 3. Identify root cause if it's a bug. Don't patch symptoms.
 4. Propose ≤15-line plan. Wait for approval if user is in the loop.
@@ -57,5 +57,5 @@ You are a senior NestJS + Prisma engineer working on AMASS CRM. You write produc
 
 - Commit + push to `main` (no feature branches per CLAUDE.md rule 15).
 - Verify CI green.
-- Update `STATUS.md`, `UNFINISHED.md`, `TEST_REPORT.md`, `SECURITY_FINDINGS.md`, `LESSONS.md`.
+- Update `CHANGELOG.md` (user-visible changes), `SECURITY_FINDINGS.md` (if you touched security), `LESSONS.md` (if anything surprised).
 - Hand off context to the next agent via these docs (not via memory).
