@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import * as Sentry from '@sentry/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import './styles.css';
@@ -8,13 +7,19 @@ import { router } from './router';
 import { queryClient } from './lib/queryClient';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Sentry: init before rendering. VITE_SENTRY_DSN is optional — no-op in dev.
+// Sentry: dynamic-imported only when VITE_SENTRY_DSN is set. Without
+// this, `import * as Sentry` would pull @sentry/react (~120KB gzip)
+// into the main bundle even on dev/local previews where the DSN is
+// absent. The init is fire-and-forget — captureException calls before
+// init returns will be queued by the SDK and re-emitted once it loads.
 if (import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN as string,
-    environment: import.meta.env.MODE,
-    integrations: [Sentry.browserTracingIntegration()],
-    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+  void import('@sentry/react').then((Sentry) => {
+    Sentry.init({
+      dsn: import.meta.env.VITE_SENTRY_DSN as string,
+      environment: import.meta.env.MODE,
+      integrations: [Sentry.browserTracingIntegration()],
+      tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+    });
   });
 }
 

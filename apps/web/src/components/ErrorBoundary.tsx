@@ -1,5 +1,4 @@
 import React from 'react';
-import * as Sentry from '@sentry/react';
 
 interface Props {
   children: React.ReactNode;
@@ -25,7 +24,17 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
     console.error('[ErrorBoundary]', error, info.componentStack);
-    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
+    // Dynamic import — keeps @sentry/react out of the main bundle. Only
+    // fetched when a render-time crash actually fires (rare). If the
+    // SDK never loaded (no DSN), the import resolves but Sentry.init
+    // never ran — captureException is a no-op then.
+    if (import.meta.env.VITE_SENTRY_DSN) {
+      void import('@sentry/react').then((Sentry) =>
+        Sentry.captureException(error, {
+          extra: { componentStack: info.componentStack },
+        }),
+      );
+    }
   }
 
   private handleReload = (): void => {
