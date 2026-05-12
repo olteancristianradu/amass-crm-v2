@@ -29,7 +29,7 @@
   },
   "pnpm": {
     "overrides": {
-      "protobufjs": ">=7.5.5",
+      "protobufjs": ">=8.0.2",
       "lodash": ">=4.17.23",
       "follow-redirects": ">=1.16.0",
       "js-yaml": ">=4.1.1",
