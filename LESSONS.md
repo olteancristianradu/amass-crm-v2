@@ -20,6 +20,16 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
 
 ## Entries
 
+### 2026-05-12 — Always `pnpm audit` after a bulk `pnpm update -r`; supply-chain attacks land via patch/minor too
+
+- Area: dependency management / supply-chain security
+- Symptom: routine "patch + minor updates" pulled `@tanstack/react-router@1.169.2` — a hair before two malicious sibling versions (`1.169.5`, `1.169.8`) published in the **same minor line** during the 2026-05-11 19:00 UTC TanStack supply-chain attack (CVE-2026-45321 / GHSA-g7cv-rxg3-hmpx). Even though our specific version was published outside the attack window, npm's advisory DB flags the whole `@tanstack/history` package range until they narrow it, which would have failed CI silently.
+- Root cause: trusting npm package identity by namespace alone. The TanStack/router CI's pull_request_target "Pwn Request" + Actions cache poisoning + OIDC token extraction let an attacker publish under the legitimate trusted-publisher binding. No signed/attested publishing in npm by default.
+- Fix: after every `pnpm update`, run `pnpm audit --prod --audit-level=high --json` BEFORE pushing. If a transitive shows up as a known supply-chain hit, verify the SPECIFIC installed version manually (find `node_modules/.pnpm/.../package.json` and grep for the `@tanstack/setup` optionalDep marker + look for `router_init.js` payload) before deciding to roll back or allowlist.
+- Prevention rule: CI's `dependency-audit` step is the line of defense. Don't downgrade `--audit-level` to silence noise; instead, add explicit numeric-ID entries to the allowlist with a Why: comment and a re-check date. Re-validate every allowlist entry monthly.
+- Related files: `.github/workflows/ci.yml` dependency-audit step, `.github/workflows/redteam-weekly.yml`, `SECURITY_FINDINGS.md` SEC-TANSTACK-2026-05-11.
+- Related tests: run `bash /tmp/audit-filter.sh`-style locally to confirm the allowlist filter excludes exactly what's intended.
+
 ### 2026-05-05 — GitHub Push Protection blocks literal secrets even in allowlist files
 
 - Area: ci / security / secret-scanning
