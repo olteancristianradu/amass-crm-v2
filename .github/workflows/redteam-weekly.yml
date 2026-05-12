@@ -34,8 +34,26 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Audit production deps for HIGH/CRITICAL
-        run: pnpm audit --prod --audit-level=high
+      - name: Audit production deps for HIGH/CRITICAL (with allowlist)
+        # Allowlist mirrors .github/workflows/ci.yml dependency-audit step.
+        # See that step for the rationale per ID.
+        run: |
+          set -o pipefail
+          ALLOWLIST='1118053'
+          OUT=$(pnpm audit --prod --audit-level=high --json || true)
+          REMAINING=$(echo "$OUT" | jq -r --arg list "$ALLOWLIST" '
+            .actions[]?.resolves[]?.id
+            | select(. != null)
+            | . as $id
+            | select(($list | split(",") | map(tonumber) | contains([$id])) | not)
+          ')
+          if [ -n "$REMAINING" ]; then
+            echo "::error::Unhandled HIGH/CRITICAL audit findings:"
+            echo "$REMAINING"
+            echo "$OUT" | jq .
+            exit 1
+          fi
+          echo "Audit clean (allowlisted IDs filtered: $ALLOWLIST)"
 
   rls-regression-baseline:
     name: RLS multi-tenant regression

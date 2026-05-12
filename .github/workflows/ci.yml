@@ -80,8 +80,36 @@ jobs:
       # only, so mid-severity advisories don't block the pipeline but still
       # appear in the logs.
       - run: pnpm install --frozen-lockfile
-      - name: Audit dependencies (high/critical only)
-        run: pnpm audit --prod --audit-level=high
+      - name: Audit dependencies (high/critical only, with allowlist)
+        # Allowlisted advisory IDs (npm registry numeric IDs). Each entry
+        # must have a Why: comment below explaining the false-positive
+        # rationale and a re-check date.
+        #
+        # 1118053 = GHSA-rmmr-r34h-pfm5 — @tanstack/history@1.161.6.
+        #   Why: published 2026-03-15, BEFORE the 2026-05-11 19:00 UTC
+        #   tanstack supply-chain attack (CVE-2026-45321). The advisory
+        #   marks "all versions" as vulnerable until npm's advisory DB
+        #   narrows the range. Our pinned router@1.168.23 + transitive
+        #   history@1.161.6 is verified clean (no `@tanstack/setup`
+        #   optional-dep marker, no `router_init.js` payload).
+        #   Re-check: 2026-06-01.
+        run: |
+          set -o pipefail
+          ALLOWLIST='1118053'
+          OUT=$(pnpm audit --prod --audit-level=high --json || true)
+          REMAINING=$(echo "$OUT" | jq -r --arg list "$ALLOWLIST" '
+            .actions[]?.resolves[]?.id
+            | select(. != null)
+            | . as $id
+            | select(($list | split(",") | map(tonumber) | contains([$id])) | not)
+          ')
+          if [ -n "$REMAINING" ]; then
+            echo "::error::Unhandled HIGH/CRITICAL audit findings:"
+            echo "$REMAINING"
+            echo "$OUT" | jq .
+            exit 1
+          fi
+          echo "Audit clean (allowlisted IDs filtered: $ALLOWLIST)"
       # OSV-Scanner covers transitive deps more aggressively than pnpm audit
       # (same advisory DB as GitHub Dependabot, runs offline against the
       # lockfile). Non-blocking for now — prints findings so we can triage.
