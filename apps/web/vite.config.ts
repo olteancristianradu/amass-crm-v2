@@ -50,6 +50,11 @@ export default defineConfig({
     },
   },
   build: {
+    // ES2022 target — esbuild 0.27+ no longer transforms async-iterator and
+    // private-field destructuring down to ES2020 (the older default vite
+    // "modules" target). All evergreen browsers from 2022+ support ES2022;
+    // the CRM is auth-gated B2B, no need for legacy support.
+    target: 'es2022',
     // Chunk size warning silenced — ~560KB main gzips to ~145KB, fine for an
     // auth-gated B2B CRM. Route-level lazy imports already cut the main
     // bundle meaningfully; aggressive vendor splitting breaks React
