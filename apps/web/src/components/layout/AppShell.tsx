@@ -15,6 +15,7 @@ import {
   Cog,
   Contact2,
   CreditCard,
+  Database,
   FileSpreadsheet,
   FileText,
   Files,
@@ -318,6 +319,7 @@ const SECTIONS: NavSection[] = [
       { to: '/app/invoices', label: 'Facturi', icon: Receipt },
       { to: '/app/projects', label: 'Proiecte', icon: Briefcase },
       { to: '/app/products', label: 'Produse', icon: Package },
+      { to: '/app/imports', label: 'Imports', icon: Database },
     ],
   },
   {
@@ -336,6 +338,7 @@ const ADMIN_SECTION: NavSection = {
     { to: '/app/settings/users', label: 'Utilizatori', icon: Users },
     { to: '/app/settings/approvals', label: 'Politici aprobare', icon: ClipboardList },
     { to: '/app/settings/custom-fields', label: 'Câmpuri custom', icon: Rows3 },
+    { to: '/app/settings/call-script', label: 'Script apel', icon: ListChecks },
     { to: '/app/settings/webhooks', label: 'Webhook-uri', icon: Webhook },
     { to: '/app/settings/billing', label: 'Facturare', icon: CreditCard },
     { to: '/app/email-settings', label: 'Setări email', icon: Mail },

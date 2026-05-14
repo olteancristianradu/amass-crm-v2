@@ -39,10 +39,12 @@ import { auditRoute } from './routes/audit';
 import { smsInboxRoute } from './routes/sms.inbox';
 import { exportsRoute } from './routes/exports';
 import { duplicatesRoute } from './routes/duplicates';
+import { importsRoute } from './routes/imports';
 import { reportBuilderRoute } from './routes/report-builder';
 import { whatsappInboxRoute } from './routes/whatsapp.inbox';
 import { productsRoute } from './routes/products.list';
 import { settingsCustomFieldsRoute } from './routes/settings.custom-fields';
+import { settingsCallScriptRoute } from './routes/settings.call-script';
 import { approvalsRoute } from './routes/approvals.list';
 import { calendarRoute } from './routes/calendar';
 import { settingsBillingRoute } from './routes/settings.billing';
@@ -116,10 +118,12 @@ const routeTree = rootRoute.addChildren([
     smsInboxRoute,
     exportsRoute,
     duplicatesRoute,
+    importsRoute,
     reportBuilderRoute,
     whatsappInboxRoute,
     productsRoute,
     settingsCustomFieldsRoute,
+    settingsCallScriptRoute,
     approvalsRoute,
     calendarRoute,
     settingsBillingRoute,

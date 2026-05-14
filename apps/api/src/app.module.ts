@@ -20,6 +20,7 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { ConsentsModule } from './modules/consents/consents.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
 import { CockpitModule } from './modules/cockpit/cockpit.module';
+import { CallScriptsModule } from './modules/call-scripts/call-scripts.module';
 import { EntityHealthModule } from './modules/entity-health/entity-health.module';
 import { ImporterModule } from './modules/importer/importer.module';
 import { DealsModule } from './modules/deals/deals.module';
@@ -209,6 +210,7 @@ import { resolveLogLevel } from './config/logging';
     ClientsModule,
     ImporterModule,
     CockpitModule,
+    CallScriptsModule,
     EntityHealthModule,
     NotesModule,
     OnboardingModule,

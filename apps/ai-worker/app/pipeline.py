@@ -23,6 +23,7 @@ from .config import settings
 from .transcription import transcribe
 from .redaction import redact
 from .summary import summarise
+from .script_compliance import evaluate_script
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,12 @@ async def process_call(job_data: dict[str, Any]) -> dict[str, Any]:
     # ── Step 5: Summarise ────────────────────────────────────────────────────
     ai_result = summarise(transcription["rawText"])
 
+    # ── Step 5b: Script-compliance evaluation (optional) ─────────────────────
+    # API enqueues the job with `scriptPoints` (list[str]) when the tenant
+    # has `defaultCallScript` set. Missing/empty → skip silently.
+    script_points = job_data.get("scriptPoints") or []
+    compliance = evaluate_script(transcription["rawText"], script_points) if script_points else None
+
     # ── Step 6: POST result to API ───────────────────────────────────────────
     # Strip None values inside segments — Zod's optional() rejects null;
     # only undefined / missing key passes. Without this, stub mode's
@@ -164,6 +171,8 @@ async def process_call(job_data: dict[str, Any]) -> dict[str, Any]:
         "recordingStorageKey": recording_storage_key,
         "recordingMimeType": "audio/mpeg" if recording_storage_key else None,
         "recordingSizeBytes": len(audio_bytes) if audio_bytes else None,
+        "scriptComplianceScore": compliance.get("score") if compliance else None,
+        "scriptMissedItems": compliance.get("missed") if compliance else None,
     }
     # Strip None values so Zod doesn't complain about unexpected nulls
     payload = {k: v for k, v in payload.items() if v is not None}

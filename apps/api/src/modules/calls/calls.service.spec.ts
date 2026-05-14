@@ -37,10 +37,14 @@ function build(opts: { signatureValid?: boolean } = {}) {
   // fighting Prisma's generated types.
   const prismaPhone = { findFirst: vi.fn() };
   const prismaCall = { findFirst: vi.fn() };
+  const prismaTenant = {
+    findUnique: vi.fn().mockResolvedValue({ defaultCallScript: null }),
+  };
   const prisma = {
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
     phoneNumber: prismaPhone,
     call: prismaCall,
+    tenant: prismaTenant,
   } as unknown as ConstructorParameters<typeof CallsService>[0];
   const twilio = {
     createCall: vi.fn().mockResolvedValue({ sid: 'CA123' }),

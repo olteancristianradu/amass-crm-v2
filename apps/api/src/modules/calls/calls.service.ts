@@ -367,12 +367,24 @@ export class CallsService {
       }),
     );
 
+    // Load the tenant's default call script (if any) so the AI worker can
+    // run script-compliance evaluation in the same job. NULL field = feature
+    // disabled for the tenant; pass empty array → worker skips evaluation.
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: existing.tenantId },
+      select: { defaultCallScript: true },
+    });
+    const scriptPoints = Array.isArray(tenant?.defaultCallScript)
+      ? (tenant?.defaultCallScript as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [];
+
     // Enqueue AI job — jobId = callId for idempotency
     const payload: AiCallJobPayload = {
       callId,
       tenantId: existing.tenantId,
       recordingUrl,
       recordingSid,
+      scriptPoints,
     };
     await this.aiQueue.add('process', payload, { jobId: callId });
 

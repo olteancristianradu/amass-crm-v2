@@ -34,4 +34,8 @@ export interface AiCallJobPayload {
   tenantId: string;
   recordingUrl: string;
   recordingSid: string;
+  /** Optional list of script points the agent should hit on the call.
+   *  Populated from `tenants.defaultCallScript` at enqueue time. Worker
+   *  passes this to its script-compliance evaluator. NULL/empty = skip. */
+  scriptPoints?: string[];
 }

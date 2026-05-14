@@ -4,6 +4,12 @@ All notable changes to AMASS CRM are documented here. Format roughly follows [Ke
 
 ## [Unreleased]
 
+### Added (2026-05-14 — script-compliance MVP + lead-scoring cron + imports history UI)
+
+- **Script-compliance AI (MVP)** (`feat(ai-worker, call-scripts)`): new per-tenant `Tenant.defaultCallScript` JSON column (migration `20260514220000_tenant_default_call_script`) holds an ordered list of points the agent should hit on a call. New `CallScripts` API module exposes `GET/PUT /api/v1/call-scripts/default` (OWNER/ADMIN write, all roles read). On every recording webhook, `CallsService.handleRecordingWebhook` now passes the points to the AI worker via the BullMQ payload (`scriptPoints` field on `AiCallJobPayload`). New `apps/ai-worker/app/script_compliance.py` uses Claude (model `claude-sonnet-4-6`) to produce `{score 0-100, missed: string[]}` with strict JSON-output prompting; falls back to NULL when `ANTHROPIC_API_KEY` is unset (UI hides the widget) or when transcript is too short. New web route `/app/settings/call-script` (lazy-split page) — full editor for the script with add/remove/reorder, 5 suggested Romanian templates, 50-point hard cap matching backend validation. Sidebar entry under Administrare.
+- **Lead-scoring cron** (`feat(lead-scoring)`): new `LeadScoringScheduler` fires daily at 04:00 UTC, enumerates active tenants, enqueues one `recompute-tenant` BullMQ job per tenant on the `lead-scoring` queue. Idempotent via per-day `jobId`. Closes the gap where leads list always showed score=0 because the recompute was never triggered.
+- **Imports history UI** (`feat(web)`): new `/app/imports` route with table view of `import_jobs` rows — file name, type label (Companii/Contacte/Clienți/…), status badge with progress %, total/OK/skipped/failed counts, created-at timestamp. Auto-polls every 3 s while a job is `PENDING`/`PROCESSING`, every 30 s otherwise. Sidebar entry under Operațional.
+
 ### Added (2026-05-14 — call AI pipeline end-to-end + Twilio real + Whisper RO + control-doc sync)
 
 - **Twilio real credentials wired** (`feat(calls)`): replaced mock SID/token with real Trial account (`AC17ff…`), purchased US Twilio number `+19786277500` with voice webhook → `{tunnel}/api/v1/calls/webhook/voice`, verified outgoing caller ID `+40754070368` (RO). Live call test: 13s call to RO mobile, $0.028, `Status: completed`, full webhook lifecycle observed (QUEUED → IN_PROGRESS → COMPLETED → recording).

@@ -52,6 +52,12 @@ model Tenant {
   // Read by services that route data to region-specific sub-processors.
   region                String?   @default("EU")
 
+  // Script-compliance: per-tenant default list of points the agent should
+  // hit on a sales/support call. AI worker uses this when evaluating a
+  // call recording. NULL = feature disabled for the tenant.
+  // Shape: string[] (e.g. ["a întrebat bugetul", "a oferit garanția 12 luni"])
+  defaultCallScript     Json?
+
   // Sec-kill-switch (BLUE2#3): incident response can flip this to false to
   // freeze all access for a compromised tenant without deleting data. Checked
   // by JwtAuthGuard / TenantContextMiddleware on every authed request.
