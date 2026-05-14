@@ -106,7 +106,7 @@ function Cockpit(): JSX.Element {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="h-48 animate-pulse rounded-2xl border border-white/10 bg-white/[0.02]"
+              className="h-48 animate-pulse rounded-2xl border border-white/10 bg-white/[0.06]"
             />
           ))}
         </div>
@@ -116,8 +116,8 @@ function Cockpit(): JSX.Element {
         <>
           {layout.enabled.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/10 px-6 py-12 text-center">
-              <p className="text-white/70">Niciun widget activ.</p>
-              <p className="mt-1 text-sm text-white/50">
+              <p className="text-white/85">Niciun widget activ.</p>
+              <p className="mt-1 text-sm text-white/70">
                 Folosește butonul „Widget-uri" pentru a adăuga.
               </p>
             </div>
