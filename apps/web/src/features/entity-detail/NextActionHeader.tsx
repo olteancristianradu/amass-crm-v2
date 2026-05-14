@@ -35,16 +35,16 @@ export function NextActionHeader({ entityType, entityId }: Props): JSX.Element {
   const top = pickRelevant(feed.data ?? [], entityType, entityId);
 
   if (feed.isLoading) {
-    return <div className="mb-4 h-16 animate-pulse rounded-xl border border-white/10 bg-white/[0.02]" />;
+    return <div className="mb-4 h-16 animate-pulse rounded-xl border border-white/15 bg-white/[0.05]" />;
   }
 
   if (!top) {
     return (
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3">
-        <Sparkles className="h-5 w-5 text-emerald-400" />
+      <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/[0.10] px-4 py-3">
+        <Sparkles className="h-5 w-5 text-emerald-300" />
         <div className="text-sm">
-          <p className="font-medium text-emerald-200">Relationship healthy</p>
-          <p className="text-emerald-100/60">No urgent action on this account right now.</p>
+          <p className="font-semibold text-emerald-100">Relație în regulă</p>
+          <p className="text-emerald-100/80">Niciun pas urgent acum pentru acest cont.</p>
         </div>
       </div>
     );
@@ -53,24 +53,24 @@ export function NextActionHeader({ entityType, entityId }: Props): JSX.Element {
   return (
     <Link
       to={top.href}
-      className="group mb-4 flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-3 transition hover:bg-amber-500/[0.08]"
+      className="group mb-4 flex items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-500/15 px-4 py-3 transition hover:bg-amber-500/25"
     >
-      <Clock className="h-5 w-5 shrink-0 text-amber-300" />
+      <Clock className="h-5 w-5 shrink-0 text-amber-200" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs uppercase tracking-wide text-amber-300/70">Next action</p>
-        <p className="truncate font-medium text-amber-100">{top.title}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-200">Pasul următor</p>
+        <p className="truncate font-semibold text-amber-50">{top.title}</p>
         {top.subtitle && (
-          <p className="truncate text-sm text-amber-100/60">{top.subtitle}</p>
+          <p className="truncate text-sm text-amber-100/90">{top.subtitle}</p>
         )}
       </div>
       <span
-        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-          top.score >= 80 ? 'bg-red-500/15 text-red-300' : 'bg-amber-500/15 text-amber-200'
+        className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+          top.score >= 80 ? 'bg-red-500/30 text-red-100' : 'bg-amber-500/30 text-amber-50'
         }`}
       >
         {top.score}
       </span>
-      <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-200/60 transition group-hover:text-amber-100" />
+      <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-100 transition group-hover:text-white" />
     </Link>
   );
 }

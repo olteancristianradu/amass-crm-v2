@@ -76,7 +76,7 @@ function Cockpit(): JSX.Element {
               type="button"
               onClick={() => feed.refetch()}
               disabled={feed.isFetching}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground transition hover:bg-secondary disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${feed.isFetching ? 'animate-spin' : ''}`} />
               Reîmprospătează
@@ -95,7 +95,7 @@ function Cockpit(): JSX.Element {
         <button
           type="button"
           onClick={() => feed.refetch()}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+          className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground transition hover:bg-secondary"
         >
           Reîncearcă
         </button>
@@ -106,7 +106,7 @@ function Cockpit(): JSX.Element {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="h-48 animate-pulse rounded-2xl border border-white/10 bg-white/[0.06]"
+              className="h-48 animate-pulse rounded-2xl border border-border bg-card"
             />
           ))}
         </div>
@@ -115,9 +115,9 @@ function Cockpit(): JSX.Element {
       {feed.data && (
         <>
           {layout.enabled.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 px-6 py-12 text-center">
-              <p className="text-white/85">Niciun widget activ.</p>
-              <p className="mt-1 text-sm text-white/70">
+            <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-12 text-center">
+              <p className="font-medium text-foreground">Niciun widget activ.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Folosește butonul „Widget-uri" pentru a adăuga.
               </p>
             </div>
