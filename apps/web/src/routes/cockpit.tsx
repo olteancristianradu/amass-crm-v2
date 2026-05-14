@@ -10,6 +10,7 @@ import { useCockpitLayout } from '@/features/cockpit/useCockpitLayout';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { CockpitWidget } from '@/features/cockpit/CockpitWidget';
 import { CockpitWidgetPicker } from '@/features/cockpit/CockpitWidgetPicker';
+import { useTour } from '@/lib/tours/useTour';
 
 export const cockpitRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -19,6 +20,8 @@ export const cockpitRoute = createRoute({
 
 function Cockpit(): JSX.Element {
   usePageTitle('Pro Cockpit');
+  // F1.12 — auto-launch product tour on first visit.
+  useTour('cockpit');
   const { layout, toggle, moveUp, moveDown, setEnabled, reset } = useCockpitLayout();
   const [draggingWidget, setDraggingWidget] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -67,28 +70,33 @@ function Cockpit(): JSX.Element {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Pro Cockpit"
-        subtitle="Ce trebuie să faci acum, ordonat după urgență. Selectează widget-urile pe care le vrei."
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => feed.refetch()}
-              disabled={feed.isFetching}
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground transition hover:bg-secondary disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${feed.isFetching ? 'animate-spin' : ''}`} />
-              Reîmprospătează
-            </button>
-            <CockpitWidgetPicker
-              enabled={layout.enabled}
-              onToggle={toggle}
-              onReset={reset}
-            />
-          </div>
-        }
-      />
+      <div data-tour="cockpit-header">
+        <PageHeader
+          title="Pro Cockpit"
+          subtitle="Ce trebuie să faci acum, ordonat după urgență. Selectează widget-urile pe care le vrei."
+          actions={
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => feed.refetch()}
+                disabled={feed.isFetching}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground transition hover:bg-secondary disabled:opacity-50"
+                data-tour="cockpit-refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${feed.isFetching ? 'animate-spin' : ''}`} />
+                Reîmprospătează
+              </button>
+              <div data-tour="cockpit-picker">
+                <CockpitWidgetPicker
+                  enabled={layout.enabled}
+                  onToggle={toggle}
+                  onReset={reset}
+                />
+              </div>
+            </div>
+          }
+        />
+      </div>
 
       <QueryError isError={feed.isError} error={feed.error} />
       {feed.isError && (
@@ -122,7 +130,7 @@ function Cockpit(): JSX.Element {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4" data-tour="cockpit-widgets">
               {layout.enabled.map((w, idx) => (
                 <CockpitWidget
                   key={w}

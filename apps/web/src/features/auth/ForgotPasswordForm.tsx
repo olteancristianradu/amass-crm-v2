@@ -6,16 +6,17 @@ import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GlassCard } from '@/components/ui/glass-card';
 import {
   ForgotPasswordFormSchema,
   type ForgotPasswordFormValues,
 } from './schemas';
 
 /**
- * Forgot-password card. Endpoint always returns 204 regardless of whether
+ * Forgot-password form. Endpoint always returns 204 regardless of whether
  * the email exists, so we always render the same neutral confirmation
  * message — that's the spec, not a UX bug.
+ *
+ * Page-level title ("Resetare parolă") lives in AuthShell.
  */
 export function ForgotPasswordForm(): JSX.Element {
   const [submitted, setSubmitted] = useState(false);
@@ -52,80 +53,76 @@ export function ForgotPasswordForm(): JSX.Element {
 
   if (submitted) {
     return (
-      <GlassCard className="w-full max-w-sm p-7">
-        <header className="mb-3 flex items-start gap-3">
-          <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-            <Mail size={18} className="text-foreground" />
+      <section
+        role="status"
+        aria-live="polite"
+        className="w-full rounded-lg border border-border bg-card p-6"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+            <Mail size={16} aria-hidden="true" />
           </span>
           <div>
-            <h1 className="text-lg font-semibold leading-tight">Verifică email-ul</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <h2 className="text-base font-semibold leading-tight text-foreground">
+              Verifică email-ul
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               Dacă există un cont cu adresa indicată, ai primit un link de resetare valabil
               30 de minute.
             </p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Nu vezi nimic? Caută în <em>Spam</em> sau încearcă din nou cu alt email.
+            </p>
           </div>
-        </header>
-
-        <p className="text-xs text-muted-foreground">
-          Nu vezi nimic? Caută în <em>Spam</em> sau încearcă din nou cu alt email.
-        </p>
-      </GlassCard>
+        </div>
+      </section>
     );
   }
 
   return (
-    <GlassCard className="w-full max-w-sm p-7">
-      <header className="mb-5 flex items-start gap-3">
-        <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-          <Mail size={18} className="text-foreground" />
-        </span>
-        <div>
-          <h1 className="text-lg font-semibold leading-tight">Resetare parolă</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Îți trimitem un link pentru a alege o parolă nouă.
-          </p>
-        </div>
-      </header>
-
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="fp-tenant">Tenant</Label>
-          <Input
-            id="fp-tenant"
-            placeholder="acme-srl"
-            autoComplete="organization"
-            className="font-mono text-xs"
-            {...register('tenantSlug')}
-          />
-          {errors.tenantSlug && (
-            <p className="text-xs text-destructive">{errors.tenantSlug.message}</p>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="fp-email">Email</Label>
-          <Input
-            id="fp-email"
-            type="email"
-            autoComplete="email"
-            {...register('email')}
-          />
-          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-        </div>
-
-        {submitError && (
-          <p
-            role="alert"
-            className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-          >
-            {submitError}
-          </p>
+    <form onSubmit={onSubmit} noValidate className="w-full space-y-5">
+      <div className="space-y-1.5">
+        <Label htmlFor="fp-tenant">Tenant</Label>
+        <Input
+          id="fp-tenant"
+          placeholder="acme-srl"
+          autoComplete="organization"
+          className="font-mono text-xs"
+          aria-invalid={errors.tenantSlug ? 'true' : undefined}
+          {...register('tenantSlug')}
+        />
+        {errors.tenantSlug && (
+          <p className="text-xs text-destructive">{errors.tenantSlug.message}</p>
         )}
+      </div>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? 'Se trimite…' : 'Trimite link de resetare'}
-        </Button>
-      </form>
-    </GlassCard>
+      <div className="space-y-1.5">
+        <Label htmlFor="fp-email">Email</Label>
+        <Input
+          id="fp-email"
+          type="email"
+          autoComplete="email"
+          placeholder="nume@firma.ro"
+          aria-invalid={errors.email ? 'true' : undefined}
+          {...register('email')}
+        />
+        {errors.email && (
+          <p className="text-xs text-destructive">{errors.email.message}</p>
+        )}
+      </div>
+
+      {submitError && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {submitError}
+        </p>
+      )}
+
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? 'Se trimite…' : 'Trimite link de resetare'}
+      </Button>
+    </form>
   );
 }

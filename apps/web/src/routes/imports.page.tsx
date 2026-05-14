@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 type ImportStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELED';
 
@@ -68,6 +69,8 @@ function fmtDate(s: string): string {
 }
 
 export function ImportsPage(): JSX.Element {
+  // F1.12 — auto-launch product tour on first visit.
+  useTour('imports');
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['imports'],
     queryFn: () => api.get<ImportJob[]>('/imports'),
@@ -90,10 +93,12 @@ export function ImportsPage(): JSX.Element {
 
   return (
     <div>
-      <PageHeader
-        title="Imports"
-        subtitle="Istoric job-uri de import — fiecare fișier urcat (CSV, PDF GestCom etc.) apare aici cu status și statistici."
-      />
+      <div data-tour="imports-header">
+        <PageHeader
+          title="Imports"
+          subtitle="Istoric job-uri de import — fiecare fișier urcat (CSV, PDF GestCom etc.) apare aici cu status și statistici."
+        />
+      </div>
 
       {isLoading && (
         <ListSurface>
@@ -102,7 +107,7 @@ export function ImportsPage(): JSX.Element {
       )}
 
       {data && data.length === 0 && (
-        <ListSurface>
+        <ListSurface data-tour="imports-table">
           <EmptyState
             icon={Database}
             title="Niciun import încă"
@@ -112,7 +117,7 @@ export function ImportsPage(): JSX.Element {
       )}
 
       {data && data.length > 0 && (
-        <ListSurface>
+        <ListSurface data-tour="imports-table">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

@@ -2,58 +2,121 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 /**
- * UI density. Drives a CSS custom property `--density-scale` on <html>:
- *   comfortable → 1     (default; spacing/typography from design tokens)
- *   compact     → 0.85  (~15% tighter; useful for sales agents on
- *                        smaller screens or who want more rows in view)
+ * UI preferences store — drives every customizable surface in the app.
  *
- * The toggle lives in the topbar. Persisted in localStorage so the
- * choice survives reload + tab close.
+ * Each preference maps to a single `data-*` attribute on <html>, and
+ * styles.css reads those attributes to swap CSS custom properties.
+ * That keeps the runtime cost ~zero (no React re-render on theme
+ * switch — just an attribute mutation that the browser repaints once)
+ * and lets us preview themes without remounting the component tree.
  *
- * Theme: light | dark | system (the latter follows prefers-color-scheme).
- * Driven by writing data-theme on <html> and Tailwind's
- * `darkMode: ['selector', '[data-theme="dark"]']`. CSS variable swap
- * lives in styles.css.
+ * Preferences are orthogonal: any theme combines with any density,
+ * any radius, any font, any motion, any accent. The settings page
+ * surfaces this matrix to the user — see settings.appearance.page.tsx.
  *
- * Tenant accent: an additional CSS variable `--accent-tenant` (HSL
- * triplet) lets each tenant brand the focus ring + active-pill colour
- * subtly. Defaults to the same near-black as `--primary`.
+ * Persistence: Zustand `persist` middleware writes the whole state to
+ * `localStorage` under `amass-ui-prefs`. On rehydrate we re-apply every
+ * preference to <html> so the page paints with the user's choices on
+ * the very first frame after hydration (no flash of default theme).
  */
-export type Density = 'comfortable' | 'compact';
-/**
- * Theme registry:
- *   - light    : Liquid Glass Light (default — Apple-style translucent panels)
- *   - dark     : Liquid Glass Dark (deep navy + frosted glass)
- *   - contrast : High Contrast / Pro (sharp edges, opaque, Salesforce-style)
- *   - system   : follow prefers-color-scheme (light or dark only)
- */
-export type Theme = 'light' | 'dark' | 'contrast' | 'system';
 
 /**
- * Accent presets — independent of theme. Each maps to an HSL triplet
- * applied to --accent-tenant. 'custom' lets the user pick any HSL value
- * via the color picker on the settings page.
+ * Density — three levels bracket the default.
+ *   compact (~0.82×)     : Salesforce-style dense rows for data agents
+ *   comfortable (1×)     : default
+ *   spacious (~1.18×)    : Apple-style generous whitespace
  */
-export type AccentPreset = 'default' | 'blue' | 'purple' | 'green' | 'amber' | 'rose' | 'custom';
+export type Density = 'compact' | 'comfortable' | 'spacious';
 
-const ACCENT_PRESET_HSL: Record<Exclude<AccentPreset, 'custom'>, string> = {
-  default: '222 47% 11%',  // near-black (light theme primary)
+/**
+ * Theme registry. Three "primary" families, each tuned for a different
+ * mental model:
+ *
+ *   Liquid Glass    : light / dark — Apple-inspired translucent panels
+ *   High Contrast   : contrast      — Salesforce-Lightning, opaque, sharp
+ *   Editorial       : editorial-light / editorial-dark — Stripe/Linear flat
+ *   Mocha / Forest / Sunset / Nordic / Carbon — accent-led brand variants
+ *   System          : follow prefers-color-scheme
+ */
+export type Theme =
+  | 'light'
+  | 'dark'
+  | 'contrast'
+  | 'editorial-light'
+  | 'editorial-dark'
+  | 'mocha'
+  | 'forest'
+  | 'sunset'
+  | 'nordic'
+  | 'carbon'
+  | 'system';
+
+/** Radius override — `default` defers to the active theme's --radius. */
+export type RadiusPreset = 'sharp' | 'default' | 'soft' | 'round';
+
+/** Font family. Loaded from OS stacks (no web-font dep). */
+export type FontPreset = 'system' | 'serif' | 'mono' | 'rounded';
+
+/**
+ * Motion preference.
+ *   full    : honor every animation
+ *   reduced : keep state-change feedback at ~1 RAF
+ *   off     : strip animation + transition entirely
+ * `prefers-reduced-motion: reduce` overrides to reduced unless user
+ * explicitly picked 'full'.
+ */
+export type MotionPreset = 'full' | 'reduced' | 'off';
+
+/**
+ * Accent presets — each maps to an HSL triplet applied to --accent-tenant.
+ * 'default' uses the active theme's natural primary (kept identical to the
+ * previous behavior so existing tenant overrides still resolve). 'custom'
+ * lets users pick any HSL via the color picker on the settings page.
+ */
+export type AccentPreset =
+  | 'default'
+  | 'blue'
+  | 'cyan'
+  | 'emerald'
+  | 'violet'
+  | 'rose'
+  | 'amber'
+  | 'orange'
+  | 'purple'
+  | 'green'
+  | 'custom';
+
+const ACCENT_PRESET_HSL: Record<Exclude<AccentPreset, 'custom' | 'default'>, string> = {
   blue:    '217 91% 55%',
+  cyan:    '189 94% 43%',
+  emerald: '152 60% 42%',
+  violet:  '268 78% 58%',
+  rose:    '345 82% 58%',
+  amber:   '32 92% 50%',
+  orange:  '24 95% 53%',
+  // legacy aliases (kept so persisted state from older builds doesn't break)
   purple:  '268 78% 58%',
   green:   '152 60% 42%',
-  amber:   '32 92% 50%',
-  rose:    '345 82% 58%',
 };
+
+/** Default HSL when accent === 'default'. Falls back to near-black. */
+const DEFAULT_ACCENT_HSL = '222 47% 11%';
 
 interface UiPreferencesState {
   density: Density;
   theme: Theme;
+  radius: RadiusPreset;
+  font: FontPreset;
+  motion: MotionPreset;
   /** Preset name. 'custom' uses `accentTenant` HSL directly. */
   accentPreset: AccentPreset;
-  /** HSL triplet "H S% L%". Default = primary near-black. */
+  /** HSL triplet "H S% L%". */
   accentTenant: string;
   setDensity: (d: Density) => void;
   setTheme: (t: Theme) => void;
+  setRadius: (r: RadiusPreset) => void;
+  setFont: (f: FontPreset) => void;
+  setMotion: (m: MotionPreset) => void;
   setAccentPreset: (p: AccentPreset) => void;
   setAccentTenant: (hsl: string) => void;
 }
@@ -63,8 +126,11 @@ export const useUiPreferencesStore = create<UiPreferencesState>()(
     (set) => ({
       density: 'comfortable',
       theme: 'system',
+      radius: 'default',
+      font: 'system',
+      motion: 'full',
       accentPreset: 'default',
-      accentTenant: '222 47% 11%', // matches default --primary
+      accentTenant: DEFAULT_ACCENT_HSL,
       setDensity: (density) => {
         set({ density });
         applyDensity(density);
@@ -73,14 +139,31 @@ export const useUiPreferencesStore = create<UiPreferencesState>()(
         set({ theme });
         applyTheme(theme);
       },
+      setRadius: (radius) => {
+        set({ radius });
+        applyRadius(radius);
+      },
+      setFont: (font) => {
+        set({ font });
+        applyFont(font);
+      },
+      setMotion: (motion) => {
+        set({ motion });
+        applyMotion(motion);
+      },
       setAccentPreset: (accentPreset) => {
-        if (accentPreset !== 'custom') {
-          const hsl = ACCENT_PRESET_HSL[accentPreset];
-          set({ accentPreset, accentTenant: hsl });
-          applyAccent(hsl);
-        } else {
+        if (accentPreset === 'custom') {
           set({ accentPreset });
+          return;
         }
+        if (accentPreset === 'default') {
+          set({ accentPreset, accentTenant: DEFAULT_ACCENT_HSL });
+          applyAccent(DEFAULT_ACCENT_HSL);
+          return;
+        }
+        const hsl = ACCENT_PRESET_HSL[accentPreset];
+        set({ accentPreset, accentTenant: hsl });
+        applyAccent(hsl);
       },
       setAccentTenant: (accentTenant) => {
         set({ accentTenant, accentPreset: 'custom' });
@@ -90,20 +173,29 @@ export const useUiPreferencesStore = create<UiPreferencesState>()(
     {
       name: 'amass-ui-prefs',
       onRehydrateStorage: () => (state) => {
-        if (state) {
-          applyDensity(state.density);
-          applyTheme(state.theme);
-          applyAccent(state.accentTenant);
-        }
+        if (!state) return;
+        applyDensity(state.density);
+        applyTheme(state.theme);
+        applyRadius(state.radius);
+        applyFont(state.font);
+        applyMotion(state.motion);
+        applyAccent(state.accentTenant);
       },
     },
   ),
 );
 
+// ─── DOM appliers ─────────────────────────────────────────────────────
+// Each preference owns a single data-* attribute on <html>. styles.css
+// is the source of truth for what each attribute swaps. We also write
+// the legacy inline --density-scale because parts of the codebase still
+// read it directly (component-layer utilities in styles.css).
+
 function applyDensity(d: Density): void {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.density = d;
-  document.documentElement.style.setProperty('--density-scale', d === 'compact' ? '0.85' : '1');
+  const scale = d === 'compact' ? '0.82' : d === 'spacious' ? '1.18' : '1';
+  document.documentElement.style.setProperty('--density-scale', scale);
 }
 
 function applyTheme(t: Theme): void {
@@ -118,7 +210,37 @@ function applyTheme(t: Theme): void {
   }
 }
 
+function applyRadius(r: RadiusPreset): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.dataset.radius = r;
+}
+
+function applyFont(f: FontPreset): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.dataset.font = f;
+}
+
+function applyMotion(m: MotionPreset): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.dataset.motion = m;
+}
+
 function applyAccent(hsl: string): void {
   if (typeof document === 'undefined') return;
   document.documentElement.style.setProperty('--accent-tenant', hsl);
+}
+
+/**
+ * Imperative one-shot applier — useful for tests / SSR hydration paths
+ * that bypass the Zustand `onRehydrateStorage` callback. Reads current
+ * state and writes every data-* attribute. Safe to call multiple times.
+ */
+export function applyAllUiPreferences(): void {
+  const s = useUiPreferencesStore.getState();
+  applyDensity(s.density);
+  applyTheme(s.theme);
+  applyRadius(s.radius);
+  applyFont(s.font);
+  applyMotion(s.motion);
+  applyAccent(s.accentTenant);
 }

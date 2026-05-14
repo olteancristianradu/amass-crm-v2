@@ -148,6 +148,266 @@
     --accent-tenant: 217 91% 38%;
   }
 
+  /* ─── Editorial Light ──────────────────────────────────────────────
+   * Warm paper canvas, near-black ink, no glass effect. Inspired by
+   * Stripe docs / Linear marketing pages. Great for content-heavy
+   * dashboards where the goal is "easy to read" over "shiny". */
+  :root[data-theme="editorial-light"] {
+    --background: 36 30% 96%;
+    --foreground: 30 12% 12%;
+
+    --card: 36 24% 99%;
+    --card-foreground: 30 12% 12%;
+    --surface-alpha: 1;            /* opaque, no glass */
+    --surface-blur: 0px;
+
+    --primary: 30 12% 12%;
+    --primary-foreground: 36 30% 98%;
+
+    --secondary: 36 22% 92%;
+    --secondary-foreground: 30 12% 22%;
+
+    --muted: 36 18% 90%;
+    --muted-foreground: 30 8% 40%;
+
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 36 30% 98%;
+
+    --border: 36 18% 84%;
+    --input: 36 18% 80%;
+    --ring: 30 12% 12%;
+
+    --accent-blue: 215 80% 45%;
+    --accent-pink: 339 70% 50%;
+    --accent-amber: 32 85% 45%;
+    --accent-green: 152 50% 35%;
+
+    --radius: 0.5rem;
+    --accent-tenant: 30 12% 12%;
+  }
+
+  /* ─── Editorial Dark ──────────────────────────────────────────────
+   * Charcoal canvas, off-white ink. Reading-first dark mode without
+   * glass. Pairs well with editorial-light on auto-toggling clients. */
+  :root[data-theme="editorial-dark"] {
+    --background: 30 8% 10%;
+    --foreground: 36 20% 92%;
+
+    --card: 30 8% 14%;
+    --card-foreground: 36 20% 92%;
+    --surface-alpha: 1;
+    --surface-blur: 0px;
+
+    --primary: 36 20% 92%;
+    --primary-foreground: 30 8% 10%;
+
+    --secondary: 30 8% 18%;
+    --secondary-foreground: 36 18% 88%;
+
+    --muted: 30 6% 20%;
+    --muted-foreground: 36 12% 68%;
+
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 36 20% 95%;
+
+    --border: 30 6% 24%;
+    --input: 30 6% 26%;
+    --ring: 36 20% 80%;
+
+    --accent-blue: 215 80% 60%;
+    --accent-pink: 339 75% 65%;
+    --accent-amber: 32 85% 60%;
+    --accent-green: 152 50% 50%;
+
+    --radius: 0.5rem;
+    --accent-tenant: 36 20% 92%;
+  }
+
+  /* ─── Mocha ────────────────────────────────────────────────────────
+   * Cream + warm brown. Cozy B2C feel — boutique studios, coffee
+   * shops, wellness brands. */
+  :root[data-theme="mocha"] {
+    --background: 28 22% 94%;
+    --foreground: 22 35% 15%;
+
+    --card: 28 25% 98%;
+    --card-foreground: 22 35% 15%;
+    --surface-alpha: 0.85;
+    --surface-blur: 14px;
+
+    --primary: 22 45% 30%;
+    --primary-foreground: 28 25% 97%;
+
+    --secondary: 28 18% 90%;
+    --secondary-foreground: 22 35% 22%;
+
+    --muted: 28 16% 88%;
+    --muted-foreground: 22 18% 38%;
+
+    --destructive: 0 65% 48%;
+    --destructive-foreground: 28 25% 97%;
+
+    --border: 28 16% 82%;
+    --input: 28 16% 78%;
+    --ring: 22 45% 30%;
+
+    --accent-blue: 210 60% 45%;
+    --accent-pink: 340 65% 55%;
+    --accent-amber: 32 85% 50%;
+    --accent-green: 142 50% 38%;
+
+    --radius: 0.875rem;
+    --accent-tenant: 22 45% 30%;
+  }
+
+  /* ─── Forest ────────────────────────────────────────────────────────
+   * Pale green canvas + deep green primary. Calm, natural; good for
+   * sustainability / agritech / outdoor brands. */
+  :root[data-theme="forest"] {
+    --background: 140 14% 92%;
+    --foreground: 152 35% 12%;
+
+    --card: 140 18% 97%;
+    --card-foreground: 152 35% 12%;
+    --surface-alpha: 0.85;
+    --surface-blur: 16px;
+
+    --primary: 152 45% 24%;
+    --primary-foreground: 140 18% 97%;
+
+    --secondary: 140 14% 88%;
+    --secondary-foreground: 152 35% 20%;
+
+    --muted: 140 12% 86%;
+    --muted-foreground: 152 14% 38%;
+
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 140 18% 97%;
+
+    --border: 140 12% 80%;
+    --input: 140 12% 76%;
+    --ring: 152 45% 24%;
+
+    --accent-blue: 210 60% 45%;
+    --accent-pink: 340 65% 55%;
+    --accent-amber: 38 85% 48%;
+    --accent-green: 152 60% 38%;
+
+    --radius: 0.75rem;
+    --accent-tenant: 152 45% 24%;
+  }
+
+  /* ─── Sunset ────────────────────────────────────────────────────────
+   * Peach canvas + orange primary. Creative agencies, lifestyle, food.
+   * Glass effect kept on — sunset light reads well refracted. */
+  :root[data-theme="sunset"] {
+    --background: 28 35% 95%;
+    --foreground: 18 45% 16%;
+
+    --card: 28 50% 99%;
+    --card-foreground: 18 45% 16%;
+    --surface-alpha: 0.75;
+    --surface-blur: 18px;
+
+    --primary: 18 80% 50%;
+    --primary-foreground: 28 50% 99%;
+
+    --secondary: 28 28% 90%;
+    --secondary-foreground: 18 45% 22%;
+
+    --muted: 28 22% 88%;
+    --muted-foreground: 18 22% 40%;
+
+    --destructive: 0 75% 48%;
+    --destructive-foreground: 28 50% 99%;
+
+    --border: 28 22% 82%;
+    --input: 28 22% 78%;
+    --ring: 18 80% 50%;
+
+    --accent-blue: 210 70% 50%;
+    --accent-pink: 340 78% 55%;
+    --accent-amber: 38 95% 52%;
+    --accent-green: 142 55% 42%;
+
+    --radius: 1rem;
+    --accent-tenant: 18 80% 50%;
+  }
+
+  /* ─── Nordic ────────────────────────────────────────────────────────
+   * Frost blue canvas + navy primary. Sharp radius for a precise,
+   * minimal feel. Fintech / SaaS / consulting. */
+  :root[data-theme="nordic"] {
+    --background: 210 30% 96%;
+    --foreground: 210 50% 14%;
+
+    --card: 210 30% 99%;
+    --card-foreground: 210 50% 14%;
+    --surface-alpha: 0.9;
+    --surface-blur: 10px;
+
+    --primary: 210 60% 35%;
+    --primary-foreground: 210 30% 98%;
+
+    --secondary: 210 24% 92%;
+    --secondary-foreground: 210 50% 22%;
+
+    --muted: 210 20% 90%;
+    --muted-foreground: 210 16% 40%;
+
+    --destructive: 0 70% 48%;
+    --destructive-foreground: 210 30% 98%;
+
+    --border: 210 20% 84%;
+    --input: 210 20% 80%;
+    --ring: 210 60% 35%;
+
+    --accent-blue: 210 80% 50%;
+    --accent-pink: 339 75% 55%;
+    --accent-amber: 38 90% 48%;
+    --accent-green: 152 55% 38%;
+
+    --radius: 0.375rem;
+    --accent-tenant: 210 60% 35%;
+  }
+
+  /* ─── Carbon ────────────────────────────────────────────────────────
+   * Pure black canvas + neon cyan primary. Sharp edges. Power-user /
+   * developer / cyberpunk vibe. AAA contrast on body text. */
+  :root[data-theme="carbon"] {
+    --background: 0 0% 4%;
+    --foreground: 180 8% 92%;
+
+    --card: 0 0% 8%;
+    --card-foreground: 180 8% 92%;
+    --surface-alpha: 0.9;
+    --surface-blur: 6px;
+
+    --primary: 180 100% 50%;
+    --primary-foreground: 0 0% 4%;
+
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 180 8% 88%;
+
+    --muted: 0 0% 14%;
+    --muted-foreground: 180 6% 65%;
+
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 4%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 22%;
+    --ring: 180 100% 50%;
+
+    --accent-blue: 200 100% 55%;
+    --accent-pink: 320 100% 60%;
+    --accent-amber: 48 100% 55%;
+    --accent-green: 142 90% 50%;
+
+    --radius: 0.25rem;
+    --accent-tenant: 180 100% 50%;
+  }
+
   /* Auto mode: pick up the OS preference until the user picks a side.
    * The ui-preferences store always writes data-theme on every change,
    * so this only matters before first hydration on a fresh client. */
@@ -184,7 +444,7 @@
     background-image:
       radial-gradient(at 0% 0%, hsl(217 91% 60% / 0.08) 0px, transparent 50%),
       radial-gradient(at 100% 0%, hsl(339 90% 67% / 0.06) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.4) 0px, transparent 60%);
+      radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.18) 0px, transparent 55%);
     background-attachment: fixed;
   }
 
@@ -204,13 +464,46 @@
     background-image:
       radial-gradient(at 0% 0%, hsl(217 91% 60% / 0.08) 0px, transparent 50%),
       radial-gradient(at 100% 0%, hsl(339 90% 67% / 0.06) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.4) 0px, transparent 60%);
+      radial-gradient(at 50% 100%, hsl(220 16% 84% / 0.18) 0px, transparent 55%);
   }
 
   /* Contrast theme has NO ambient gradient — the appeal is clean,
-   * predictable contrast, not refracted light. */
-  :root[data-theme="contrast"] body {
+   * predictable contrast, not refracted light. Editorial + Carbon also
+   * skip the gradient: their identity is flat ink-on-paper or
+   * pure-black canvas, not refracted light. */
+  :root[data-theme="contrast"] body,
+  :root[data-theme="editorial-light"] body,
+  :root[data-theme="editorial-dark"] body,
+  :root[data-theme="carbon"] body {
     background-image: none;
+  }
+
+  /* Mocha / Forest / Sunset / Nordic re-use the same gradient grammar
+   * as light but tinted from the theme's primary so the ambient bloom
+   * feels native instead of imported from the Liquid Glass palette. */
+  :root[data-theme="mocha"] body {
+    background-image:
+      radial-gradient(at 0% 0%, hsl(22 60% 50% / 0.10) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(28 70% 60% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(22 30% 70% / 0.18) 0px, transparent 55%);
+  }
+  :root[data-theme="forest"] body {
+    background-image:
+      radial-gradient(at 0% 0%, hsl(152 50% 45% / 0.10) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(180 50% 50% / 0.06) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(140 18% 70% / 0.18) 0px, transparent 55%);
+  }
+  :root[data-theme="sunset"] body {
+    background-image:
+      radial-gradient(at 0% 0%, hsl(18 90% 60% / 0.12) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(338 80% 65% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(28 30% 80% / 0.20) 0px, transparent 55%);
+  }
+  :root[data-theme="nordic"] body {
+    background-image:
+      radial-gradient(at 0% 0%, hsl(210 80% 55% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(190 60% 55% / 0.06) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, hsl(210 22% 80% / 0.16) 0px, transparent 55%);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) body {
@@ -242,6 +535,72 @@
     min-height: 44px;
     display: inline-flex;
     align-items: center;
+  }
+
+  /* ─── User-tunable customization tokens ────────────────────────────
+   * All driven by data-* attributes on <html>, written by
+   * useUiPreferencesStore. Each preference is orthogonal to the theme:
+   * pick any theme + any density + any radius + any font + any motion.
+   */
+
+  /* Density scale — multiplied into `dense-*` helpers + reads by
+   * tap-target / list paddings. Three levels instead of the old two so
+   * "spacious" (Apple-ish) and "compact" (Salesforce-ish) bracket the
+   * default. */
+  :root[data-density="compact"]     { --density-scale: 0.82; }
+  :root[data-density="comfortable"] { --density-scale: 1; }
+  :root[data-density="spacious"]    { --density-scale: 1.18; }
+
+  /* Radius override — `default` is a no-op (each theme keeps its own
+   * --radius); the other three force a global radius regardless of theme.
+   * Sharp + round let users sculpt the silhouette to taste. */
+  :root[data-radius="sharp"]   { --radius: 0.25rem; }
+  :root[data-radius="default"] { /* honors per-theme --radius */ }
+  :root[data-radius="soft"]    { --radius: 0.75rem; }
+  :root[data-radius="round"]   { --radius: 1.25rem; }
+
+  /* Font family swap. Body inherits — UI chrome that locks to a system
+   * stack will need an explicit class. We deliberately don't pull web
+   * fonts to avoid a network dep; everything in the stack is OS-local. */
+  :root[data-font="system"] body {
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  :root[data-font="serif"] body {
+    font-family: 'Iowan Old Style', 'Apple Garamond', Baskerville, 'Times New Roman', 'Droid Serif', Times, 'Source Serif Pro', serif;
+  }
+  :root[data-font="mono"] body {
+    font-family: 'SF Mono', ui-monospace, 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  }
+  :root[data-font="rounded"] body {
+    font-family: 'SF Pro Rounded', 'Nunito', ui-rounded, 'Hiragino Maru Gothic ProN', Quicksand, 'Comfortaa', sans-serif;
+  }
+
+  /* Motion preferences. `reduced` shaves transitions to a single frame
+   * (~1 RAF) so users on vestibular-sensitive setups can still tell
+   * something changed without parallax / spring animations. `off` is
+   * stricter; we also honor the OS-level prefers-reduced-motion unless
+   * the user explicitly opted into full motion. */
+  :root[data-motion="reduced"] *,
+  :root[data-motion="reduced"] *::before,
+  :root[data-motion="reduced"] *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  :root[data-motion="off"] *,
+  :root[data-motion="off"] *::before,
+  :root[data-motion="off"] *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion="full"]) *,
+    :root:not([data-motion="full"]) *::before,
+    :root:not([data-motion="full"]) *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
 }
 

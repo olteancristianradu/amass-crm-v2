@@ -23,10 +23,15 @@ export const loginRoute = createRoute({
 function LoginPage(): JSX.Element {
   return (
     <AuthShell
+      title="Bun venit înapoi"
+      subtitle="Conectează-te ca să-ți continui ziua. Aproape totul s-a întâmplat fără tine."
       footer={
         <>
           Nu ai cont?{' '}
-          <Link to="/register" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link
+            to="/register"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
             Creează cont
           </Link>{' '}
           ·{' '}

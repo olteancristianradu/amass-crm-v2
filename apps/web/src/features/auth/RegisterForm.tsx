@@ -2,21 +2,22 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
-import { UserPlus } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useAuthStore, type AuthTokens, type AuthUser } from '@/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GlassCard } from '@/components/ui/glass-card';
 import { RegisterFormSchema, type RegisterFormValues } from './schemas';
 
 /**
- * Registration card — creates a brand-new tenant + the first OWNER user
+ * Registration form — creates a brand-new tenant + the first OWNER user
  * inside it. Backend rate-limited to 3/IP/15min.
  *
  * Successful POST returns `{ user, tokens }` (mirrors /auth/login), so we
  * can drop the user straight into /app without an extra login round-trip.
+ *
+ * The page-level h1 ("Hai să începem") lives in AuthShell. This component
+ * renders only the form fieldsets, grouped semantically for screen readers.
  */
 export function RegisterForm(): JSX.Element {
   const router = useRouter();
@@ -63,26 +64,20 @@ export function RegisterForm(): JSX.Element {
   });
 
   return (
-    <GlassCard className="w-full max-w-sm p-7">
-      <header className="mb-5 flex items-start gap-3">
-        <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-          <UserPlus size={18} className="text-foreground" />
-        </span>
-        <div>
-          <h1 className="text-lg font-semibold leading-tight">Creează cont nou</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Vei deveni proprietar al spațiului tău de lucru. Poți invita colegii ulterior din setări.
-          </p>
-        </div>
-      </header>
+    <form onSubmit={onSubmit} noValidate className="w-full space-y-6">
+      {/* ── Group 1: workspace ──────────────────────────────────────────── */}
+      <fieldset className="space-y-4">
+        <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Spațiul tău de lucru
+        </legend>
 
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="r-tenant-name">Nume firmă</Label>
           <Input
             id="r-tenant-name"
             placeholder="Acme SRL"
             autoComplete="organization"
+            aria-invalid={errors.tenantName ? 'true' : undefined}
             {...register('tenantName')}
           />
           {errors.tenantName && (
@@ -98,15 +93,24 @@ export function RegisterForm(): JSX.Element {
             autoComplete="off"
             spellCheck={false}
             className="font-mono text-xs"
+            aria-invalid={errors.tenantSlug ? 'true' : undefined}
+            aria-describedby="r-tenant-slug-help"
             {...register('tenantSlug')}
           />
-          <p className="text-[11px] text-muted-foreground">
-            Identificator unic folosit la conectare. Doar litere mici, cifre și liniuțe.
+          <p id="r-tenant-slug-help" className="text-xs text-muted-foreground">
+            Doar litere mici, cifre și liniuțe. Va apărea în URL-ul de conectare.
           </p>
           {errors.tenantSlug && (
             <p className="text-xs text-destructive">{errors.tenantSlug.message}</p>
           )}
         </div>
+      </fieldset>
+
+      {/* ── Group 2: account ────────────────────────────────────────────── */}
+      <fieldset className="space-y-4">
+        <legend className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Contul tău de proprietar
+        </legend>
 
         <div className="space-y-1.5">
           <Label htmlFor="r-name">Numele tău</Label>
@@ -114,6 +118,7 @@ export function RegisterForm(): JSX.Element {
             id="r-name"
             autoComplete="name"
             placeholder="Andrei Popescu"
+            aria-invalid={errors.fullName ? 'true' : undefined}
             {...register('fullName')}
           />
           {errors.fullName && (
@@ -128,9 +133,12 @@ export function RegisterForm(): JSX.Element {
             type="email"
             autoComplete="email"
             placeholder="andrei@acme.ro"
+            aria-invalid={errors.email ? 'true' : undefined}
             {...register('email')}
           />
-          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+          {errors.email && (
+            <p className="text-xs text-destructive">{errors.email.message}</p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -140,6 +148,7 @@ export function RegisterForm(): JSX.Element {
             type="password"
             autoComplete="new-password"
             placeholder="Minim 8 caractere"
+            aria-invalid={errors.password ? 'true' : undefined}
             {...register('password')}
           />
           {errors.password && (
@@ -153,26 +162,27 @@ export function RegisterForm(): JSX.Element {
             id="r-confirm"
             type="password"
             autoComplete="new-password"
+            aria-invalid={errors.confirmPassword ? 'true' : undefined}
             {...register('confirmPassword')}
           />
           {errors.confirmPassword && (
             <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
           )}
         </div>
+      </fieldset>
 
-        {submitError && (
-          <p
-            role="alert"
-            className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-          >
-            {submitError}
-          </p>
-        )}
+      {submitError && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {submitError}
+        </p>
+      )}
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? 'Se creează…' : 'Creează cont'}
-        </Button>
-      </form>
-    </GlassCard>
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? 'Se creează…' : 'Creează cont'}
+      </Button>
+    </form>
   );
 }

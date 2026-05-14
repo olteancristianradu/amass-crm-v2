@@ -17,6 +17,7 @@ import {
   type StatusBadgeTone,
 } from '@/components/ui/page-header';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
+import { useTour } from '@/lib/tours/useTour';
 
 export const settingsUsersRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -64,6 +65,8 @@ const usersApi = {
 };
 
 function SettingsUsersPage(): JSX.Element {
+  // F1.12 — auto-launch product tour on first visit.
+  useTour('settings-users');
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const isOwnerOrAdmin = currentUser?.role === 'OWNER' || currentUser?.role === 'ADMIN';
@@ -97,7 +100,7 @@ function SettingsUsersPage(): JSX.Element {
         subtitle="Toate persoanele din tenantul tău cu roluri și acces."
         actions={
           isOwnerOrAdmin && (
-            <Button size="sm" onClick={() => setShowInvite((v) => !v)}>
+            <Button size="sm" onClick={() => setShowInvite((v) => !v)} data-tour="users-invite-btn">
               <Plus size={14} className="mr-1.5" />
               {showInvite ? 'Anulează' : 'Invită utilizator'}
             </Button>
@@ -120,7 +123,7 @@ function SettingsUsersPage(): JSX.Element {
       <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         Utilizatori activi <span className="tabular-nums">({activeUsers.length})</span>
       </h2>
-      <ListSurface>
+      <ListSurface data-tour="users-active-list">
         {activeUsers.length === 0 && !isLoading ? (
           <EmptyState
             icon={UserPlus}
@@ -134,7 +137,7 @@ function SettingsUsersPage(): JSX.Element {
                 <tr className="border-b border-border/70 bg-secondary/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th scope="col" className="px-4 py-3 font-medium">Nume</th>
                   <th scope="col" className="px-4 py-3 font-medium">Email</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Rol</th>
+                  <th scope="col" className="px-4 py-3 font-medium" data-tour="users-roles-info">Rol</th>
                   <th scope="col" className="px-4 py-3 font-medium">Adăugat</th>
                   {isOwnerOrAdmin && (
                     <th scope="col" className="px-4 py-3 text-right font-medium">Acțiuni</th>

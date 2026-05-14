@@ -18,10 +18,15 @@ export const registerRoute = createRoute({
 function RegisterPage(): JSX.Element {
   return (
     <AuthShell
+      title="Hai să începem"
+      subtitle="Îți creezi propriul spațiu de lucru ca proprietar. Poți invita colegii imediat după."
       footer={
         <>
           Ai deja cont?{' '}
-          <Link to="/login" className="text-foreground underline-offset-4 hover:underline">
+          <Link
+            to="/login"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
             Conectează-te
           </Link>
         </>

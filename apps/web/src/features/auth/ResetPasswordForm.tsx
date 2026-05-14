@@ -2,23 +2,24 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
-import { KeyRound } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GlassCard } from '@/components/ui/glass-card';
 import {
   ResetPasswordFormSchema,
   type ResetPasswordFormValues,
 } from './schemas';
 
 /**
- * Reset-password card — confirms a token issued by /auth/password-reset/request,
+ * Reset-password form — confirms a token issued by /auth/password-reset/request,
  * rotates the password and revokes all existing sessions.
  *
  * Token comes in via the URL (`?token=…`), parsed at the route level. We
  * still guard against an empty/expired token by surfacing the API error.
+ *
+ * Page-level title ("Parolă nouă") lives in AuthShell.
  */
 export function ResetPasswordForm({ token }: { token: string }): JSX.Element {
   const router = useRouter();
@@ -58,81 +59,95 @@ export function ResetPasswordForm({ token }: { token: string }): JSX.Element {
 
   if (!token) {
     return (
-      <GlassCard className="w-full max-w-sm p-7">
-        <h1 className="text-lg font-semibold leading-tight">Token lipsă</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Acest link nu conține un token valid. Cere un nou link de resetare.
-        </p>
-      </GlassCard>
+      <section
+        role="alert"
+        className="w-full rounded-lg border border-destructive bg-destructive/5 p-6"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+            <AlertCircle size={16} aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-base font-semibold leading-tight text-destructive">
+              Token lipsă
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Acest link nu conține un token valid. Cere un nou link de resetare din ecranul
+              de uitare parolă.
+            </p>
+          </div>
+        </div>
+      </section>
     );
   }
 
   if (done) {
     return (
-      <GlassCard className="w-full max-w-sm p-7">
-        <h1 className="text-lg font-semibold leading-tight">Parola a fost actualizată</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Te ducem la pagina de conectare…
-        </p>
-      </GlassCard>
+      <section
+        role="status"
+        aria-live="polite"
+        className="w-full rounded-lg border border-border bg-card p-6"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+            <CheckCircle2 size={16} aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-base font-semibold leading-tight text-foreground">
+              Parola a fost actualizată
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Te ducem la pagina de conectare…
+            </p>
+          </div>
+        </div>
+      </section>
     );
   }
 
   return (
-    <GlassCard className="w-full max-w-sm p-7">
-      <header className="mb-5 flex items-start gap-3">
-        <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-          <KeyRound size={18} className="text-foreground" />
-        </span>
-        <div>
-          <h1 className="text-lg font-semibold leading-tight">Parolă nouă</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            După salvare, toate sesiunile existente vor fi revocate.
-          </p>
-        </div>
-      </header>
-
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="rp-new">Parolă nouă</Label>
-          <Input
-            id="rp-new"
-            type="password"
-            autoComplete="new-password"
-            placeholder="Minim 8 caractere"
-            {...register('newPassword')}
-          />
-          {errors.newPassword && (
-            <p className="text-xs text-destructive">{errors.newPassword.message}</p>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="rp-confirm">Confirmă parola</Label>
-          <Input
-            id="rp-confirm"
-            type="password"
-            autoComplete="new-password"
-            {...register('confirmPassword')}
-          />
-          {errors.confirmPassword && (
-            <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
-          )}
-        </div>
-
-        {submitError && (
-          <p
-            role="alert"
-            className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-          >
-            {submitError}
-          </p>
+    <form onSubmit={onSubmit} noValidate className="w-full space-y-5">
+      <div className="space-y-1.5">
+        <Label htmlFor="rp-new">Parolă nouă</Label>
+        <Input
+          id="rp-new"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Minim 8 caractere"
+          aria-invalid={errors.newPassword ? 'true' : undefined}
+          {...register('newPassword')}
+        />
+        {errors.newPassword && (
+          <p className="text-xs text-destructive">{errors.newPassword.message}</p>
         )}
+      </div>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? 'Se salvează…' : 'Schimbă parola'}
-        </Button>
-      </form>
-    </GlassCard>
+      <div className="space-y-1.5">
+        <Label htmlFor="rp-confirm">Confirmă parola</Label>
+        <Input
+          id="rp-confirm"
+          type="password"
+          autoComplete="new-password"
+          aria-invalid={errors.confirmPassword ? 'true' : undefined}
+          {...register('confirmPassword')}
+        />
+        {errors.confirmPassword && (
+          <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+        )}
+      </div>
+
+      {submitError && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {submitError}
+        </p>
+      )}
+
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? 'Se salvează…' : 'Schimbă parola'}
+      </Button>
+    </form>
   );
 }

@@ -12,12 +12,15 @@ export const forgotPasswordRoute = createRoute({
 function ForgotPasswordPage(): JSX.Element {
   return (
     <AuthShell
+      title="Resetare parolă"
+      subtitle="Îți trimitem un link sigur, valabil 30 de minute, pentru a-ți alege o parolă nouă."
       footer={
-        <>
-          <Link to="/login" className="text-foreground underline-offset-4 hover:underline">
-            Înapoi la conectare
-          </Link>
-        </>
+        <Link
+          to="/login"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+        >
+          Înapoi la conectare
+        </Link>
       }
     >
       <ForgotPasswordForm />

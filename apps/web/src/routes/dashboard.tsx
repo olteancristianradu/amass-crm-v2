@@ -19,6 +19,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { QueryError } from '@/components/ui/QueryError';
 import { CardGridSkeleton, Skeleton } from '@/components/ui/loading-skeleton';
+import { useTour } from '@/lib/tours/useTour';
 
 export const dashboardRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -75,6 +76,9 @@ interface MorningBrief {
 }
 
 function Dashboard(): JSX.Element {
+  // F1.12 — auto-launch product tour on first visit.
+  useTour('dashboard');
+
   const user = useAuthStore((s) => s.user);
 
   const now = new Date();
@@ -114,18 +118,20 @@ function Dashboard(): JSX.Element {
           static fallback, cached 30min in Redis). When the call is in
           flight or fails we fall back to a deterministic summary derived
           from the dashboard stats so the layout never collapses. */}
-      <BriefStrip
-        data={data}
-        brief={brief.data}
-        isLoading={brief.isPending}
-        onRefresh={() => {
-          void brief.refetch();
-        }}
-        isRefreshing={brief.isFetching}
-      />
+      <div data-tour="dashboard-brief">
+        <BriefStrip
+          data={data}
+          brief={brief.data}
+          isLoading={brief.isPending}
+          onRefresh={() => {
+            void brief.refetch();
+          }}
+          isRefreshing={brief.isFetching}
+        />
+      </div>
 
       {/* KPI grid */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-tour="dashboard-kpis">
         <KpiTile
           icon={Briefcase}
           title="Deals deschise"
@@ -161,7 +167,7 @@ function Dashboard(): JSX.Element {
       {/* Pipeline + activity row */}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         {data && data.pipeline.length > 0 && (
-          <GlassCard className="overflow-hidden lg:col-span-2">
+          <GlassCard className="overflow-hidden lg:col-span-2" data-tour="dashboard-pipeline">
             <header className="flex items-center justify-between border-b border-border/70 px-5 py-3">
               <div>
                 <h2 className="text-sm font-semibold">Pipeline pe etape</h2>
@@ -229,7 +235,7 @@ function Dashboard(): JSX.Element {
         )}
 
         {data && data.activities.byType.length > 0 && (
-          <GlassCard className="p-5">
+          <GlassCard className="p-5" data-tour="dashboard-activity">
             <header className="mb-3">
               <h2 className="text-sm font-semibold">Activitate</h2>
               <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">

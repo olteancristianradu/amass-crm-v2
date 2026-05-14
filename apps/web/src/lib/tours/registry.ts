@@ -3,6 +3,13 @@ import { contactsListTourSteps } from './content/contacts-list.tour';
 import { dealsKanbanTourSteps } from './content/deals-kanban.tour';
 import { quotesListTourSteps } from './content/quotes-list.tour';
 import { invoicesListTourSteps } from './content/invoices-list.tour';
+import { dashboardTourSteps } from './content/dashboard.tour';
+import { cockpitTourSteps } from './content/cockpit.tour';
+import { tasksMineTourSteps } from './content/tasks-mine.tour';
+import { calendarTourSteps } from './content/calendar.tour';
+import { reportsTourSteps } from './content/reports.tour';
+import { settingsUsersTourSteps } from './content/settings-users.tour';
+import { importsTourSteps } from './content/imports.tour';
 
 export interface TourStep {
   element: string; // CSS selector — prefer data-tour="..." for stability
@@ -59,6 +66,55 @@ export const TOUR_REGISTRY: TourDef[] = [
     description: 'Emitere factură, trimitere automată la ANAF SPV, export pentru contabilitate.',
     page: '/app/invoices',
     steps: invoicesListTourSteps,
+  },
+  {
+    id: 'dashboard',
+    title: 'Dashboard',
+    description: 'Bun venit + KPI-uri esențiale, brief AI și pipeline pe etape.',
+    page: '/app',
+    steps: dashboardTourSteps,
+  },
+  {
+    id: 'cockpit',
+    title: 'Pro Cockpit',
+    description: 'Centrul de comandă: widget-uri configurabile cu drag-and-drop.',
+    page: '/app/cockpit',
+    steps: cockpitTourSteps,
+  },
+  {
+    id: 'tasks-mine',
+    title: 'Task-urile mele',
+    description: 'Creare rapidă, finalizare, link la subject (deal/companie).',
+    page: '/app/tasks',
+    steps: tasksMineTourSteps,
+  },
+  {
+    id: 'calendar',
+    title: 'Calendar',
+    description: 'Integrare Google/Outlook bidirecțională + creare evenimente.',
+    page: '/app/calendar',
+    steps: calendarTourSteps,
+  },
+  {
+    id: 'reports',
+    title: 'Rapoarte',
+    description: 'Cele 4 perspective: Prezentare, Financiar, Forecast, Desfășurător apeluri.',
+    page: '/app/reports',
+    steps: reportsTourSteps,
+  },
+  {
+    id: 'settings-users',
+    title: 'Utilizatori și roluri',
+    description: 'Invite user nou + rolurile RBAC: OWNER/ADMIN/MANAGER/AGENT/VIEWER.',
+    page: '/app/settings/users',
+    steps: settingsUsersTourSteps,
+  },
+  {
+    id: 'imports',
+    title: 'Import-uri',
+    description: 'Istoric job-uri de import (CSV, GestCom PDF) cu status live.',
+    page: '/app/imports',
+    steps: importsTourSteps,
   },
 ];
 

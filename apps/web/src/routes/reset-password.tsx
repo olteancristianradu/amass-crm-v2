@@ -17,8 +17,13 @@ function ResetPasswordPage(): JSX.Element {
   const { token } = resetPasswordRoute.useSearch();
   return (
     <AuthShell
+      title="Parolă nouă"
+      subtitle="După salvare, toate sesiunile existente vor fi închise pentru siguranța contului."
       footer={
-        <Link to="/login" className="text-foreground underline-offset-4 hover:underline">
+        <Link
+          to="/login"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+        >
           Înapoi la conectare
         </Link>
       }

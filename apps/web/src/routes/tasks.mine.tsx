@@ -12,6 +12,7 @@ import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 export const tasksMineRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -20,6 +21,8 @@ export const tasksMineRoute = createRoute({
 });
 
 function TasksMinePage(): JSX.Element {
+  // F1.12 — auto-launch product tour on first visit.
+  useTour('tasks-mine');
   const qc = useQueryClient();
   const [status, setStatus] = useState<TaskStatus>('OPEN');
   const [showCreate, setShowCreate] = useState(false);
@@ -76,7 +79,10 @@ function TasksMinePage(): JSX.Element {
         subtitle="Sarcinile asignate ție — comută între deschise și finalizate."
         actions={
           <div className="flex items-center gap-2">
-            <div className="flex gap-1 rounded-md border border-border/70 bg-card/70 p-1">
+            <div
+              className="flex gap-1 rounded-md border border-border/70 bg-card/70 p-1"
+              data-tour="tasks-tabs"
+            >
               <TabButton active={status === 'OPEN'} onClick={() => setStatus('OPEN')}>
                 Deschise
               </TabButton>
@@ -84,7 +90,7 @@ function TasksMinePage(): JSX.Element {
                 Finalizate
               </TabButton>
             </div>
-            <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Button size="sm" onClick={() => setShowCreate(true)} data-tour="new-task-btn">
               <Plus size={14} className="mr-1.5" />
               Task nou
             </Button>
@@ -111,7 +117,7 @@ function TasksMinePage(): JSX.Element {
         </GlassCard>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="tasks-list">
         {data?.data.map((t) => (
           <TaskCard
             key={t.id}

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { QueryError } from '@/components/ui/QueryError';
 import { ListSkeleton, Skeleton } from '@/components/ui/loading-skeleton';
+import { useTour } from '@/lib/tours/useTour';
 
 interface DealStats {
   total: number; open: number; won: number; lost: number;
@@ -65,6 +66,8 @@ function StatCard({ title, value, sub }: { title: string; value: string | number
 }
 
 export function ReportsPage(): JSX.Element {
+  // F1.12 — auto-launch product tour on first visit.
+  useTour('reports');
   const [period, setPeriod] = useState<Period>('30d');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -110,7 +113,7 @@ export function ReportsPage(): JSX.Element {
         <h1 className="text-2xl font-semibold">Rapoarte</h1>
 
         {/* Period selector */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" data-tour="reports-period">
           {(['7d', '30d', '90d', '1y', 'custom'] as Period[]).map((p) => (
             <button
               key={p}
@@ -141,7 +144,7 @@ export function ReportsPage(): JSX.Element {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b" data-tour="reports-tabs">
         {(['overview', 'financial', 'forecast', 'daily-calls'] as const).map((tab) => (
           <button
             key={tab}
@@ -161,6 +164,7 @@ export function ReportsPage(): JSX.Element {
         ))}
       </div>
 
+      <div data-tour="reports-content">
       {isLoading && activeTab === 'overview' && (
         <ListSkeleton rows={5} />
       )}
@@ -281,6 +285,7 @@ export function ReportsPage(): JSX.Element {
           data={dailyCalls}
         />
       )}
+      </div>
     </div>
   );
 }

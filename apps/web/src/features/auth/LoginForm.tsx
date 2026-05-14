@@ -8,7 +8,6 @@ import { useAuthStore, type AuthTokens, type AuthUser } from '@/stores/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GlassCard } from '@/components/ui/glass-card';
 import { LoginFormSchema, type LoginFormValues } from './schemas';
 
 interface TenantOption {
@@ -24,6 +23,10 @@ interface TenantOption {
  *   3. Retry same credentials + totpCode (if 2FA) → get session tokens
  *
  * No tenant field by default — the BE resolves the tenant from the email.
+ *
+ * The page-level h1 lives in AuthShell. This component renders only the
+ * form fieldset (or the stateful tenant-picker / TOTP sub-screens, which
+ * carry their own context headers because they replace the form entirely).
  */
 export function LoginForm(): JSX.Element {
   const router = useRouter();
@@ -134,25 +137,28 @@ export function LoginForm(): JSX.Element {
   // ── Step 2a: tenant picker ────────────────────────────────────────────────
   if (tenantOptions) {
     return (
-      <GlassCard className="w-full max-w-sm p-7">
-        <header className="mb-5 flex items-start gap-3">
-          <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-            <KeyRound size={18} className="text-foreground" />
+      <section className="w-full">
+        <header className="mb-6 flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+            <KeyRound size={16} aria-hidden="true" />
           </span>
           <div>
-            <h1 className="text-lg font-semibold leading-tight">Alege spațiul de lucru</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <h2 className="text-base font-semibold leading-tight text-foreground">
+              Alege spațiul de lucru
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               Adresa ta de email aparține mai multor firme. Alege unde vrei să te conectezi.
             </p>
           </div>
         </header>
 
-        <form onSubmit={onPickerSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={onPickerSubmit} className="space-y-5">
+          <fieldset className="space-y-2">
+            <legend className="sr-only">Spații de lucru disponibile</legend>
             {tenantOptions.map((t) => (
               <label
                 key={t.slug}
-                className="flex cursor-pointer items-center gap-3 rounded-md border border-border/60 bg-secondary/20 px-3 py-2 text-sm hover:bg-secondary/40"
+                className="flex cursor-pointer items-center gap-3 rounded-md border border-border bg-card px-3 py-2.5 text-sm transition-colors hover:bg-secondary"
               >
                 <input
                   type="radio"
@@ -161,17 +167,21 @@ export function LoginForm(): JSX.Element {
                   checked={pendingTenantSlug === t.slug}
                   onChange={() => setPendingTenantSlug(t.slug)}
                   className="accent-primary"
+                  aria-label={`Spațiu de lucru ${t.name}`}
                 />
                 <span className="flex-1">
-                  <span className="block font-medium">{t.name}</span>
+                  <span className="block font-medium text-foreground">{t.name}</span>
                   <span className="block text-xs text-muted-foreground">{t.slug}</span>
                 </span>
               </label>
             ))}
-          </div>
+          </fieldset>
 
           {submitError && (
-            <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded-md border border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            >
               {submitError}
             </p>
           )}
@@ -189,33 +199,39 @@ export function LoginForm(): JSX.Element {
             >
               <ArrowLeft size={14} className="mr-1" /> Înapoi
             </Button>
-            <Button type="submit" className="flex-1" disabled={pickerSubmitting || !pendingTenantSlug}>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={pickerSubmitting || !pendingTenantSlug}
+            >
               {pickerSubmitting ? 'Se conectează…' : 'Continuă'}
             </Button>
           </div>
         </form>
-      </GlassCard>
+      </section>
     );
   }
 
   // ── Step 2b/3: TOTP step ──────────────────────────────────────────────────
   if (totpStep) {
     return (
-      <GlassCard className="w-full max-w-sm p-7">
-        <header className="mb-5 flex items-start gap-3">
-          <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-            <ShieldCheck size={18} className="text-foreground" />
+      <section className="w-full">
+        <header className="mb-6 flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+            <ShieldCheck size={16} aria-hidden="true" />
           </span>
           <div>
-            <h1 className="text-lg font-semibold leading-tight">Autentificare în doi pași</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <h2 className="text-base font-semibold leading-tight text-foreground">
+              Autentificare în doi pași
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               Introdu codul de 6 cifre din aplicația de autentificare.
             </p>
           </div>
         </header>
 
         <form onSubmit={onTotpSubmit} noValidate className="space-y-5">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="totp-code">Cod 2FA</Label>
             <Input
               id="totp-code"
@@ -226,15 +242,18 @@ export function LoginForm(): JSX.Element {
               value={totpCode}
               onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               autoFocus
-              className="text-center text-lg tracking-[0.5em] font-medium"
+              className="text-center text-lg font-medium tracking-[0.5em]"
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Sau folosește un cod de rezervă (8 caractere) dacă ai pierdut accesul la aplicație.
             </p>
           </div>
 
           {submitError && (
-            <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <p
+              role="alert"
+              className="rounded-md border border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            >
               {submitError}
             </p>
           )}
@@ -261,59 +280,54 @@ export function LoginForm(): JSX.Element {
             </Button>
           </div>
         </form>
-      </GlassCard>
+      </section>
     );
   }
 
   // ── Step 1: email + password ─────────────────────────────────────────────
   return (
-    <GlassCard className="w-full max-w-sm p-7">
-      <header className="mb-5 flex items-start gap-3">
-        <span className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-secondary">
-          <KeyRound size={18} className="text-foreground" />
-        </span>
-        <div>
-          <h1 className="text-lg font-semibold leading-tight">Conectare</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Introdu datele contului tău pentru a continua.
-          </p>
-        </div>
-      </header>
-
-      <form onSubmit={onSubmit} noValidate className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            placeholder="nume@firma.ro"
-            {...register('email')}
-          />
-          {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="password">Parolă</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            {...register('password')}
-          />
-          {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-        </div>
-
-        {submitError && (
-          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {submitError}
-          </p>
+    <form onSubmit={onSubmit} noValidate className="w-full space-y-5">
+      <div className="space-y-1.5">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          autoComplete="email"
+          placeholder="nume@firma.ro"
+          aria-invalid={errors.email ? 'true' : undefined}
+          {...register('email')}
+        />
+        {errors.email && (
+          <p className="text-xs text-destructive">{errors.email.message}</p>
         )}
+      </div>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? 'Se conectează…' : 'Conectare'}
-        </Button>
-      </form>
-    </GlassCard>
+      <div className="space-y-1.5">
+        <Label htmlFor="password">Parolă</Label>
+        <Input
+          id="password"
+          type="password"
+          autoComplete="current-password"
+          aria-invalid={errors.password ? 'true' : undefined}
+          {...register('password')}
+        />
+        {errors.password && (
+          <p className="text-xs text-destructive">{errors.password.message}</p>
+        )}
+      </div>
+
+      {submitError && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {submitError}
+        </p>
+      )}
+
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? 'Se conectează…' : 'Conectare'}
+      </Button>
+    </form>
   );
 }

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses } from '@/lib/status-colors';
+import { useTour } from '@/lib/tours/useTour';
 
 /** Returns ISO date string for today/7-days-from-now for the events default range. */
 function todayIso(): string {
@@ -20,6 +21,8 @@ function in7DaysIso(): string {
 }
 
 export function CalendarPage(): JSX.Element {
+  // F1.12 — auto-launch product tour on first visit.
+  useTour('calendar');
   const [showEventForm, setShowEventForm] = useState(false);
   const [from, setFrom] = useState(todayIso());
   const [to, setTo] = useState(in7DaysIso());
@@ -46,7 +49,7 @@ export function CalendarPage(): JSX.Element {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Calendar</h1>
-        <Button onClick={() => setShowEventForm((v) => !v)}>
+        <Button onClick={() => setShowEventForm((v) => !v)} data-tour="calendar-new-event">
           {showEventForm ? 'Anulează' : '+ Eveniment nou'}
         </Button>
       </div>
@@ -59,7 +62,7 @@ export function CalendarPage(): JSX.Element {
       )}
 
       {/* Integrations */}
-      <div>
+      <div data-tour="calendar-integrations">
         <h2 className="text-lg font-medium mb-3">Integrări calendar</h2>
         {loadingInt && (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -105,10 +108,10 @@ export function CalendarPage(): JSX.Element {
       </div>
 
       {/* Events */}
-      <div>
+      <div data-tour="calendar-events">
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           <h2 className="text-lg font-medium">Evenimente</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour="calendar-range">
             <Input
               type="date"
               value={from}
