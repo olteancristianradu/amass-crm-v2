@@ -60,4 +60,19 @@ export class ReportsController {
     const fromDate = from ?? new Date(now.getTime() - 180 * 86400000).toISOString().slice(0, 10);
     return this.reports.revenueTrend(fromDate, toDate);
   }
+
+  /**
+   * Raport zilnic per agent: lista de apeluri din ziua respectivă cu cu cine
+   * a vorbit (nume contact/client/firmă sau număr de telefon dacă lipsește),
+   * direcția și durata formatată MM:SS. Folosit pentru desfășurător zilnic.
+   */
+  @Get('agent-calls')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  agentCalls(
+    @Query('date') date?: string,
+    @Query('userId') userId?: string,
+  ) {
+    const day = date ?? new Date().toISOString().slice(0, 10);
+    return this.reports.agentCalls(day, userId);
+  }
 }

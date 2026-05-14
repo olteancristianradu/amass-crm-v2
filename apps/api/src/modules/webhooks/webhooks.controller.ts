@@ -13,14 +13,18 @@ import { WebhooksService } from './webhooks.service';
 
 const WebhookEventSchema = z.nativeEnum(WebhookEvent);
 
+// Empty events array = "subscribe to all events" per FE convention shown
+// in the listing UI ("Evenimente: toate" when length === 0). The min(1)
+// constraint was rejecting that intent with a 400 even though semantically
+// "no filter" is valid.
 const CreateEndpointSchema = z.object({
   url: z.string().url(),
-  events: z.array(WebhookEventSchema).min(1),
+  events: z.array(WebhookEventSchema),
 });
 
 const UpdateEndpointSchema = z.object({
   url: z.string().url().optional(),
-  events: z.array(WebhookEventSchema).min(1).optional(),
+  events: z.array(WebhookEventSchema).optional(),
   isActive: z.boolean().optional(),
 });
 

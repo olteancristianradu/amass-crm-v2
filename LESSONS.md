@@ -20,6 +20,71 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
 
 ## Entries
 
+### 2026-05-14 — Read `AGENTS.md` at session start, update control docs at session end — both were skipped today
+
+- Area: process / agent discipline
+- Symptom: ~5 hours of code changes in a single chat (Twilio real wiring, Whisper pipeline activation, pipeline end-to-end fixes, GestCom adapter rewrite, 4 P1 contract fixes, Docker bloat reduction) shipped with **zero** updates to `CHANGELOG.md`, `LESSONS.md`, `SECURITY_FINDINGS.md`, or `RELEASE_CHECKLIST.md`. User had to ask, "ai mai umblat la control docs?" before I noticed.
+- Root cause: jumped straight to user requests without reading `AGENTS.md` at session start. The "Required documentation after every task" section never primed working memory, so no update reflex kicked in between tasks.
+- Fix: at the top of every new session, before any other action, read `AGENTS.md` fully (not skim) and explicitly state the doc-update obligation in the response. Treat the obligation as part of "task done" — a task isn't done until the relevant doc line is added. For long sessions, do a control-doc sweep every ~5 commits, not "at the end" (since "the end" never arrives without prompting).
+- Prevention rule: `AGENTS.md` must be the *first* `Read` of every fresh session, not searched-for or assumed. Same for `LESSONS.md` so today's traps don't repeat.
+- Related files: `AGENTS.md` (Required startup checklist + Required documentation after every task), this `LESSONS.md` entry.
+
+### 2026-05-14 — Twilio Trial blocks adding new verified caller IDs — only existing verified numbers can be dialled
+
+- Area: integrations / Twilio
+- Symptom: tried to add `+40757970793` as an outgoing caller ID so the demo could call a second RO number on Trial. `POST /Accounts/{SID}/OutgoingCallerIds.json` returned `400 code:10002 "Placing verification calls is not supported on trial accounts. Please upgrade to a full account first."`
+- Root cause: Twilio Trial accounts cannot place outbound verification calls. The single pre-existing verified caller ID (`+40754070368` in our case) is the *only* destination the Trial can dial. Trial = "demo with one phone you already own", not "demo with arbitrary contacts".
+- Fix: documented the limitation honestly and offered three paths: (1) stay on gratis but call only `+40754070368`; (2) edit a Contact's `phone` to `+40754070368` in CRM so click-to-call routes back to yourself (caller-ID shows the Twilio US number on the recipient screen); (3) upgrade Trial → Pay-As-You-Go ($20 minimum) to remove the verified-only restriction. Did NOT silently spend on number provisioning or upgrade.
+- Prevention rule: when wiring any "Trial" provider integration, list the Trial restrictions in the demo brief before suggesting demo flows. Trial limits are external state, not something we can fix in code.
+- Related files: `.env` (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`), `apps/api/src/modules/calls/twilio.client.ts`.
+- External docs: <https://www.twilio.com/docs/errors/10002>
+
+### 2026-05-14 — Whisper `base` is too weak for production Romanian; use `medium` or `large-v3`
+
+- Area: AI / transcription / Whisper
+- Symptom: activated Whisper at `WHISPER_MODEL=base` (142 MB). On a real 30-minute Romanian sales call about heat pumps + photovoltaics, the transcript was so garbled that key proper nouns and technical terms broke: `"Flair International"` → `"Flyer International"`, `"CRM"` → `"cereme"`, `"dumneavoastră"` → `"dumna vostra"`, `"dispoziție"` → `"disposie"`. Sentence structure mostly survived; word-level accuracy ~60-70%. On a TTS-clean 60-second sample with the same content, `medium` produced near-clean Romanian; `large-v3` cleaner still.
+- Root cause: `base` is a multilingual encoder; Romanian-specific phonetics and technical vocabulary are underweighted. The codebase default was `base` because the original sprint stub optimized for "demo without the disk hit".
+- Fix: bumped `WHISPER_MODEL` to `large-v3` (2.9 GB, ~0.7× real-time on CPU, 96-98% accuracy on RO). Caveat: a 30-minute call now takes ~45 minutes to transcribe end-to-end on CPU. Acceptable for async pipeline; will not scale to thousands of concurrent calls without GPU.
+- Prevention rule: never demo or pitch Romanian transcription on `base`. Stub-mode default for dev is fine; the moment a real call is recorded, switch to at least `medium`. Document the trade-off (model size vs. wall-clock processing) in any "AI features" section visible to operators.
+- Related files: `.env` (`WHISPER_MODEL`), `apps/ai-worker/app/transcription.py`, `apps/ai-worker/app/config.py`.
+
+### 2026-05-14 — `pip install torch` pulls 8 GB of CUDA libs on a CPU-only deploy; pin the CPU index
+
+- Area: Docker / Python deps / image size
+- Symptom: after enabling Whisper, `amass-ai-worker` image ballooned from 909 MB to **9.02 GB**. `docker images` showed the layer with `pip install -r requirements.txt` accounted for ~8 GB. On Railway/Hetzner, layer storage cost spikes and pull time becomes painful.
+- Root cause: PyPI's default `torch` wheels embed `nvidia-cublas-cu12`, `nvidia-cudnn-cu12`, `nvidia-cusparselt-cu12`, `nvidia-nccl-cu12`, `triton` and friends — all required for GPU acceleration. They install regardless of host capability. On a CPU-only host (Mac mini ARM, most cheap VPS) they are dead weight at boot and pull time.
+- Fix: `apps/ai-worker/Dockerfile` now installs torch FIRST from the CPU-only index before `requirements.txt`: `RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu && pip install --no-cache-dir -r requirements.txt`. Image dropped to 1.96 GB (−78%). Whisper behaviour identical on CPU.
+- Prevention rule: any Python image that includes `torch`/`tensorflow`/`onnxruntime` on a CPU-only host MUST pin the CPU build. Pre-pin torch before the rest of requirements so transitive deps (whisper, whisperx) don't re-pull the GPU wheel.
+- Related files: `apps/ai-worker/Dockerfile`, `apps/ai-worker/requirements.txt`.
+- External docs: <https://pytorch.org/get-started/locally/>
+
+### 2026-05-14 — Webhook handlers run outside JWT/ALS context — `activity.log()` silently drops without explicit `tenantId`
+
+- Area: webhooks / multi-tenant / activity log
+- Symptom: real Twilio call completed, recording was downloaded, transcript saved, but the timeline tab on the contact showed no `call.completed` entry. Logs revealed `WARN Activity dropped — no tenant context for action=call.completed` at the `status_callback` webhook hit.
+- Root cause: `ActivitiesService.log()` reads tenant from `getTenantContext()` (AsyncLocalStorage). The whole `runWithTenant` / ALS chain is set up by `TenantContextMiddleware`, which only runs for JWT-authenticated requests. Twilio webhooks authenticate via signature (not JWT), so they skip that middleware. `getTenantContext()` returns `null` → activity drop. The `Call` row already has `tenantId` from the original `initiateCall`, but the webhook handler wasn't using it.
+- Fix: `ActivityEntry` now has optional `tenantId` and `actorId`. `ActivitiesService.log()` prefers them over ALS (`entry.tenantId ?? ctx?.tenantId`). `CallsService.handleStatusWebhook` passes `tenantId: existing.tenantId, actorId: existing.userId` on the `call.completed` log. Verified: `SELECT action, count(*) FROM activities WHERE tenantId='dana-test' GROUP BY action` now shows `call.completed: 1`.
+- Prevention rule: every domain log/audit call inside a webhook handler must pass `tenantId` explicitly. If a webhook needs to write to a tenant-scoped table, the entity it received from Twilio/Stripe/etc. already carries `tenantId` from the original initiating request — use it. Never rely on ALS context in code reachable from webhook routes.
+- Related files: `apps/api/src/modules/activities/activities.service.ts`, `apps/api/src/modules/calls/calls.service.ts` (`handleStatusWebhook`), `apps/api/src/modules/calls/calls-webhook.controller.ts`.
+
+### 2026-05-14 — `ImportProcessor` bypassed the adapter chain on PDFs — 96-record export turned into 6376 "Missing company name" failures
+
+- Area: importer / file-format routing
+- Symptom: real GestCom PDF (149 pages, ~96 records) imported via `POST /api/v1/imports?type=COMPANIES` returned status `FAILED` with `totalRows: 6376, succeeded: 0, failed: 6376`. Every failed row had error `"Missing company name"`. Adapter tests for GestCom passed in isolation — they never ran in the production path.
+- Root cause: three stacked issues. (1) `ImportProcessor.process` was wired to call `Papa.parse(buffer.toString())` directly on every uploaded file — it never invoked `pickAdapter()`. On a binary PDF, `Papa` interpreted each byte-line as a CSV row, producing thousands of garbage rows. (2) `GestComAdapter.canHandle({fileName})` required `/gestcom|lucrari|amass/i` in the filename, but a real export sent via WhatsApp arrives as `unnamed document.pdf`. (3) The Nume/Prenume/Email regex assumed one field per text line, but `pdf-parse` sometimes collapses an entire record onto a single line.
+- Fix: rewrote `ImportProcessor.process` to call `pickAdapter({fileName, magicBytes: buffer})` first; Papa is now the fallback only for confirmed CSV. Added `StorageService.getObjectAsBuffer()`. Extended `GestComAdapter.canHandle` to content-sniff for `gestcom.ro/` inside the buffer (PDF annotation dictionary). Rewrote Nume/Prenume/Oras regex with look-aheads. Verified live: real PDF → `succeeded=94 + skipped=2 (dedup) + failed=0`. Adapter unit tests still pass 14/14.
+- Prevention rule: every importer needs a smoke test that runs the **full processor chain end-to-end** on a real fixture, not just the adapter unit test. Adapter-only tests give false confidence because they never exercise the routing decision.
+- Related files: `apps/api/src/modules/importer/import.processor.ts:71-138`, `apps/api/src/infra/storage/storage.service.ts:160-174`, `apps/api/src/modules/importer/adapters/factory.ts:29-35`, `apps/api/src/modules/importer/adapters/gestcom.adapter.ts:45-68,255-285`, `apps/api/src/modules/importer/adapters/gestcom.adapter.spec.ts`.
+
+### 2026-05-14 — Container ran stale `dist/` for 10 days because `docker compose up` doesn't rebuild without `--build`
+
+- Area: Docker / deploy / silent-drift
+- Symptom: `/api/v1/cockpit/feed` returned `404 NOT_FOUND` via the live tunnel even though `CockpitModule` was registered in `app.module.ts:211` and the controller existed in source. The 4 cockpit commits (`2346629`, `181c838`, `f6361f6`, `7fd93f6`) were all on disk.
+- Root cause: `docker inspect amass-api --format '{{.Created}}'` returned `2026-05-03T20:44:52Z` — 10 days old. `docker exec amass-api stat -c '%y' /repo/apps/api/dist/main.js` confirmed the bundled JS was from May 3. `pnpm install` / `docker compose up -d` (without `--build`) only restarts existing containers; it never triggers an image rebuild. Every code change since May 3 lived on disk but never reached the running runtime.
+- Fix: `docker compose -f infra/docker-compose.yml --project-directory infra build api` followed by `up -d --force-recreate api`. After the rebuild, the previously-404 endpoint returned 200 with three real "deals-in-danger" widgets for the Dana tenant. Repeated for `web` (new daily-calls UI tab) and `ai-worker` (Whisper + CPU torch).
+- Prevention rule: after any non-trivial code change, `docker compose build <service>` is required before `up -d`. Add `--force-recreate` when env vars or build context changed (otherwise Compose may keep the old container even after a new image is built). Add a session-start check that compares `docker inspect ... .Created` against the last commit timestamp for that service's directory.
+- Related files: `infra/docker-compose.yml`, `apps/api/Dockerfile`, `apps/web/Dockerfile`, `apps/ai-worker/Dockerfile`.
+
 ### 2026-05-12 — Always `pnpm audit` after a bulk `pnpm update -r`; supply-chain attacks land via patch/minor too
 
 - Area: dependency management / supply-chain security

@@ -1,7 +1,9 @@
-import { Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Building2 } from 'lucide-react';
+import { Building2, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/stores/toasts';
 import { companiesApi } from '@/features/companies/api';
 import { NextActionHeader } from '@/features/entity-detail/NextActionHeader';
 import { RelationshipHealthCard } from '@/features/entity-detail/RelationshipHealthCard';
@@ -48,11 +50,31 @@ const TABS: { value: TabKey; label: string }[] = [
 export function CompanyDetailPage(): JSX.Element {
   const { id } = companyDetailRoute.useParams();
   const [tab, setTab] = useState<TabKey>('timeline');
+  const navigate = useNavigate();
+  const qc = useQueryClient();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['companies', 'detail', id],
     queryFn: () => companiesApi.get(id),
   });
+
+  const deleteMut = useMutation({
+    mutationFn: () => companiesApi.remove(id),
+    onSuccess: () => {
+      toast('Companie ștearsă', data?.name);
+      void qc.invalidateQueries({ queryKey: ['companies'] });
+      void navigate({ to: '/app/companies' });
+    },
+    onError: (err: unknown) => {
+      toast('Eroare la ștergere', err instanceof ApiError ? err.message : 'necunoscută');
+    },
+  });
+
+  function handleDelete(): void {
+    if (!data) return;
+    if (!confirm(`Ștergi compania "${data.name}"? Operația e reversibilă (soft delete).`)) return;
+    deleteMut.mutate();
+  }
 
   if (isLoading) return <ListSkeleton rows={4} />;
   if (isError) {
@@ -86,6 +108,18 @@ export function CompanyDetailPage(): JSX.Element {
       }
       backHref="/app/companies"
       backLabel="Companii"
+      actions={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDelete}
+          disabled={deleteMut.isPending}
+          aria-label="Șterge compania"
+        >
+          <Trash2 size={14} className="mr-1.5" />
+          {deleteMut.isPending ? 'Se șterge…' : 'Șterge'}
+        </Button>
+      }
       sidebar={
         <>
           <DetailFields title="Identificare">

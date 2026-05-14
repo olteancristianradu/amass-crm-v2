@@ -1,6 +1,8 @@
 import { api } from '@/lib/api';
 
-export type PeriodType = 'MONTH' | 'QUARTER' | 'YEAR';
+// Match the API enum exactly (packages/shared/src/schemas/forecasting.ts):
+// BE accepts only MONTHLY | QUARTERLY. YEARLY is not supported yet.
+export type PeriodType = 'MONTHLY' | 'QUARTERLY';
 
 export interface ForecastUserRow {
   userId: string;

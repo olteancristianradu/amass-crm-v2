@@ -42,13 +42,33 @@ export class GestComAdapter implements ImporterAdapter {
   readonly id = 'gestcom-pdf';
   readonly label = 'GestCom Sales (PDF export)';
 
-  canHandle(input: { mimeType: string; fileName: string }): boolean {
-    // Only activate when both a PDF extension AND a GestCom hint are
-    // present in the filename. We do not want to hijack every PDF — the
-    // generic PdfAdapter still owns single-document invoices.
+  canHandle(input: { mimeType: string; fileName: string; magicBytes?: Buffer }): boolean {
+    // Activate when:
+    //   (a) the file is a PDF and the filename hints at GestCom
+    //       (gestcom-export.pdf, lucrari-2026.pdf, amass-export.pdf), OR
+    //   (b) the file is a PDF whose raw bytes contain the GestCom URL
+    //       marker ("gestcom.ro/<tenant>/...") as a literal ASCII
+    //       substring. PDF link annotations (`/URI` entries) sit in the
+    //       page-tree object dictionary which is NOT FlateDecode-compressed,
+    //       so the URL is readable in the raw bytes without running the
+    //       PDF parser. We scan the WHOLE buffer because the xref table
+    //       (and annotation dictionaries it references) usually lives near
+    //       the end of the file — a head-only sniff misses it.
+    //       This covers the common case of clients uploading the PDF
+    //       under generic names like "unnamed document.pdf" without
+    //       hijacking unrelated invoice PDFs (those won't contain
+    //       gestcom.ro in their text/annot streams).
     const isPdf = /\.pdf$/i.test(input.fileName) || /pdf/i.test(input.mimeType);
+    if (!isPdf) return false;
     const hasHint = /gestcom|lucrari|amass[_-]?export/i.test(input.fileName);
-    return isPdf && hasHint;
+    if (hasHint) return true;
+    if (input.magicBytes && input.magicBytes.length > 0) {
+      // latin1 keeps every byte 1:1, so the ASCII substring search is
+      // safe even though the rest of the buffer is binary garbage.
+      const blob = input.magicBytes.toString('latin1');
+      if (/gestcom\.ro\//.test(blob)) return true;
+    }
+    return false;
   }
 
   async parse(buffer: Buffer): Promise<ParseResult> {
@@ -247,17 +267,39 @@ export function parseRecord(block: string): RawRow {
   };
 
   // Contact identity (these map directly to gestcom-mapper.ts candidates).
-  // Each value MUST be on the same line as its label — we use `[ \t]+`
-  // (tab/space only, not newline) between label and value, then capture
-  // everything until end-of-line. This prevents the next field name from
-  // bleeding into the previous field's value when an export has empty
-  // fields (`Nume:\n      Prenume:` would otherwise grab "Prenume:" as
-  // the Nume value).
-  const nume = grab('Nume', /^[ \t]*Nume:[ \t]+([^\n\r]+?)[ \t]*$/m);
-  const prenume = grab('Prenume', /^[ \t]*Prenume:[ \t]+([^\n\r]+?)[ \t]*$/m);
+  // Each value MUST be terminated by EITHER end-of-line OR the start of
+  // the next known field label (Prenume:, Email:, Telefon:, etc). This
+  // handles three layouts we've seen in real GestCom exports:
+  //   (1) one field per line: `Nume: Andone\nPrenume: Justinian`
+  //   (2) multi-field per line: `Nume: Podina Prenume: Ioana nicoleta`
+  //       — pdf-parse sometimes collapses contact-form rows onto a single
+  //       line when the OBSERVATII column is narrow.
+  //   (3) preamble word on same line: `cacealma Nume: ionescu` — the
+  //       text "cacealma" before the label must not bleed into the value.
+  //
+  // The negative look-behind `(?<![A-Za-z])` keeps us from matching the
+  // tail of `Prenume:`. The non-greedy capture + look-ahead at known
+  // labels gives us the smallest substring that's actually the value.
+  const NEXT_LABEL = '(?=$|\\s+(?:Prenume|Email|Telefon|Suprafata|Oras|Alegeti|Conectare|Domeniu|Sisteme|Cu ce):)';
+  const nume = grab('Nume', new RegExp(`(?<![A-Za-z])Nume:[ \\t]+([^\\n\\r]+?)[ \\t]*${NEXT_LABEL}`, 'm'));
+  const prenume = grab(
+    'Prenume',
+    new RegExp(`(?<![A-Za-z])Prenume:[ \\t]+([^\\n\\r]+?)[ \\t]*(?=$|\\s+(?:Email|Telefon|Suprafata|Oras|Alegeti|Conectare|Domeniu|Sisteme|Cu ce|Nume):)`, 'm'),
+  );
+  // Email/Telefon are anchored to their own format (no embedded spaces),
+  // so they don't need the multi-field look-ahead — a `\S+@\S+` for email
+  // and a tight digit class for phone are enough.
   const email = grab('Email', /\bEmail:[ \t]+(\S+@\S+)/);
-  const telefon = grab('Telefon', /\bTelefon:[ \t]+(\+?\d[\d\s().-]{6,})/);
-  const oras = grab('Oras', /^[ \t]*Oras:[ \t]+([^\n\r]+?)[ \t]*$/m);
+  // Telefon must stay on the SAME line as its label. The previous regex
+  // used `\s` inside the value class, which silently consumed the trailing
+  // newline + the next page-marker line (e.g. `0744546836\n-- 147 of 149 --`
+  // would parse as `0744546836--147`). The `\d[\d ().-]{6,}` form (no `\s`)
+  // stops at the first newline; we strip ALL whitespace below anyway.
+  const telefon = grab('Telefon', /\bTelefon:[ \t]+(\+?\d[\d ().-]{6,})/);
+  const oras = grab(
+    'Oras',
+    new RegExp(`(?<![A-Za-z])Oras:[ \\t]+([^\\n\\r]+?)[ \\t]*(?=$|\\s+(?:Alegeti|Conectare|Domeniu|Sisteme|Cu ce|Nume|Prenume|Email|Telefon|Suprafata):)`, 'm'),
+  );
   // Suprafata in GestCom is always an integer (no decimals observed in
   // 808+ records). Keep the regex linear — eslint's safe-regex flags
   // anything with nested quantifiers.

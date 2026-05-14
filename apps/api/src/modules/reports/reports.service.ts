@@ -318,4 +318,121 @@ export class ReportsService {
       revenue: parseFloat(r.revenue ?? '0'),
     }));
   }
+
+  /**
+   * Desfășurător zilnic apeluri per agent. Returnează un array de apeluri
+   * pentru ziua dată, fiecare cu durata MM:SS + numele/numărul interlocutorului.
+   *
+   * Pe `userId=undefined` întoarce toate apelurile zilei pentru tenantul
+   * curent (admin/manager view). Pe userId specificat — doar apelurile
+   * agentului ăluia.
+   */
+  async agentCalls(
+    day: string,
+    userId?: string,
+  ): Promise<{
+    date: string;
+    totalCalls: number;
+    totalDurationSec: number;
+    totalDurationFmt: string;
+    items: Array<{
+      callId: string;
+      agentId: string | null;
+      agentName: string | null;
+      contactName: string | null;
+      phone: string;
+      direction: 'INBOUND' | 'OUTBOUND';
+      status: string;
+      startedAt: string | null;
+      durationSec: number;
+      durationFmt: string;
+      subjectType: string;
+      subjectId: string;
+    }>;
+  }> {
+    const { tenantId } = requireTenantContext();
+    const rows = await this.prisma.runWithTenant(tenantId, 'ro', (tx) => tx.$queryRaw<Array<{
+      call_id: string;
+      agent_id: string | null;
+      agent_name: string | null;
+      contact_name: string | null;
+      to_number: string;
+      from_number: string;
+      direction: 'INBOUND' | 'OUTBOUND';
+      status: string;
+      started_at: Date | null;
+      duration_sec: number | null;
+      subject_type: string;
+      subject_id: string;
+    }>>`
+      SELECT
+        c.id                                                          AS call_id,
+        c."userId"                                                    AS agent_id,
+        u."fullName"                                                  AS agent_name,
+        COALESCE(
+          (CASE WHEN c."subjectType" = 'CONTACT' THEN
+              (SELECT (ct."firstName" || ' ' || ct."lastName")
+               FROM contacts ct WHERE ct.id = c."subjectId" AND ct."tenantId" = ${tenantId})
+            END),
+          (CASE WHEN c."subjectType" = 'CLIENT' THEN
+              (SELECT (cl."firstName" || ' ' || cl."lastName")
+               FROM clients cl WHERE cl.id = c."subjectId" AND cl."tenantId" = ${tenantId})
+            END),
+          (CASE WHEN c."subjectType" = 'COMPANY' THEN
+              (SELECT co."name" FROM companies co WHERE co.id = c."subjectId" AND co."tenantId" = ${tenantId})
+            END)
+        )                                                             AS contact_name,
+        c."toNumber"                                                  AS to_number,
+        c."fromNumber"                                                AS from_number,
+        c.direction                                                   AS direction,
+        c.status::text                                                AS status,
+        c."startedAt"                                                 AS started_at,
+        c."durationSec"                                               AS duration_sec,
+        c."subjectType"::text                                         AS subject_type,
+        c."subjectId"                                                 AS subject_id
+      FROM calls c
+      LEFT JOIN users u ON u.id = c."userId"
+      WHERE c."tenantId" = ${tenantId}
+        AND c."deletedAt" IS NULL
+        AND c."createdAt" >= ${day}::date
+        AND c."createdAt" <  ${day}::date + INTERVAL '1 day'
+        AND (${userId ?? null}::text IS NULL OR c."userId" = ${userId ?? null}::text)
+      ORDER BY c."startedAt" ASC NULLS LAST, c."createdAt" ASC
+    `);
+
+    const fmt = (s: number): string => {
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    };
+
+    let totalDuration = 0;
+    const items = rows.map((r) => {
+      const dur = r.duration_sec ?? 0;
+      totalDuration += dur;
+      const counterpartyPhone = r.direction === 'OUTBOUND' ? r.to_number : r.from_number;
+      return {
+        callId: r.call_id,
+        agentId: r.agent_id,
+        agentName: r.agent_name,
+        contactName: r.contact_name && r.contact_name.trim() ? r.contact_name.trim() : null,
+        phone: counterpartyPhone,
+        direction: r.direction,
+        status: r.status,
+        startedAt: r.started_at ? r.started_at.toISOString() : null,
+        durationSec: dur,
+        durationFmt: fmt(dur),
+        subjectType: r.subject_type,
+        subjectId: r.subject_id,
+      };
+    });
+
+    return {
+      date: day,
+      totalCalls: items.length,
+      totalDurationSec: totalDuration,
+      totalDurationFmt: fmt(totalDuration),
+      items,
+    };
+  }
 }

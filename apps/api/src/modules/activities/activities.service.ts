@@ -8,6 +8,14 @@ export interface ActivityEntry {
   subjectId: string;
   action: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Fallback tenant for callers that don't have AsyncLocalStorage context —
+   * notably Twilio/Stripe webhook handlers (which run outside JWT middleware).
+   * If provided, used when getTenantContext() returns null. Without this,
+   * webhook-triggered events silently drop with a "no tenant context" warning.
+   */
+  tenantId?: string;
+  actorId?: string | null;
 }
 
 /**
@@ -26,18 +34,21 @@ export class ActivitiesService {
 
   async log(entry: ActivityEntry): Promise<void> {
     const ctx = getTenantContext();
-    if (!ctx) {
+    // Prefer explicit fallback for webhook callers; fall back to ALS context.
+    const tenantId = entry.tenantId ?? ctx?.tenantId;
+    const actorId = entry.actorId !== undefined ? entry.actorId : ctx?.userId ?? null;
+    if (!tenantId) {
       this.logger.warn(`Activity dropped — no tenant context for action=${entry.action}`);
       return;
     }
     try {
-      await this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      await this.prisma.runWithTenant(tenantId, async (tx) => {
         await tx.activity.create({
           data: {
-            tenantId: ctx.tenantId,
+            tenantId,
             subjectType: entry.subjectType,
             subjectId: entry.subjectId,
-            actorId: ctx.userId ?? null,
+            actorId,
             action: entry.action,
             metadata: entry.metadata
               ? (entry.metadata as Prisma.InputJsonValue)

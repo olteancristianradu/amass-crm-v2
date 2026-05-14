@@ -29,6 +29,7 @@ export const REGISTERED_ADAPTERS: ImporterAdapter[] = [
 export function pickAdapter(input: {
   mimeType: string;
   fileName: string;
+  magicBytes?: Buffer;
 }): ImporterAdapter | null {
   return REGISTERED_ADAPTERS.find((a) => a.canHandle(input)) ?? null;
 }

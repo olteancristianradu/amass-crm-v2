@@ -91,5 +91,11 @@ export const AiCallResultSchema = z.object({
   scriptComplianceScore: z.number().int().min(0).max(100).optional(),
   scriptMissedItems: z.array(z.string()).optional(),
   model: z.string().trim().max(64).optional(),
+  // S13+: MinIO storage key for the recording the worker uploaded. API uses
+  // this to (a) save on Call.recordingStorageKey and (b) create an Attachment
+  // row tied to the call's subject so it appears in the client's documents.
+  recordingStorageKey: z.string().trim().max(512).optional(),
+  recordingMimeType: z.string().trim().max(128).optional(),
+  recordingSizeBytes: z.number().int().nonnegative().optional(),
 });
 export type AiCallResultDto = z.infer<typeof AiCallResultSchema>;

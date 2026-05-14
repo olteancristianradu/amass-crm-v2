@@ -21,7 +21,7 @@ minio>=7.2.0
 # These pull in torch and take several minutes to install; keep commented out
 # in dev unless you have a GPU-capable host.
 #
-# openai-whisper>=20231117
+openai-whisper>=20231117
 # whisperx>=3.1.0          # diarization-aware fork of openai-whisper
 #
 # presidio-analyzer>=2.2.0

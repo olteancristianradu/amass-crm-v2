@@ -25,16 +25,22 @@ export interface CustomFieldDef {
 
 export interface CreateCustomFieldDto {
   entityType: CustomFieldEntityType;
+  // snake_case machine name (e.g. "segment_client"). Must match
+  // /^[a-z][a-z0-9_]*$/ per the BE schema.
   name: string;
+  // Human-readable label shown in the UI (e.g. "Segment client").
+  label: string;
   fieldType: CustomFieldType;
   isRequired?: boolean;
   options?: string[];
 }
 
+// Backend mounts the resource under /custom-fields/defs (defs vs values
+// sub-paths inside one controller). FE must hit /defs explicitly.
 export const customFieldsApi = {
   list: (entityType?: CustomFieldEntityType) =>
-    api.get<CustomFieldDef[]>('/custom-fields', entityType ? { entityType } : undefined),
-  create: (dto: CreateCustomFieldDto) => api.post<CustomFieldDef>('/custom-fields', dto),
+    api.get<CustomFieldDef[]>('/custom-fields/defs', entityType ? { entityType } : undefined),
+  create: (dto: CreateCustomFieldDto) => api.post<CustomFieldDef>('/custom-fields/defs', dto),
   toggle: (id: string, isActive: boolean) =>
-    api.patch<CustomFieldDef>(`/custom-fields/${id}`, { isActive }),
+    api.patch<CustomFieldDef>(`/custom-fields/defs/${id}`, { isActive }),
 };

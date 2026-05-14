@@ -13,6 +13,7 @@ import {
   mapContactRow,
   RawRow,
 } from './gestcom-mapper';
+import { pickAdapter } from './adapters/factory';
 import type { ImportJobPayload } from './importer.service';
 
 interface RowError {
@@ -69,23 +70,76 @@ export class ImportProcessor extends WorkerHost {
 
     let rows: RawRow[] = [];
     try {
-      // Fetch the file from MinIO. Workers may run on a different host
-      // than the API, so we cannot rely on a local filesystem path.
-      const csv = await this.storage.getObjectAsString(storageKey);
-      const parsed = Papa.parse<RawRow>(csv, {
-        header: true,
-        skipEmptyLines: 'greedy',
-        // Trim whitespace and BOM from headers — GestCom files often start
-        // with a UTF-8 BOM that turns the first header into "\uFEFFNume".
-        transformHeader: (h) => h.replace(/^\uFEFF/, '').trim(),
+      // Look up the ImportJob row so we know the original filename — needed
+      // for adapter routing (PDF/Excel/SAGA all hide behind the same
+      // storageKey). The processor cannot trust storageKey alone for type
+      // because it embeds a sanitised slug and may strip the original ext.
+      const importJob = await this.prisma.runWithTenant(tenantId, (tx) =>
+        tx.importJob.findFirst({
+          where: { id: jobId, tenantId },
+          select: { fileName: true },
+        }),
+      );
+      const fileName = importJob?.fileName ?? storageKey;
+
+      // Adapter-first routing. Old behavior (Papa.parse on the raw bytes)
+      // only worked for CSV — it would happily produce thousands of garbage
+      // rows when given a PDF/Excel, because every byte-line of the binary
+      // got treated as a CSV row. We now pick an adapter by filename +
+      // first-10KB magic bytes, falling back to the CSV/Papa path for
+      // plain text files (csv adapter delegates to Papa anyway).
+      const buffer = await this.storage.getObjectAsBuffer(storageKey);
+      // Pass the FULL buffer as magicBytes so the GestCom PDF adapter can
+      // sniff for the `gestcom.ro/<tenant>/` URL anywhere in the file
+      // (PDF link annotations sit at the end of the file inside the xref
+      // dictionary — a head-only sniff would miss them on multi-page
+      // exports). For non-PDF adapters the magicBytes are not even read.
+      const adapter = pickAdapter({
+        // ImportJob row doesn't keep the upload mime — adapters fall back
+        // to extension/magicBytes which is enough in practice.
+        mimeType: '',
+        fileName,
+        magicBytes: buffer,
       });
-      if (parsed.errors.length > 0) {
-        this.logger.warn(`Parse warnings: ${parsed.errors.length}`);
+
+      if (adapter && adapter.id !== 'csv') {
+        // Binary or structured-text adapter (gestcom-pdf, excel, saga,
+        // smartbill, pdf). Each returns RawRow[] that the mapper layer
+        // below already understands (keys mirror CSV headers).
+        this.logger.log(`Using adapter ${adapter.id} for jobId=${jobId} file=${fileName}`);
+        const parseResult = await adapter.parse(buffer);
+        if (parseResult.warnings.length > 0) {
+          this.logger.warn(
+            `[${adapter.id}] parse warnings: ${parseResult.warnings.slice(0, 3).join(' | ')}${
+              parseResult.warnings.length > 3 ? ` (+${parseResult.warnings.length - 3} more)` : ''
+            }`,
+          );
+        }
+        // Sanitise every value the same way the CSV path does — defends
+        // against formula injection if the operator re-exports the data
+        // to a spreadsheet later.
+        rows = parseResult.rows.map(
+          (r) => sanitizeCsvRow(r as Record<string, unknown>) as RawRow,
+        );
+      } else {
+        // CSV / TSV / plain-text fallback. Identical to the previous
+        // behavior — left untouched so existing CSV imports keep working.
+        const csv = buffer.toString('utf-8');
+        const parsed = Papa.parse<RawRow>(csv, {
+          header: true,
+          skipEmptyLines: 'greedy',
+          // Trim whitespace and BOM from headers — GestCom files often start
+          // with a UTF-8 BOM that turns the first header into "\uFEFFNume".
+          transformHeader: (h) => h.replace(/^\uFEFF/, '').trim(),
+        });
+        if (parsed.errors.length > 0) {
+          this.logger.warn(`Parse warnings: ${parsed.errors.length}`);
+        }
+        // CSV formula-injection defence: any cell starting with =/+/-/@/tab/CR
+        // gets a leading tick so Excel/LibreOffice/Sheets treats it as text
+        // when someone re-exports the data. See common/utils/csv-safe.ts.
+        rows = parsed.data.map((r) => sanitizeCsvRow(r as Record<string, unknown>)) as RawRow[];
       }
-      // CSV formula-injection defence: any cell starting with =/+/-/@/tab/CR
-      // gets a leading tick so Excel/LibreOffice/Sheets treats it as text
-      // when someone re-exports the data. See common/utils/csv-safe.ts.
-      rows = parsed.data.map((r) => sanitizeCsvRow(r as Record<string, unknown>)) as RawRow[];
     } catch (err) {
       await this.markFailed(tenantId, jobId, [
         { row: 0, message: `Failed to parse file: ${(err as Error).message}` },

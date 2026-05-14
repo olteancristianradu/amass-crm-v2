@@ -171,4 +171,19 @@ export class StorageService implements OnModuleInit {
     }
     return Buffer.concat(chunks).toString('utf-8');
   }
+
+  /**
+   * Read the object back as a raw Buffer. Used by the import processor
+   * for binary formats (PDF / XLSX / SAGA .SDF) where UTF-8 decoding
+   * would corrupt the stream. CSV path keeps `getObjectAsString` because
+   * papaparse expects a string anyway.
+   */
+  async getObjectAsBuffer(storageKey: string): Promise<Buffer> {
+    const stream = await this.client.getObject(this.bucket, storageKey);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk as Buffer);
+    }
+    return Buffer.concat(chunks);
+  }
 }

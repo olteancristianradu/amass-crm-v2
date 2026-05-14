@@ -74,7 +74,7 @@ function SetQuotaForm({ onDone }: { onDone: () => void }): JSX.Element {
 
   const mut = useMutation({
     mutationFn: () =>
-      forecastingApi.setQuota({ userId, year, period, periodType: 'MONTH', value: Number(quota) }),
+      forecastingApi.setQuota({ userId, year, period, periodType: 'MONTHLY', value: Number(quota) }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['forecasting'] });
       onDone();
@@ -146,7 +146,7 @@ export function ForecastingPage(): JSX.Element {
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['forecasting', year, period],
-    queryFn: () => forecastingApi.getForecast(year, period, 'MONTH'),
+    queryFn: () => forecastingApi.getForecast(year, period, 'MONTHLY'),
   });
 
   const rows = data?.rows ?? [];

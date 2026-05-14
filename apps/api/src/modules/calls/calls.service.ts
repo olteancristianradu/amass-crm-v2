@@ -299,11 +299,15 @@ export class CallsService {
     );
 
     if (ourStatus === 'COMPLETED') {
+      // Webhook runs outside ALS context — pass tenantId explicitly so the
+      // activity doesn't drop with "no tenant context".
       await this.activities.log({
         subjectType: existing.subjectType,
         subjectId: existing.subjectId,
         action: 'call.completed',
         metadata: { callId, durationSec: durationSec ?? null, direction: existing.direction },
+        tenantId: existing.tenantId,
+        actorId: existing.userId,
       });
     }
 
@@ -414,12 +418,43 @@ export class CallsService {
       }),
     );
 
-    await this.prisma.runWithTenant(call.tenantId, (tx) =>
-      tx.call.update({
+    // Persist recordingStorageKey + create an Attachment so the recording
+    // shows up in the client's documents tab. Single tenant-tx so a partial
+    // failure rolls back — either both succeed or we keep the older state.
+    await this.prisma.runWithTenant(call.tenantId, async (tx) => {
+      await tx.call.update({
         where: { id: callId },
-        data: { transcriptionStatus: TranscriptionStatus.COMPLETED },
-      }),
-    );
+        data: {
+          transcriptionStatus: TranscriptionStatus.COMPLETED,
+          ...(dto.recordingStorageKey ? { recordingStorageKey: dto.recordingStorageKey } : {}),
+        },
+      });
+
+      if (dto.recordingStorageKey) {
+        // Idempotency: a retry of the AI job shouldn't create duplicate rows.
+        const existing = await tx.attachment.findFirst({
+          where: { tenantId: call.tenantId, storageKey: dto.recordingStorageKey, deletedAt: null },
+          select: { id: true },
+        });
+        if (!existing) {
+          const startedAt = call.startedAt ?? call.createdAt;
+          const stamp = startedAt instanceof Date ? startedAt.toISOString().slice(0, 16).replace('T', ' ') : '';
+          const fileName = `Înregistrare apel ${stamp} ${call.toNumber}.mp3`.trim();
+          await tx.attachment.create({
+            data: {
+              tenantId: call.tenantId,
+              subjectType: call.subjectType,
+              subjectId: call.subjectId,
+              storageKey: dto.recordingStorageKey,
+              fileName,
+              mimeType: dto.recordingMimeType ?? 'audio/mpeg',
+              size: dto.recordingSizeBytes ?? 0,
+              uploadedById: call.userId,
+            },
+          });
+        }
+      }
+    });
 
     // Best-effort activity — no tenant ctx, log manually
     try {

@@ -176,6 +176,7 @@ function NewCustomFieldForm({
   const [form, setForm] = useState<CreateCustomFieldDto>({
     entityType: defaultEntityType,
     name: '',
+    label: '',
     fieldType: 'TEXT',
     isRequired: false,
   });
@@ -192,14 +193,33 @@ function NewCustomFieldForm({
     },
   });
 
+  // BE requires snake_case for `name` (regex /^[a-z][a-z0-9_]*$/). Auto-derive
+  // it from the human label so users can type "Segment Client" naturally and
+  // we send "segment_client" without making them learn the constraint.
+  function toSnakeCase(s: string): string {
+    return s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') // strip diacritics (ăâîșț)
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .replace(/^([0-9])/, '_$1');
+  }
+
   function handleSubmit(e: React.FormEvent): void {
     e.preventDefault();
     setFormError(null);
-    if (!form.name.trim()) {
-      setFormError('Numele este obligatoriu.');
+    const label = form.label.trim();
+    if (!label) {
+      setFormError('Eticheta este obligatorie.');
       return;
     }
-    createMut.mutate({ ...form, name: form.name.trim() });
+    const name = (form.name.trim() || toSnakeCase(label));
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+      setFormError('Numele tehnic trebuie să înceapă cu literă mică și să folosească doar literele a-z, cifre și underscore.');
+      return;
+    }
+    createMut.mutate({ ...form, name, label });
   }
 
   return (
@@ -224,14 +244,25 @@ function NewCustomFieldForm({
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="cf-name">Nume câmp *</Label>
+          <Label htmlFor="cf-label">Etichetă *</Label>
           <Input
-            id="cf-name"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            id="cf-label"
+            value={form.label}
+            onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
             placeholder="ex: Segment client"
             required
           />
+          <p className="text-[11px] text-muted-foreground">Cum apare în UI.</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="cf-name">Nume tehnic</Label>
+          <Input
+            id="cf-name"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value.toLowerCase() }))}
+            placeholder="auto din etichetă"
+          />
+          <p className="text-[11px] text-muted-foreground">snake_case. Lasă gol și se generează din etichetă.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="cf-type">Tip câmp *</Label>

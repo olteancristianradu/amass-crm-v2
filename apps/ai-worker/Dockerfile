@@ -16,7 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY apps/ai-worker/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install CPU-only torch first (saves ~8GB vs default torch which pulls
+# nvidia cuda libs even on CPU-only deploys). openai-whisper then uses
+# the already-installed torch.
+RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir -r requirements.txt
 
 COPY apps/ai-worker/app ./app
 

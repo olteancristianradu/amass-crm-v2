@@ -74,6 +74,33 @@ describe('GestComAdapter', () => {
     ).toBe(false);
   });
 
+  it('canHandle accepts a hint-less PDF when first KB contains the GestCom URL', () => {
+    // Real PDF text-content stream includes `gestcom.ro/<tenant>/index.php?m=lucrari`
+    // as the page-footer link. Without the magic-byte sniff, files named
+    // "unnamed document.pdf" or similar would slip through to the generic
+    // PdfAdapter and produce a single-row result.
+    const magic = Buffer.from(
+      'random bytes\nhttps://gestcom.ro/amass/index.php?m=lucrari\nmore bytes',
+    );
+    expect(
+      adapter.canHandle({
+        mimeType: 'application/pdf',
+        fileName: 'unnamed document.pdf',
+        magicBytes: magic,
+      }),
+    ).toBe(true);
+  });
+
+  it('canHandle still rejects a PDF whose head does not mention GestCom', () => {
+    expect(
+      adapter.canHandle({
+        mimeType: 'application/pdf',
+        fileName: 'random-invoice.pdf',
+        magicBytes: Buffer.from('SmartBill invoice, no gestcom marker here'),
+      }),
+    ).toBe(false);
+  });
+
   it('canHandle rejects non-PDF mime + extension', () => {
     expect(
       adapter.canHandle({ mimeType: 'text/csv', fileName: 'gestcom.csv' }),
@@ -174,6 +201,27 @@ ${'padding to cross 200-char min text gate. '.repeat(3)}`;
     expect(result.rows[0]!['Email']).toBe('justi_33@yahoo.com');
     expect(result.rows[1]!['Nume']).toBe('SOLOGON');
     expect(result.rows[1]!['Email']).toBe('Sologon.sorin1967@gmail.com');
+  });
+});
+
+describe('GestCom Telefon edge cases', () => {
+  it('does not absorb the next-line page marker into the phone number', () => {
+    // In the real 149-page PDF, pdf-parse emits the contact form right
+    // before a `-- N of 149 --` page footer. A greedy regex that allowed
+    // `\s` inside the value class would parse the phone as `0744546836--147`.
+    const block = `RADIATOARE SITE 0 VALABILA radu.oltean BUCURESTI RENOVARE 01.01.2026 -
+Domeniu de utilizare: AMASS.RO
+Nume: Test
+Prenume: Page
+Email: test@example.com
+Telefon: 0744546836
+
+-- 147 of 149 --
+
+10/05/2026, 20:23
+Page 148 of 149`;
+    const row = parseRecord(block);
+    expect(row['Telefon']).toBe('0744546836');
   });
 });
 

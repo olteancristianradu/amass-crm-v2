@@ -68,7 +68,8 @@ export function ReportsPage(): JSX.Element {
   const [period, setPeriod] = useState<Period>('30d');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'forecast'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financial' | 'forecast' | 'daily-calls'>('overview');
+  const [dailyDate, setDailyDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const { from, to } = periodDates(period, customFrom, customTo);
 
@@ -91,6 +92,12 @@ export function ReportsPage(): JSX.Element {
         status: 'OPEN', limit: 100,
       }),
     enabled: activeTab === 'forecast',
+  });
+
+  const { data: dailyCalls, isLoading: dailyLoading } = useQuery({
+    queryKey: ['reports-agent-calls', dailyDate],
+    queryFn: () => api.get<AgentCallsReport>('/reports/agent-calls', { date: dailyDate }),
+    enabled: activeTab === 'daily-calls',
   });
 
   const PERIOD_LABELS: Record<Period, string> = {
@@ -135,7 +142,7 @@ export function ReportsPage(): JSX.Element {
 
       {/* Tab navigation */}
       <div className="flex gap-1 border-b">
-        {(['overview', 'financial', 'forecast'] as const).map((tab) => (
+        {(['overview', 'financial', 'forecast', 'daily-calls'] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -146,7 +153,10 @@ export function ReportsPage(): JSX.Element {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab === 'overview' ? 'Prezentare generală' : tab === 'financial' ? 'Financiar' : 'Forecast pipeline'}
+            {tab === 'overview' ? 'Prezentare generală'
+              : tab === 'financial' ? 'Financiar'
+              : tab === 'forecast' ? 'Forecast pipeline'
+              : 'Desfășurător apeluri zi'}
           </button>
         ))}
       </div>
@@ -260,6 +270,136 @@ export function ReportsPage(): JSX.Element {
       {/* ── Forecast tab (S34) ────────────────────────────────────────── */}
       {activeTab === 'forecast' && (
         <ForecastView deals={forecastDeals?.data ?? []} />
+      )}
+
+      {/* ── Desfășurător apeluri zi ─────────────────────────────────── */}
+      {activeTab === 'daily-calls' && (
+        <DailyCallsView
+          date={dailyDate}
+          onDateChange={setDailyDate}
+          loading={dailyLoading}
+          data={dailyCalls}
+        />
+      )}
+    </div>
+  );
+}
+
+interface AgentCallsReport {
+  date: string;
+  totalCalls: number;
+  totalDurationSec: number;
+  totalDurationFmt: string;
+  items: Array<{
+    callId: string;
+    agentId: string | null;
+    agentName: string | null;
+    contactName: string | null;
+    phone: string;
+    direction: 'INBOUND' | 'OUTBOUND';
+    status: string;
+    startedAt: string | null;
+    durationSec: number;
+    durationFmt: string;
+    subjectType: string;
+    subjectId: string;
+  }>;
+}
+
+function DailyCallsView({
+  date, onDateChange, loading, data,
+}: {
+  date: string;
+  onDateChange: (d: string) => void;
+  loading: boolean;
+  data: AgentCallsReport | undefined;
+}): JSX.Element {
+  // Group by agent so manager-view shows per-agent breakdown.
+  const byAgent = (data?.items ?? []).reduce<Record<string, AgentCallsReport['items']>>((acc, c) => {
+    const key = c.agentName ?? c.agentId ?? 'Necunoscut';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(c);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Ziua</Label>
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+      </div>
+
+      {loading && <Skeleton className="h-40 w-full" />}
+
+      {data && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard title="Apeluri în ziua" value={data.totalCalls} />
+            <StatCard title="Durată totală" value={data.totalDurationFmt} sub="MM:SS" />
+            <StatCard title="Data" value={data.date} />
+          </div>
+
+          {data.items.length === 0 && (
+            <p className="text-sm text-muted-foreground">Niciun apel în ziua selectată.</p>
+          )}
+
+          {Object.keys(byAgent).sort().map((agent) => {
+            const items = byAgent[agent] ?? [];
+            const agentTotalSec = items.reduce((acc, x) => acc + x.durationSec, 0);
+            const m = Math.floor(agentTotalSec / 60);
+            const s = agentTotalSec % 60;
+            const fmtTotal = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            return (
+              <section key={agent}>
+                <h3 className="mb-2 text-sm font-semibold flex items-center justify-between">
+                  <span>{agent}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {items.length} apeluri · {fmtTotal} total
+                  </span>
+                </h3>
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th scope="col" className="text-left px-3 py-2 font-medium">Ora</th>
+                        <th scope="col" className="text-left px-3 py-2 font-medium">Dir.</th>
+                        <th scope="col" className="text-left px-3 py-2 font-medium">Cu cine a vorbit</th>
+                        <th scope="col" className="text-left px-3 py-2 font-medium">Telefon</th>
+                        <th scope="col" className="text-right px-3 py-2 font-medium">Durată</th>
+                        <th scope="col" className="text-left px-3 py-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {items.map((c) => (
+                        <tr key={c.callId} className="hover:bg-muted/30">
+                          <td className="px-3 py-2 font-mono text-xs">
+                            {c.startedAt ? new Date(c.startedAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-xs">
+                            <span className={c.direction === 'INBOUND' ? 'text-blue-600' : 'text-emerald-600'}>
+                              {c.direction === 'INBOUND' ? '←' : '→'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">{c.contactName ?? <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-3 py-2 font-mono text-xs">{c.phone}</td>
+                          <td className="px-3 py-2 text-right font-mono font-medium">{c.durationFmt}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{c.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })}
+        </>
       )}
     </div>
   );

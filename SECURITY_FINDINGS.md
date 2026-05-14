@@ -1,8 +1,23 @@
 # SECURITY_FINDINGS.md
 
-Last updated: 2026-05-05 14:50 Europe/Bucharest
+Last updated: 2026-05-14 16:05 Europe/Bucharest
 
 Security status must be based on evidence, not impressions. Do not mark a finding fixed unless the fix and verification are documented.
+
+## 2026-05-14 session notes (defense-in-depth — not new findings)
+
+These were observed and addressed today; logged here so the rationale stays attached to the relevant control.
+
+- **SEC-ACTIVITY-CTX-2026-05-14 (defense-in-depth, P3, fixed)** — `ActivitiesService.log()` silently dropped writes from webhook handlers because it required `getTenantContext()` (AsyncLocalStorage, set only by JWT middleware). Twilio `status_callback` writes a `call.completed` activity from a non-JWT path, so the log dropped with `WARN Activity dropped — no tenant context`. Not a security-boundary breach (tenant is already correct on the `Call` row), but observability/audit was incomplete. Fix: added optional explicit `tenantId` + `actorId` to `ActivityEntry`; webhook callers pass them. Verified `SELECT action, count(*) FROM activities WHERE tenantId='dana-test' GROUP BY action` now shows `call.completed` rows.
+- **Twilio webhook signature verification (defense-in-depth, P3, verified working)** — re-tested unsolicited POST to `/api/v1/calls/webhook/status` without `x-twilio-signature` → `403 INVALID_TWILIO_SIGNATURE` as expected. No regression after wiring real Twilio credentials.
+- **Headers (defense-in-depth, P3, verified working)** — direct API check on `localhost:3000` confirms CSP, HSTS, X-Frame-Options=SAMEORIGIN, X-Content-Type-Options=nosniff, Referrer-Policy=no-referrer, Permissions-Policy all present.
+- **SQL-injection via Zod (defense-in-depth, P3, verified working)** — `POST /auth/login` with `{"email":"admin' OR 1=1--", ...}` rejected at the Zod validation pipe with `400 VALIDATION_ERROR` before reaching the DB.
+- **Auth rate-limit (defense-in-depth, P3, verified working)** — confirmed via brute-force probe: after 2 bad logins the throttler returns `429 TOO_MANY_REQUESTS` with `retry-after-strict-auth: 45-60s`. Aggressive enough that legitimate testing/demo can hit it; documented in `LESSONS.md` operator notes.
+- **SEC-TRIAL-RESTRICTION-2026-05-14 (info)** — Twilio Trial restriction (`code:10002 Placing verification calls is not supported on trial accounts`) was acknowledged honestly to the user rather than worked-around. We did NOT silently upgrade the account or purchase additional numbers without explicit consent. See `LESSONS.md` entry of the same date.
+
+Already-tracked items: SEC-001 (prod readiness — still open), SEC-TANSTACK-2026-05-11 (acknowledged, allowlist re-check 2026-06-01).
+
+- **SEC-002 (P2, partially fixed 2026-05-14)** — was 4 dev-only advisories. Closed 3/4 (2 fast-uri high + 1 esbuild moderate) via pnpm overrides: `fast-uri >=3.1.2`, `esbuild >=0.25.0`. **`vite >=6.4.2` override attempted but reverted**: it broke vitest with `ReferenceError: __vite_ssr_exportName__ is not defined` (vitest pinned to an older vite internal API). Remaining: 1 dev-only moderate (`vite` path-traversal in `.map` handling). Production audit clean: `pnpm audit --prod --json` → all zeros. Dev tree: 1 moderate (`vite`), 0 high, 0 critical. Re-check when vitest bumps its vite peer dep.
 
 ## Severity Scale
 

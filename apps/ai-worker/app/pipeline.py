@@ -108,31 +108,62 @@ async def process_call(job_data: dict[str, Any]) -> dict[str, Any]:
     """
     call_id = job_data["callId"]
     recording_url = job_data.get("recordingUrl", "")
+    recording_sid = job_data.get("recordingSid", "")
+    tenant_id = job_data.get("tenantId", "")
     logger.info("Processing call %s recording=%s", call_id, recording_url)
 
     # ── Step 1: Download audio ────────────────────────────────────────────────
     audio_bytes = await _download_recording(recording_url)
 
-    # ── Step 2: Transcribe ───────────────────────────────────────────────────
+    # ── Step 2: Upload to MinIO so the recording lives in the CRM and can
+    # be attached to the client's documents. Best-effort: a failure here
+    # doesn't block transcription/summary — the call detail just won't have
+    # a downloadable attachment.
+    recording_storage_key: str | None = None
+    if audio_bytes and tenant_id:
+        try:
+            from . import storage
+            recording_storage_key = await storage.upload_recording(
+                tenant_id=tenant_id,
+                call_id=call_id,
+                recording_sid=recording_sid,
+                audio_bytes=audio_bytes,
+            )
+            logger.info("Recording uploaded to MinIO key=%s", recording_storage_key)
+        except Exception as exc:
+            logger.error("MinIO upload failed for call %s: %s", call_id, exc)
+
+    # ── Step 3: Transcribe ───────────────────────────────────────────────────
     transcription = transcribe(audio_bytes)
 
-    # ── Step 3: Redact PII ───────────────────────────────────────────────────
+    # ── Step 4: Redact PII ───────────────────────────────────────────────────
     redacted_text = redact(transcription["rawText"])
 
-    # ── Step 4: Summarise ────────────────────────────────────────────────────
+    # ── Step 5: Summarise ────────────────────────────────────────────────────
     ai_result = summarise(transcription["rawText"])
 
-    # ── Step 5: POST result to API ───────────────────────────────────────────
+    # ── Step 6: POST result to API ───────────────────────────────────────────
+    # Strip None values inside segments — Zod's optional() rejects null;
+    # only undefined / missing key passes. Without this, stub mode's
+    # `speaker: None` segments cause a 400 VALIDATION_ERROR.
+    cleaned_segments = [
+        {k: v for k, v in seg.items() if v is not None}
+        for seg in transcription["segments"]
+    ]
+
     payload: dict[str, Any] = {
         "language": transcription.get("language"),
         "rawText": transcription["rawText"],
-        "segments": transcription["segments"],
+        "segments": cleaned_segments,
         "redactedText": redacted_text,
         "summary": ai_result.get("summary"),
         "actionItems": ai_result.get("actionItems"),
         "sentiment": ai_result.get("sentiment"),
         "topics": ai_result.get("topics"),
         "model": ai_result.get("model"),
+        "recordingStorageKey": recording_storage_key,
+        "recordingMimeType": "audio/mpeg" if recording_storage_key else None,
+        "recordingSizeBytes": len(audio_bytes) if audio_bytes else None,
     }
     # Strip None values so Zod doesn't complain about unexpected nulls
     payload = {k: v for k, v in payload.items() if v is not None}
