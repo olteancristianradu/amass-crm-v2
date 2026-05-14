@@ -20,6 +20,24 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
 
 ## Entries
 
+### 2026-05-14 — Prisma client must be regenerated after schema change before typecheck will pass
+
+- Area: prisma / tooling
+- Symptom: added `defaultCallScript Json?` to `Tenant` model, applied migration to DB directly, but `pnpm typecheck` failed with `Property 'defaultCallScript' does not exist on type '{...}'`. Wasted a few minutes assuming the schema edit was insufficient.
+- Root cause: Prisma generates TypeScript types from `schema.prisma` into `node_modules/.pnpm/.../@prisma/client`. Editing `schema.prisma` doesn't regenerate the client; `prisma generate` does. CI catches this because Prisma generate runs in the CI pipeline before typecheck; locally it has to be done manually.
+- Fix: `pnpm --filter @amass/api exec prisma generate` after every `schema.prisma` edit, before running typecheck. Add this to your local "after schema change" checklist alongside writing the migration SQL.
+- Prevention rule: any schema.prisma diff must be paired with a prisma generate in the same commit boundary. CI has it; treat local typecheck failures with "Property X does not exist" as a "did you regenerate?" hint, not a code bug.
+- Related files: `apps/api/prisma/schema.prisma`, `apps/api/package.json` (`prisma:generate` script).
+
+### 2026-05-14 — Web build fails on ES2020 destructuring after esbuild 0.27 override; bump target to es2022
+
+- Area: web build / esbuild
+- Symptom: pushed feat commit `6675c7d`, CI `lint-typecheck-build` step failed only on `@amass/web` build with `error TS Transforming destructuring to the configured target environment ("chrome87", "edge88", "es2020", "firefox78", "safari14" + 2 overrides) is not supported yet`. Specifically on `useInfiniteQuery`'s async-iterator destructuring in audit.page-*.js.
+- Root cause: pnpm overrides bumped `esbuild` to `>=0.25.0` to close a security advisory. The new esbuild (0.27.7) no longer transforms certain destructuring patterns down to ES2020 — what was previously a polyfill is now a build error.
+- Fix: `vite.config.ts` → `build.target: 'es2022'`. CRM is auth-gated B2B, all evergreen browsers from 2022+ support ES2022 natively, no polyfill needed.
+- Prevention rule: when bumping esbuild/vite via overrides for security advisories, always run `pnpm build` (not just typecheck/test) locally before pushing. Test-only verification is insufficient for build-target compatibility issues.
+- Related files: `apps/web/vite.config.ts` (added `target: 'es2022'`), `package.json` (pnpm.overrides.esbuild).
+
 ### 2026-05-14 — Read `AGENTS.md` at session start, update control docs at session end — both were skipped today
 
 - Area: process / agent discipline
