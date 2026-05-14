@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { createRouter, createRoute, redirect } from '@tanstack/react-router';
 import { rootRoute } from './routes/root';
 import { loginRoute } from './routes/login';
@@ -144,9 +145,65 @@ const routeTree = rootRoute.addChildren([
   ]),
 ]);
 
+/**
+ * Detect the "stale lazy chunk after deploy" failure mode the router shows
+ * as `Something went wrong! Failed to fetch dynamically imported module …`.
+ * Browser is sitting on a cached index.html that references hashed chunks
+ * the new web container no longer serves. Auto-reload picks up the fresh
+ * index.html. sessionStorage guard prevents an infinite refresh loop on
+ * a genuine network outage.
+ */
+function isStaleChunkError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  return (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    /Loading chunk \d+ failed/.test(msg)
+  );
+}
+
+function DeployRefreshError({ error }: { error: unknown }): JSX.Element {
+  const stale = isStaleChunkError(error);
+  // Auto-reload runs as a side-effect — calling sessionStorage during render
+  // is flagged as impure by the React compiler lint plugin. useEffect runs
+  // after commit, which is the correct place for "kick off a reload".
+  useEffect(() => {
+    if (!stale || typeof window === 'undefined') return;
+    const flag = 'amass:stale-chunk-reload-at';
+    const last = Number(sessionStorage.getItem(flag) ?? '0');
+    if (Date.now() - last > 30_000) {
+      sessionStorage.setItem(flag, String(Date.now()));
+      window.location.reload();
+    }
+  }, [stale]);
+  const message = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-card border border-border/70 rounded-lg shadow-md p-6">
+        <h1 className="text-lg font-semibold mb-2">
+          {stale ? 'Aplicația a fost actualizată' : 'Ceva nu a mers bine'}
+        </h1>
+        <p className="text-sm text-muted-foreground mb-4">
+          {stale
+            ? 'A apărut o versiune nouă a CRM-ului. Reîncarcă pagina pentru a continua.'
+            : message}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="w-full bg-primary text-primary-foreground rounded px-4 py-2 text-sm font-medium hover:bg-primary/90"
+        >
+          Reîncarcă pagina
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  defaultErrorComponent: DeployRefreshError,
 });
 
 declare module '@tanstack/react-router' {
