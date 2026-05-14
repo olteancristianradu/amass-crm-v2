@@ -54,25 +54,37 @@ export function ClientDetailPage(): JSX.Element {
   }
   if (!data) return <p className="text-sm text-muted-foreground">Clientul nu există.</p>;
 
+  const initials =
+    `${(data.firstName ?? '').charAt(0)}${(data.lastName ?? '').charAt(0)}`.toUpperCase() || '·';
+
   return (
     <DetailLayout
       title={
-        <span className="inline-flex items-center gap-2">
-          <Users size={20} className="text-muted-foreground" />
-          {data.firstName} {data.lastName}
+        <span className="inline-flex items-center gap-3">
+          <span
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
+            aria-hidden="true"
+          >
+            {initials}
+          </span>
+          <span>
+            {data.firstName} {data.lastName}
+          </span>
+          <Users size={16} className="text-muted-foreground" aria-hidden="true" />
         </span>
       }
       subtitle={
         <>
-          {data.email ?? 'Fără email'}
-          {' · '}
-          {data.city ?? 'Oraș nespecificat'}
+          {data.email && <span>{data.email}</span>}
+          {data.email && data.city && <span aria-hidden="true">·</span>}
+          {data.city && <span>{data.city}</span>}
         </>
       }
       backHref="/app/clients"
       backLabel="Clienți"
       sidebar={
         <>
+          <RelationshipHealthCard entityType="CLIENT" entityId={id} />
           <DetailFields title="Persoană">
             <DetailField label="Prenume" value={data.firstName} />
             <DetailField label="Nume" value={data.lastName} />
@@ -94,7 +106,6 @@ export function ClientDetailPage(): JSX.Element {
       }
     >
       <NextActionHeader entityType="CLIENT" entityId={id} />
-      <RelationshipHealthCard entityType="CLIENT" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CLIENT" subjectId={id} />}

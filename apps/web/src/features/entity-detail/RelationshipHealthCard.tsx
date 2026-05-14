@@ -35,12 +35,15 @@ const RATING_LABEL: Record<RelationshipHealth['rating'], string> = {
   cold: 'Rece',
 };
 
-const RATING_CLASS: Record<RelationshipHealth['rating'], string> = {
-  excellent: 'text-emerald-400 stroke-emerald-400',
-  good: 'text-sky-400 stroke-sky-400',
-  fair: 'text-amber-400 stroke-amber-400',
-  at_risk: 'text-orange-400 stroke-orange-400',
-  cold: 'text-rose-400 stroke-rose-400',
+// Theme-aware tone classes — kept light/dark agnostic by mixing emerald
+// with a transparent overlay. Tailwind's emerald-600 sits well on both
+// bg-card light (white) and bg-card dark (slate-900).
+const RATING_TONE: Record<RelationshipHealth['rating'], { text: string; ring: string; bg: string }> = {
+  excellent: { text: 'text-emerald-600 dark:text-emerald-400', ring: 'stroke-emerald-500',  bg: 'bg-emerald-500/10' },
+  good:      { text: 'text-sky-600     dark:text-sky-400',     ring: 'stroke-sky-500',      bg: 'bg-sky-500/10' },
+  fair:      { text: 'text-amber-600   dark:text-amber-400',   ring: 'stroke-amber-500',    bg: 'bg-amber-500/10' },
+  at_risk:   { text: 'text-orange-600  dark:text-orange-400',  ring: 'stroke-orange-500',   bg: 'bg-orange-500/10' },
+  cold:      { text: 'text-rose-600    dark:text-rose-400',    ring: 'stroke-rose-500',     bg: 'bg-rose-500/10' },
 };
 
 const SIGNAL_ICON: Record<HealthSignal['key'], typeof CheckCircle2> = {
@@ -51,11 +54,11 @@ const SIGNAL_ICON: Record<HealthSignal['key'], typeof CheckCircle2> = {
 };
 
 /**
- * Relationship Health card — shown on Company / Contact / Client detail pages.
+ * Relationship Health card — shown in the sidebar of every detail page.
  *
- * Reads from GET /entity-health/:type/:id which returns a 0-100 score,
- * deterministic per-signal breakdown, and a one-sentence Romanian summary.
- * No AI calls — all computed from existing activity + deal data.
+ * Solid `bg-card` surface, big colored score dial on the left, summary +
+ * signal scores stacked on the right. Designed to read at a glance: the
+ * dial's stroke arc is the headline, every other element supports it.
  */
 export function RelationshipHealthCard({ entityType, entityId }: Props): JSX.Element | null {
   const { data, isLoading, isError } = useQuery({
@@ -65,67 +68,54 @@ export function RelationshipHealthCard({ entityType, entityId }: Props): JSX.Ele
   });
 
   if (isLoading) {
-    return (
-      <div className="mb-4 h-32 animate-pulse rounded-xl border border-border/60 bg-secondary/30" />
-    );
+    return <div className="h-44 animate-pulse rounded-xl border border-border bg-card" />;
   }
   if (isError || !data) return null;
 
+  const tone = RATING_TONE[data.rating];
+
   return (
-    <div className="mb-4 rounded-xl border border-border/60 bg-card/60 p-5">
-      <div className="flex items-start gap-5">
+    <section className="rounded-xl border border-border bg-card text-card-foreground shadow-sm">
+      <header className="flex items-center gap-4 px-4 pt-4">
         <ScoreDial score={data.score} rating={data.rating} />
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">Stare relație</h3>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${RATING_CLASS[data.rating]} bg-current/10`}
-              style={{ backgroundColor: 'rgb(from currentColor r g b / 0.12)' }}
-            >
-              {RATING_LABEL[data.rating]}
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground">{data.summary}</p>
-          <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-            {data.signals.map((s) => {
-              const Icon = SIGNAL_ICON[s.key] ?? CheckCircle2;
-              const tone =
-                s.score >= 75
-                  ? 'text-emerald-400'
-                  : s.score >= 50
-                    ? 'text-sky-400'
-                    : s.score >= 25
-                      ? 'text-amber-400'
-                      : 'text-rose-400';
-              return (
-                <div
-                  key={s.key}
-                  className="rounded-lg border border-border/40 bg-background/40 p-2.5"
-                  title={s.hint}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Icon size={12} className={tone} />
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      {s.label}
-                    </span>
-                  </div>
-                  <p className={`mt-0.5 text-lg font-semibold tabular-nums ${tone}`}>
-                    {s.score}
-                  </p>
-                  <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground/80">
-                    {s.hint}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          <p className="text-xs font-semibold text-muted-foreground">Stare relație</p>
+          <p className={`mt-0.5 text-base font-semibold ${tone.text}`}>{RATING_LABEL[data.rating]}</p>
         </div>
+      </header>
+      <p className="px-4 pt-2 text-sm leading-snug text-muted-foreground">{data.summary}</p>
+      <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-b-xl bg-border/60">
+        {data.signals.map((s) => {
+          const Icon = SIGNAL_ICON[s.key] ?? CheckCircle2;
+          const sigTone =
+            s.score >= 75
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : s.score >= 50
+                ? 'text-sky-600 dark:text-sky-400'
+                : s.score >= 25
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-rose-600 dark:text-rose-400';
+          return (
+            <div
+              key={s.key}
+              className="flex items-center justify-between gap-2 bg-card px-3 py-2"
+              title={s.hint}
+            >
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Icon size={13} className={sigTone} />
+                <span className="truncate text-xs text-muted-foreground">{s.label}</span>
+              </div>
+              <span className={`text-sm font-semibold tabular-nums ${sigTone}`}>{s.score}</span>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </section>
   );
 }
 
-// 64px circular score dial built with stroke-dashoffset on an SVG circle.
+// 72px circular score dial with a thicker stroke than before so the arc
+// reads at a glance against the now-solid card background.
 function ScoreDial({
   score,
   rating,
@@ -133,32 +123,31 @@ function ScoreDial({
   score: number;
   rating: RelationshipHealth['rating'];
 }): JSX.Element {
-  const radius = 28;
+  const radius = 30;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
   const Icon = rating === 'cold' ? XCircle : rating === 'at_risk' ? AlertTriangle : CheckCircle2;
+  const tone = RATING_TONE[rating];
 
   return (
-    <div className="relative h-16 w-16 shrink-0">
-      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={radius} stroke="currentColor" strokeOpacity="0.15" strokeWidth="6" fill="none" />
+    <div className="relative h-[72px] w-[72px] shrink-0">
+      <svg viewBox="0 0 72 72" className="h-full w-full -rotate-90">
+        <circle cx="36" cy="36" r={radius} className="stroke-border" strokeWidth="7" fill="none" />
         <circle
-          cx="32"
-          cy="32"
+          cx="36"
+          cy="36"
           r={radius}
-          strokeWidth="6"
+          strokeWidth="7"
           fill="none"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className={`transition-all duration-500 ${RATING_CLASS[rating]}`}
+          className={`${tone.ring} transition-all duration-500`}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`text-base font-bold tabular-nums ${RATING_CLASS[rating]}`}>
-          {score}
-        </span>
-        <Icon size={10} className={RATING_CLASS[rating]} aria-hidden="true" />
+        <span className={`text-xl font-bold tabular-nums leading-none ${tone.text}`}>{score}</span>
+        <Icon size={11} className={`${tone.text} mt-0.5`} aria-hidden="true" />
       </div>
     </div>
   );

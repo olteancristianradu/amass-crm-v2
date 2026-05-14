@@ -56,27 +56,38 @@ export function ContactDetailPage(): JSX.Element {
   if (!data) return <p className="text-sm text-muted-foreground">Contactul nu există.</p>;
 
   const isDecider = (data as { isDecider?: boolean }).isDecider;
+  const initials =
+    `${(data.firstName ?? '').charAt(0)}${(data.lastName ?? '').charAt(0)}`.toUpperCase() || '·';
 
   return (
     <DetailLayout
       title={
-        <span className="inline-flex items-center gap-2">
-          <Contact2 size={20} className="text-muted-foreground" />
-          {data.firstName} {data.lastName}
+        <span className="inline-flex items-center gap-3">
+          <span
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
+            aria-hidden="true"
+          >
+            {initials}
+          </span>
+          <span>
+            {data.firstName} {data.lastName}
+          </span>
+          <Contact2 size={16} className="text-muted-foreground" aria-hidden="true" />
         </span>
       }
       subtitle={
-        <span className="inline-flex items-center gap-2">
-          {data.jobTitle ?? 'Funcție nespecificată'}
-          {data.email && <span className="text-muted-foreground/50">·</span>}
-          {data.email}
+        <>
+          {data.jobTitle && <span>{data.jobTitle}</span>}
+          {data.jobTitle && data.email && <span aria-hidden="true">·</span>}
+          {data.email && <span>{data.email}</span>}
           {isDecider && <StatusBadge tone="green">Decident</StatusBadge>}
-        </span>
+        </>
       }
       backHref="/app/contacts"
       backLabel="Contacte"
       sidebar={
         <>
+          <RelationshipHealthCard entityType="CONTACT" entityId={id} />
           <DetailFields title="Persoană">
             <DetailField label="Prenume" value={data.firstName} />
             <DetailField label="Nume" value={data.lastName} />
@@ -92,7 +103,6 @@ export function ContactDetailPage(): JSX.Element {
       }
     >
       <NextActionHeader entityType="CONTACT" entityId={id} />
-      <RelationshipHealthCard entityType="CONTACT" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CONTACT" subjectId={id} />}

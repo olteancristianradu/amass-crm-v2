@@ -91,19 +91,36 @@ export function CompanyDetailPage(): JSX.Element {
   }
   if (!data) return <p className="text-sm text-muted-foreground">Compania nu există.</p>;
 
+  // Build a 2-letter monogram from the company name. Strips diacritics
+  // so "Țară SRL" → "TS" rather than the special-char fallback "·".
+  const monogram = data.name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .split(/\s+/)
+    .filter((w) => /^[A-Za-z0-9]/.test(w))
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join('') || '·';
+
   return (
     <DetailLayout
       title={
-        <span className="inline-flex items-center gap-2">
-          <Building2 size={20} className="text-muted-foreground" />
-          {data.name}
+        <span className="inline-flex items-center gap-3">
+          <span
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-sm font-semibold text-foreground"
+            aria-hidden="true"
+          >
+            {monogram}
+          </span>
+          <span>{data.name}</span>
+          <Building2 size={16} className="text-muted-foreground" aria-hidden="true" />
         </span>
       }
       subtitle={
         <>
-          {data.industry ?? 'Industrie nespecificată'}
-          {' · '}
-          {data.city ?? 'Oraș nespecificat'}
+          {data.industry && <span>{data.industry}</span>}
+          {data.industry && data.city && <span aria-hidden="true">·</span>}
+          {data.city && <span>{data.city}</span>}
         </>
       }
       backHref="/app/companies"
@@ -122,6 +139,7 @@ export function CompanyDetailPage(): JSX.Element {
       }
       sidebar={
         <>
+          <RelationshipHealthCard entityType="COMPANY" entityId={id} />
           <DetailFields title="Identificare">
             <DetailField label="CUI" value={data.vatNumber} copyable />
             <DetailField label="Reg. com." value={data.registrationNumber} copyable />
@@ -147,7 +165,6 @@ export function CompanyDetailPage(): JSX.Element {
       }
     >
       <NextActionHeader entityType="COMPANY" entityId={id} />
-      <RelationshipHealthCard entityType="COMPANY" entityId={id} />
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="COMPANY" subjectId={id} />}
