@@ -1,6 +1,6 @@
 # SECURITY_FINDINGS.md
 
-Last updated: 2026-05-14 16:05 Europe/Bucharest
+Last updated: 2026-05-15 11:10 Europe/Bucharest
 
 Security status must be based on evidence, not impressions. Do not mark a finding fixed unless the fix and verification are documented.
 
@@ -17,7 +17,8 @@ These were observed and addressed today; logged here so the rationale stays atta
 
 Already-tracked items: SEC-001 (prod readiness — still open), SEC-TANSTACK-2026-05-11 (acknowledged, allowlist re-check 2026-06-01).
 
-- **SEC-002 (P2, partially fixed 2026-05-14)** — was 4 dev-only advisories. Closed 3/4 (2 fast-uri high + 1 esbuild moderate) via pnpm overrides: `fast-uri >=3.1.2`, `esbuild >=0.25.0`. **`vite >=6.4.2` override attempted but reverted**: it broke vitest with `ReferenceError: __vite_ssr_exportName__ is not defined` (vitest pinned to an older vite internal API). Remaining: 1 dev-only moderate (`vite` path-traversal in `.map` handling). Production audit clean: `pnpm audit --prod --json` → all zeros. Dev tree: 1 moderate (`vite`), 0 high, 0 critical. Re-check when vitest bumps its vite peer dep.
+- **SEC-002 (P2, partially fixed 2026-05-14)** — was 4 dev-only advisories. Closed 3/4 (2 fast-uri high + 1 esbuild moderate) via pnpm overrides: `fast-uri >=3.1.2`, `esbuild >=0.25.0`. **`vite >=6.4.2` override attempted but reverted**: it broke vitest with `ReferenceError: __vite_ssr_exportName__ is not defined` (vitest pinned to an older vite internal API). Remaining: 1 dev-only moderate (`vite` path-traversal in `.map` handling). Production audit clean: `pnpm audit --prod --json` → all zeros. Dev tree: 1 moderate (`vite`), 0 high, 0 critical.
+  - **Status update 2026-05-15**: vitest 4.1.6 is now released and lists `vite: ^6.0.0 || ^7.0.0 || ^8.0.0` as peer. The upgrade path is unblocked but is non-trivial: it requires a coordinated vitest 2 → 4 bump in both `apps/api` and `apps/web` plus a vite 5 → 6 jump (breaking changes in mocks, snapshot serialisers and `@vitest/coverage-v8`). CVE remains DEV-ONLY (vite dev server `.map` path traversal — never ships to production). Decision: keep accepting the risk until either (a) we hit v1 GA with a test suite worth protecting against this attack class, or (b) the CVE is reclassified higher. Re-evaluate before launch.
 
 ## Severity Scale
 
