@@ -1,4 +1,4 @@
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -47,11 +47,13 @@ export class WebauthnService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    @Inject(WEBAUTHN_ENV) env?: Env,
+    @Optional() @Inject(WEBAUTHN_ENV) env?: Env,
   ) {
     // Optional inject so tests can pass a fake env; falls back to loadEnv()
-    // in production (NestJS will provide undefined since WEBAUTHN_ENV is not
-    // registered as a provider in webauthn.module.ts).
+    // in production. WEBAUTHN_ENV is NOT registered as a provider in
+    // webauthn.module.ts on purpose — production reads via loadEnv(). Nest
+    // throws "Can't resolve dependencies" without @Optional() when the
+    // token is absent (verified by e2e regression on commit c357962).
     this.env = env ?? loadEnv();
   }
 
