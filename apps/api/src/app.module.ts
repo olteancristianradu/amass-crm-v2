@@ -86,6 +86,7 @@ import { ConditionalAccessMiddleware } from './modules/access-control/conditiona
 import { SyncModule } from './modules/sync/sync.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { OutlookEmailModule } from './modules/outlook-email/outlook-email.module';
+import { WsModule } from './infra/ws/ws.module';
 import { resolveLogLevel } from './config/logging';
 
 /**
@@ -275,6 +276,13 @@ import { resolveLogLevel } from './config/logging';
     WebauthnModule,
     AccessControlModule,
     SyncModule,
+    // B1-PR1: realtime data-sync gateway (Socket.IO `/sync` namespace) +
+    // per-tenant broadcast facade. Previously WsModule was pulled in
+    // transitively by RemindersModule for the legacy `/ws` reminder push;
+    // importing it explicitly here makes the dependency visible and lets
+    // SyncPublisherService be discovered by future feature modules without
+    // re-importing WsModule everywhere.
+    WsModule,
   ],
   providers: [
     // M-aud-H1: JwtAuthGuard registered globally so any new controller is

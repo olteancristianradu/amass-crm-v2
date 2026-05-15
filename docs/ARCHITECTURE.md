@@ -107,6 +107,23 @@ Three queues today: `import` (S4), `reminders` (S7), and `email` (S11).
 
 For now the processor runs in the API process. When we split to a separate worker container (post S18 deploy sprint), both must point at the same Redis URL. Idempotency is handled by passing `{ jobId: dbRowId }` to BullMQ, so accidental double-enqueues collapse.
 
+### Real-time sync (B1)
+
+Live data-sync over Socket.IO. **B1-PR1 lays the foundation only** — gateway + handshake + per-tenant rooms. Per-mutation publishers (PR3) and FE client (PR2) ship in follow-ups.
+
+| Piece | File | Role |
+|-|-|-|
+| `SyncGateway` | `apps/api/src/infra/ws/sync.gateway.ts` | Socket.IO namespace `/sync`. On connect: verifies JWT (handshake auth.token → `Authorization: Bearer` → `amass_at` cookie), joins `tenant:<tid>` room. Invalid/missing/expired token → `socket.disconnect()`, never throws. |
+| `SyncPublisherService` | `apps/api/src/infra/ws/sync-publisher.service.ts` | Thin facade feature modules inject. `publish(tenantId, event, payload)` delegates to `gateway.broadcast(...)`. Drops with a warn log if the Socket.IO server is null (boot race). |
+| `WsModule` | `apps/api/src/infra/ws/ws.module.ts` | Wires both gateways. Imports `JwtModule` lazily so env validation isn't forced at module-import time. Exports `SyncPublisherService` (the public surface). |
+
+**Isolation invariant**: `server.to('tenant:' + tenantId).emit(...)` confines every broadcast to one tenant's room. Tested explicitly in `sync.gateway.spec.ts` with two mock sockets in different rooms — a broadcast to tenant A must leave tenant B's inbox empty. This is the WS-layer twin of layers 1-3 in the multi-tenant defense-in-depth table above; if a publisher accidentally reads the wrong `tenantId`, this layer cannot save you, so per-mutation publishers (PR3) must source `tenantId` from `runWithTenant`'s context, not request payload.
+
+Co-existing gateways:
+- `/sync` (this) — domain mutation events, broadcast-to-tenant.
+- `/notifications` (modules/notifications/notifications.gateway.ts) — per-user push, room `tenant:<tid>:user:<sub>`.
+- `/ws` path (legacy WsGateway) — reminder fire-and-forget; will fold into SyncGateway once the FE migrates.
+
 ### Audit vs Activities
 
 Two append-only streams, easy to confuse:
