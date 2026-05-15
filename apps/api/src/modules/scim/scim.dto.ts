@@ -14,6 +14,7 @@ import { z } from 'zod';
  */
 
 export const SCIM_USER_SCHEMA_URN = 'urn:ietf:params:scim:schemas:core:2.0:User';
+export const SCIM_GROUP_SCHEMA_URN = 'urn:ietf:params:scim:schemas:core:2.0:Group';
 export const SCIM_LIST_RESPONSE_SCHEMA_URN = 'urn:ietf:params:scim:api:messages:2.0:ListResponse';
 export const SCIM_PATCH_OP_SCHEMA_URN = 'urn:ietf:params:scim:api:messages:2.0:PatchOp';
 export const SCIM_ERROR_SCHEMA_URN = 'urn:ietf:params:scim:api:messages:2.0:Error';
@@ -83,3 +84,42 @@ export const ScimListQuerySchema = z.object({
   filter: z.string().optional(),
 });
 export type ScimListQueryDto = z.infer<typeof ScimListQuerySchema>;
+
+/**
+ * SCIM Group resources (RFC 7643 §4.2). amass-crm has no Group/Team table —
+ * groups are SYNTHESIZED 1:1 from the `UserRole` enum (OWNER, ADMIN, MANAGER,
+ * AGENT, VIEWER). Each tenant therefore has exactly 5 read-only groups whose
+ * `id` is `role:${UserRole}`, and "membership" is determined by `User.role`.
+ *
+ * Mutations land on `User.role`:
+ *   - PATCH `op:add path:members value:[{value:userId}]`    → set User.role to this group's role
+ *   - PATCH `op:remove path:members value:[{value:userId}]` → downgrade User.role to VIEWER
+ *   - PUT (full replace of `members`)                       → diff vs current, then apply add/remove atomically
+ *
+ * POST and DELETE return 501 — these synthetic groups are fixed by the RBAC
+ * enum and cannot be created or destroyed by an external IdP.
+ */
+export const ScimGroupMemberSchema = z.object({
+  // SCIM Group member value is the User.id (string). We accept value, display
+  // and type but only `value` is load-bearing at write time.
+  value: z.string().min(1),
+  display: z.string().optional(),
+  type: z.string().optional(),
+});
+export type ScimGroupMember = z.infer<typeof ScimGroupMemberSchema>;
+
+/** PUT body — full overwrite of the member set on a synthetic Role-group. */
+export const ScimGroupReplaceSchema = z.object({
+  schemas: z.array(z.string()).min(1),
+  displayName: z.string().min(1).optional(),
+  members: z.array(ScimGroupMemberSchema).default([]),
+});
+export type ScimGroupReplaceDto = z.infer<typeof ScimGroupReplaceSchema>;
+
+/** POST body kept for shape parity with /Users — the service returns 501. */
+export const ScimGroupCreateSchema = z.object({
+  schemas: z.array(z.string()).min(1),
+  displayName: z.string().min(1),
+  members: z.array(ScimGroupMemberSchema).optional().default([]),
+});
+export type ScimGroupCreateDto = z.infer<typeof ScimGroupCreateSchema>;

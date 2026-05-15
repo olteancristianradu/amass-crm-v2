@@ -1,6 +1,7 @@
 import type { Prisma, User } from '@prisma/client';
 import { UserRole } from '@prisma/client';
 import {
+  SCIM_GROUP_SCHEMA_URN,
   SCIM_USER_SCHEMA_URN,
   type ScimPatchOp,
   type ScimUserCreateDto,
@@ -217,4 +218,177 @@ export function parseScimFilter(filter: string): { userName: string } | null {
   const m = filter.match(/^\s*userName\s+eq\s+["']([^"']+)["']\s*$/i);
   if (!m) return null;
   return { userName: m[1]!.toLowerCase() };
+}
+
+// ─── SCIM Groups (synthetic, role-derived) ──────────────────────────────────
+
+/**
+ * SCIM Group envelope shape (RFC 7643 §4.2). Groups in amass-crm are NOT
+ * stored — they are synthesized 1:1 from the `UserRole` enum on each request.
+ * `meta.created` and `meta.lastModified` are fixed sentinels: the group has
+ * no DB row, only its members do.
+ */
+export interface ScimGroup {
+  schemas: string[];
+  id: string;
+  displayName: string;
+  members: Array<{ value: string; display?: string; $ref: string; type: 'User' }>;
+  meta: {
+    resourceType: 'Group';
+    created: string;
+    lastModified: string;
+    location: string;
+  };
+}
+
+/** Stable sort + iteration order for the 5 synthetic groups. */
+export const SCIM_GROUP_ROLES: readonly UserRole[] = [
+  UserRole.OWNER,
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+  UserRole.AGENT,
+  UserRole.VIEWER,
+] as const;
+
+/** Fixed creation timestamp for synthetic groups — they have no DB row. */
+const SYNTHETIC_GROUP_META_TS = '2026-01-01T00:00:00.000Z';
+
+/** Group id <-> Role conversion. Format: `role:OWNER`, `role:ADMIN`, ... */
+export function roleToGroupId(role: UserRole): string {
+  return `role:${role}`;
+}
+
+/**
+ * Parse `role:OWNER` back into the UserRole enum value. Returns null for any
+ * id that doesn't match a known role — the service uses this to reject
+ * GET /Groups/role:UNKNOWN with a clean 404 instead of crashing on enum lookup.
+ */
+export function groupIdToRole(id: string): UserRole | null {
+  if (!id.startsWith('role:')) return null;
+  const candidate = id.slice('role:'.length);
+  if ((SCIM_GROUP_ROLES as readonly string[]).includes(candidate)) {
+    return candidate as UserRole;
+  }
+  return null;
+}
+
+/** Build the SCIM Group envelope from a role + its member User rows. */
+export function roleToScimGroup(
+  role: UserRole,
+  members: Array<Pick<User, 'id' | 'fullName' | 'email'>>,
+  locationBase = '/scim/v2/Groups',
+  userLocationBase = '/scim/v2/Users',
+): ScimGroup {
+  const id = roleToGroupId(role);
+  return {
+    schemas: [SCIM_GROUP_SCHEMA_URN],
+    id,
+    displayName: role,
+    members: members.map((m) => ({
+      value: m.id,
+      display: m.fullName || m.email,
+      $ref: `${userLocationBase}/${m.id}`,
+      type: 'User',
+    })),
+    meta: {
+      resourceType: 'Group',
+      created: SYNTHETIC_GROUP_META_TS,
+      lastModified: SYNTHETIC_GROUP_META_TS,
+      location: `${locationBase}/${id}`,
+    },
+  };
+}
+
+/**
+ * Membership-removal policy for synthetic Role-groups: when an IdP removes a
+ * user from group X (e.g. MANAGER), we downgrade them to VIEWER rather than
+ * deleting the User. VIEWER is the least-privilege floor consistent with the
+ * SCIM /Users create path (`scimToUserCreateInput` also defaults to VIEWER).
+ *
+ * Removing a user from the VIEWER group is a no-op — "no role at all" isn't
+ * representable (User.role is non-null).
+ */
+export const GROUP_REMOVAL_FALLBACK_ROLE: UserRole = UserRole.VIEWER;
+
+/**
+ * Parse a Groups PatchOp into a list of {userId, action} operations.
+ * Supported shapes (matches what Okta + Azure AD actually send):
+ *   - `{op:"add", path:"members", value:[{value:userId}, ...]}`
+ *   - `{op:"remove", path:"members", value:[{value:userId}, ...]}`
+ *   - `{op:"remove", path:'members[value eq "userId"]'}` (Okta legacy form)
+ *
+ * `replace` on `members` is treated as a full PUT-style overwrite — the
+ * service handles that via the dedicated replace path, not this parser.
+ */
+export interface ScimGroupMemberOp {
+  action: 'add' | 'remove';
+  userId: string;
+}
+
+export function parseGroupPatchOps(ops: ScimPatchOp[]): ScimGroupMemberOp[] {
+  const out: ScimGroupMemberOp[] = [];
+  for (const op of ops) {
+    const action = op.op.toLowerCase();
+    if (action !== 'add' && action !== 'remove') {
+      const err = new Error('UNSUPPORTED_OP');
+      err.name = 'ScimUnsupportedOp';
+      throw err;
+    }
+    const path = op.path ?? '';
+
+    // Okta legacy form: remove single member via path filter expression.
+    const filterMatch = path.match(/^members\[value\s+eq\s+["']([^"']+)["']\]$/i);
+    if (filterMatch) {
+      if (action !== 'remove') {
+        const err = new Error('UNSUPPORTED_OP');
+        err.name = 'ScimUnsupportedOp';
+        throw err;
+      }
+      out.push({ action: 'remove', userId: filterMatch[1]! });
+      continue;
+    }
+
+    if (path !== 'members') {
+      const err = new Error('UNSUPPORTED_OP');
+      err.name = 'ScimUnsupportedOp';
+      throw err;
+    }
+
+    if (!Array.isArray(op.value)) {
+      const err = new Error('UNSUPPORTED_OP');
+      err.name = 'ScimUnsupportedOp';
+      throw err;
+    }
+    for (const entry of op.value as unknown[]) {
+      if (
+        typeof entry !== 'object' ||
+        entry === null ||
+        typeof (entry as { value?: unknown }).value !== 'string' ||
+        ((entry as { value: string }).value).trim() === ''
+      ) {
+        const err = new Error('UNSUPPORTED_OP');
+        err.name = 'ScimUnsupportedOp';
+        throw err;
+      }
+      out.push({ action: action as 'add' | 'remove', userId: (entry as { value: string }).value });
+    }
+  }
+  return out;
+}
+
+/**
+ * Compute the diff for a PUT /Groups/:id (full member-set overwrite).
+ * Returns the userIds that must be added (set User.role to this group's role)
+ * and removed (downgrade to VIEWER).
+ */
+export function diffGroupMembers(
+  currentUserIds: string[],
+  desiredUserIds: string[],
+): { toAdd: string[]; toRemove: string[] } {
+  const cur = new Set(currentUserIds);
+  const des = new Set(desiredUserIds);
+  return {
+    toAdd: [...des].filter((id) => !cur.has(id)),
+    toRemove: [...cur].filter((id) => !des.has(id)),
+  };
 }

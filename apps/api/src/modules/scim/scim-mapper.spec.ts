@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '@prisma/client';
 import { UserRole } from '@prisma/client';
-import { applyScimPatch, parseScimFilter, scimToUserCreateInput, userToScim } from './scim-mapper';
-import { SCIM_USER_SCHEMA_URN } from './scim.dto';
+import {
+  applyScimPatch,
+  diffGroupMembers,
+  GROUP_REMOVAL_FALLBACK_ROLE,
+  groupIdToRole,
+  parseGroupPatchOps,
+  parseScimFilter,
+  roleToGroupId,
+  roleToScimGroup,
+  SCIM_GROUP_ROLES,
+  scimToUserCreateInput,
+  userToScim,
+} from './scim-mapper';
+import { SCIM_GROUP_SCHEMA_URN, SCIM_USER_SCHEMA_URN } from './scim.dto';
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
@@ -161,5 +173,136 @@ describe('parseScimFilter', () => {
     expect(parseScimFilter('active eq true')).toBeNull();
     expect(parseScimFilter('userName sw "a"')).toBeNull();
     expect(parseScimFilter('garbage')).toBeNull();
+  });
+});
+
+// ─── Groups (B3-PR2) ──────────────────────────────────────────────────────
+
+describe('roleToGroupId / groupIdToRole', () => {
+  it('produces stable id format', () => {
+    expect(roleToGroupId(UserRole.OWNER)).toBe('role:OWNER');
+    expect(roleToGroupId(UserRole.VIEWER)).toBe('role:VIEWER');
+  });
+
+  it('round-trips every UserRole', () => {
+    for (const r of SCIM_GROUP_ROLES) {
+      expect(groupIdToRole(roleToGroupId(r))).toBe(r);
+    }
+  });
+
+  it('returns null for unknown ids', () => {
+    expect(groupIdToRole('role:WIZARD')).toBeNull();
+    expect(groupIdToRole('owner')).toBeNull();
+    expect(groupIdToRole('')).toBeNull();
+  });
+
+  it('exposes VIEWER as the removal fallback role', () => {
+    expect(GROUP_REMOVAL_FALLBACK_ROLE).toBe(UserRole.VIEWER);
+  });
+});
+
+describe('roleToScimGroup', () => {
+  it('emits the SCIM Group schema and meta envelope', () => {
+    const g = roleToScimGroup(UserRole.ADMIN, [
+      { id: 'u1', fullName: 'Alice A', email: 'a@x.com' },
+    ]);
+    expect(g.schemas).toEqual([SCIM_GROUP_SCHEMA_URN]);
+    expect(g.id).toBe('role:ADMIN');
+    expect(g.displayName).toBe('ADMIN');
+    expect(g.meta.resourceType).toBe('Group');
+    expect(g.meta.location).toBe('/scim/v2/Groups/role:ADMIN');
+    expect(g.members).toEqual([
+      {
+        value: 'u1',
+        display: 'Alice A',
+        $ref: '/scim/v2/Users/u1',
+        type: 'User',
+      },
+    ]);
+  });
+
+  it('falls back to email when fullName is empty', () => {
+    const g = roleToScimGroup(UserRole.VIEWER, [
+      { id: 'u1', fullName: '', email: 'no-name@x.com' },
+    ]);
+    expect(g.members[0]!.display).toBe('no-name@x.com');
+  });
+
+  it('emits empty members array when no users hold the role', () => {
+    const g = roleToScimGroup(UserRole.OWNER, []);
+    expect(g.members).toEqual([]);
+  });
+});
+
+describe('parseGroupPatchOps', () => {
+  it('parses `add members [{value:id}]`', () => {
+    expect(
+      parseGroupPatchOps([{ op: 'add', path: 'members', value: [{ value: 'u1' }] }]),
+    ).toEqual([{ action: 'add', userId: 'u1' }]);
+  });
+
+  it('parses `remove members [{value:id}]`', () => {
+    expect(
+      parseGroupPatchOps([
+        { op: 'remove', path: 'members', value: [{ value: 'u1' }, { value: 'u2' }] },
+      ]),
+    ).toEqual([
+      { action: 'remove', userId: 'u1' },
+      { action: 'remove', userId: 'u2' },
+    ]);
+  });
+
+  it('parses Okta legacy `remove members[value eq "id"]`', () => {
+    expect(
+      parseGroupPatchOps([{ op: 'remove', path: 'members[value eq "u1"]' }]),
+    ).toEqual([{ action: 'remove', userId: 'u1' }]);
+  });
+
+  it('throws on unsupported op (replace)', () => {
+    expect(() =>
+      parseGroupPatchOps([{ op: 'replace', path: 'members', value: [] }]),
+    ).toThrowError(/UNSUPPORTED_OP/);
+  });
+
+  it('throws on path other than `members`', () => {
+    expect(() =>
+      parseGroupPatchOps([{ op: 'add', path: 'displayName', value: [{ value: 'u1' }] }]),
+    ).toThrowError(/UNSUPPORTED_OP/);
+  });
+
+  it('throws on malformed value (not an array)', () => {
+    expect(() =>
+      parseGroupPatchOps([{ op: 'add', path: 'members', value: 'u1' }]),
+    ).toThrowError(/UNSUPPORTED_OP/);
+  });
+});
+
+describe('diffGroupMembers', () => {
+  it('classifies adds and removes', () => {
+    expect(diffGroupMembers(['a', 'b'], ['b', 'c'])).toEqual({
+      toAdd: ['c'],
+      toRemove: ['a'],
+    });
+  });
+
+  it('returns empty when current == desired', () => {
+    expect(diffGroupMembers(['a', 'b'], ['b', 'a'])).toEqual({
+      toAdd: [],
+      toRemove: [],
+    });
+  });
+
+  it('returns full add when current is empty', () => {
+    expect(diffGroupMembers([], ['a', 'b'])).toEqual({
+      toAdd: ['a', 'b'],
+      toRemove: [],
+    });
+  });
+
+  it('returns full remove when desired is empty', () => {
+    expect(diffGroupMembers(['a', 'b'], [])).toEqual({
+      toAdd: [],
+      toRemove: ['a', 'b'],
+    });
   });
 });

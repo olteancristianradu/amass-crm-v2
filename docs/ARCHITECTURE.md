@@ -204,20 +204,39 @@ The surface is six endpoints — four ceremony calls plus device CRUD:
 
 ### SCIM 2.0 (B3)
 
-Identity-provider provisioning surface under `/scim/v2/Users` (RFC 7643/7644). Lives in `apps/api/src/modules/scim/`:
+Identity-provider provisioning surface under `/scim/v2/Users` and `/scim/v2/Groups` (RFC 7643/7644). Lives in `apps/api/src/modules/scim/`:
 
-- `scim.controller.ts` — six routes (GET list, GET one, POST, PUT, PATCH, DELETE) all responding with `Content-Type: application/scim+json`. Tenant is currently extracted from the `X-Tenant-Id` header — **temporary scaffolding** until B3-PR3 wires real bearer-token auth. The controller is `@Public()`, so it must not be exposed on a public ingress until that PR lands.
-- `scim.service.ts` — every method routes through `prisma.runWithTenant(tenantId, fn)` so the tenant extension auto-scopes queries and Postgres RLS enforces isolation at layer 3 (same multi-tenant defense-in-depth story as the rest of the app).
-- `scim-mapper.ts` — pure functions converting between Prisma `User` rows and SCIM envelopes; covered by unit tests independent of DI.
-- `scim.dto.ts` — Zod schemas for create/replace/patch bodies and list-query params.
+- `scim.controller.ts` — twelve routes total (six for /Users, six for /Groups) all responding with `Content-Type: application/scim+json`. Authenticated via **`ScimBearerGuard`** (B3-PR3): every request must carry `Authorization: Bearer <token>` where `<token>` is an opaque per-tenant credential issued by the admin surface below. The guard resolves the token to a `tenantId` and attaches it to the request (`req.scimTenantId`); the controller reads that, NOT a header. `@Public()` keeps the global `JwtAuthGuard` from intercepting — these tokens are not JWTs.
+- `scim-bearer.guard.ts` — verifies the bearer token via `ScimTokenService.verifyToken`, emits an `scim.api_call` audit entry on every successful call, and binds `req.scimTenantId` + `req.scimTokenId`. Failure modes (missing header, malformed prefix, unknown token, revoked token) all collapse to 401 so a probing IdP can't distinguish between them.
+- `scim-token.service.ts` — token lifecycle. `create()` generates 32 random bytes (`base64url`, ~256-bit entropy), persists `sha256(raw)` to `scim_tokens.tokenHash`, and returns the raw token **exactly once** (GitHub-PAT pattern). `verifyToken()` hashes + lookups by `tokenHash` (globally unique, indexed) + filters by `revokedAt IS NULL` + fires-and-forgets a `lastUsedAt` bump. `revoke()` is idempotent; revoked tokens never re-activate.
+- `scim-admin.controller.ts` — JWT-protected admin surface under `/scim/tokens` for tenant `OWNER`/`ADMIN` to `GET` (list metadata only — never the raw token or hash), `POST` (create + receive raw once + warning in body), and `DELETE` (revoke). Token creation + revocation are audit-logged as `scim.token_created` / `scim.token_revoked`.
+- `scim.service.ts` — /Users CRUD. Every method routes through `prisma.runWithTenant(tenantId, fn)` so the tenant extension auto-scopes queries and Postgres RLS enforces isolation at layer 3 (same multi-tenant defense-in-depth story as the rest of the app).
+- `scim-groups.service.ts` — /Groups CRUD against the synthetic, role-derived group model (see below). Same `runWithTenant` discipline. Every effective membership change is audited via the global `AuditService` (`scim.group.member_added` / `scim.group.member_removed`).
+- `scim-mapper.ts` — pure functions converting between Prisma rows and SCIM envelopes (User↔ScimUser and UserRole↔ScimGroup, plus PatchOp parsing for both); covered by unit tests independent of DI.
+- `scim.dto.ts` — Zod schemas for create/replace/patch bodies and list-query params (both /Users and /Groups).
 
-Deliberate RFC 7644 deviations (kept narrow until a real IdP customer asks):
+**Bearer flow + token lifecycle (B3-PR3)**: operator hits `POST /scim/tokens` from CRM admin UI → receives raw token in the response body alongside a "store now, won't be shown again" warning → pastes it into Okta / Azure AD provisioning config → IdP starts sending `Authorization: Bearer <token>` to `/scim/v2/...` → every call bumps `lastUsedAt`. Compromised? Admin calls `DELETE /scim/tokens/:id`; the next IdP call returns 401 immediately because the verify path filters by `revokedAt IS NULL` (no Redis blocklist needed). Token rotation = create a new token, switch the IdP to it, revoke the old one. Multi-IdP = multiple rows in `scim_tokens` per tenant (e.g. "Okta production" + "Okta staging"). Cross-tenant safety: `tenantId` is read off the token's DB row, not from a client-supplied header — a tenant-A token cannot ever authenticate as tenant-B, even if an attacker crafts a request claiming otherwise.
+
+Deliberate RFC 7644 deviations on /Users (kept narrow until a real IdP customer asks):
 - **PATCH** supports only `op: "replace"` on `active`, `name.givenName`, `name.familyName`, and the primary email's `value`. Anything else returns 400 with `scimType: invalidPath`. Okta and Azure AD both send `replace` for these fields.
 - **`filter` query param** supports only `userName eq "value"`. Anything else returns 400 with `scimType: invalidFilter`.
 - **DELETE** is a soft-delete (`isActive=false`) and idempotent. There is no hard-delete path; deactivated users may still own FK-referenced rows (deals, leads, tasks).
 - **Provisioned users** default to `role=VIEWER` (least privilege) with a sentinel `passwordHash` that can never satisfy bcrypt.compare — login by password is impossible, login by SSO is the intended path.
 
-Out of scope for PR1: Groups (B3-PR2), bearer-token auth (B3-PR3), audit logging integration (B3-PR3), and the `ServiceProviderConfig` / `ResourceTypes` / `Schemas` meta endpoints (B3-PR4).
+#### /Groups — synthetic, role-derived (B3-PR2)
+
+amass-crm has no Group/Team table. The 5 SCIM Groups exposed per tenant are SYNTHESIZED 1:1 from the `UserRole` enum (`OWNER`, `ADMIN`, `MANAGER`, `AGENT`, `VIEWER`). Each group's stable id is `role:${UserRole}` (e.g. `role:ADMIN`), `displayName` matches the role name, and membership = the set of users whose `User.role` equals that role.
+
+- **GET /Groups** — always returns 5 entries with current member counts hydrated from `User` rows. `filter` is rejected with 400 (`invalidFilter`); the group set is fixed so filter is meaningless.
+- **GET /Groups/:id** — returns the group with members (id, fullName/email → `$ref: /scim/v2/Users/:id`).
+- **PATCH /Groups/:id** — accepts `op: "add"` and `op: "remove"` on path `members` (and the Okta legacy form `members[value eq "userId"]`). Add sets `User.role` to the target group's role; remove downgrades the user to `VIEWER` (the least-privilege floor). Removing from the VIEWER group is a no-op (there is no lower role). Every effective change writes an audit entry.
+- **PUT /Groups/:id** — full overwrite of the member set. The service diffs current vs desired membership, validates every desired id up-front (no partial mutation on a bad id), then applies adds and removes inside one transaction with the same audit + role-update semantics as PATCH.
+- **POST /Groups** — returns **501 Not Implemented** (`scimType: notImplemented`). The group set is fixed by RBAC; IdPs cannot create a new role group.
+- **DELETE /Groups/:id** — returns **501 Not Implemented** for the same reason.
+
+The "remove → downgrade to VIEWER" choice is deliberate: every `User` row carries a non-null `role` column, so removing the role entirely isn't representable. VIEWER matches the create-time default in `scimToUserCreateInput` and our least-privilege bias. When a real Group/Team table lands (multi-team, scoped permissions), POST/DELETE become real implementations and this section is the canonical place to revisit the contract.
+
+Out of scope for PR3: Okta E2E integration test (B3-PR4) and the `ServiceProviderConfig` / `ResourceTypes` / `Schemas` meta endpoints (B3-PR4).
 
 ### Error shape
 
