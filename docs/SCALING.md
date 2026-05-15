@@ -173,3 +173,74 @@ immediately. Not read by anything today — it's present so a future Citus /
 Vitess migration doesn't need to rewrite every query with a shard-routing
 WHERE clause. Hooking it up is gated on the sharding threshold in
 `CLAUDE.md`.
+
+---
+
+## Backups
+
+Wired in D2-PR1 (sprint 18). Sidecar container `db-backup` (Alpine +
+postgresql16-client + `mc`) runs in the production compose stack and takes
+nightly logical dumps of Postgres into an S3-compatible bucket. Restore
+runbook lives in [`docs/INCIDENT_RESPONSE.md#database-restore`](./INCIDENT_RESPONSE.md#database-restore).
+
+### Schedule
+
+- **When:** every day at **02:00 Europe/Bucharest** (`TZ` baked into the image).
+- **Driver:** busybox-crond inside the `db-backup` container.
+- **Job:** `/usr/local/bin/backup-db.sh` — `pg_dump --format=custom --compress=9 --no-owner --no-acl`, then `mc cp` to S3, then retention sweep.
+
+### Where backups land
+
+S3-compatible object storage — endpoint configurable per environment so we
+don't hard-tie to one provider. Tested targets: MinIO (self-hosted),
+Cloudflare R2, Backblaze B2, AWS S3.
+
+Configuration (set in `.env.production`):
+
+```
+BACKUP_S3_ENDPOINT=https://s3.eu-central-1.amazonaws.com
+BACKUP_S3_ACCESS_KEY=...
+BACKUP_S3_SECRET_KEY=...
+BACKUP_BUCKET=amass-backups            # default: amass-backups
+BACKUP_RETENTION_DAYS=30               # default: 30
+```
+
+Dumps are written to `s3://${BACKUP_BUCKET}/db/<YYYY-MM-DD_HHMMSS>.dump`
+(timestamp is UTC).
+
+### Retention
+
+- **Default:** 30 days, tuned via `BACKUP_RETENTION_DAYS`.
+- **Mechanism:** `mc rm --recursive --force --older-than <N>d` runs after
+  every successful upload. Independent of object-storage lifecycle policies
+  (those are belt-and-suspenders if the bucket provider supports them).
+
+### Manual trigger
+
+Useful before risky migrations or right before a planned destroy:
+
+```
+docker compose \
+  -f infra/docker-compose.yml \
+  -f infra/docker-compose.prod.yml \
+  --env-file .env.production \
+  run --rm db-backup /usr/local/bin/backup-db.sh
+```
+
+The script exits 0 on success, non-zero on any failure.
+
+### Monitoring
+
+```
+docker compose \
+  -f infra/docker-compose.yml \
+  -f infra/docker-compose.prod.yml \
+  logs db-backup --tail 200 -f
+```
+
+Each run logs `starting backup …`, the dump size, the upload destination,
+the retention sweep result, and a final `backup complete …` line. Absence
+of those lines after 02:15 Europe/Bucharest = ALERT.
+
+Wiring this into Prometheus / Sentry as an actual alert is in a separate
+PR (Agent B owns business metrics).

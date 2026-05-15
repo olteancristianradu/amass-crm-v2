@@ -193,6 +193,120 @@ External party (security consultant or trusted advisor) walks through 2-3 scenar
 
 ---
 
+## Database Restore
+
+Restoring from a Postgres backup is irreversible — running it **drops the
+target database** and recreates it from a `pg_dump` archive. Use only when:
+
+1. Production data corruption is confirmed (not just suspected), OR
+2. A successful restore drill is being practiced against a staging DB, OR
+3. A point-in-time rollback has been approved by the incident commander.
+
+The backup pipeline is documented in [`docs/SCALING.md#backups`](./SCALING.md#backups).
+
+### Prerequisites
+
+- **S3 credentials** with read access to `s3://${BACKUP_BUCKET}/db/` (the
+  same values used by the `db-backup` service: `BACKUP_S3_ENDPOINT`,
+  `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY`, `BACKUP_BUCKET`).
+- **Postgres connection** to the target instance (`PGHOST`, `PGUSER`,
+  `PGPASSWORD`, `PGDATABASE`). The user needs `CREATEDB` + ownership of
+  the target DB so `dropdb` + `createdb` succeed.
+- **The `db-backup` image** built locally (so we get `mc` +
+  `postgresql16-client` + the script in one shot). The compose `run --rm`
+  invocation below builds it on demand.
+- **All API/web containers stopped** (so writes don't race the restore):
+  `docker compose stop api web ai-worker`.
+
+### Step-by-step
+
+1. **Stop traffic to the DB.**
+
+   ```
+   docker compose \
+     -f infra/docker-compose.yml \
+     -f infra/docker-compose.prod.yml \
+     --env-file .env.production \
+     stop api web ai-worker
+   ```
+
+2. **Run the restore script interactively** (it will list the last 30
+   dumps and ask which one to restore). The `--confirm-i-want-to-destroy-prod`
+   flag is mandatory — the script refuses to run without it.
+
+   ```
+   docker compose \
+     -f infra/docker-compose.yml \
+     -f infra/docker-compose.prod.yml \
+     --env-file .env.production \
+     run --rm \
+       --entrypoint /usr/local/bin/restore-db.sh \
+       db-backup \
+       --confirm-i-want-to-destroy-prod
+   ```
+
+   The script will also prompt you to **type the database name** as a
+   second safety gate before running `dropdb`.
+
+3. **Non-interactive variant** (if you already know which dump):
+
+   ```
+   docker compose ... run --rm \
+       --entrypoint /usr/local/bin/restore-db.sh \
+       db-backup \
+       --confirm-i-want-to-destroy-prod \
+       --file 2026-05-15_020000.dump
+   ```
+
+   The `--file` flag accepts a bare filename (resolved against
+   `s3://${BACKUP_BUCKET}/db/`), a `backup/...` alias path, or an
+   absolute local path inside the container.
+
+4. **Restart the app**:
+
+   ```
+   docker compose ... up -d api web ai-worker
+   ```
+
+### Expected duration
+
+- **<1 GB dump:** ~5 minutes (network-bound).
+- **1–5 GB dump:** ~10–15 minutes.
+- **5–50 GB dump:** ~20–60 minutes (`pg_restore` is single-threaded by
+  default — pass `--jobs=N` inside the script for parallel restore if we
+  ever hit this size; not done today because v1 DB is well under 5 GB).
+
+### Verification
+
+Run from inside the Postgres container (or any psql-equipped host):
+
+```
+psql -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" \
+  -c 'SELECT count(*) FROM tenants;' \
+  -c 'SELECT count(*) FROM users;' \
+  -c 'SELECT count(*) FROM deals;' \
+  -c "SELECT MAX(\"createdAt\") FROM audit_logs;"
+```
+
+- `tenants` row count should match the expected production headcount
+  (record this value somewhere before restore).
+- `audit_logs` MAX createdAt should be close to the dump's timestamp
+  (any later writes were lost — that's the gap you need to communicate
+  to affected tenants per Phase 4 above).
+
+If any count is suspiciously low (e.g., 0), **stop, do NOT restart the
+app**, and re-pick an older dump.
+
+### Post-restore checklist
+
+- [ ] Audit log entry recorded with operator name + dump filename + reason
+- [ ] Affected tenants notified about the data gap (everything written
+      between dump time and restore time is gone)
+- [ ] Sentry release marker added so error timeline shows the rollback
+- [ ] Postmortem written within 7 days (per Phase 6)
+
+---
+
 ## Appendix A: Email template — data subject notification
 
 ```

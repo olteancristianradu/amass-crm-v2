@@ -1,0 +1,8 @@
+# AMASS-CRM db-backup crontab — busybox-crond format.
+#
+# Daily at 02:00 Europe/Bucharest (TZ set in the Dockerfile).
+# `>> /proc/1/fd/1 2>&1` pipes the script's stdout+stderr to PID 1's stdout,
+# which docker captures and surfaces via `docker compose logs db-backup`.
+#
+# Five fields: minute hour day-of-month month day-of-week
+0 2 * * * /usr/local/bin/backup-db.sh >> /proc/1/fd/1 2>&1
