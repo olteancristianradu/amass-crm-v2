@@ -244,3 +244,29 @@ of those lines after 02:15 Europe/Bucharest = ALERT.
 
 Wiring this into Prometheus / Sentry as an actual alert is in a separate
 PR (Agent B owns business metrics).
+
+---
+
+## Production deploy (Railway)
+
+Production deploys target [Railway](https://railway.com). The full
+step-by-step procedure — managed Postgres + Redis provisioning, MinIO
+replacement via Cloudflare R2, per-service env var wiring, custom domain
+setup, rollback, and cost expectations — lives in
+[`RAILWAY_DEPLOY.md`](./RAILWAY_DEPLOY.md).
+
+The Docker Compose stack in `infra/` remains **canonical** for local
+development and on-prem installs (single-VPS deploys via
+`scripts/bootstrap-vps.sh`). Railway is the SaaS deploy target only;
+nothing in the app code is Railway-specific. The same Dockerfiles power
+both paths.
+
+Pre-deploy sanity check:
+
+```bash
+scripts/check-railway-readiness.sh
+```
+
+Lists the env vars Railway must have set per service and validates that
+each app's Dockerfile is in place. Exits non-zero with a checklist if
+anything is missing.

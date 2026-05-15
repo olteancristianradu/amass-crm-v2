@@ -1,9 +1,50 @@
-# Railway config for the `ai-worker` service (FastAPI).
+# Railway config for the `ai-worker` service (Python 3.12 + FastAPI + Whisper).
 #
-# Usage on Railway:
+# Dashboard wiring:
 #   Settings → Source → Root Directory   = (leave EMPTY / blank — repo root)
 #   Settings → Config-as-Code Path       = apps/ai-worker/railway.toml
 #   Settings → Watch Paths               = apps/ai-worker/**
+#
+# ─────────────────────────────────────────────────────────────────────
+# Required env vars (set in Railway dashboard → Variables tab):
+#
+#   AI_WORKER_SECRET             # MUST match the value set on the `api` service.
+#                                # The worker uses this as a bearer token when
+#                                # POSTing call results to /calls/:id/ai-result.
+#   API_URL                      # NestJS API URL, e.g. "https://api.amass-crm.com"
+#                                # In Railway, use the api service's internal URL
+#                                # (Settings → Networking → Private Networking)
+#                                # to avoid public-internet hops + egress cost.
+#   REDIS_URL                    # SAME Redis instance as the api service —
+#                                # BullMQ queue is shared. Railway: reference
+#                                # the api's Redis addon as a service variable.
+#
+# Object storage (worker downloads recordings to transcribe):
+#   MINIO_ENDPOINT               # same R2/B2 endpoint as the api service
+#   MINIO_ACCESS_KEY
+#   MINIO_SECRET_KEY
+#   MINIO_BUCKET
+#
+# Recommended:
+#   WHISPER_MODEL                # "off" (stub, default), "base", "small",
+#                                # "medium", "large". Larger = better accuracy
+#                                # but slower + more RAM. Start at "base".
+#                                # NOTE: real Whisper needs ≥2GB RAM and
+#                                # downloads model weights (~150MB-3GB) on
+#                                # first run — set a persistent volume or
+#                                # accept the cold-start penalty.
+#   ANTHROPIC_API_KEY            # for transcript summarisation (Claude)
+#
+# Optional:
+#   TWILIO_ACCOUNT_SID           # only if the worker downloads recordings
+#   TWILIO_AUTH_TOKEN            # straight from Twilio's CDN (vs from MinIO)
+#   OPENAI_API_KEY               # currently not used by the worker; reserved
+#
+# Health probe: `GET /health` (FastAPI route in apps/ai-worker/app/main.py:81).
+# Returns 200 with `degraded: true` when running in stub mode — the health
+# check still passes, but the response body tells you the worker can't
+# actually transcribe. Watch `degraded` in your monitoring dashboard.
+# ─────────────────────────────────────────────────────────────────────
 
 [build]
 builder = "DOCKERFILE"
@@ -12,6 +53,9 @@ watchPatterns = ["apps/ai-worker/**"]
 
 [deploy]
 healthcheckPath = "/health"
+# Worker cold start can be slow: when WHISPER_MODEL is set to "base" or
+# higher, the first request after deploy downloads + loads the model into
+# memory. Give it 2 minutes to come up before Railway calls it dead.
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

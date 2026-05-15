@@ -1,9 +1,26 @@
-# Railway config for the `web` service.
+# Railway config for the `web` service (Vite + React 19, served via nginx-unprivileged).
 #
-# Usage on Railway:
+# Dashboard wiring:
 #   Settings → Source → Root Directory   = (leave EMPTY / blank — repo root)
 #   Settings → Config-as-Code Path       = apps/web/railway.toml
 #   Settings → Watch Paths               = apps/web/**, packages/shared/**
+#
+# ─────────────────────────────────────────────────────────────────────
+# Env vars:
+#
+# Build-time (must be set BEFORE the build runs — Vite inlines these into
+# the static bundle at build time; changing them post-build does nothing):
+#   VITE_API_URL                 # e.g. "https://api.amass-crm.com/api/v1"
+#   VITE_SENTRY_DSN              # optional
+#
+# Runtime:
+#   PORT                         # auto-injected by Railway. nginx-default.conf.template
+#                                # uses $PORT via envsubst at container start.
+#
+# Custom domain: Settings → Networking → Custom Domain → add your domain.
+# Railway issues a Let's Encrypt cert automatically. Point your CNAME at
+# the railway.app hostname Railway gives you.
+# ─────────────────────────────────────────────────────────────────────
 
 [build]
 builder = "DOCKERFILE"
@@ -11,5 +28,9 @@ dockerfilePath = "apps/web/Dockerfile"
 watchPatterns = ["apps/web/**", "packages/shared/**", "pnpm-lock.yaml"]
 
 [deploy]
+# `/` returns the index.html (200) — sufficient as a liveness probe for a
+# static SPA. nginx serves it directly without touching the API.
+healthcheckPath = "/"
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
