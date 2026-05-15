@@ -150,6 +150,8 @@ The ceremony is four calls in two halves:
 | **Authenticate** (B2-PR2, next) | `POST /webauthn/authenticate/options` → PublicKeyCredentialRequestOptions | 501 stub |
 | | `POST /webauthn/authenticate/verify` → mint session | 501 stub |
 
+**FE register UI (B2-PR3, shipped):** the registration ceremony has a corresponding React surface at `/app/settings/security` — see `apps/web/src/routes/settings.security.page.tsx` and `apps/web/src/features/passkeys/RegisterPasskeyButton.tsx`. Backed by **@simplewebauthn/browser v13** (matches the server v13 wire format). Flow: button click → `passkeysApi.registerOptions()` → `startRegistration({ optionsJSON })` (browser native sheet for Face ID / Touch ID / Windows Hello / YubiKey) → `passkeysApi.registerVerify(response, deviceName?)`. The device list + revoke land in B2-PR4; today the Settings page reserves a placeholder slot and `passkeysApi.list()` swallows a 404 from the not-yet-wired `GET /webauthn/devices`.
+
 - **Challenge store:** Redis, key `webauthn:challenge:<userId>`, TTL 300s (WebAuthn-spec recommendation, matches the default browser ceremony timeout). One-shot — deleted on successful `verify`.
 - **Persistence:** Per-tenant `passkeys` table (RLS + tenantExtension scope every read/write). One row per registered authenticator; a user can have many (phone + laptop + hardware key). `credentialId` is globally unique (WebAuthn spec).
 - **RP identity:** `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN` in env. Prod-only check rejects the dev defaults so a deploy without override fails fast.

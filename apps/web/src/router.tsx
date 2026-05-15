@@ -36,6 +36,7 @@ import { projectDetailRoute } from './routes/project.detail';
 import { settingsUsersRoute } from './routes/settings.users';
 import { settings2faRoute } from './routes/settings.2fa';
 import { settingsAppearanceRoute } from './routes/settings.appearance';
+import { settingsSecurityRoute } from './routes/settings.security';
 import { auditRoute } from './routes/audit';
 import { smsInboxRoute } from './routes/sms.inbox';
 import { exportsRoute } from './routes/exports';
@@ -115,6 +116,7 @@ const routeTree = rootRoute.addChildren([
     settingsUsersRoute,
     settings2faRoute,
     settingsAppearanceRoute,
+    settingsSecurityRoute,
     auditRoute,
     smsInboxRoute,
     exportsRoute,

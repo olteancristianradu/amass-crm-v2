@@ -268,6 +268,9 @@ importers:
       '@sentry/react':
         specifier: ^10.52.0
         version: 10.52.0(react@19.2.6)
+      '@simplewebauthn/browser':
+        specifier: ^13.2.0
+        version: 13.3.0
       '@tanstack/react-query':
         specifier: ^5.99.2
         version: 5.99.2(react@19.2.6)
@@ -1944,6 +1947,9 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       react: ^16.14.0 || 17.x || 18.x || 19.x
+
+  '@simplewebauthn/browser@13.3.0':
+    resolution: {integrity: sha512-BE/UWv6FOToAdVk0EokzkqQQDOWtNydYlY6+OrmiZ5SCNmb41VehttboTetUM3T/fr6EAFYVXjz4My2wg230rQ==}
 
   '@simplewebauthn/server@13.3.0':
     resolution: {integrity: sha512-MLHYFrYG8/wK2i+86XMhiecK72nMaHKKt4bo+7Q1TbuG9iGjlSdfkPWKO5ZFE/BX+ygCJ7pr8H/AJeyAj1EaTQ==}
@@ -7592,6 +7598,8 @@ snapshots:
       '@sentry/browser': 10.52.0
       '@sentry/core': 10.52.0
       react: 19.2.6
+
+  '@simplewebauthn/browser@13.3.0': {}
 
   '@simplewebauthn/server@13.3.0':
     dependencies:

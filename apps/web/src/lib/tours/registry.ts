@@ -30,6 +30,7 @@ import { contactDetailTourSteps } from './content/contact-detail.tour';
 import { clientDetailTourSteps } from './content/client-detail.tour';
 import { duplicatesTourSteps } from './content/duplicates.tour';
 import { settingsAppearanceTourSteps } from './content/settings-appearance.tour';
+import { settingsSecurityTourSteps } from './content/settings-security.tour';
 import { settingsApprovalsConfigTourSteps } from './content/settings-approvals-config.tour';
 import { settingsBillingTourSteps } from './content/settings-billing.tour';
 import { settingsCallScriptTourSteps } from './content/settings-call-script.tour';
@@ -328,6 +329,13 @@ export const TOUR_REGISTRY: TourDef[] = [
     description: '11 teme, accent, densitate, font și motion — personalizează look-ul.',
     page: '/app/settings/appearance',
     steps: settingsAppearanceTourSteps,
+  },
+  {
+    id: 'settings-security',
+    title: 'Securitate (passkeys)',
+    description: 'Înregistrează passkey-uri pentru autentificare fără parolă (Face ID, Touch ID, YubiKey).',
+    page: '/app/settings/security',
+    steps: settingsSecurityTourSteps,
   },
   {
     id: 'settings-approvals-config',

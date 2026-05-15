@@ -339,6 +339,7 @@ const ADMIN_SECTION: NavSection = {
     { to: '/app/settings/approvals', label: 'Politici aprobare', icon: ClipboardList },
     { to: '/app/settings/custom-fields', label: 'Câmpuri custom', icon: Rows3 },
     { to: '/app/settings/call-script', label: 'Script apel', icon: ListChecks },
+    { to: '/app/settings/security', label: 'Securitate', icon: KeyRound },
     { to: '/app/settings/webhooks', label: 'Webhook-uri', icon: Webhook },
     { to: '/app/settings/billing', label: 'Facturare', icon: CreditCard },
     { to: '/app/email-settings', label: 'Setări email', icon: Mail },
