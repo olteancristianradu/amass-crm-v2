@@ -27,5 +27,7 @@ scrape_configs:
     static_configs:
       - targets: ["ai-worker:8000"]
 
-# Alerting rules live alongside this file — keep minimal for now.
-rule_files: []
+# Alerting rules live in infra/observability/alerts/. The compose service
+# mounts that directory at /etc/prometheus/alerts (see docker-compose.yml).
+rule_files:
+  - /etc/prometheus/alerts/*.yml
