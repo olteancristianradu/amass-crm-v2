@@ -7,26 +7,37 @@ import { UnauthorizedException } from '@nestjs/common';
 vi.mock('@simplewebauthn/server', () => ({
   generateRegistrationOptions: vi.fn(),
   verifyRegistrationResponse: vi.fn(),
+  generateAuthenticationOptions: vi.fn(),
+  verifyAuthenticationResponse: vi.fn(),
 }));
 
 import * as swServer from '@simplewebauthn/server';
 import { WebauthnService } from './webauthn.service';
 import type { Env } from '../../config/env';
+import type { AuthService } from '../auth/auth.service';
 
 /**
- * Build a WebauthnService with stubbed prisma + redis + env.
+ * Build a WebauthnService with stubbed prisma + redis + auth + env.
  *
  * prisma.runWithTenant is implemented as a pass-through that captures the
- * tenantId it was called with — the "multi-tenant" test below asserts on
- * that captured value to prove the service plumbs the right tenant down
- * into Prisma.
+ * tenantId it was called with — the "multi-tenant" tests assert on that
+ * captured value to prove the service plumbs the right tenant down into
+ * Prisma. prisma.user.findUnique / prisma.user.findMany / prisma.tenant
+ * are stubbed too because the LOGIN ceremony resolves users pre-auth
+ * (without a tenant context), the same way auth.service.login does.
  */
 function build() {
-  // The "tx" handed to the runWithTenant callback. We only use user.findFirst,
-  // passkey.findMany, passkey.create — those are mocked per-test.
+  // The "tx" handed to the runWithTenant callback. The login flow uses
+  // passkey.findFirst + passkey.update; the register flow uses
+  // user.findFirst + passkey.findMany + passkey.create.
   const tx = {
     user: { findFirst: vi.fn() },
-    passkey: { findMany: vi.fn(), create: vi.fn() },
+    passkey: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
   };
 
   const runWithTenantCalls: string[] = [];
@@ -35,6 +46,13 @@ function build() {
       runWithTenantCalls.push(tenantId);
       return fn(tx);
     }),
+    user: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
+    tenant: {
+      findUnique: vi.fn(),
+    },
   } as unknown as ConstructorParameters<typeof WebauthnService>[0];
 
   const redisClient = {
@@ -46,14 +64,24 @@ function build() {
     del: vi.fn().mockResolvedValue(undefined),
   } as unknown as ConstructorParameters<typeof WebauthnService>[1];
 
+  // AuthService is required (no @Optional()) so unit tests must supply a
+  // fake. issueTokensForUser is the only method webauthn.service calls.
+  const auth = {
+    issueTokensForUser: vi.fn().mockResolvedValue({
+      accessToken: 'access.jwt.token',
+      refreshToken: 'refresh.token.opaque',
+      expiresIn: 900,
+    }),
+  } as unknown as AuthService;
+
   const env = {
     WEBAUTHN_RP_ID: 'localhost',
     WEBAUTHN_RP_NAME: 'Test RP',
     WEBAUTHN_ORIGIN: 'http://localhost:5173',
   } as unknown as Env;
 
-  const svc = new WebauthnService(prisma, redis, env);
-  return { svc, prisma, redis, redisClient, tx, env, runWithTenantCalls };
+  const svc = new WebauthnService(prisma, redis, auth, env);
+  return { svc, prisma, redis, redisClient, tx, env, auth, runWithTenantCalls };
 }
 
 describe('WebauthnService.generateRegistrationOptions', () => {
@@ -236,5 +264,245 @@ describe('WebauthnService.verifyRegistration', () => {
 
     expect(found).toEqual([]);
     expect(h.tx.passkey.findMany).toHaveBeenCalledWith({ where: { userId: 'uA', tenantId: otherTenant } });
+  });
+});
+
+// =====================================================================
+// B2-PR2 — LOGIN ceremony tests
+// =====================================================================
+
+describe('WebauthnService.generateAuthenticationOptions', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('for a known user: returns options, stores the auth challenge in Redis, and echoes userId hint', async () => {
+    const h = build();
+    // Single-tenant resolution path (no tenantSlug → email lookup matches 1 user).
+    const userFindMany = h.prisma as unknown as { user: { findMany: ReturnType<typeof vi.fn> } };
+    userFindMany.user.findMany.mockResolvedValueOnce([{ id: 'u1', tenantId: 'tA' }]);
+    h.tx.passkey.findMany.mockResolvedValueOnce([
+      { credentialId: 'CRED_X', transports: ['internal'] },
+    ]);
+    vi.mocked(swServer.generateAuthenticationOptions).mockResolvedValueOnce({
+      challenge: 'AUTH_CHALLENGE',
+      rpId: 'localhost',
+      allowCredentials: [{ id: 'CRED_X', type: 'public-key', transports: ['internal'] }],
+    } as never);
+
+    const out = await h.svc.generateAuthenticationOptions('a@x.ro');
+
+    expect(out.userId).toBe('u1');
+    expect(out.options.challenge).toBe('AUTH_CHALLENGE');
+    expect(h.redisClient.set).toHaveBeenCalledWith(
+      'webauthn:auth-challenge:u1',
+      'AUTH_CHALLENGE',
+      'EX',
+      300,
+    );
+    // allowCredentials was assembled from the passkey rows
+    const swCall = vi.mocked(swServer.generateAuthenticationOptions).mock.calls[0][0];
+    expect(swCall.allowCredentials).toEqual([{ id: 'CRED_X', transports: ['internal'] }]);
+  });
+
+  it('for an UNKNOWN user: throws UnauthorizedException with INVALID_CREDENTIALS — does NOT leak account presence', async () => {
+    const h = build();
+    const userFindMany = h.prisma as unknown as { user: { findMany: ReturnType<typeof vi.fn> } };
+    userFindMany.user.findMany.mockResolvedValueOnce([]);
+
+    let thrown: unknown;
+    try {
+      await h.svc.generateAuthenticationOptions('ghost@x.ro');
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(UnauthorizedException);
+    // Must NOT be USER_NOT_FOUND — that would leak presence. INVALID_CREDENTIALS
+    // is identical to the response a wrong-password login would produce.
+    expect((thrown as UnauthorizedException).getResponse()).toMatchObject({
+      code: 'INVALID_CREDENTIALS',
+    });
+    expect(swServer.generateAuthenticationOptions).not.toHaveBeenCalled();
+    expect(h.redisClient.set).not.toHaveBeenCalled();
+  });
+});
+
+describe('WebauthnService.verifyAuthentication', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function setupValidVerifyContext(h: ReturnType<typeof build>, opts?: {
+    storedCounter?: number;
+    newCounter?: number;
+    verified?: boolean;
+  }) {
+    h.redisClient.get.mockResolvedValueOnce('AUTH_CHALLENGE');
+    const userFindUnique = h.prisma as unknown as {
+      user: { findUnique: ReturnType<typeof vi.fn> };
+    };
+    userFindUnique.user.findUnique.mockResolvedValueOnce({
+      id: 'u1',
+      tenantId: 'tA',
+      email: 'a@x.ro',
+      fullName: 'A',
+      role: 'AGENT',
+      isActive: true,
+    });
+    h.tx.passkey.findFirst.mockResolvedValueOnce({
+      id: 'pk1',
+      credentialId: 'CRED_X',
+      userId: 'u1',
+      tenantId: 'tA',
+      publicKey: Buffer.from([0x01, 0x02]),
+      counter: BigInt(opts?.storedCounter ?? 5),
+      transports: ['internal'],
+    });
+    vi.mocked(swServer.verifyAuthenticationResponse).mockResolvedValueOnce({
+      verified: opts?.verified ?? true,
+      authenticationInfo: {
+        credentialID: 'CRED_X',
+        newCounter: opts?.newCounter ?? 6,
+        userVerified: true,
+        credentialDeviceType: 'singleDevice',
+        credentialBackedUp: false,
+        origin: 'http://localhost:5173',
+        rpID: 'localhost',
+      },
+    } as never);
+  }
+
+  it('on valid response: updates counter + lastUsedAt, scrubs Redis, mints tokens', async () => {
+    const h = build();
+    setupValidVerifyContext(h, { storedCounter: 5, newCounter: 7 });
+
+    const res = await h.svc.verifyAuthentication('u1', { id: 'CRED_X' } as never, {
+      ipAddress: '10.0.0.1',
+      userAgent: 'curl',
+    });
+
+    // Token envelope shape matches /auth/login
+    expect(res.user).toMatchObject({ id: 'u1', tenantId: 'tA', email: 'a@x.ro' });
+    expect(res.tokens.accessToken).toBe('access.jwt.token');
+    expect(res.tokens.refreshToken).toBe('refresh.token.opaque');
+
+    // Counter was bumped to newCounter, not silently incremented
+    const updateArgs = h.tx.passkey.update.mock.calls[0][0];
+    expect(updateArgs.where).toEqual({ id: 'pk1' });
+    expect(updateArgs.data.counter).toBe(BigInt(7));
+    expect(updateArgs.data.lastUsedAt).toBeInstanceOf(Date);
+
+    // Challenge was consumed (one-shot)
+    expect(h.redis.del).toHaveBeenCalledWith('webauthn:auth-challenge:u1');
+
+    // AuthService was invoked with the right user + meta
+    expect(h.auth.issueTokensForUser).toHaveBeenCalledTimes(1);
+    expect(h.auth.issueTokensForUser).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u1', tenantId: 'tA' }),
+      { ipAddress: '10.0.0.1', userAgent: 'curl' },
+    );
+  });
+
+  it('counter REGRESSION (newCounter <= oldCounter) throws and does NOT update — cloned-credential defence', async () => {
+    const h = build();
+    // Stored counter is 10; authenticator claims newCounter=5 (regression!).
+    setupValidVerifyContext(h, { storedCounter: 10, newCounter: 5 });
+
+    let thrown: unknown;
+    try {
+      await h.svc.verifyAuthentication('u1', { id: 'CRED_X' } as never);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(UnauthorizedException);
+    expect((thrown as UnauthorizedException).getResponse()).toMatchObject({
+      code: 'WEBAUTHN_COUNTER_REGRESSION',
+    });
+
+    // NOTHING gets touched: no DB update, no token mint, no challenge scrub.
+    expect(h.tx.passkey.update).not.toHaveBeenCalled();
+    expect(h.auth.issueTokensForUser).not.toHaveBeenCalled();
+    expect(h.redis.del).not.toHaveBeenCalled();
+  });
+
+  it('counter EQUAL (newCounter == oldCounter) is also a regression — must reject', async () => {
+    // Equal counters mean the authenticator did not advance — either a
+    // replay or a clone. The check is "<=" not "<" for that reason.
+    const h = build();
+    setupValidVerifyContext(h, { storedCounter: 8, newCounter: 8 });
+
+    await expect(
+      h.svc.verifyAuthentication('u1', { id: 'CRED_X' } as never),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(h.tx.passkey.update).not.toHaveBeenCalled();
+    expect(h.auth.issueTokensForUser).not.toHaveBeenCalled();
+  });
+
+  it('invalid assertion (verified=false) throws + does NOT update + does NOT mint tokens', async () => {
+    const h = build();
+    setupValidVerifyContext(h, { verified: false });
+
+    let thrown: unknown;
+    try {
+      await h.svc.verifyAuthentication('u1', { id: 'CRED_X' } as never);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(UnauthorizedException);
+    expect((thrown as UnauthorizedException).getResponse()).toMatchObject({
+      code: 'WEBAUTHN_VERIFICATION_FAILED',
+    });
+    expect(h.tx.passkey.update).not.toHaveBeenCalled();
+    expect(h.auth.issueTokensForUser).not.toHaveBeenCalled();
+    expect(h.redis.del).not.toHaveBeenCalled();
+  });
+
+  it('multi-tenant: passkey lookup uses the user.tenantId — a request targeting the wrong tenant context finds no row', async () => {
+    // The login flow has no JWT, so tenantId comes from the User row we
+    // looked up. If the User belongs to tenant A, the Passkey lookup
+    // MUST happen in tenant A's context — a passkey belonging to a
+    // different tenant is invisible.
+    const h = build();
+    h.redisClient.get.mockResolvedValueOnce('AUTH_CHALLENGE');
+    const userFindUnique = h.prisma as unknown as {
+      user: { findUnique: ReturnType<typeof vi.fn> };
+    };
+    userFindUnique.user.findUnique.mockResolvedValueOnce({
+      id: 'uA',
+      tenantId: 'tenantA',
+      email: 'a@x.ro',
+      fullName: 'A',
+      role: 'AGENT',
+      isActive: true,
+    });
+    // Passkey lookup under tenantA returns null — the credentialId is
+    // registered to tenantB (defense in depth: even if the unique index
+    // somehow allowed cross-tenant, RLS would filter it out).
+    h.tx.passkey.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      h.svc.verifyAuthentication('uA', { id: 'CRED_FROM_TENANT_B' } as never),
+    ).rejects.toThrow(UnauthorizedException);
+
+    // The Passkey query ran under tenantA's context (from the User row)
+    expect(h.runWithTenantCalls).toContain('tenantA');
+    // No token was minted — the credential was invisible
+    expect(h.auth.issueTokensForUser).not.toHaveBeenCalled();
+    // The library was never even called — we short-circuit before that
+    expect(swServer.verifyAuthenticationResponse).not.toHaveBeenCalled();
+  });
+
+  it('missing challenge in Redis → throws WEBAUTHN_NO_CHALLENGE and never hits the library', async () => {
+    const h = build();
+    h.redisClient.get.mockResolvedValueOnce(null);
+
+    let thrown: unknown;
+    try {
+      await h.svc.verifyAuthentication('u1', { id: 'CRED_X' } as never);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(UnauthorizedException);
+    expect((thrown as UnauthorizedException).getResponse()).toMatchObject({
+      code: 'WEBAUTHN_NO_CHALLENGE',
+    });
+    expect(swServer.verifyAuthenticationResponse).not.toHaveBeenCalled();
+    expect(h.auth.issueTokensForUser).not.toHaveBeenCalled();
   });
 });

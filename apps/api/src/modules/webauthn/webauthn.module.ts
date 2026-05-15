@@ -6,18 +6,23 @@ import { WebauthnService } from './webauthn.service';
 /**
  * B2 — FIDO2/WebAuthn module.
  *
- * PR1 wires the registration ceremony (options + verify). The login
- * ceremony (authenticate options + verify) is intentionally left as 501
- * stubs in the controller; it lands in PR2 together with auth.service
- * integration.
+ * Both ceremony halves wired:
+ *   - PR1: registration (options + verify) — JwtAuthGuard, must be logged
+ *     in via password/TOTP first to enrol a new authenticator.
+ *   - PR2: authentication (options + verify) — @Public(), this IS the
+ *     login flow. Calls AuthService.issueTokensForUser on a verified
+ *     assertion to mint the same `{ user, tokens }` envelope as
+ *     `/auth/login`.
  *
  * Storage:
  *   - Passkey rows live in Postgres (tenant-scoped, RLS-enforced).
- *   - Challenges live in Redis with a 5min TTL (WebAuthn spec recommendation).
+ *   - Register + authenticate challenges live in Redis under separate
+ *     prefixes (`webauthn:challenge:` vs `webauthn:auth-challenge:`),
+ *     both 5min TTL.
  *
- * AuthModule is imported because both register endpoints are guarded by
- * JwtAuthGuard — the user has to be logged in (via password / TOTP) to
- * enrol a new authenticator.
+ * AuthModule import: required for AuthService (token minting after
+ * passkey verify) AND for JwtAuthGuard (register endpoints). AuthModule
+ * does NOT import WebauthnModule, so no forwardRef is needed today.
  */
 @Module({
   imports: [AuthModule],

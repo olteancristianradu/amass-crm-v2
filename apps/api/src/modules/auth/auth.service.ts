@@ -484,6 +484,22 @@ export class AuthService {
     return user ? toSafeUser(user) : null;
   }
 
+  /**
+   * Public wrapper around the internal `issueTokens` helper. Used by
+   * WebauthnService after a successful passkey-login verification so the
+   * passkey ceremony returns the SAME `{ user, tokens }` envelope as
+   * `/auth/login`. Behaviour is identical to the password-login token-mint:
+   * issues a JWT access token + an opaque base64url refresh token, persists
+   * the hashed refresh in `sessions` (tenant + ua + ip), and returns the
+   * pair plus access-TTL in seconds.
+   *
+   * No new logic — strictly a visibility expansion so the webauthn module
+   * doesn't need to duplicate refresh-token persistence.
+   */
+  async issueTokensForUser(user: User, meta: SessionMeta = {}): Promise<AuthTokens> {
+    return this.issueTokens(user, meta);
+  }
+
   // ---- internal ----
 
   private async issueTokens(user: User, meta: SessionMeta = {}): Promise<AuthTokens> {
@@ -532,12 +548,12 @@ export interface SafeUser {
   role: string;
 }
 
-interface SessionMeta {
+export interface SessionMeta {
   userAgent?: string;
   ipAddress?: string;
 }
 
-function toSafeUser(u: User): SafeUser {
+export function toSafeUser(u: User): SafeUser {
   return {
     id: u.id,
     tenantId: u.tenantId,

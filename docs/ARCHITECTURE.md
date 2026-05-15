@@ -141,23 +141,31 @@ Both are tenant-scoped. Both are created from feature services (companies/contac
 
 WebAuthn / FIDO2 lives in `apps/api/src/modules/webauthn/`. Backed by **@simplewebauthn/server v13**.
 
-The ceremony is four calls in two halves:
+The ceremony is four calls in two halves — both halves wired:
 
 | Half | Call | Status |
 |-|-|-|
-| **Register** (B2-PR1, shipped) | `POST /webauthn/register/options` → PublicKeyCredentialCreationOptions | live |
-| | `POST /webauthn/register/verify` → persist Passkey row | live |
-| **Authenticate** (B2-PR2, next) | `POST /webauthn/authenticate/options` → PublicKeyCredentialRequestOptions | 501 stub |
-| | `POST /webauthn/authenticate/verify` → mint session | 501 stub |
+| **Register** (B2-PR1) | `POST /webauthn/register/options` → PublicKeyCredentialCreationOptions | live, `JwtAuthGuard` |
+| | `POST /webauthn/register/verify` → persist Passkey row | live, `JwtAuthGuard` |
+| **Authenticate** (B2-PR2) | `POST /webauthn/authenticate/options` → PublicKeyCredentialRequestOptions | live, `@Public()` |
+| | `POST /webauthn/authenticate/verify` → mint `{ user, tokens }` | live, `@Public()` |
 
 **FE register UI (B2-PR3, shipped):** the registration ceremony has a corresponding React surface at `/app/settings/security` — see `apps/web/src/routes/settings.security.page.tsx` and `apps/web/src/features/passkeys/RegisterPasskeyButton.tsx`. Backed by **@simplewebauthn/browser v13** (matches the server v13 wire format). Flow: button click → `passkeysApi.registerOptions()` → `startRegistration({ optionsJSON })` (browser native sheet for Face ID / Touch ID / Windows Hello / YubiKey) → `passkeysApi.registerVerify(response, deviceName?)`. The device list + revoke land in B2-PR4; today the Settings page reserves a placeholder slot and `passkeysApi.list()` swallows a 404 from the not-yet-wired `GET /webauthn/devices`.
 
-- **Challenge store:** Redis, key `webauthn:challenge:<userId>`, TTL 300s (WebAuthn-spec recommendation, matches the default browser ceremony timeout). One-shot — deleted on successful `verify`.
-- **Persistence:** Per-tenant `passkeys` table (RLS + tenantExtension scope every read/write). One row per registered authenticator; a user can have many (phone + laptop + hardware key). `credentialId` is globally unique (WebAuthn spec).
-- **RP identity:** `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN` in env. Prod-only check rejects the dev defaults so a deploy without override fails fast.
-- **Multi-tenancy:** `tenantId` always comes from the JWT (`@CurrentUser()`), never from the attestation payload. Register endpoints sit behind `JwtAuthGuard` — passkey enrolment is a "logged-in-user adds a new factor" flow, not a way to bootstrap an account.
+**FE login UI (B2-PR4, next):** the authenticate ceremony is wired on the backend but the FE login button has not landed yet — the FE will gain a "Sign in with passkey" CTA that calls `passkeysApi.authenticateOptions({ email })` → `startAuthentication({ optionsJSON })` → `passkeysApi.authenticateVerify({ userId, response })` and then hydrates the same auth store as the password flow (the response shape is identical to `/auth/login`).
 
-Out of scope for PR1: login-with-passkey integration into `auth.service` (PR2), device-list/revoke UI, recovery codes.
+- **Challenge store:** Redis with two separate prefixes so a register challenge can never be replayed into authenticate (different ceremony, different expected RP flags):
+  - `webauthn:challenge:<userId>` — register challenge, TTL 300s, deleted on successful verify.
+  - `webauthn:auth-challenge:<userId>` — login challenge, TTL 300s, deleted on successful verify (kept on failure so the user can retry with another authenticator inside the window — the assertion is signature-bound to the challenge so it can't be replayed by a third party).
+- **Persistence:** Per-tenant `passkeys` table (RLS + tenantExtension scope every read/write). One row per registered authenticator; a user can have many (phone + laptop + hardware key). `credentialId` is globally unique (WebAuthn spec). `counter` (BigInt) and `lastUsedAt` (DateTime?) are updated atomically on every successful login.
+- **RP identity:** `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN` in env. Prod-only check rejects the dev defaults so a deploy without override fails fast.
+- **Multi-tenancy (register):** `tenantId` always comes from the JWT (`@CurrentUser()`), never from the attestation payload. Register endpoints sit behind `JwtAuthGuard` — passkey enrolment is a "logged-in-user adds a new factor" flow, not a way to bootstrap an account.
+- **Multi-tenancy (login):** pre-auth, no JWT yet. Mirrors `auth.service.login`'s tenant-resolution logic: explicit `tenantSlug` → direct user lookup; omitted slug + exactly-one user match across all tenants → use it; anything else → `INVALID_CREDENTIALS` (does NOT leak account presence). Once the user is resolved, `tenantId` comes from the User row and every Passkey read/update runs inside `runWithTenant(user.tenantId, …)`. A passkey registered under tenant A is invisible to a query running in tenant B's context.
+- **Counter regression / cloned-credential defence:** every successful assertion carries a `newCounter` from the authenticator. If `newCounter <= storedCounter`, `verifyAuthentication` throws `WEBAUTHN_COUNTER_REGRESSION` and updates nothing — counter going backwards (or staying flat) means either a replay or a cloned private key on a second device. The exception is `newCounter == 0 && storedCounter == 0`, which is the well-known "this authenticator doesn't track a counter" case (some roaming credentials).
+- **Token mint:** on successful verify, `WebauthnService` calls `AuthService.issueTokensForUser(user, meta)` — same access JWT + opaque refresh token + `sessions` row as `/auth/login`. The controller commits the refresh token to the httpOnly cookie and strips it from the JSON body, so the FE login flow is uniform across password / passkey paths.
+- **Session-binding hint:** `authenticate/options` returns the resolved `userId` in its response. The FE echoes it back on `/verify`. The hint is not a credential — the actual proof is the WebAuthn assertion signature checked against the persisted public key. Tampering with the `userId` either fails to find the user OR finds a different user whose passkey list does not include the responder's `credentialId`, both falling through to `INVALID_CREDENTIALS`.
+
+Out of scope (PR4): FE login button, device-list/revoke endpoints + UI, recovery codes integration.
 
 ### SCIM 2.0 (B3)
 

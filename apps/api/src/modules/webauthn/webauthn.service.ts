@@ -1,16 +1,27 @@
 import { Inject, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import {
+  generateAuthenticationOptions,
   generateRegistrationOptions,
+  verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
 import type {
+  AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
   AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
 import { loadEnv, type Env } from '../../config/env';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
+import {
+  AuthService,
+  AuthTokens,
+  SafeUser,
+  SessionMeta,
+  toSafeUser,
+} from '../auth/auth.service';
 
 /**
  * Injection token for the validated env. We do not import loadEnv() at the
@@ -47,6 +58,7 @@ export class WebauthnService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly auth: AuthService,
     @Optional() @Inject(WEBAUTHN_ENV) env?: Env,
   ) {
     // Optional inject so tests can pass a fake env; falls back to loadEnv()
@@ -65,6 +77,15 @@ export class WebauthnService {
    */
   private challengeKey(userId: string): string {
     return `webauthn:challenge:${userId}`;
+  }
+
+  /**
+   * Authentication challenge key — separate namespace from the registration
+   * key so a stale register-challenge can't be replayed into an
+   * authenticate-verify (different ceremony, different expected RP flags).
+   */
+  private authChallengeKey(userId: string): string {
+    return `webauthn:auth-challenge:${userId}`;
   }
 
   /**
@@ -186,5 +207,222 @@ export class WebauthnService {
     await this.redis.del(this.challengeKey(userId));
 
     return { passkeyId: created.id, credentialId: created.credentialId };
+  }
+
+  /**
+   * Step 1/2 of the LOGIN ceremony — produce
+   * PublicKeyCredentialRequestOptions for navigator.credentials.get().
+   *
+   * Pre-auth: no JWT yet, no tenant context in ALS. We deliberately mimic
+   * the same shape as `auth.service.login`'s tenant-resolution branch:
+   *   - tenantSlug given → look the user up under that slug
+   *   - tenantSlug omitted + email matches in exactly ONE tenant → use it
+   *   - tenantSlug omitted + email matches in multiple tenants → 409 with
+   *     a picker payload (same UX as password login)
+   *   - any other case (missing tenant, no user) → 401 INVALID_CREDENTIALS,
+   *     identical to password login so account presence is not leaked
+   *
+   * Returns:
+   *   - `options`: the JSON the browser feeds into
+   *     navigator.credentials.get(). `allowCredentials` is populated with
+   *     the user's registered passkeys so the picker UI is filtered.
+   *   - `userId`: session-binding hint echoed back to the FE; the verify
+   *     step trusts THIS value (not the WebAuthn response) when looking
+   *     up the challenge + minting tokens. Returned in the response body
+   *     because we cannot use a session cookie yet (no JWT).
+   *
+   * Note: `userId` is non-sensitive by itself — it is a cuid, not an
+   * email — and gives no privileges. The signed assertion is still the
+   * actual proof of identity verified in step 2.
+   */
+  async generateAuthenticationOptions(
+    email: string,
+    tenantSlug?: string,
+  ): Promise<{ options: PublicKeyCredentialRequestOptionsJSON; userId: string }> {
+    const emailLower = email.toLowerCase();
+
+    // Resolve the user pre-tenant-context. Direct prisma access matches
+    // auth.service's login() flow — see the long block comment at the top
+    // of auth.service for why this is exempt from runWithTenant.
+    let user: { id: string; tenantId: string } | null = null;
+    if (tenantSlug) {
+      const tenant = await this.prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+      if (tenant) {
+        user = await this.prisma.user.findUnique({
+          where: { tenantId_email: { tenantId: tenant.id, email: emailLower } },
+          select: { id: true, tenantId: true },
+        });
+      }
+    } else {
+      const matches = await this.prisma.user.findMany({
+        where: { email: emailLower, isActive: true },
+        select: { id: true, tenantId: true },
+      });
+      if (matches.length === 1) {
+        user = matches[0];
+      }
+      // Two+ matches: we deliberately fail INVALID_CREDENTIALS rather than
+      // surfacing a tenant picker. With passkey login the FE doesn't need
+      // the picker because each tenant has its own passkey; we can simply
+      // ask the user to retry with tenantSlug. Multi-tenant disambiguation
+      // for passkey login is a future UX call.
+    }
+
+    if (!user) {
+      // INVALID_CREDENTIALS, NOT USER_NOT_FOUND — passkey login must not
+      // leak account presence (same threat model as password login).
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid credentials',
+      });
+    }
+
+    // Load passkeys for the user inside the tenant's RLS context. The
+    // tenantExtension will scope this query to user.tenantId regardless
+    // of what the caller passed in.
+    const passkeys = await this.prisma.runWithTenant(user.tenantId, async (tx) => {
+      return tx.passkey.findMany({
+        where: { userId: user!.id, tenantId: user!.tenantId },
+        select: { credentialId: true, transports: true },
+      });
+    });
+
+    const options = await generateAuthenticationOptions({
+      rpID: this.env.WEBAUTHN_RP_ID,
+      // userVerification 'preferred' matches the register ceremony — if the
+      // authenticator is capable, the browser will ask for biometric/PIN;
+      // otherwise a touch is enough. 'required' would lock out older keys.
+      userVerification: 'preferred',
+      allowCredentials: passkeys.map((p) => ({
+        id: p.credentialId,
+        transports: p.transports as AuthenticatorTransportFuture[],
+      })),
+    });
+
+    await this.redis.client.set(this.authChallengeKey(user.id), options.challenge, 'EX', 300);
+
+    return { options, userId: user.id };
+  }
+
+  /**
+   * Step 2/2 of the LOGIN ceremony — verify the assertion and mint a
+   * full `{ user, tokens }` envelope identical to /auth/login.
+   *
+   * SECURITY INVARIANTS:
+   *   1. Counter regression check — if `newCounter <= oldCounter` the
+   *      authenticator either ran the counter backwards (impossible for
+   *      a non-cloned device) or didn't advance (sign of replay). Reject.
+   *   2. credentialId lookup is tenant-scoped via the user's tenantId
+   *      (which we pulled from the User row). A passkey created under
+   *      tenant A is not visible under any other tenant's RLS context.
+   *   3. The challenge is consumed (Redis DEL) ONLY on success. On
+   *      failure it stays so the user can retry with another authenticator
+   *      within the 5-min TTL — the assertion itself can't be replayed
+   *      because the WebAuthn signature is bound to the challenge value.
+   *   4. The tokens are minted via AuthService.issueTokensForUser so the
+   *      session row is persisted with the same `ua`/`ip`/`expiresAt`
+   *      semantics as password login.
+   */
+  async verifyAuthentication(
+    userId: string,
+    response: AuthenticationResponseJSON,
+    meta?: SessionMeta,
+  ): Promise<{ user: SafeUser; tokens: AuthTokens }> {
+    const challenge = await this.redis.client.get(this.authChallengeKey(userId));
+    if (!challenge) {
+      throw new UnauthorizedException({
+        code: 'WEBAUTHN_NO_CHALLENGE',
+        message: 'No active authentication challenge — call /webauthn/authenticate/options first',
+      });
+    }
+
+    // Look up the user behind the userId hint. If the hint was tampered
+    // with (a different user's id), this lookup either fails OR resolves
+    // to a different tenant — both paths fall through to the same
+    // INVALID_CREDENTIALS surface so the response is uniform.
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid credentials',
+      });
+    }
+
+    // The browser returns response.id base64url-encoded; that's the SAME
+    // encoding we persisted in passkeys.credential_id at registration time.
+    // Scoped to the user's tenant — a passkey from tenant B with the same
+    // credentialId (theoretically impossible, but defense in depth) would
+    // not be returned here.
+    const passkey = await this.prisma.runWithTenant(user.tenantId, async (tx) => {
+      return tx.passkey.findFirst({
+        where: { credentialId: response.id, userId, tenantId: user.tenantId },
+      });
+    });
+    if (!passkey) {
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid credentials',
+      });
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge: challenge,
+      expectedOrigin: this.env.WEBAUTHN_ORIGIN,
+      expectedRPID: this.env.WEBAUTHN_RP_ID,
+      credential: {
+        id: passkey.credentialId,
+        publicKey: new Uint8Array(passkey.publicKey),
+        // counter is BigInt in DB but the library wants a number. The spec
+        // caps counter at uint32 (4 bytes from authData), so the cast is
+        // safe — even worst case 2^32 ≈ 4.3B is within Number.MAX_SAFE.
+        counter: Number(passkey.counter),
+        transports: passkey.transports as AuthenticatorTransportFuture[],
+      },
+    });
+
+    if (!verification.verified) {
+      throw new UnauthorizedException({
+        code: 'WEBAUTHN_VERIFICATION_FAILED',
+        message: 'Could not verify assertion',
+      });
+    }
+
+    const { newCounter } = verification.authenticationInfo;
+
+    // SECURITY: counter regression check (cloned-credential defence).
+    // If two devices share the same private key (cloned), they'd issue
+    // increasing-but-uncoordinated counters; the one whose counter is now
+    // behind the persisted value is a clone (or a replay). Reject without
+    // updating either field — the legit device will succeed on its next
+    // attempt and bump the counter as normal.
+    //
+    // Note: counter==0 is the "authenticator doesn't track counter" case,
+    // common on roaming credentials (Yubikey FIDO2 + some platform keys).
+    // We allow newCounter==0 ONLY when the persisted counter is also 0;
+    // any other 0 is a regression from a real value and IS blocked.
+    const oldCounter = Number(passkey.counter);
+    if (newCounter <= oldCounter && !(newCounter === 0 && oldCounter === 0)) {
+      throw new UnauthorizedException({
+        code: 'WEBAUTHN_COUNTER_REGRESSION',
+        message: 'Authenticator counter went backwards — possible cloned credential',
+      });
+    }
+
+    // Atomic update inside tenant context — counter + lastUsedAt.
+    await this.prisma.runWithTenant(user.tenantId, async (tx) => {
+      await tx.passkey.update({
+        where: { id: passkey.id },
+        data: { counter: BigInt(newCounter), lastUsedAt: new Date() },
+      });
+    });
+
+    // One-shot challenge: drop AFTER counter update so a failure between
+    // verify and DB-write leaves the challenge usable for retry.
+    await this.redis.del(this.authChallengeKey(userId));
+
+    const tokens = await this.auth.issueTokensForUser(user, meta);
+
+    return { user: toSafeUser(user), tokens };
   }
 }
