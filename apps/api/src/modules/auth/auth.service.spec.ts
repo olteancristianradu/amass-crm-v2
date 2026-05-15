@@ -100,9 +100,16 @@ function build() {
   const totpSvc = {
     verify: vi.fn(async () => true),
   } as unknown as ConstructorParameters<typeof AuthService>[4];
+  const metrics = {
+    observeHttpRequest: vi.fn(),
+    recordDealStatusChange: vi.fn(),
+    recordInvoiceStatus: vi.fn(),
+    recordCallCompleted: vi.fn(),
+    recordAuthLogin: vi.fn(),
+  } as unknown as ConstructorParameters<typeof AuthService>[5];
 
-  const svc = new AuthService(prisma, jwt, audit, redis, totpSvc);
-  return { svc, prisma, tx, jwt, audit, redis, store, totpSvc };
+  const svc = new AuthService(prisma, jwt, audit, redis, totpSvc, metrics);
+  return { svc, prisma, tx, jwt, audit, redis, store, totpSvc, metrics };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

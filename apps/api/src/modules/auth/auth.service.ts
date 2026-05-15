@@ -7,6 +7,7 @@ import { loadEnv } from '../../config/env';
 import { RedisService } from '../../infra/redis/redis.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
 import { TotpService } from './totp.service';
 import { LoginDto, RefreshDto, RegisterDto } from './dto';
 
@@ -90,6 +91,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly redis: RedisService,
     private readonly totpSvc: TotpService,
+    private readonly metrics: BusinessMetricsService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ user: SafeUser; tokens: AuthTokens }> {
@@ -239,6 +241,8 @@ export class AuthService {
         action: 'auth.login_failed',
         metadata: { reason: 'tenant_not_found', tenantSlug, email: dto.email.toLowerCase(), ipAddress: meta?.ipAddress, userAgent: meta?.userAgent },
       });
+      // Tenant cannot be resolved, so the metric tenant label is the sentinel.
+      this.metrics.recordAuthLogin('__unresolved__', false);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
@@ -252,6 +256,7 @@ export class AuthService {
         tenantId: tenant.id,
         metadata: { reason: !user ? 'user_not_found' : 'user_inactive', email: dto.email.toLowerCase(), ipAddress: meta?.ipAddress, userAgent: meta?.userAgent },
       });
+      this.metrics.recordAuthLogin(tenant.id, false);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
@@ -264,6 +269,7 @@ export class AuthService {
         actorId: user.id,
         metadata: { reason: 'wrong_password', email: dto.email.toLowerCase(), ipAddress: meta?.ipAddress, userAgent: meta?.userAgent },
       });
+      this.metrics.recordAuthLogin(tenant.id, false);
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
@@ -300,6 +306,7 @@ export class AuthService {
         const consumed = consumeBackupCode(dto.totpCode, stored);
         if (!consumed.matched) {
           await this.recordFailedAttempt(failKey, lockKey, globalFailKey, globalLockKey);
+          this.metrics.recordAuthLogin(user.tenantId, false);
           throw new UnauthorizedException({ code: 'INVALID_TOTP', message: 'Invalid authenticator code' });
         }
         await this.prisma.user.update({
@@ -326,6 +333,7 @@ export class AuthService {
     ]);
 
     const tokens = await this.issueTokens(user, meta);
+    this.metrics.recordAuthLogin(user.tenantId, true);
     await this.audit.log({
       tenantId: user.tenantId,
       actorId: user.id,

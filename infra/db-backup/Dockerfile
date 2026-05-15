@@ -62,9 +62,16 @@ COPY scripts/backup-db.sh /usr/local/bin/backup-db.sh
 COPY scripts/restore-db.sh /usr/local/bin/restore-db.sh
 RUN chmod 0755 /usr/local/bin/backup-db.sh /usr/local/bin/restore-db.sh
 
-# Crontab. busybox-crond reads from /etc/crontabs/<user>.
+# Crontab. busybox-crond on Alpine 3.20 defaults to /var/spool/cron/crontabs/<user>
+# (NOT /etc/crontabs/<user> like the busybox docs suggest). We install in BOTH
+# locations so either `crond` default or `crond -c /etc/crontabs` works, and
+# keep the explicit `-c /etc/crontabs` in CMD as belt-and-suspenders.
+#
+# This was caught in a 2026-05-15 Layer-2 review where the original `crond -f -d 8`
+# silently never fired the job because the crontab lived in the wrong directory.
 COPY infra/db-backup/crontab /etc/crontabs/root
-RUN chmod 0600 /etc/crontabs/root
+RUN cp /etc/crontabs/root /var/spool/cron/crontabs/root \
+ && chmod 0600 /etc/crontabs/root /var/spool/cron/crontabs/root
 
 # Privilege note: Alpine's busybox-crond needs root to read /etc/crontabs/<user>
 # and to drop privileges to the target user when running jobs. We keep crond
@@ -74,5 +81,7 @@ RUN chmod 0600 /etc/crontabs/root
 # migrations can switch with USER backup without re-shuffling layers.
 #
 # crond -f → foreground (so docker can supervise);
-#       -d 8 → log level 8 (debug) routed to stderr → docker logs picks it up.
-CMD ["crond", "-f", "-d", "8"]
+#       -d 8 → log level 8 (debug) routed to stderr → docker logs picks it up;
+#       -c /etc/crontabs → explicit crontab directory (default on BusyBox is
+#                          /var/spool/cron/crontabs which is fragile across versions).
+CMD ["crond", "-f", "-d", "8", "-c", "/etc/crontabs"]
