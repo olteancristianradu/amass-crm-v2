@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { GlassCard } from '@/components/ui/glass-card';
 import { EmptyState, PageHeader, StatusBadge } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { useTour } from '@/lib/tours/useTour';
 
 type ApprovalTrigger = 'QUOTE_ABOVE_VALUE' | 'DISCOUNT_ABOVE_PCT';
 type PolicyCurrency = 'RON' | 'EUR' | 'USD';
@@ -44,6 +45,8 @@ const policiesApi = {
 export function SettingsApprovalsPage(): JSX.Element {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+
+  useTour('settings-approvals-config');
 
   const { data: policies, isLoading, isError, error } = useQuery({
     queryKey: ['approval-policies'],
@@ -83,17 +86,22 @@ export function SettingsApprovalsPage(): JSX.Element {
 
   return (
     <div>
-      <PageHeader
-        title="Politici de aprobare"
-        subtitle="Configurează regulile de aprobare care se declanșează automat la oferte sau discount-uri. Agenții nu pot trimite ofertele care necesită aprobare fără semnătura unui manager."
-        actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={14} className="mr-1.5" />
-            {showForm ? 'Anulează' : 'Politică nouă'}
-          </Button>
-        }
-      />
+      <div data-tour="approvals-config-header">
+        <PageHeader
+          title="Politici de aprobare"
+          subtitle="Configurează regulile de aprobare care se declanșează automat la oferte sau discount-uri. Agenții nu pot trimite ofertele care necesită aprobare fără semnătura unui manager."
+          actions={
+            <span data-tour="approvals-config-new-btn">
+              <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+                <Plus size={14} className="mr-1.5" />
+                {showForm ? 'Anulează' : 'Politică nouă'}
+              </Button>
+            </span>
+          }
+        />
+      </div>
 
+      <div data-tour="approvals-config-list">
       {showForm && (
         <NewPolicyForm
           onDone={() => {
@@ -176,6 +184,7 @@ export function SettingsApprovalsPage(): JSX.Element {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

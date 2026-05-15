@@ -9,12 +9,14 @@ import { Label } from '@/components/ui/label';
 import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 const KIND_LABELS: Record<EventKind, string> = {
   CONFERENCE: 'Conferință', WEBINAR: 'Webinar', WORKSHOP: 'Workshop', MEETUP: 'Meetup',
 };
 
 export function EventsPage(): JSX.Element {
+  useTour('events-list');
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [kind, setKind] = useState<EventKind>('CONFERENCE');
@@ -46,12 +48,14 @@ export function EventsPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Evenimente"
-        subtitle="Webinare, conferințe și meetup-uri cu tracking participanți."
-      />
+      <div data-tour="events-header">
+        <PageHeader
+          title="Evenimente"
+          subtitle="Webinare, conferințe și meetup-uri cu tracking participanți."
+        />
+      </div>
 
-      <Card>
+      <Card data-tour="events-new-form">
         <CardHeader><CardTitle className="text-lg">Eveniment nou</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={(e) => { e.preventDefault(); setError(null); createMut.mutate(); }} className="grid gap-3 md:grid-cols-2">
@@ -85,7 +89,7 @@ export function EventsPage(): JSX.Element {
           />
         </Card>
       ) : (
-        <Card>
+        <Card data-tour="events-table">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">

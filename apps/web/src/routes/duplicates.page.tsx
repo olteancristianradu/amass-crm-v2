@@ -7,11 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton, ListSkeleton } from '@/components/ui/loading-skeleton';
 import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 export function DuplicatesPage(): JSX.Element {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [survivors, setSurvivors] = useState<Set<string>>(new Set());
   const [victims, setVictims] = useState<Set<string>>(new Set());
+  useTour('duplicates');
 
   const qc = useQueryClient();
 
@@ -98,7 +100,7 @@ export function DuplicatesPage(): JSX.Element {
           <CardTitle className="text-base">Caută duplicate</CardTitle>
         </CardHeader>
         <CardContent className="flex items-end gap-3">
-          <div className="flex-1 space-y-1">
+          <div className="flex-1 space-y-1" data-tour="duplicates-source">
             <label htmlFor="companySelect" className="text-sm font-medium">
               Selectează compania sursă
             </label>
@@ -121,6 +123,7 @@ export function DuplicatesPage(): JSX.Element {
             )}
           </div>
           <Button
+            data-tour="duplicates-find-btn"
             onClick={handleFind}
             disabled={!selectedCompanyId || isFetching}
           >
@@ -129,20 +132,26 @@ export function DuplicatesPage(): JSX.Element {
         </CardContent>
       </Card>
 
-      {dupeLoading && isFetching && <ListSkeleton rows={3} />}
+      <div data-tour="duplicates-table">
+        {!dupeData && !dupeLoading && !dupeError && (
+          <p className="text-xs text-muted-foreground">
+            Rezultatele vor apărea aici după ce alegi o companie și apeși „Caută duplicate".
+          </p>
+        )}
+        {dupeLoading && isFetching && <ListSkeleton rows={3} />}
 
-      {dupeError && (
-        <p className="text-red-500 text-sm">
-          {dupeErr instanceof ApiError ? dupeErr.message : String(dupeErr)}
-        </p>
-      )}
+        {dupeError && (
+          <p className="text-red-500 text-sm">
+            {dupeErr instanceof ApiError ? dupeErr.message : String(dupeErr)}
+          </p>
+        )}
 
-      {dupeData && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">
-              Candidați găsiți ({candidates.length})
-            </CardTitle>
+        {dupeData && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">
+                Candidați găsiți ({candidates.length})
+              </CardTitle>
             {canMerge && (
               <Button
                 variant="destructive"
@@ -237,7 +246,8 @@ export function DuplicatesPage(): JSX.Element {
             )}
           </CardContent>
         </Card>
-      )}
+        )}
+      </div>
     </div>
   );
 }

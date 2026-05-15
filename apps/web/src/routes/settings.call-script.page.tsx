@@ -11,6 +11,7 @@ import {
   PageHeader,
 } from '@/components/ui/page-header';
 import { toast } from '@/stores/toasts';
+import { useTour } from '@/lib/tours/useTour';
 
 interface CallScript {
   points: string[];
@@ -25,6 +26,8 @@ const SUGGESTED_POINTS = [
 ];
 
 export function SettingsCallScriptPage(): JSX.Element {
+  useTour('settings-call-script');
+
   const qc = useQueryClient();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['call-scripts', 'default'],
@@ -108,18 +111,20 @@ export function SettingsCallScriptPage(): JSX.Element {
         title="Script de apel"
         subtitle="Lista de puncte pe care agentul trebuie să le atingă într-un apel. După fiecare apel înregistrat, AI evaluează cât din script a fost acoperit și afișează scorul + punctele ratate pe pagina apelului."
         actions={
-          <Button
-            size="sm"
-            onClick={() => saveMut.mutate(draft)}
-            disabled={!hasChanges || saveMut.isPending}
-          >
-            {saveMut.isPending ? 'Se salvează…' : 'Salvează'}
-          </Button>
+          <span data-tour="call-script-save">
+            <Button
+              size="sm"
+              onClick={() => saveMut.mutate(draft)}
+              disabled={!hasChanges || saveMut.isPending}
+            >
+              {saveMut.isPending ? 'Se salvează…' : 'Salvează'}
+            </Button>
+          </span>
         }
       />
 
       <GlassCard className="p-4 sm:p-6">
-        <div className="space-y-3">
+        <div className="space-y-3" data-tour="call-script-add">
           <Label htmlFor="cs-new">Adaugă un punct nou</Label>
           <div className="flex gap-2">
             <Input
@@ -151,7 +156,7 @@ export function SettingsCallScriptPage(): JSX.Element {
           )}
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 space-y-2" data-tour="call-script-list">
           {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
           {!isLoading && draft.length === 0 && (
             <EmptyState

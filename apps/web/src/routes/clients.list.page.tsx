@@ -19,9 +19,11 @@ import {
 import { ApiError } from '@/lib/api';
 import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { useTour } from '@/lib/tours/useTour';
 import { clientsRoute } from './clients.list';
 
 export function ClientsListPage(): JSX.Element {
+  useTour('clients-list');
   const { q } = clientsRoute.useSearch();
   const navigate = clientsRoute.useNavigate();
   const qc = useQueryClient();
@@ -40,7 +42,7 @@ export function ClientsListPage(): JSX.Element {
         title="Clienți"
         subtitle="Persoanele B2C — clienții individuali, nu companiile."
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)} data-tour="clients-new-btn">
             <Plus size={14} className="mr-1.5" />
             {showForm ? 'Anulează' : 'Client nou'}
           </Button>
@@ -48,7 +50,7 @@ export function ClientsListPage(): JSX.Element {
       />
 
       <Toolbar>
-        <div className="relative flex-1 sm:max-w-sm">
+        <div className="relative flex-1 sm:max-w-sm" data-tour="clients-search">
           <Search
             size={14}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -97,7 +99,7 @@ export function ClientsListPage(): JSX.Element {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" data-tour="clients-table">
                 <thead>
                   <tr className="border-b border-border/70 bg-secondary/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th scope="col" className="px-4 py-3 font-medium">Nume</th>

@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
+import { useTour } from '@/lib/tours/useTour';
 
 const MSG_DIRECTION_TONES: Record<string, StatusTone> = {
   INBOUND: 'info',
@@ -29,6 +30,7 @@ const MSG_STATUS_TONES: Record<string, StatusTone> = {
 };
 
 export function WhatsAppInboxPage(): JSX.Element {
+  useTour('whatsapp-inbox');
   const [showConnectForm, setShowConnectForm] = useState(false);
   const [showSendForm, setShowSendForm] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState('');
@@ -54,10 +56,10 @@ export function WhatsAppInboxPage(): JSX.Element {
         subtitle="Conversații cu clienții pe WhatsApp Business."
         actions={
           <>
-            <Button variant="outline" onClick={() => setShowConnectForm((v) => !v)}>
+            <Button variant="outline" onClick={() => setShowConnectForm((v) => !v)} data-tour="whatsapp-connect-btn">
               {showConnectForm ? 'Anulează' : '+ Conectează cont'}
             </Button>
-            <Button onClick={() => setShowSendForm((v) => !v)}>
+            <Button onClick={() => setShowSendForm((v) => !v)} data-tour="whatsapp-send-btn">
               {showSendForm ? 'Anulează' : '+ Trimite mesaj'}
             </Button>
           </>
@@ -80,7 +82,7 @@ export function WhatsAppInboxPage(): JSX.Element {
       )}
 
       {accountsData && (
-        <Card>
+        <Card data-tour="whatsapp-accounts">
           <CardHeader>
             <CardTitle className="text-base">Conturi conectate ({accounts.length})</CardTitle>
           </CardHeader>

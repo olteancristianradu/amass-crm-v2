@@ -9,6 +9,7 @@ import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
+import { useTour } from '@/lib/tours/useTour';
 
 // Token-based pill colors — themed via lib/status-colors.ts.
 const STATUS_TONES: Record<string, StatusTone> = {
@@ -28,6 +29,7 @@ const ENTITY_LABELS: Record<ExportEntityType, string> = {
 };
 
 export function ExportsPage(): JSX.Element {
+  useTour('exports');
   const [showForm, setShowForm] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -51,7 +53,7 @@ export function ExportsPage(): JSX.Element {
         title="Exporturi"
         subtitle="Solicită fișiere CSV/Excel cu datele tale."
         actions={
-          <Button onClick={() => setShowForm((v) => !v)}>
+          <Button onClick={() => setShowForm((v) => !v)} data-tour="exports-new-btn">
             {showForm ? 'Anulează' : '+ Export nou'}
           </Button>
         }
@@ -67,7 +69,7 @@ export function ExportsPage(): JSX.Element {
       )}
 
       {data && (
-        <Card>
+        <Card data-tour="exports-table">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">
@@ -76,7 +78,7 @@ export function ExportsPage(): JSX.Element {
                   <th scope="col" className="px-4 py-2 font-medium">Status</th>
                   <th scope="col" className="px-4 py-2 font-medium">Rânduri</th>
                   <th scope="col" className="px-4 py-2 font-medium">Creat</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Acțiuni</th>
+                  <th scope="col" className="px-4 py-2 font-medium" data-tour="exports-download-col">Acțiuni</th>
                 </tr>
               </thead>
               <tbody>

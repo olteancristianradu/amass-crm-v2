@@ -16,6 +16,7 @@ import { EmailTab } from '@/features/email/EmailTab';
 import { CallsTab } from '@/features/calls/CallsTab';
 import { GdprPanel } from '@/features/gdpr/GdprPanel';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 import { clientDetailRoute } from './client.detail';
 
 type TabKey = 'timeline' | 'notes' | 'tasks' | 'reminders' | 'email' | 'calls' | 'attachments';
@@ -33,6 +34,7 @@ const TABS: { value: TabKey; label: string }[] = [
 export function ClientDetailPage(): JSX.Element {
   const { id } = clientDetailRoute.useParams();
   const [tab, setTab] = useState<TabKey>('timeline');
+  useTour('client-detail');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['clients', 'detail', id],
@@ -60,7 +62,7 @@ export function ClientDetailPage(): JSX.Element {
   return (
     <DetailLayout
       title={
-        <span className="inline-flex items-center gap-3">
+        <span data-tour="client-header" className="inline-flex items-center gap-3">
           <span
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
             aria-hidden="true"
@@ -84,7 +86,9 @@ export function ClientDetailPage(): JSX.Element {
       backLabel="Clienți"
       sidebar={
         <>
-          <RelationshipHealthCard entityType="CLIENT" entityId={id} />
+          <div data-tour="client-health">
+            <RelationshipHealthCard entityType="CLIENT" entityId={id} />
+          </div>
           <DetailFields title="Persoană">
             <DetailField label="Prenume" value={data.firstName} />
             <DetailField label="Nume" value={data.lastName} />
@@ -105,8 +109,12 @@ export function ClientDetailPage(): JSX.Element {
         </>
       }
     >
-      <NextActionHeader entityType="CLIENT" entityId={id} />
-      <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      <div data-tour="client-next-action">
+        <NextActionHeader entityType="CLIENT" entityId={id} />
+      </div>
+      <div data-tour="client-tabs">
+        <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      </div>
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CLIENT" subjectId={id} />}
         {tab === 'notes' && <NotesTab subjectType="CLIENT" subjectId={id} />}

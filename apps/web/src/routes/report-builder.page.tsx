@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 
 const ENTITY_LABELS: Record<ReportEntityType, string> = {
@@ -32,6 +33,7 @@ interface CreateFormValues {
 }
 
 export function ReportBuilderPage(): JSX.Element {
+  useTour('report-builder');
   const [showForm, setShowForm] = useState(false);
   const [runResults, setRunResults] = useState<{ templateId: string; data: RunTemplateResponse } | null>(null);
 
@@ -72,7 +74,7 @@ export function ReportBuilderPage(): JSX.Element {
         title="Constructor rapoarte"
         subtitle="Construiește rapoarte custom."
         actions={
-          <Button onClick={() => setShowForm((v) => !v)}>
+          <Button onClick={() => setShowForm((v) => !v)} data-tour="report-builder-new-btn">
             {showForm ? 'Anulează' : '+ Template nou'}
           </Button>
         }
@@ -88,7 +90,7 @@ export function ReportBuilderPage(): JSX.Element {
       )}
 
       {data && (
-        <Card>
+        <Card data-tour="report-builder-templates">
           <CardHeader>
             <CardTitle className="text-base">Template-uri salvate</CardTitle>
           </CardHeader>
@@ -101,7 +103,7 @@ export function ReportBuilderPage(): JSX.Element {
                   <th scope="col" className="px-4 py-2 font-medium">Coloane</th>
                   <th scope="col" className="px-4 py-2 font-medium">Limit</th>
                   <th scope="col" className="px-4 py-2 font-medium">Creat</th>
-                  <th scope="col" className="px-4 py-2 font-medium">Acțiuni</th>
+                  <th scope="col" className="px-4 py-2 font-medium" data-tour="report-builder-actions">Acțiuni</th>
                 </tr>
               </thead>
               <tbody>

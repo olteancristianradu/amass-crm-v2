@@ -17,6 +17,7 @@ import { CallsTab } from '@/features/calls/CallsTab';
 import { GdprPanel } from '@/features/gdpr/GdprPanel';
 import { StatusBadge } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 import { contactDetailRoute } from './contact.detail';
 
 type TabKey = 'timeline' | 'notes' | 'tasks' | 'reminders' | 'email' | 'calls' | 'attachments';
@@ -34,6 +35,7 @@ const TABS: { value: TabKey; label: string }[] = [
 export function ContactDetailPage(): JSX.Element {
   const { id } = contactDetailRoute.useParams();
   const [tab, setTab] = useState<TabKey>('timeline');
+  useTour('contact-detail');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['contacts', 'detail', id],
@@ -62,7 +64,7 @@ export function ContactDetailPage(): JSX.Element {
   return (
     <DetailLayout
       title={
-        <span className="inline-flex items-center gap-3">
+        <span data-tour="contact-header" className="inline-flex items-center gap-3">
           <span
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground"
             aria-hidden="true"
@@ -98,12 +100,18 @@ export function ContactDetailPage(): JSX.Element {
             <DetailField label="Telefon" value={data.phone} copyable />
             <DetailField label="Mobil" value={data.mobile} copyable />
           </DetailFields>
-          <GdprPanel kind="contacts" subjectId={id} />
+          <div data-tour="contact-gdpr">
+            <GdprPanel kind="contacts" subjectId={id} />
+          </div>
         </>
       }
     >
-      <NextActionHeader entityType="CONTACT" entityId={id} />
-      <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      <div data-tour="contact-next-action">
+        <NextActionHeader entityType="CONTACT" entityId={id} />
+      </div>
+      <div data-tour="contact-tabs">
+        <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      </div>
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="CONTACT" subjectId={id} />}
         {tab === 'notes' && <NotesTab subjectType="CONTACT" subjectId={id} />}

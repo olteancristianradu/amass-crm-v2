@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 const ENTITY_TYPES: { value: CustomFieldEntityType; label: string }[] = [
   { value: 'COMPANY', label: 'Companii' },
@@ -39,6 +40,8 @@ const FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
 };
 
 export function SettingsCustomFieldsPage(): JSX.Element {
+  useTour('settings-custom-fields');
+
   const [activeEntity, setActiveEntity] = useState<CustomFieldEntityType>('COMPANY');
   const [showForm, setShowForm] = useState(false);
 
@@ -48,10 +51,12 @@ export function SettingsCustomFieldsPage(): JSX.Element {
         title="Câmpuri personalizate"
         subtitle="Atașează coloane custom la oricare resursă (companie, contact, deal, ofertă, factură etc.)."
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={14} className="mr-1.5" />
-            {showForm ? 'Anulează' : 'Câmp nou'}
-          </Button>
+          <span data-tour="custom-fields-new-btn">
+            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+              <Plus size={14} className="mr-1.5" />
+              {showForm ? 'Anulează' : 'Câmp nou'}
+            </Button>
+          </span>
         }
       />
 
@@ -62,8 +67,12 @@ export function SettingsCustomFieldsPage(): JSX.Element {
         />
       )}
 
-      <TabBar tabs={ENTITY_TYPES} value={activeEntity} onChange={setActiveEntity} />
-      <EntityCustomFields entityType={activeEntity} />
+      <div data-tour="custom-fields-entity-tabs">
+        <TabBar tabs={ENTITY_TYPES} value={activeEntity} onChange={setActiveEntity} />
+      </div>
+      <div data-tour="custom-fields-table">
+        <EntityCustomFields entityType={activeEntity} />
+      </div>
     </div>
   );
 }

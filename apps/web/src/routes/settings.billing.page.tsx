@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/page-header';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   TRIALING: 'Perioadă trial',
@@ -31,6 +32,8 @@ const STATUS_TONES: Record<SubscriptionStatus, StatusBadgeTone> = {
 };
 
 export function SettingsBillingPage(): JSX.Element {
+  useTour('settings-billing');
+
   const { data: sub, isLoading, isError, error } = useQuery({
     queryKey: ['billing', 'subscription'],
     queryFn: () => billingApi.getSubscription(),
@@ -78,7 +81,7 @@ export function SettingsBillingPage(): JSX.Element {
             </div>
           </header>
 
-          <dl className="grid grid-cols-2 gap-y-4 text-sm">
+          <dl className="grid grid-cols-2 gap-y-4 text-sm" data-tour="billing-summary">
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Plan
@@ -131,7 +134,10 @@ export function SettingsBillingPage(): JSX.Element {
             </p>
           )}
 
-          <div className="mt-6 flex flex-wrap gap-2 border-t border-border/40 pt-5">
+          <div
+            className="mt-6 flex flex-wrap gap-2 border-t border-border/40 pt-5"
+            data-tour="billing-actions"
+          >
             {(sub.status === 'TRIALING' || sub.status === 'CANCELED') && (
               <Button onClick={() => checkoutMut.mutate()} disabled={checkoutMut.isPending}>
                 {checkoutMut.isPending ? 'Redirecționare…' : 'Upgrade plan'}

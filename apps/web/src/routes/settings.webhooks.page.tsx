@@ -13,8 +13,11 @@ import {
 } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 export function SettingsWebhooksPage(): JSX.Element {
+  useTour('settings-webhooks');
+
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
 
@@ -41,17 +44,22 @@ export function SettingsWebhooksPage(): JSX.Element {
 
   return (
     <div>
-      <PageHeader
-        title="Webhook-uri"
-        subtitle="Endpoints HTTP care primesc evenimente din CRM (deal.created, invoice.paid etc.). Semnătura HMAC SHA-256 e în antet."
-        actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-            <Plus size={14} className="mr-1.5" />
-            {showForm ? 'Anulează' : 'Endpoint nou'}
-          </Button>
-        }
-      />
+      <div data-tour="webhooks-signing-info">
+        <PageHeader
+          title="Webhook-uri"
+          subtitle="Endpoints HTTP care primesc evenimente din CRM (deal.created, invoice.paid etc.). Semnătura HMAC SHA-256 e în antet."
+          actions={
+            <span data-tour="webhooks-new-btn">
+              <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+                <Plus size={14} className="mr-1.5" />
+                {showForm ? 'Anulează' : 'Endpoint nou'}
+              </Button>
+            </span>
+          }
+        />
+      </div>
 
+      <div data-tour="webhooks-list">
       {showForm && <NewWebhookForm onDone={() => setShowForm(false)} />}
 
       {isLoading && (
@@ -123,6 +131,7 @@ export function SettingsWebhooksPage(): JSX.Element {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

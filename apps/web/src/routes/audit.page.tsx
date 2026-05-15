@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/ui/glass-card';
 import { EmptyState, ListSurface, PageHeader } from '@/components/ui/page-header';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
+import { useTour } from '@/lib/tours/useTour';
 
 interface AuditLog {
   id: string;
@@ -24,6 +25,7 @@ interface AuditPage {
 }
 
 export function AuditPage(): JSX.Element {
+  useTour('audit-log');
   const user = useAuthStore((s) => s.user);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
@@ -54,12 +56,14 @@ export function AuditPage(): JSX.Element {
 
   return (
     <div>
-      <PageHeader
-        title="Jurnal audit"
-        subtitle="Cronologic, toate evenimentele de securitate și schimbările sensibile."
-      />
+      <div data-tour="audit-header">
+        <PageHeader
+          title="Jurnal audit"
+          subtitle="Cronologic, toate evenimentele de securitate și schimbările sensibile."
+        />
+      </div>
 
-      <ListSurface>
+      <ListSurface data-tour="audit-table">
         {isLoading ? (
           <ListSkeleton rows={6} />
         ) : rows.length === 0 ? (
@@ -70,7 +74,7 @@ export function AuditPage(): JSX.Element {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" data-tour="audit-table">
               <thead>
                 <tr className="border-b border-border/70 bg-secondary/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th scope="col" className="px-4 py-3 font-medium">Acțiune</th>

@@ -25,6 +25,22 @@ import { approvalsListTourSteps } from './content/approvals-list.tour';
 import { workflowsListTourSteps } from './content/workflows-list.tour';
 import { campaignsListTourSteps } from './content/campaigns-list.tour';
 import { emailSequencesTourSteps } from './content/email-sequences.tour';
+import { companyDetailTourSteps } from './content/company-detail.tour';
+import { contactDetailTourSteps } from './content/contact-detail.tour';
+import { clientDetailTourSteps } from './content/client-detail.tour';
+import { duplicatesTourSteps } from './content/duplicates.tour';
+import { settingsAppearanceTourSteps } from './content/settings-appearance.tour';
+import { settingsApprovalsConfigTourSteps } from './content/settings-approvals-config.tour';
+import { settingsBillingTourSteps } from './content/settings-billing.tour';
+import { settingsCallScriptTourSteps } from './content/settings-call-script.tour';
+import { settingsCustomFieldsTourSteps } from './content/settings-custom-fields.tour';
+import { settingsWebhooksTourSteps } from './content/settings-webhooks.tour';
+import { clientsListTourSteps } from './content/clients-list.tour';
+import { auditLogTourSteps } from './content/audit-log.tour';
+import { eventsListTourSteps } from './content/events-list.tour';
+import { exportsTourSteps } from './content/exports.tour';
+import { reportBuilderTourSteps } from './content/report-builder.tour';
+import { whatsappInboxTourSteps } from './content/whatsapp-inbox.tour';
 
 export interface TourStep {
   element: string; // CSS selector — prefer data-tour="..." for stability
@@ -235,6 +251,118 @@ export const TOUR_REGISTRY: TourDef[] = [
     description: 'Drip campaigns automate cu pași programați și exit rules.',
     page: '/app/email-sequences',
     steps: emailSequencesTourSteps,
+  },
+  {
+    id: 'clients-list',
+    title: 'Lista clienților',
+    description: 'Conturi convertite din pipeline — search, KPI și operațiuni rapide.',
+    page: '/app/clients',
+    steps: clientsListTourSteps,
+  },
+  {
+    id: 'company-detail',
+    title: 'Detaliu companie',
+    description: 'Pasul următor, sănătatea relației și tab-urile complete (apeluri, note, deals).',
+    page: '/app/companies/$id',
+    steps: companyDetailTourSteps,
+  },
+  {
+    id: 'contact-detail',
+    title: 'Detaliu contact',
+    description: 'Pasul următor pentru persoană + panel GDPR pentru consimțăminte și ștergere.',
+    page: '/app/contacts/$id',
+    steps: contactDetailTourSteps,
+  },
+  {
+    id: 'client-detail',
+    title: 'Detaliu client',
+    description: 'Pasul următor, sănătatea relației și tab-urile complete pentru un client.',
+    page: '/app/clients/$id',
+    steps: clientDetailTourSteps,
+  },
+  {
+    id: 'duplicates',
+    title: 'Duplicate companii',
+    description: 'Detectează și unifică înregistrările duplicate dintr-o singură pagină.',
+    page: '/app/duplicates',
+    steps: duplicatesTourSteps,
+  },
+  {
+    id: 'audit-log',
+    title: 'Audit log',
+    description: 'Cine, ce și când — istoric append-only pentru GDPR + audit intern.',
+    page: '/app/audit',
+    steps: auditLogTourSteps,
+  },
+  {
+    id: 'events-list',
+    title: 'Evenimente',
+    description: 'Întâlniri și call-uri sincronizate cu Google/Outlook + participanți.',
+    page: '/app/events',
+    steps: eventsListTourSteps,
+  },
+  {
+    id: 'exports',
+    title: 'Export-uri',
+    description: 'CSV/Excel pe entitate cu istoricul fișierelor descărcabile (GDPR-safe).',
+    page: '/app/exports',
+    steps: exportsTourSteps,
+  },
+  {
+    id: 'report-builder',
+    title: 'Constructor rapoarte',
+    description: 'Alege entitate, coloane și filtre — salvează rapoartele tale custom.',
+    page: '/app/report-builder',
+    steps: reportBuilderTourSteps,
+  },
+  {
+    id: 'whatsapp-inbox',
+    title: 'WhatsApp inbox',
+    description: 'Conversații WhatsApp via Twilio — răspunde și atașează la client.',
+    page: '/app/whatsapp',
+    steps: whatsappInboxTourSteps,
+  },
+  {
+    id: 'settings-appearance',
+    title: 'Aspect și temă',
+    description: '11 teme, accent, densitate, font și motion — personalizează look-ul.',
+    page: '/app/settings/appearance',
+    steps: settingsAppearanceTourSteps,
+  },
+  {
+    id: 'settings-approvals-config',
+    title: 'Politici de aprobare',
+    description: 'Definește praguri și aprobatori pe entități (oferte, deal-uri, facturi).',
+    page: '/app/settings/approvals',
+    steps: settingsApprovalsConfigTourSteps,
+  },
+  {
+    id: 'settings-billing',
+    title: 'Facturare cont',
+    description: 'Planul curent, limite și facturile platformei tale.',
+    page: '/app/settings/billing',
+    steps: settingsBillingTourSteps,
+  },
+  {
+    id: 'settings-call-script',
+    title: 'Scriptul de apel',
+    description: 'Whisper compară apelul cu scriptul tău și dă scor de complianță.',
+    page: '/app/settings/call-script',
+    steps: settingsCallScriptTourSteps,
+  },
+  {
+    id: 'settings-custom-fields',
+    title: 'Câmpuri custom',
+    description: 'Adaugă proprietăți proprii pe companie/contact/deal — fără cod.',
+    page: '/app/settings/custom-fields',
+    steps: settingsCustomFieldsTourSteps,
+  },
+  {
+    id: 'settings-webhooks',
+    title: 'Webhook-uri',
+    description: 'Trimite evenimente CRM (deal won, call ended) către sisteme externe.',
+    page: '/app/settings/webhooks',
+    steps: settingsWebhooksTourSteps,
   },
 ];
 

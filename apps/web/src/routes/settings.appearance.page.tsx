@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTour } from '@/lib/tours/useTour';
 import {
   useUiPreferencesStore,
   applyAllUiPreferences,
@@ -198,6 +199,8 @@ export function SettingsAppearancePage(): JSX.Element {
     applyAllUiPreferences();
   }, []);
 
+  useTour('settings-appearance');
+
   return (
     <div>
       <PageHeader
@@ -206,7 +209,7 @@ export function SettingsAppearancePage(): JSX.Element {
       />
 
       {/* ── Theme ──────────────────────────────────────────────────── */}
-      <GlassCard className="mb-6 p-6">
+      <GlassCard className="mb-6 p-6" data-tour="appearance-themes">
         <header className="mb-4 flex items-center gap-2">
           <Palette size={16} className="text-muted-foreground" />
           <h2 className="text-base font-semibold">Temă</h2>
@@ -252,7 +255,7 @@ export function SettingsAppearancePage(): JSX.Element {
       </GlassCard>
 
       {/* ── Accent ─────────────────────────────────────────────────── */}
-      <GlassCard className="mb-6 p-6">
+      <GlassCard className="mb-6 p-6" data-tour="appearance-accent">
         <header className="mb-4">
           <h2 className="text-base font-semibold">Culoare accent</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -303,7 +306,7 @@ export function SettingsAppearancePage(): JSX.Element {
       </GlassCard>
 
       {/* ── Density ────────────────────────────────────────────────── */}
-      <GlassCard className="mb-6 p-6">
+      <GlassCard className="mb-6 p-6" data-tour="appearance-density">
         <header className="mb-4 flex items-center gap-2">
           <Gauge size={16} className="text-muted-foreground" />
           <h2 className="text-base font-semibold">Densitate</h2>
@@ -337,7 +340,7 @@ export function SettingsAppearancePage(): JSX.Element {
       </GlassCard>
 
       {/* ── Font ───────────────────────────────────────────────────── */}
-      <GlassCard className="mb-6 p-6">
+      <GlassCard className="mb-6 p-6" data-tour="appearance-font">
         <header className="mb-4 flex items-center gap-2">
           <TypeIcon size={16} className="text-muted-foreground" />
           <h2 className="text-base font-semibold">Familie de font</h2>
@@ -359,7 +362,7 @@ export function SettingsAppearancePage(): JSX.Element {
       </GlassCard>
 
       {/* ── Motion ─────────────────────────────────────────────────── */}
-      <GlassCard className="p-6">
+      <GlassCard className="p-6" data-tour="appearance-motion">
         <header className="mb-4 flex items-center gap-2">
           <Zap size={16} className="text-muted-foreground" />
           <h2 className="text-base font-semibold">Mișcare</h2>

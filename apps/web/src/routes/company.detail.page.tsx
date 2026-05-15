@@ -20,6 +20,7 @@ import { SubsidiariesTab } from '@/features/companies/SubsidiariesTab';
 import { EmailTab } from '@/features/email/EmailTab';
 import { CallsTab } from '@/features/calls/CallsTab';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 import { companyDetailRoute } from './company.detail';
 
 type TabKey =
@@ -52,6 +53,7 @@ export function CompanyDetailPage(): JSX.Element {
   const [tab, setTab] = useState<TabKey>('timeline');
   const navigate = useNavigate();
   const qc = useQueryClient();
+  useTour('company-detail');
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['companies', 'detail', id],
@@ -105,7 +107,7 @@ export function CompanyDetailPage(): JSX.Element {
   return (
     <DetailLayout
       title={
-        <span className="inline-flex items-center gap-3">
+        <span data-tour="company-header" className="inline-flex items-center gap-3">
           <span
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-sm font-semibold text-foreground"
             aria-hidden="true"
@@ -139,7 +141,9 @@ export function CompanyDetailPage(): JSX.Element {
       }
       sidebar={
         <>
-          <RelationshipHealthCard entityType="COMPANY" entityId={id} />
+          <div data-tour="company-health">
+            <RelationshipHealthCard entityType="COMPANY" entityId={id} />
+          </div>
           <DetailFields title="Identificare">
             <DetailField label="CUI" value={data.vatNumber} copyable />
             <DetailField label="Reg. com." value={data.registrationNumber} copyable />
@@ -164,8 +168,12 @@ export function CompanyDetailPage(): JSX.Element {
         </>
       }
     >
-      <NextActionHeader entityType="COMPANY" entityId={id} />
-      <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      <div data-tour="company-next-action">
+        <NextActionHeader entityType="COMPANY" entityId={id} />
+      </div>
+      <div data-tour="company-tabs">
+        <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      </div>
       <div>
         {tab === 'timeline' && <TimelineTab subjectType="COMPANY" subjectId={id} />}
         {tab === 'notes' && <NotesTab subjectType="COMPANY" subjectId={id} />}
