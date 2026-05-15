@@ -23,8 +23,12 @@ import { GdprService } from './gdpr.service';
  *
  *   GET    /gdpr/contacts/:id/export    — download full data package as JSON
  *   GET    /gdpr/clients/:id/export     — same for clients
+ *   GET    /gdpr/leads/:id/export       — Art. 20 portability for Lead (closed
+ *                                         2026-05-15: pre-contact records still
+ *                                         carry personal data → must export)
  *   DELETE /gdpr/contacts/:id           — right to erasure (anonymise)
  *   DELETE /gdpr/clients/:id            — right to erasure (anonymise)
+ *   DELETE /gdpr/leads/:id              — right to erasure for Lead
  *   POST   /gdpr/retention-sweep        — manually trigger retention sweep
  *
  * RolesGuard already limits to OWNER/ADMIN. CedarGuard is layered on top —
@@ -55,6 +59,15 @@ export class GdprController {
     res.send(JSON.stringify(data, null, 2));
   }
 
+  @Get('leads/:id/export')
+  @RequireCedar({ action: 'gdpr::export', resource: (req) => `Lead::${(req as { params: { id: string } }).params.id}` })
+  async exportLead(@Param('id') id: string, @Res() res: Response) {
+    const data = await this.gdpr.exportLead(id);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="gdpr-lead-${id}.json"`);
+    res.send(JSON.stringify(data, null, 2));
+  }
+
   @Delete('contacts/:id')
   @HttpCode(200)
   @RequireCedar({ action: 'gdpr::erase', resource: (req) => `Contact::${(req as { params: { id: string } }).params.id}` })
@@ -67,6 +80,13 @@ export class GdprController {
   @RequireCedar({ action: 'gdpr::erase', resource: (req) => `Client::${(req as { params: { id: string } }).params.id}` })
   eraseClient(@Param('id') id: string) {
     return this.gdpr.eraseClient(id);
+  }
+
+  @Delete('leads/:id')
+  @HttpCode(200)
+  @RequireCedar({ action: 'gdpr::erase', resource: (req) => `Lead::${(req as { params: { id: string } }).params.id}` })
+  eraseLead(@Param('id') id: string) {
+    return this.gdpr.eraseLead(id);
   }
 
   @Post('retention-sweep')

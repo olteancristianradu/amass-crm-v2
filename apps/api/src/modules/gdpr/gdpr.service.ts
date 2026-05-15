@@ -62,6 +62,24 @@ export function buildClientAnonymisationPatch(now: Date = new Date()): Record<st
   };
 }
 
+/**
+ * Pure helper for Lead erasure. Mirrors Contact/Client patches so the
+ * eraseLead() path can be unit-tested without DB. Covers every entry in
+ * LEAD_PII_FIELDS (guarded by helpers spec to catch schema drift).
+ */
+export function buildLeadAnonymisationPatch(now: Date = new Date()): Record<string, unknown> {
+  return {
+    firstName: ANON,
+    lastName: ANON,
+    email: ANON_EMAIL,
+    phone: null,
+    company: null,
+    jobTitle: null,
+    notes: null,
+    deletedAt: now,
+  };
+}
+
 @Injectable()
 export class GdprService {
   private readonly logger = new Logger(GdprService.name);
@@ -138,14 +156,44 @@ export class GdprService {
   /**
    * GDPR Art. 20 (portability) for Lead. Pre-customer leads still have
    * personal data (firstName/lastName/email/phone) and must be exportable
-   * on data-subject request. Fix BLUE3#2.
+   * on data-subject request. Closed 2026-05-15 (D4 GDPR final pass): we
+   * previously assumed pre-contact records weren't "personal data" — wrong.
+   *
+   * Scope of the export (everything that holds the lead's PII):
+   *  - Lead row (firstName/lastName/email/phone/company/jobTitle/notes)
+   *  - LeadScore rows (entityType='LEAD', entityId=lead.id) — score factors
+   *    can leak behavioural info derived from the subject
+   *  - The converted Contact row, if the lead was converted (Lead has
+   *    `convertedToContactId`). Notes/Activities/Attachments/Reminders are
+   *    polymorphic over (subjectType, subjectId) and currently support
+   *    COMPANY/CONTACT/CLIENT only — there's no LEAD subjectType in the
+   *    enum so there's nothing else to scope here. When the SubjectType
+   *    enum gains LEAD, extend this method.
    */
   async exportLead(id: string): Promise<Record<string, unknown>> {
     const { tenantId } = requireTenantContext();
-    const lead = await this.prisma.runWithTenant(tenantId, async (tx) => {
-      const row = await tx.lead.findFirst({ where: { id, deletedAt: null } });
-      if (!row) throw new NotFoundException({ code: 'LEAD_NOT_FOUND' });
-      return row;
+    const result = await this.prisma.runWithTenant(tenantId, async (tx) => {
+      const lead = await tx.lead.findFirst({ where: { id, deletedAt: null } });
+      if (!lead) throw new NotFoundException({ code: 'LEAD_NOT_FOUND' });
+
+      // LeadScore is keyed by (entityType, entityId) — pull rows where this
+      // lead is the subject. Wrapped under runWithTenant so tenantId is
+      // injected by extension + RLS.
+      const leadScores = await tx.leadScore.findMany({
+        where: { entityType: 'LEAD', entityId: id },
+      });
+
+      // If the lead was converted to a Contact, the personal data also lives
+      // there. Export it side-by-side so the data subject sees the full
+      // portable copy in one bundle.
+      let convertedContact: unknown = null;
+      if (lead.convertedToContactId) {
+        convertedContact = await tx.contact.findFirst({
+          where: { id: lead.convertedToContactId, deletedAt: null },
+        });
+      }
+
+      return { lead, leadScores, convertedContact };
     });
 
     await this.audit.log({ action: 'gdpr.export_lead', subjectType: 'lead', subjectId: id });
@@ -153,7 +201,9 @@ export class GdprService {
     return {
       exportedAt: new Date().toISOString(),
       subject: 'LEAD',
-      lead,
+      lead: result.lead,
+      leadScores: result.leadScores,
+      convertedContact: result.convertedContact,
     };
   }
 
@@ -291,16 +341,7 @@ export class GdprService {
       if (!lead) throw new NotFoundException({ code: 'LEAD_NOT_FOUND' });
       await tx.lead.update({
         where: { id },
-        data: {
-          firstName: ANON,
-          lastName: ANON,
-          email: ANON_EMAIL,
-          phone: null,
-          company: null,
-          jobTitle: null,
-          notes: null,
-          deletedAt: new Date(),
-        },
+        data: buildLeadAnonymisationPatch(),
       });
     });
 

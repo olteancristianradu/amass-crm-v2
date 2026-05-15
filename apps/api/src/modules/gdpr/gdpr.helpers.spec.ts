@@ -4,8 +4,10 @@ import {
   ANON_EMAIL,
   buildClientAnonymisationPatch,
   buildContactAnonymisationPatch,
+  buildLeadAnonymisationPatch,
   CLIENT_PII_FIELDS,
   CONTACT_PII_FIELDS,
+  LEAD_PII_FIELDS,
 } from './gdpr.service';
 
 describe('GDPR anonymisation helpers', () => {
@@ -43,5 +45,19 @@ describe('GDPR anonymisation helpers', () => {
   it('ANON constants match the GDPR-compliant placeholders', () => {
     expect(ANON).toBe('[ANONYMISED]');
     expect(ANON_EMAIL).toBe('anonymised@deleted.invalid');
+  });
+
+  it('lead patch covers every LEAD_PII_FIELDS entry + stamps deletedAt (Art. 20/17)', () => {
+    const patch = buildLeadAnonymisationPatch(fixedNow);
+    for (const field of LEAD_PII_FIELDS) {
+      expect(patch).toHaveProperty(field);
+    }
+    expect(patch.firstName).toBe(ANON);
+    expect(patch.email).toBe(ANON_EMAIL);
+    expect(patch.phone).toBeNull();
+    expect(patch.company).toBeNull();
+    expect(patch.jobTitle).toBeNull();
+    expect(patch.notes).toBeNull();
+    expect(patch.deletedAt).toEqual(fixedNow);
   });
 });

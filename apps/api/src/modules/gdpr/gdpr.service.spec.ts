@@ -13,7 +13,9 @@ import {
   buildClientAnonymisationPatch,
   CONTACT_PII_FIELDS,
   CLIENT_PII_FIELDS,
+  LEAD_PII_FIELDS,
 } from './gdpr.service';
+import { requireTenantContext } from '../../infra/prisma/tenant-context';
 
 function build() {
   // tx carries ALL methods that eraseContact/eraseClient/export* call inside
@@ -52,6 +54,14 @@ function build() {
     },
     callTranscript: { updateMany: vi.fn() },
     emailMessage: { updateMany: vi.fn() },
+    lead: {
+      findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn(),
+    },
+    leadScore: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   };
   const prisma = {
     // Direct (outside runWithTenant) — used by sweepAllTenants only.
@@ -83,6 +93,143 @@ describe('Anonymisation patch helpers', () => {
     for (const field of CLIENT_PII_FIELDS) {
       expect(field in p).toBe(true);
     }
+  });
+});
+
+describe('GdprService.exportLead (GDPR Art. 20)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset tenant context default for tests that don't override.
+    vi.mocked(requireTenantContext).mockReturnValue({ tenantId: 'tenant-1', userId: 'user-1' } as never);
+  });
+
+  it('throws LEAD_NOT_FOUND when the lead does not exist', async () => {
+    const h = build();
+    h.tx.lead.findFirst.mockResolvedValueOnce(null);
+    await expect(h.svc.exportLead('ghost')).rejects.toThrow(NotFoundException);
+    expect(h.audit.log).not.toHaveBeenCalled();
+  });
+
+  it('returns the lead + leadScores + converted contact for an unconverted lead', async () => {
+    const h = build();
+    h.tx.lead.findFirst.mockResolvedValueOnce({
+      id: 'l-1',
+      firstName: 'Ion',
+      lastName: 'Popescu',
+      email: 'ion@example.com',
+      convertedToContactId: null,
+    } as never);
+    h.tx.leadScore.findMany.mockResolvedValueOnce([
+      { id: 'ls-1', score: 42, factors: { calls: 3 } },
+    ] as never);
+
+    const out = await h.svc.exportLead('l-1');
+
+    expect(out.subject).toBe('LEAD');
+    expect((out.lead as { id: string }).id).toBe('l-1');
+    expect(out.leadScores).toHaveLength(1);
+    expect(out.convertedContact).toBeNull();
+    // Did NOT try to look up a contact (no convertedToContactId).
+    expect(h.tx.contact.findFirst).not.toHaveBeenCalled();
+    // LeadScore query is scoped by entityType='LEAD' + entityId.
+    expect(h.tx.leadScore.findMany).toHaveBeenCalledWith({
+      where: { entityType: 'LEAD', entityId: 'l-1' },
+    });
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'gdpr.export_lead', subjectId: 'l-1' }),
+    );
+  });
+
+  it('also exports the converted contact row when the lead was converted', async () => {
+    const h = build();
+    h.tx.lead.findFirst.mockResolvedValueOnce({
+      id: 'l-1',
+      convertedToContactId: 'c-99',
+    } as never);
+    h.tx.contact.findFirst.mockResolvedValueOnce({
+      id: 'c-99',
+      firstName: 'Ion',
+      email: 'ion@example.com',
+    } as never);
+
+    const out = await h.svc.exportLead('l-1');
+
+    expect((out.convertedContact as { id: string }).id).toBe('c-99');
+    expect(h.tx.contact.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c-99', deletedAt: null },
+    });
+  });
+
+  it('multi-tenant isolation: runWithTenant uses the REQUEST tenant, not a hardcoded one (rule #3)', async () => {
+    // Critical invariant: if request context is tenant-2, the export must
+    // open the tx under tenant-2 — never under the lead's stored tenantId
+    // (which could be spoofed) and never under a constant. The Prisma
+    // extension + Postgres RLS then enforce the actual row isolation. This
+    // test verifies the SERVICE plumbing is correct; RLS itself is tested
+    // separately in the prisma integration suite.
+    const h = build();
+    vi.mocked(requireTenantContext).mockReturnValue({ tenantId: 'tenant-2', userId: 'user-9' } as never);
+    h.tx.lead.findFirst.mockResolvedValueOnce({ id: 'l-1', convertedToContactId: null } as never);
+
+    await h.svc.exportLead('l-1');
+
+    // First positional arg to runWithTenant is the tenantId from ALS.
+    expect(h.prisma.runWithTenant).toHaveBeenCalledWith('tenant-2', expect.any(Function));
+    // And the lead lookup did NOT inject a tenantId in the where clause —
+    // that's the extension's job. If a developer added one manually, this
+    // would catch the drift.
+    const whereArg = h.tx.lead.findFirst.mock.calls[0][0].where;
+    expect(whereArg).not.toHaveProperty('tenantId');
+  });
+
+  it('multi-tenant isolation: a lead from a DIFFERENT tenant is not exported', async () => {
+    // Simulates the extension-injected tenant filter rejecting the row.
+    // In real Prisma + RLS, tx.lead.findFirst({where:{id:'l-other'}}) under
+    // tenantId='tenant-1' returns null because RLS + extension filter the
+    // query to tenant-1's rows. Our mocked findFirst returns null and the
+    // service surfaces NotFoundException — the data is NOT exposed.
+    const h = build();
+    vi.mocked(requireTenantContext).mockReturnValue({ tenantId: 'tenant-1', userId: 'user-1' } as never);
+    // The lead 'l-other' exists in tenant-2 but the tenant-1-scoped tx
+    // sees nothing → null.
+    h.tx.lead.findFirst.mockResolvedValueOnce(null);
+
+    await expect(h.svc.exportLead('l-other')).rejects.toThrow(NotFoundException);
+    expect(h.audit.log).not.toHaveBeenCalled();
+  });
+});
+
+describe('GdprService.eraseLead', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requireTenantContext).mockReturnValue({ tenantId: 'tenant-1', userId: 'user-1' } as never);
+  });
+
+  it('throws LEAD_NOT_FOUND if the lead does not exist', async () => {
+    const h = build();
+    h.tx.lead.findFirst.mockResolvedValueOnce(null);
+    await expect(h.svc.eraseLead('ghost')).rejects.toThrow(NotFoundException);
+    expect(h.tx.lead.update).not.toHaveBeenCalled();
+  });
+
+  it('anonymises every LEAD_PII_FIELDS column + sets deletedAt + audits', async () => {
+    const h = build();
+    h.tx.lead.findFirst.mockResolvedValueOnce({ id: 'l-1' } as never);
+    h.tx.lead.update.mockResolvedValueOnce({});
+
+    const out = await h.svc.eraseLead('l-1');
+
+    const data = h.tx.lead.update.mock.calls[0][0].data;
+    for (const field of LEAD_PII_FIELDS) {
+      expect(data).toHaveProperty(field);
+    }
+    expect(data.firstName).toBe(ANON);
+    expect(data.email).toBe(ANON_EMAIL);
+    expect(data.deletedAt).toBeInstanceOf(Date);
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'gdpr.erase_lead', subjectId: 'l-1' }),
+    );
+    expect(out).toEqual({ erased: true });
   });
 });
 
