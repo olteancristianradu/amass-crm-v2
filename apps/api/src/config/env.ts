@@ -60,6 +60,29 @@ const envSchema = z.object({
   MINIO_SECRET_KEY: z.string().min(1).default('minioadmin'),
   MINIO_BUCKET: z.string().min(1).default('amass-files'),
 
+  // Backup S3 endpoint — separate from MINIO_* because the db-backup sidecar
+  // can target any S3-compatible storage (the same MinIO, R2, B2, or AWS S3)
+  // chosen by the operator for disaster-recovery isolation. The API only needs
+  // read access to fetch `_heartbeat.json` for the BackupHealthService gauge.
+  // ALL FOUR are optional: when unset (e.g. local dev with no backup
+  // configured) BackupHealthService logs once and skips the periodic poll.
+  BACKUP_S3_ENDPOINT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+  BACKUP_S3_ACCESS_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  BACKUP_S3_SECRET_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  BACKUP_BUCKET: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+
   // AES-256-GCM key for encrypting SMTP passwords at rest.
   // Must be exactly 32 bytes hex-encoded (64 hex chars).
   // Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"

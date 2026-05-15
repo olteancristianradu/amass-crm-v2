@@ -48,6 +48,10 @@ BACKUP_BUCKET="${BACKUP_BUCKET:-amass-backups}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 
 TS="$(date -u +%Y-%m-%d_%H%M%S)"
+# START_EPOCH captured up-front so the heartbeat duration_seconds is exact
+# without parsing TS back through `date -d` (which is GNU-only and missing
+# on BusyBox).
+START_EPOCH="$(date -u +%s)"
 TMP_DIR="$(mktemp -d -t amass-backup-XXXXXX)"
 DUMP_FILE="${TMP_DIR}/${TS}.dump"
 trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
@@ -109,6 +113,27 @@ mc rm \
 
 REMAINING_COUNT="$(mc ls "backup/${BACKUP_BUCKET}/db/" 2>/dev/null | wc -l | tr -d ' ')"
 log "retention sweep done; remaining_dumps=${REMAINING_COUNT}"
+
+# ---------------------------------------------------------------------------
+# 5. Heartbeat — write a small JSON marker to S3 ONLY on full success.
+# ---------------------------------------------------------------------------
+# The API polls _heartbeat.json every 5 min and exports the timestamp as the
+# `backup_last_success_timestamp_seconds` Prometheus gauge. Alertmanager fires
+# `BackupStale` if the gauge falls behind by >25h. Writing the heartbeat is
+# deliberately the LAST step — any earlier failure already triggers `die`
+# (which exits non-zero) and the heartbeat is never written. This keeps the
+# alert honest: stale heartbeat = something is actually wrong, not just slow.
+NOW_EPOCH="$(date -u +%s)"
+DURATION_SECONDS="$(( NOW_EPOCH - START_EPOCH ))"
+HOSTNAME_VAL="$(hostname 2>/dev/null || echo 'unknown')"
+HEARTBEAT_FILE="${TMP_DIR}/heartbeat.json"
+cat > "${HEARTBEAT_FILE}" <<EOF
+{"timestamp": ${NOW_EPOCH}, "host": "${HOSTNAME_VAL}", "db": "${PGDATABASE}", "duration_seconds": ${DURATION_SECONDS}, "size_bytes": ${DUMP_SIZE_BYTES}}
+EOF
+
+log "writing heartbeat → s3://${BACKUP_BUCKET}/_heartbeat.json (ts=${NOW_EPOCH})"
+mc cp "${HEARTBEAT_FILE}" "backup/${BACKUP_BUCKET}/_heartbeat.json" >/dev/null \
+  || die "heartbeat upload failed"
 
 log "backup complete ts=${TS}"
 exit 0

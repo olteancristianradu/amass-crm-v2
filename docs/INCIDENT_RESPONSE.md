@@ -233,6 +233,92 @@ External party (security consultant or trusted advisor) walks through 2-3 scenar
 
 ---
 
+## Backup monitoring
+
+The nightly Postgres backup is only useful if you find out **immediately**
+when it stops working. Restore drills run quarterly catch some bugs, but a
+silent S3 outage between drills would leave you with 90 days of failed
+backups before anyone noticed. The heartbeat + alert pipeline below closes
+that gap.
+
+### How it works
+
+1. **Producer** — `scripts/backup-db.sh` (run by the `db-backup` sidecar at
+   02:00 daily) writes `s3://${BACKUP_BUCKET}/_heartbeat.json` as its final
+   step, **only on full success**. Any earlier failure aborts the script
+   with non-zero exit and the heartbeat is not refreshed.
+   ```json
+   {"timestamp": 1715760000, "host": "vps-1", "db": "amass_crm",
+    "duration_seconds": 47, "size_bytes": 12345678}
+   ```
+2. **Consumer** — `BackupHealthService` in the API polls `_heartbeat.json`
+   every 5 minutes (`@Cron('*/5 * * * *')`) and exports the timestamp via
+   the Prometheus gauge `backup_last_success_timestamp_seconds`. A 404 (no
+   backup ever) leaves the gauge **unset** (not zero), so the `absent()`
+   alert rule can distinguish "never seen" from "very stale".
+3. **Alerting** — Prometheus evaluates `infra/prometheus/alerts/backup.yml`
+   against the gauge.
+
+### Alert rules
+
+| Alert | Expression | `for` | Severity | What it means |
+|---|---|---|---|---|
+| `BackupStale` | `time() - backup_last_success_timestamp_seconds > 90000` | 5m | critical | Last backup is older than 25h (one missed run + 1h safety margin). |
+| `BackupNeverRun` | `absent(backup_last_success_timestamp_seconds)` | 30m | warning | The gauge has never been populated — either the API just restarted, the backup has never succeeded, or `BACKUP_S3_*` is misconfigured. |
+
+### Quick checks
+
+```sh
+# Verify the gauge is being exported on the API (replace 3000 with your port):
+curl -s http://localhost:3000/metrics | grep backup_last_success_timestamp_seconds
+
+# Inspect the heartbeat file directly via mc:
+mc alias set backup-check "${BACKUP_S3_ENDPOINT}" "${BACKUP_S3_ACCESS_KEY}" "${BACKUP_S3_SECRET_KEY}"
+mc cat backup-check/"${BACKUP_BUCKET}"/_heartbeat.json | jq .
+
+# Tail the db-backup container logs:
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml logs db-backup --since 48h
+```
+
+### Responding to `BackupStale`
+
+1. **Confirm** — `curl /metrics | grep backup_last_success_timestamp_seconds`
+   shows a value > 90000 seconds behind `date +%s`. If the value is **gone**
+   (only the help line shows), it's `BackupNeverRun` — see below.
+2. **Read the sidecar logs** — `docker compose logs db-backup --since 48h`.
+   The script `log` lines mark each phase (`starting backup…`, `running
+   pg_dump…`, `uploading…`, `retention sweep…`, `writing heartbeat…`).
+   The last successful phase narrows the root cause:
+   - Stuck on `pg_dump` → Postgres is unreachable or out of disk.
+   - Stuck on `mc cp upload` → S3 outage, expired credentials, or quota.
+   - Stuck on `retention sweep` → benign; the next run will recover.
+   - Never started → busybox-crond crashed (rare); restart the container.
+3. **Trigger a manual backup** to confirm the fix:
+   ```sh
+   docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml \
+     exec db-backup /backup/backup-db.sh
+   ```
+   On success, the heartbeat refreshes within 5 minutes of the API's next
+   poll, and the alert auto-resolves.
+4. **Postmortem** if the gap was > 48h — a 48h window means one nightly
+   slot was missed entirely. Note the cause in `LESSONS.md` so the failure
+   mode is on the next quarterly drill checklist.
+
+### Responding to `BackupNeverRun`
+
+Distinguish three sub-cases:
+
+- **Fresh API deploy + no backup has run yet** — wait until 02:05 (cron
+  fires at 02:00 + ~5 min for the heartbeat). Alert auto-resolves.
+- **`BACKUP_S3_*` env vars missing on the API** — `BackupHealthService`
+  logs `BackupHealthService disabled: BACKUP_S3_ENDPOINT/... not all set`
+  at boot. Add the vars and restart the API.
+- **The bucket is empty / the heartbeat file was deleted** — run a manual
+  backup (see step 3 above). If the bucket itself is missing, restore the
+  `db-backup` container (it recreates the bucket on first run).
+
+---
+
 ## Database Restore
 
 Restoring from a Postgres backup is irreversible — running it **drops the

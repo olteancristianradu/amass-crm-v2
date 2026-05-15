@@ -12,6 +12,7 @@ import { Global, Module } from '@nestjs/common';
 import {
   PrometheusModule,
   makeCounterProvider,
+  makeGaugeProvider,
   makeHistogramProvider,
 } from '@willsoto/nestjs-prometheus';
 import { BusinessMetricsService } from './business-metrics.service';
@@ -57,6 +58,15 @@ import { HttpMetricsInterceptor } from './http-metrics.interceptor';
       name: 'auth_login_total',
       help: 'Count of login attempts, by tenant and result (success/failure).',
       labelNames: ['tenant', 'result'],
+    }),
+    // D3-VPS-PR1: unix timestamp of the most recent successful pg_dump+upload.
+    // Written by scripts/backup-db.sh → _heartbeat.json in the backup bucket,
+    // polled by BackupHealthService every 5 min, alerted on by
+    // infra/prometheus/alerts/backup.yml (BackupStale fires if >25h old).
+    // Single-instance — no labels, single backup target per deployment.
+    makeGaugeProvider({
+      name: 'backup_last_success_timestamp_seconds',
+      help: 'Unix timestamp of the last successful database backup (heartbeat from backup-db.sh).',
     }),
     BusinessMetricsService,
     HttpMetricsInterceptor,

@@ -1,0 +1,36 @@
+# Prometheus alert rules for the nightly Postgres backup.
+#
+# Pipeline (see docs/INCIDENT_RESPONSE.md#backup-monitoring):
+#   db-backup sidecar runs scripts/backup-db.sh at 02:00 daily. On full
+#   success the script writes _heartbeat.json to the backup bucket. The API's
+#   BackupHealthService polls that file every 5 min and updates the
+#   `backup_last_success_timestamp_seconds` gauge exposed via /metrics.
+#
+# Wire this file into Prometheus by adding the path under `rule_files:` in
+# infra/observability/prometheus.yml (kept separate so ops can manage rule
+# rollout independently of the scrape config).
+groups:
+  - name: backup
+    rules:
+      # 25-hour threshold: a missed daily run plus an hour of safety margin
+      # for late cron starts / slow uploads on cold pg_dump nights.
+      - alert: BackupStale
+        expr: time() - backup_last_success_timestamp_seconds > 90000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database backup older than 25 hours"
+          description: "Last successful backup heartbeat is {{ $value | humanizeDuration }} old. Investigate db-backup container logs."
+
+      # absent() catches the case where the API never sees the heartbeat at
+      # all — fresh deploy, BACKUP_S3_* misconfigured, or the bucket got wiped.
+      # 30 min `for` so a normal API restart doesn't false-positive.
+      - alert: BackupNeverRun
+        expr: absent(backup_last_success_timestamp_seconds)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup heartbeat metric never seen"
+          description: "Either the API hasn't started yet or no backup has ever completed."
