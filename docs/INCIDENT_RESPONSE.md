@@ -307,6 +307,155 @@ app**, and re-pick an older dump.
 
 ---
 
+## Rolling update + Rollback
+
+Two scripts live in `scripts/`:
+
+- `update-vps.sh` — **routine rolling update.** Use for every normal
+  deploy. Automatically takes a pre-update DB backup, applies migrations
+  against the new image, recreates `api`/`web`/`ai-worker`, waits for
+  `/api/v1/health` to return 200, and **auto-rolls-back on any failure**.
+- `rollback-vps.sh` — **manual, deliberate rollback** to a specific SHA
+  or branch. Use when auto-rollback didn't run (host crash, manual
+  abort, planned revert after the deploy looked healthy). Asks you to
+  re-type the target SHA as a confirm gate.
+
+### When to use which
+
+| Situation | Script | Notes |
+|---|---|---|
+| Normal deploy of latest `main` | `update-vps.sh` | Auto-backup + auto-health + auto-rollback all built in. |
+| Emergency hot-fix when backup pipeline is broken | `update-vps.sh --skip-backup` | Logs a loud warning. **Do NOT use** if the new code might run a schema-changing migration — you'd lose the safety net. |
+| Deploy a non-`main` branch (staging, hotfix branch) | `update-vps.sh --branch=NAME` | Same safety guarantees as main. |
+| Revert to an older SHA after a deploy went bad | `rollback-vps.sh --to <SHA>` | Confirm prompt. Does **not** take a backup — the bad code is already in prod. |
+| Disaster-recovery (data corrupted, restore from dump) | See **Database Restore** above | Code rollback alone won't fix data drift. |
+
+### Routine deploy procedure
+
+On the VPS as root:
+
+```
+/opt/amass/scripts/update-vps.sh
+```
+
+The script runs six phases (each line is timestamp-prefixed in the log):
+
+```
+PHASE-0 preflight        verify perms / repo / docker / capture ROLLBACK_SHA
+PHASE-1 db-backup        docker compose run --rm db-backup → blocking
+PHASE-2 fetch+build      git fetch + checkout + build api/web/ai-worker
+PHASE-3 migrate          prisma migrate deploy in a one-shot container
+                          using the NEW image
+PHASE-4 recreate+health  docker compose up -d + poll /api/v1/health up
+                          to 60s (30 × 2s)
+PHASE-5 rollback         (only fires on failure) checkout ROLLBACK_SHA,
+                          rebuild, recreate, re-health, warn about DB drift
+PHASE-6 report           docker compose ps + git log + elapsed time
+```
+
+If everything is already up to date, the script exits cleanly after PHASE-2.
+
+### `--skip-backup`: when to use it (and when NOT to)
+
+**Use it only when:**
+- The backup pipeline itself is broken AND you have a code fix in `main`
+  that restores it.
+- You have **independently verified** there is a recent backup (manual
+  `pg_dump` from minutes ago, or a verified S3 dump less than ~1 hour old).
+- The diff has **no schema-changing migration** (`prisma/migrations` is
+  untouched relative to `origin/main`).
+
+**Do NOT use it when:**
+- Backups are fine but you "just want it faster" — the backup is a few
+  minutes; the recovery if a migration corrupts data is hours-to-days.
+- The PR contains a Prisma migration. A failed schema change with no
+  pre-backup leaves you choosing between rolling forward through
+  corruption and restoring from a stale nightly dump.
+
+### Auto-rollback (PHASE 5) — what it does and doesn't
+
+When **any** of PHASE-1 backup / PHASE-3 migrate / PHASE-4 health fails:
+
+1. `git checkout ROLLBACK_SHA` (the SHA captured in PHASE-0).
+2. `docker compose build api web ai-worker` — fast cache-friendly rebuild.
+3. `docker compose up -d --force-recreate api web ai-worker`.
+4. Re-run the same `/api/v1/health` poll. Logs success or pages the operator.
+
+What it explicitly does **not** do:
+
+- **Migrations are not reverted.** Prisma `migrate deploy` is one-way. If
+  the failed phase was PHASE-3 or PHASE-4 (i.e. migrations may have been
+  applied), the script prints a big banner instructing you to restore
+  from the PHASE-1 backup using **Database Restore** above.
+- **No notification dispatch.** Slack / Sentry alerting is a separate
+  layer. Watch the deploy log live (`tail -f` or run interactively).
+
+### Manual rollback procedure (if auto-rollback fails)
+
+If you see "rollback build FAILED" or "rollback health-check FAILED" in
+the log, the automated path gave up. On the VPS as root:
+
+```
+# 1. Confirm the SHA you want to roll back to (from the failure log,
+#    or by running `git -C /opt/amass log --oneline -5`).
+SHA=abc1234
+
+# 2. Use the manual rollback script — it has its own confirm prompt
+#    and health check.
+/opt/amass/scripts/rollback-vps.sh --to "$SHA"
+
+# 3. If THAT also fails (image pull errors, disk full, etc.):
+cd /opt/amass
+git checkout "$SHA"
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml \
+  --env-file .env.production \
+  build api web ai-worker
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml \
+  --env-file .env.production \
+  up -d --force-recreate api web ai-worker
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml \
+  --env-file .env.production \
+  logs --tail=50 api
+```
+
+### DB rollback caveat
+
+`update-vps.sh` and `rollback-vps.sh` only touch **code + containers**.
+Prisma migrations are **forward-only** — a migration that drops a column,
+renames a table, or changes a type cannot be auto-reverted, and rolling
+back the code without rolling back the schema will throw `column does
+not exist` / `relation does not exist` errors at runtime.
+
+The contract is:
+
+- PHASE 1 takes a backup BEFORE migrations apply.
+- If the rolled-back code can't read the current schema, restore from
+  that backup via the **Database Restore** procedure above.
+- Communicate the data gap (everything written between backup time and
+  restore time is gone) to affected tenants, same as a normal DR
+  restore.
+
+### Verification after a successful update
+
+The PHASE-6 report shows `docker compose ps` + the list of commits
+applied + elapsed time. Sanity checks worth running after:
+
+```
+# 1. Health endpoint returns 200 with the expected build SHA.
+curl -fsS https://api.crm.<your-domain>/api/v1/health | jq .
+
+# 2. No api container restart loops in the last 5 minutes.
+docker compose -f /opt/amass/infra/docker-compose.yml \
+  -f /opt/amass/infra/docker-compose.prod.yml \
+  --env-file /opt/amass/.env.production \
+  ps api web ai-worker
+
+# 3. Migrations match what `main` has on disk.
+docker exec amass-api pnpm --filter @amass/api exec prisma migrate status
+```
+
+---
+
 ## Appendix A: Email template — data subject notification
 
 ```
