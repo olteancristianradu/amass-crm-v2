@@ -1,44 +1,126 @@
-import { All, Controller, HttpException, HttpStatus, Param } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import {
+  SCIM_ERROR_SCHEMA_URN,
+  ScimListQuerySchema,
+  ScimPatchRequestSchema,
+  ScimUserCreateSchema,
+  type ScimListQueryDto,
+  type ScimPatchRequestDto,
+  type ScimUserCreateDto,
+} from './scim.dto';
+import { ScimService } from './scim.service';
 
 /**
- * A-scaffold: SCIM 2.0 endpoints — user/group provisioning protocol used by
- * IdPs (Okta, Azure AD, OneLogin, JumpCloud) to push directory changes into
- * SaaS apps. Target shape matches RFC 7644.
+ * SCIM 2.0 /Users CRUD (B3-PR1). Groups + bearer-token auth land in
+ * subsequent PRs; for now the controller is `@Public()` and extracts the
+ * acting tenant from the `X-Tenant-Id` header. **This is temporary** — once
+ * B3-PR3 wires real bearer-token auth, the header path will be removed and
+ * tenantId will be resolved from the provisioning token claim. Until then,
+ * this controller must not be exposed on a public ingress.
  *
- * **Every verb returns 501.** The module is wired so IdP connectors get a
- * coherent error envelope instead of a 404, but there is no actual
- * provisioning logic. Hidden from public Swagger so we don't advertise an
- * API surface we don't implement.
- *
- * NOTE on routing: stacking two `@All(...)` decorators on the same method
- * only registers the last one — Nest reflects decorator metadata and the
- * second write clobbers the first. Use two distinct methods so both
- * `/scim/v2/:resource` and `/scim/v2/:resource/:id` are actually served.
+ * Hidden from Swagger because the surface targets IdP connectors (Okta,
+ * Azure AD), not human consumers of our REST API.
  */
 @ApiExcludeController()
 @Controller('scim/v2')
 @Public()
 export class ScimController {
-  @All(':resource')
-  collection(@Param('resource') resource: string) {
-    return this.notImplemented(resource);
+  constructor(private readonly scim: ScimService) {}
+
+  @Get('Users')
+  @Header('Content-Type', 'application/scim+json')
+  async listUsers(
+    @Headers('x-tenant-id') tenantId: string | undefined,
+    @Query(new ZodValidationPipe(ScimListQuerySchema)) query: ScimListQueryDto,
+  ): Promise<unknown> {
+    const tid = this.requireTenant(tenantId);
+    return this.scim.listUsers(tid, query.startIndex, query.count, query.filter);
   }
 
-  @All(':resource/:id')
-  item(@Param('resource') resource: string, @Param('id') id: string) {
-    return this.notImplemented(`${resource}/${id}`);
+  @Get('Users/:id')
+  @Header('Content-Type', 'application/scim+json')
+  async getUser(
+    @Headers('x-tenant-id') tenantId: string | undefined,
+    @Param('id') id: string,
+  ): Promise<unknown> {
+    const tid = this.requireTenant(tenantId);
+    return this.scim.getUser(tid, id);
   }
 
-  private notImplemented(endpoint: string): never {
-    throw new HttpException(
-      {
-        schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-        detail: `SCIM endpoint ${endpoint} is scaffolded but not implemented yet`,
-        status: '501',
-      },
-      HttpStatus.NOT_IMPLEMENTED,
-    );
+  @Post('Users')
+  @Header('Content-Type', 'application/scim+json')
+  @HttpCode(HttpStatus.CREATED)
+  async createUser(
+    @Headers('x-tenant-id') tenantId: string | undefined,
+    @Body(new ZodValidationPipe(ScimUserCreateSchema)) dto: ScimUserCreateDto,
+  ): Promise<unknown> {
+    const tid = this.requireTenant(tenantId);
+    return this.scim.createUser(tid, dto);
+  }
+
+  @Put('Users/:id')
+  @Header('Content-Type', 'application/scim+json')
+  async replaceUser(
+    @Headers('x-tenant-id') tenantId: string | undefined,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ScimUserCreateSchema)) dto: ScimUserCreateDto,
+  ): Promise<unknown> {
+    const tid = this.requireTenant(tenantId);
+    return this.scim.replaceUser(tid, id, dto);
+  }
+
+  @Patch('Users/:id')
+  @Header('Content-Type', 'application/scim+json')
+  async patchUser(
+    @Headers('x-tenant-id') tenantId: string | undefined,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ScimPatchRequestSchema)) dto: ScimPatchRequestDto,
+  ): Promise<unknown> {
+    const tid = this.requireTenant(tenantId);
+    return this.scim.patchUser(tid, id, dto.Operations);
+  }
+
+  @Delete('Users/:id')
+  @Header('Content-Type', 'application/scim+json')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteUser(
+    @Headers('x-tenant-id') tenantId: string | undefined,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const tid = this.requireTenant(tenantId);
+    await this.scim.deleteUser(tid, id);
+  }
+
+  /**
+   * Tenant header gate. Throws a SCIM-shaped 400 if absent or blank.
+   * Replaced by bearer-token tenant resolution in B3-PR3.
+   */
+  private requireTenant(tenantId: string | undefined): string {
+    if (!tenantId || tenantId.trim() === '') {
+      throw new BadRequestException({
+        schemas: [SCIM_ERROR_SCHEMA_URN],
+        detail: 'Missing X-Tenant-Id header',
+        status: '400',
+      });
+    }
+    return tenantId;
   }
 }

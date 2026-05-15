@@ -137,6 +137,43 @@ Two append-only streams, easy to confuse:
 
 Both are tenant-scoped. Both are created from feature services (companies/contacts/clients/notes/attachments) on every mutation.
 
+### Passkeys (B2)
+
+WebAuthn / FIDO2 lives in `apps/api/src/modules/webauthn/`. Backed by **@simplewebauthn/server v13**.
+
+The ceremony is four calls in two halves:
+
+| Half | Call | Status |
+|-|-|-|
+| **Register** (B2-PR1, shipped) | `POST /webauthn/register/options` → PublicKeyCredentialCreationOptions | live |
+| | `POST /webauthn/register/verify` → persist Passkey row | live |
+| **Authenticate** (B2-PR2, next) | `POST /webauthn/authenticate/options` → PublicKeyCredentialRequestOptions | 501 stub |
+| | `POST /webauthn/authenticate/verify` → mint session | 501 stub |
+
+- **Challenge store:** Redis, key `webauthn:challenge:<userId>`, TTL 300s (WebAuthn-spec recommendation, matches the default browser ceremony timeout). One-shot — deleted on successful `verify`.
+- **Persistence:** Per-tenant `passkeys` table (RLS + tenantExtension scope every read/write). One row per registered authenticator; a user can have many (phone + laptop + hardware key). `credentialId` is globally unique (WebAuthn spec).
+- **RP identity:** `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_NAME` / `WEBAUTHN_ORIGIN` in env. Prod-only check rejects the dev defaults so a deploy without override fails fast.
+- **Multi-tenancy:** `tenantId` always comes from the JWT (`@CurrentUser()`), never from the attestation payload. Register endpoints sit behind `JwtAuthGuard` — passkey enrolment is a "logged-in-user adds a new factor" flow, not a way to bootstrap an account.
+
+Out of scope for PR1: login-with-passkey integration into `auth.service` (PR2), device-list/revoke UI, recovery codes.
+
+### SCIM 2.0 (B3)
+
+Identity-provider provisioning surface under `/scim/v2/Users` (RFC 7643/7644). Lives in `apps/api/src/modules/scim/`:
+
+- `scim.controller.ts` — six routes (GET list, GET one, POST, PUT, PATCH, DELETE) all responding with `Content-Type: application/scim+json`. Tenant is currently extracted from the `X-Tenant-Id` header — **temporary scaffolding** until B3-PR3 wires real bearer-token auth. The controller is `@Public()`, so it must not be exposed on a public ingress until that PR lands.
+- `scim.service.ts` — every method routes through `prisma.runWithTenant(tenantId, fn)` so the tenant extension auto-scopes queries and Postgres RLS enforces isolation at layer 3 (same multi-tenant defense-in-depth story as the rest of the app).
+- `scim-mapper.ts` — pure functions converting between Prisma `User` rows and SCIM envelopes; covered by unit tests independent of DI.
+- `scim.dto.ts` — Zod schemas for create/replace/patch bodies and list-query params.
+
+Deliberate RFC 7644 deviations (kept narrow until a real IdP customer asks):
+- **PATCH** supports only `op: "replace"` on `active`, `name.givenName`, `name.familyName`, and the primary email's `value`. Anything else returns 400 with `scimType: invalidPath`. Okta and Azure AD both send `replace` for these fields.
+- **`filter` query param** supports only `userName eq "value"`. Anything else returns 400 with `scimType: invalidFilter`.
+- **DELETE** is a soft-delete (`isActive=false`) and idempotent. There is no hard-delete path; deactivated users may still own FK-referenced rows (deals, leads, tasks).
+- **Provisioned users** default to `role=VIEWER` (least privilege) with a sentinel `passwordHash` that can never satisfy bcrypt.compare — login by password is impossible, login by SSO is the intended path.
+
+Out of scope for PR1: Groups (B3-PR2), bearer-token auth (B3-PR3), audit logging integration (B3-PR3), and the `ServiceProviderConfig` / `ResourceTypes` / `Schemas` meta endpoints (B3-PR4).
+
 ### Error shape
 
 All errors flow through `common/filters/all-exceptions.filter.ts` and produce:
