@@ -634,3 +634,37 @@ Every repeated mistake or non-obvious project-specific trap must be documented h
   - **Dockerfiles for api/web** include placeholder build fallbacks (`|| true`, `|| echo …`) so `docker compose build` works even before real source exists. Remove these fallbacks once Sprint 1 lands real `main.ts` / `vite build` outputs — otherwise build failures will be silently masked.
   - **Compose env file:** must be invoked as `docker compose -f infra/docker-compose.yml --env-file .env up` from the repo root, OR via `pnpm docker:up` (which currently does NOT pass `--env-file`; defaults in compose cover dev). When real secrets land, switch the npm script to pass `--env-file ../.env` explicitly.
   - **`prisma generate` in API Dockerfile** is wrapped in `|| true` because the schema has no models in S0. Remove the `|| true` once Sprint 1 adds the first model.
+
+### 2026-05-15 — D-batch session — lessons from 4-PR-wide parallel agent pipeline
+- **Sprint / area:** Launch-blocker D-batch (test coverage + backup + observability + GDPR + VPS deploy + B-epic foundations)
+- **Symptom:** A 4-agent parallel implementation pipeline shipped ~18 commits in one session. Two real bugs slipped past Layer-1 coding agents and Layer-2 reviewers, caught only by Layer-3 cross-cutting audit:
+  - `c357962` (B2-PR1 WebAuthn) used `@Inject(WEBAUTHN_ENV) env?: Env` without `@Optional()`. Nest does NOT silently provide `undefined` for unregistered tokens — it throws "Can't resolve dependencies" at module bootstrap. Unit specs masked this because they always provided the token explicitly; only e2e bootstrap exposed it. Fixed in `b908e40`.
+  - `5278c8e` (D2-PR1 backup) Dockerfile installed crontab at `/etc/crontabs/root` and ran `crond -f -d 8` without `-c`. BusyBox crond on Alpine 3.20 reads from `/var/spool/cron/crontabs/<user>` by default — the job would have silently never fired. Fixed in `e639acc` by installing in BOTH locations + explicit `-c /etc/crontabs`.
+  - `2052803` (D2-PR2 metrics) registered `auth_login_total` counter but `AuthService` never called `recordAuthLogin()`. Dead metric. Fixed in `e639acc` by wiring 5 call-sites.
+- **Root cause:** Layer-1 coding agents optimise for "compiles + spec passes". Unit specs that mock the failing dependency mask runtime bootstrap failures. BusyBox-style daemon defaults vary between docs and binaries. Defined-but-not-emitted metrics look correct in code review.
+- **Fix:** **Layer-2 verification with independent execution** (not just code review) caught all three. Specifically:
+  - Run the actual e2e suite or at least `nest start --bootstrap-only` to catch DI failures.
+  - Boot the actual container to confirm cron fires once at a 1-min test interval.
+  - Diff the metric registration list against the call-site list to catch dead metrics.
+- **Lesson:** Multi-agent code production needs a third layer of **runtime verification**, not just static review. `tsc + lint + unit specs passing` is necessary but not sufficient. Most expensive bugs in this session were dynamic (DI, cron defaults, missing call-site) — caught only by Layer-3 cross-cutting audit that grep'd for call-sites of newly-defined metrics, ran the actual e2e suite, and inspected daemon defaults. Pipeline now hardened: every multi-agent batch should end with a Layer-3 audit that runs ≥1 dynamic check (e2e bootstrap, container start, scrape).
+
+### 2026-05-15 — Prometheus provider tokens are NOT global even when the wrapping module is @Global
+- **Sprint / area:** D-batch / metrics observability
+- **Symptom:** `Nest can't resolve dependencies of the BackupHealthService (?). Please make sure that the argument "PROM_METRIC_BACKUP_LAST_SUCCESS_TIMESTAMP_SECONDS" at index [0] is available in the HealthModule module.` Despite `MetricsModule` being `@Global()`.
+- **Root cause:** `@Global()` only re-exports what's listed in the module's `exports` array. Provider objects with string tokens (like those from `@willsoto/nestjs-prometheus`'s `makeCounterProvider` / `makeGaugeProvider`) need to be explicitly in `exports` to cross module boundaries — even if their wrapping module is global.
+- **Fix:** Extract metric providers into a `metricProviders` array, spread it into BOTH `providers` AND `exports`. Nest accepts Provider objects in `exports` and extracts their tokens. Commit `97f2e1a`.
+- **Lesson:** `@Global()` is necessary but not sufficient for cross-module string-token providers. Always export them by reference. The default behaviour is confusing because class providers (like `BusinessMetricsService`) work either way — only string-tokens require explicit export.
+
+### 2026-05-15 — Railway was the wrong deploy target — VPS is canonical
+- **Sprint / area:** D3 deploy
+- **Symptom:** A whole set of `railway.toml` files + `RAILWAY_DEPLOY.md` + `check-railway-readiness.sh` landed in commit `6561bdd`, then got reverted 30 minutes later in `2c14ee1`.
+- **Root cause:** `CLAUDE.md` line 79 explicitly names "Docker compose · Caddy" as the canonical infra. `scripts/bootstrap-vps.sh` already did the entire deploy. I introduced Railway as a speculative target without checking what the user was actually using.
+- **Fix:** Reverted everything Railway-related (7 files deleted), pivoted D3 to **D3-VPS**: hardened `scripts/update-vps.sh` with pre-update backup + health check + auto-rollback (`ec0c1fc`), added `scripts/check-prod-env.sh` validator (`96e39ed`), wired Prometheus alerts (`3680f42`).
+- **Lesson:** Before introducing a new deploy target, grep the existing `infra/`, `scripts/`, and `CLAUDE.md` for the canonical one. The repo had already chosen its path; adding a parallel option created confusion, not options.
+
+### 2026-05-15 — Prisma `runWithTenant` generic typing is finicky — DON'T annotate `tx`
+- **Sprint / area:** B3-PR1 SCIM service implementation
+- **Symptom:** 14 TypeScript errors: `Type 'TransactionClient' is not assignable to type 'never'` and `Property 'user' does not exist on type 'never'`. Cut off a coding agent mid-implementation.
+- **Root cause:** Annotating the `tx` parameter explicitly (e.g. `(tx: PrismaClient) => ...`) fights the generic inference in `runWithTenant<T>(tenantId, fn)`. Type checker collapses to `never`.
+- **Fix:** Let TS infer `tx`. Pass an unannotated arrow function. The shape matches the Prisma transaction client automatically. Commit `89b42ca`.
+- **Lesson:** For generic functions where the type parameter is inferred from the body, never annotate the inferred parameter. If you need a return-type hint, annotate the OUTER call, not the inner callback.
