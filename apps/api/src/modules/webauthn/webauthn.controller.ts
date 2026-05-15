@@ -10,6 +10,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { z } from 'zod';
@@ -154,9 +155,18 @@ export class WebauthnController {
    * @Public() because at this point the user does NOT yet have a JWT;
    * this endpoint IS what produces one. Same threat model as /auth/login.
    */
+  // Same brute-force budget as /auth/login: 5 attempts / IP / 15min long
+  // window + 3 / IP / 1min short burst. Passkey login is rate-limited
+  // separately from password login because each path has its own attack
+  // surface (passkey enumeration via allowCredentials list, vs password
+  // guessing).
   @Post('authenticate/options')
   @Public()
   @HttpCode(200)
+  @Throttle({
+    default: { ttl: 900_000, limit: 5 },
+    'strict-auth': { ttl: 60_000, limit: 3 },
+  })
   async authenticateOptions(
     @Body(new ZodValidationPipe(AuthenticateOptionsSchema)) body: AuthenticateOptionsBody,
   ) {
@@ -172,6 +182,10 @@ export class WebauthnController {
   @Post('authenticate/verify')
   @Public()
   @HttpCode(200)
+  @Throttle({
+    default: { ttl: 900_000, limit: 5 },
+    'strict-auth': { ttl: 60_000, limit: 3 },
+  })
   async authenticateVerify(
     @Body(new ZodValidationPipe(VerifyAuthenticateSchema)) body: VerifyAuthenticateBody,
     @Req() req: Request,

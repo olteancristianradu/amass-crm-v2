@@ -312,7 +312,7 @@ function PaletteBody({
       }
     }
     return out;
-  }, [visibleNav, remote.data, intent.data, close, navigate]);
+  }, [visibleNav, remote.data, intent.data, close, navigate, query]);
 
   // Clamp highlighted index inline (avoids a setState-in-effect cascade).
   const highlighted = rows.length === 0 ? 0 : Math.min(highlightedRaw, rows.length - 1);
