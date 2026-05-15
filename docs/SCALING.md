@@ -247,26 +247,21 @@ PR (Agent B owns business metrics).
 
 ---
 
-## Production deploy (Railway)
+## Production deploy (VPS)
 
-Production deploys target [Railway](https://railway.com). The full
-step-by-step procedure — managed Postgres + Redis provisioning, MinIO
-replacement via Cloudflare R2, per-service env var wiring, custom domain
-setup, rollback, and cost expectations — lives in
-[`RAILWAY_DEPLOY.md`](./RAILWAY_DEPLOY.md).
-
-The Docker Compose stack in `infra/` remains **canonical** for local
-development and on-prem installs (single-VPS deploys via
-`scripts/bootstrap-vps.sh`). Railway is the SaaS deploy target only;
-nothing in the app code is Railway-specific. The same Dockerfiles power
-both paths.
+Production deploys target a single Ubuntu VPS running the full Docker
+Compose stack (`infra/docker-compose.yml` + `infra/docker-compose.prod.yml`)
+behind Caddy for TLS termination + reverse proxy. The first-time setup
+is automated by `scripts/bootstrap-vps.sh`; subsequent rolling updates
+use `scripts/update-vps.sh`.
 
 Pre-deploy sanity check:
 
 ```bash
-scripts/check-railway-readiness.sh
+scripts/check-prod-env.sh
 ```
 
-Lists the env vars Railway must have set per service and validates that
-each app's Dockerfile is in place. Exits non-zero with a checklist if
-anything is missing.
+This script validates the production `.env` against the prod-only checks
+in `apps/api/src/config/env.ts` (rejects default minioadmin creds,
+zero-byte ENCRYPTION_KEY, wildcard CORS, etc.) and reports the env vars
+that still need to be set.
