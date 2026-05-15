@@ -8,6 +8,46 @@ Last updated: 2026-04-29 · v1.0
 
 ---
 
+## Pre-deploy env check
+
+Run **before every production deploy** (rolling update or first-time bootstrap):
+
+```bash
+scripts/check-prod-env.sh --env-file=/opt/amass/.env
+```
+
+The script mirrors the Zod schema + `prodOnlyChecks` in
+[`apps/api/src/config/env.ts`](../apps/api/src/config/env.ts) — same rules
+that crash the API at startup if violated, but surfaced **before** the
+rollout begins so the operator can fix `.env` instead of debugging a
+half-deployed stack. Exits non-zero on any failure; warnings are advisory.
+
+What it validates (matches `env.ts` exactly):
+
+- **REQUIRED:** `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `ENCRYPTION_KEY`
+- **PRODUCTION-ONLY:** `NODE_ENV=production`; `AI_WORKER_SECRET` set; MinIO creds not `minioadmin`; `ENCRYPTION_KEY` not all-zeros; JWT secrets ≥32 chars; no `*` in `CORS_ALLOWED_ORIGINS`; `WEBHOOK_TRUSTED_HOSTS` empty; one of `METRICS_ALLOWED_IPS`/`METRICS_AUTH_TOKEN` set
+- **RECOMMENDED (warnings only):** `SENTRY_DSN`, `STRIPE_WEBHOOK_SECRET`, `SIEM_WEBHOOK_URL`
+
+### When it's safe to ignore warnings
+
+Warnings (`⚠`) never block; they're advisory:
+
+- **`SENTRY_DSN` unset** — fine on a first deploy or smoke environment;
+  wire Sentry before public launch.
+- **`STRIPE_WEBHOOK_SECRET` unset** — fine until billing (S51) is enabled.
+- **`SIEM_WEBHOOK_URL` unset** — fine if every tenant configures their own
+  per-tenant `tenant.siemWebhookUrl` (no central fallback needed).
+
+If the script reports `placeholder values` (e.g. `change-me`, `your-key-here`,
+`REPLACE_ME`), STOP — the env file is the template, not the real config.
+Regenerate secrets and re-run.
+
+If a new prod check is added to `env.ts` and this script doesn't catch it,
+**fix the script** — `env.ts` is the source of truth, but a startup-time
+crash is too late.
+
+---
+
 ## 1. Severity classification
 
 | Level | Definition | Response time | Notification |
