@@ -109,15 +109,29 @@ For now the processor runs in the API process. When we split to a separate worke
 
 ### Real-time sync (B1)
 
-Live data-sync over Socket.IO. **B1-PR1 lays the foundation only** — gateway + handshake + per-tenant rooms. Per-mutation publishers (PR3) and FE client (PR2) ship in follow-ups.
+Live data-sync over Socket.IO. **B1-PR1** ships gateway + handshake + per-tenant rooms; **B1-PR2** wires per-mutation publishers (deals/invoices/calls); **B1-PR3** ships the FE consumer documented below.
 
 | Piece | File | Role |
 |-|-|-|
 | `SyncGateway` | `apps/api/src/infra/ws/sync.gateway.ts` | Socket.IO namespace `/sync`. On connect: verifies JWT (handshake auth.token → `Authorization: Bearer` → `amass_at` cookie), joins `tenant:<tid>` room. Invalid/missing/expired token → `socket.disconnect()`, never throws. |
 | `SyncPublisherService` | `apps/api/src/infra/ws/sync-publisher.service.ts` | Thin facade feature modules inject. `publish(tenantId, event, payload)` delegates to `gateway.broadcast(...)`. Drops with a warn log if the Socket.IO server is null (boot race). |
 | `WsModule` | `apps/api/src/infra/ws/ws.module.ts` | Wires both gateways. Imports `JwtModule` lazily so env validation isn't forced at module-import time. Exports `SyncPublisherService` (the public surface). |
+| `SyncProvider` (FE) | `apps/web/src/features/sync/SyncProvider.tsx` | Mounted inside `<AppShell>`. Opens `io('/sync', { auth: { token } })` when authed, wires the event → React Query invalidation table. Returns `<>{children}</>` — no UI. Reconnect handled natively by socket.io (1-5s backoff). |
+| `useSyncStatus` (FE) | `apps/web/src/features/sync/useSyncStatus.ts` | `{ connected, lastEventAt }` view onto the `useSyncStore` (Zustand). Consumed by the topbar "Live" badge in AppShell. |
 
-**Isolation invariant**: `server.to('tenant:' + tenantId).emit(...)` confines every broadcast to one tenant's room. Tested explicitly in `sync.gateway.spec.ts` with two mock sockets in different rooms — a broadcast to tenant A must leave tenant B's inbox empty. This is the WS-layer twin of layers 1-3 in the multi-tenant defense-in-depth table above; if a publisher accidentally reads the wrong `tenantId`, this layer cannot save you, so per-mutation publishers (PR3) must source `tenantId` from `runWithTenant`'s context, not request payload.
+**Isolation invariant**: `server.to('tenant:' + tenantId).emit(...)` confines every broadcast to one tenant's room. Tested explicitly in `sync.gateway.spec.ts` with two mock sockets in different rooms — a broadcast to tenant A must leave tenant B's inbox empty. This is the WS-layer twin of layers 1-3 in the multi-tenant defense-in-depth table above; if a publisher accidentally reads the wrong `tenantId`, the layer cannot save you, so per-mutation publishers must source `tenantId` from `runWithTenant`'s context, not request payload.
+
+**FE event → query-key invalidation** (kept in lockstep with publishers):
+
+| Server event | Invalidated React Query key |
+|-|-|
+| `deal.moved` | `['deals']` |
+| `deal.won` | `['deals']` |
+| `deal.lost` | `['deals']` |
+| `invoice.status_changed` | `['invoices']` |
+| `call.completed` | `['calls']` |
+
+We invalidate rather than patch in place: cheapest correct behaviour, and the next refetch makes the server the canonical source-of-truth (no risk of skew between an optimistic local merge and the server projection). Optimistic deltas + presence land in B1-PR4; offline buffer in B1-PR5.
 
 Co-existing gateways:
 - `/sync` (this) — domain mutation events, broadcast-to-tenant.

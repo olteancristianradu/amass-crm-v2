@@ -61,6 +61,8 @@ import { Toaster } from '@/components/ui/Toaster';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { useReminderPoller } from '@/hooks/useReminderPoller';
 import { NotificationsBell } from './NotificationsBell';
+import { SyncProvider } from '@/features/sync/SyncProvider';
+import { useSyncStatus } from '@/features/sync/useSyncStatus';
 
 interface Props {
   children: React.ReactNode;
@@ -157,6 +159,7 @@ export function AppShell({ children }: Props): JSX.Element {
   const isAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
   return (
+    <SyncProvider>
     <div className="flex min-h-screen">
       {/* Skip-to-content for keyboard users (visible only when focused). */}
       <a
@@ -225,6 +228,7 @@ export function AppShell({ children }: Props): JSX.Element {
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <Toaster />
     </div>
+    </SyncProvider>
   );
 }
 
@@ -468,6 +472,7 @@ function Topbar({
         {/* Right cluster */}
         <ThemeToggle />
         <DensityToggle />
+        <LiveBadge />
         <NotificationsBell />
         <UserMenu user={user} onLogout={onLogout} />
       </div>
@@ -522,6 +527,34 @@ function DensityToggle(): JSX.Element {
     >
       <Minimize2 size={16} className={density === 'compact' ? 'text-foreground' : ''} />
     </button>
+  );
+}
+
+/**
+ * B1-PR3 — small connectivity indicator wired to the Socket.IO `/sync`
+ * connection. Green dot when the gateway has accepted the handshake;
+ * grey when reconnecting or unauthenticated. The tooltip is in Romanian
+ * to match the rest of the chrome.
+ */
+function LiveBadge(): JSX.Element {
+  const { connected } = useSyncStatus();
+  const label = connected ? 'Sincronizat live' : 'Reconectare...';
+  return (
+    <div
+      className="hidden h-8 items-center gap-1.5 rounded-md border border-border/70 bg-card/60 px-2 text-[11px] font-medium text-muted-foreground sm:inline-flex"
+      title={label}
+      aria-label={label}
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        className={cn(
+          'h-2 w-2 rounded-full transition-colors',
+          connected ? 'bg-emerald-500' : 'bg-muted-foreground/50',
+        )}
+      />
+      <span>Live</span>
+    </div>
   );
 }
 
