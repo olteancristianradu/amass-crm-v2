@@ -11,10 +11,10 @@ export const subscriptionsListTourSteps: TourStep[] = [
     side: 'left',
   },
   {
-    element: '[data-tour="subscriptions-by-plan"]',
+    element: '[data-tour="subscriptions-kpis"]',
     title: '2. Perioadă de facturare',
-    description: 'Grupare pe plan pentru a vedea volumul lunar al fiecărui produs SaaS.',
-    side: 'top',
+    description: 'Grupare pe plan disponibilă în secțiunea „Pe plan" — volumul lunar al fiecărui produs SaaS.',
+    side: 'bottom',
   },
   {
     element: '[data-tour="subscriptions-kpis"]',

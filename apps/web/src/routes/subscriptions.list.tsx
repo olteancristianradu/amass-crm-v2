@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 export const subscriptionsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -61,6 +62,7 @@ function NewSubForm({ onDone }: { onDone: () => void }): JSX.Element {
 }
 
 function SubscriptionsListPage(): JSX.Element {
+  useTour('subscriptions-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
 
@@ -85,10 +87,10 @@ function SubscriptionsListPage(): JSX.Element {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Abonamente Clienți (MRR)</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>{showForm ? 'Anulează' : '+ Abonament'}</Button>
+        <Button onClick={() => setShowForm((v) => !v)} data-tour="subscriptions-new-btn">{showForm ? 'Anulează' : '+ Abonament'}</Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-4" data-tour="subscriptions-kpis">
         <Card><CardHeader className="pb-1"><CardTitle className="text-sm text-muted-foreground">MRR</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold">{(snapshot?.mrr ?? 0).toLocaleString('ro-RO', { maximumFractionDigits: 0 })} {curr}</div></CardContent></Card>
         <Card><CardHeader className="pb-1"><CardTitle className="text-sm text-muted-foreground">ARR</CardTitle></CardHeader>
@@ -103,7 +105,7 @@ function SubscriptionsListPage(): JSX.Element {
       </div>
 
       {snapshot && snapshot.byPlan.length > 0 && (
-        <Card>
+        <Card data-tour="subscriptions-by-plan">
           <CardHeader><CardTitle className="text-lg">Pe plan</CardTitle></CardHeader>
           <CardContent className="grid gap-2 md:grid-cols-3">
             {snapshot.byPlan.map((p) => (

@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
+import { useTour } from '@/lib/tours/useTour';
 
 export const approvalsRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -34,6 +35,7 @@ const STATUS_TONES: Record<ApprovalStatus, StatusTone> = {
 };
 
 function ApprovalsListPage(): JSX.Element {
+  useTour('approvals-list');
   const [statusFilter, setStatusFilter] = useState<ApprovalStatus>('PENDING');
   const [decidingId, setDecidingId] = useState<string | null>(null);
 
@@ -48,7 +50,7 @@ function ApprovalsListPage(): JSX.Element {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Aprobări oferte</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2" data-tour="approvals-filters">
           {(['PENDING', 'APPROVED', 'REJECTED'] as ApprovalStatus[]).map((s) => (
             <button
               key={s}
@@ -86,7 +88,7 @@ function ApprovalsListPage(): JSX.Element {
           />
         </Card>
       ) : data && (
-        <Card>
+        <Card data-tour="approvals-table">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">

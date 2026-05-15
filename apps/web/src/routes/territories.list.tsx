@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 export const territoriesListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -19,6 +20,7 @@ export const territoriesListRoute = createRoute({
 });
 
 function TerritoriesPage(): JSX.Element {
+  useTour('territories-list');
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [counties, setCounties] = useState('');
@@ -60,7 +62,7 @@ function TerritoriesPage(): JSX.Element {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Teritorii</h1>
 
-      <Card>
+      <Card data-tour="territories-new">
         <CardHeader><CardTitle className="text-lg">Teritoriu nou</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={(e) => { e.preventDefault(); setError(null); createMut.mutate(); }} className="grid gap-3 md:grid-cols-2">
@@ -77,7 +79,7 @@ function TerritoriesPage(): JSX.Element {
 
       <QueryError isError={isError} error={queryError} label="Nu am putut încărca teritoriile." />
 
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="territories-list">
         {(territories ?? []).map((t) => (
           <Card key={t.id}>
             <CardHeader className="flex-row items-start justify-between">

@@ -216,6 +216,7 @@ function NewContractForm({ onDone }: { onDone: () => void }): JSX.Element {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ContractsListPage(): JSX.Element {
+  useTour('contracts-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [filterStatus, setFilterStatus] = useState<ContractStatus | ''>('');
@@ -247,14 +248,14 @@ export function ContractsListPage(): JSX.Element {
         title="Contracte"
         subtitle="Contracte active, expirate, terminate sau reînnoite. Atenție la cele care expiră în 30 de zile."
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)} data-tour="contracts-new-btn">
             <Plus size={14} className="mr-1.5" />
             {showForm ? 'Anulează' : 'Contract nou'}
           </Button>
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+      <div className="mb-5 grid gap-3 sm:grid-cols-3" data-tour="contracts-kpis">
         <KpiCard title="Contracte active" value={active.length} />
         <KpiCard
           title="Expiră în 30 zile"
@@ -296,7 +297,7 @@ export function ContractsListPage(): JSX.Element {
       )}
 
       {data && (
-        <ListSurface>
+        <ListSurface data-tour="contracts-table">
           {rows.length === 0 ? (
             <EmptyState
               icon={Files}

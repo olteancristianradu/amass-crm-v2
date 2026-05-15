@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   DRAFT: 'Schiță',
@@ -196,6 +197,7 @@ function NewOrderForm({ onDone }: { onDone: () => void }): JSX.Element {
 }
 
 export function OrdersListPage(): JSX.Element {
+  useTour('orders-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [filterStatus, setFilterStatus] = useState<OrderStatus | ''>('');
@@ -227,14 +229,14 @@ export function OrdersListPage(): JSX.Element {
         title="Comenzi"
         subtitle="Toate comenzile clienților — DRAFT, CONFIRMED, FULFILLED, CANCELLED."
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)} data-tour="orders-new-btn">
             <Plus size={14} className="mr-1.5" />
             {showForm ? 'Anulează' : 'Comandă nouă'}
           </Button>
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+      <div className="mb-5 grid gap-3 sm:grid-cols-3" data-tour="orders-kpis">
         <KpiCard title="Total comenzi" value={rows.length} />
         <KpiCard
           title="Confirmate / livrate"
@@ -275,7 +277,7 @@ export function OrdersListPage(): JSX.Element {
       )}
 
       {data && (
-        <ListSurface>
+        <ListSurface data-tour="orders-table">
           {rows.length === 0 ? (
             <EmptyState
               icon={ShoppingBag}

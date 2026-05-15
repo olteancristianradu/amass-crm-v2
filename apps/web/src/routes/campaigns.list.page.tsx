@@ -10,6 +10,7 @@ import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
+import { useTour } from '@/lib/tours/useTour';
 
 const STATUS_LABELS: Record<CampaignStatus, string> = {
   DRAFT: 'Schiță',
@@ -129,6 +130,7 @@ function NewCampaignForm({ onDone }: { onDone: () => void }): JSX.Element {
 }
 
 export function CampaignsListPage(): JSX.Element {
+  useTour('campaigns-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [filterStatus, setFilterStatus] = useState<CampaignStatus | ''>('');
@@ -160,13 +162,13 @@ export function CampaignsListPage(): JSX.Element {
         title="Campanii"
         subtitle="Campanii de marketing multi-canal și atribuire de revenue."
         actions={
-          <Button onClick={() => setShowForm((v) => !v)}>
+          <Button onClick={() => setShowForm((v) => !v)} data-tour="campaigns-new-btn">
             {showForm ? 'Anulează' : '+ Campanie nouă'}
           </Button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3" data-tour="campaigns-kpis">
         <Card>
           <CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold">{active}</div></CardContent>
@@ -206,7 +208,7 @@ export function CampaignsListPage(): JSX.Element {
           />
         </Card>
       ) : data && (
-        <Card>
+        <Card data-tour="campaigns-table">
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left">

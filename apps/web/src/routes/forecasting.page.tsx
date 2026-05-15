@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 
 const MONTHS = [
@@ -140,6 +141,7 @@ function SetQuotaForm({ onDone }: { onDone: () => void }): JSX.Element {
 }
 
 export function ForecastingPage(): JSX.Element {
+  useTour('forecasting');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [period, setPeriod] = useState(now.getMonth() + 1);
@@ -158,7 +160,7 @@ export function ForecastingPage(): JSX.Element {
         title="Prognoze vânzări"
         subtitle="Target-uri și progresul echipei pe lună/an."
         actions={
-          <>
+          <span className="flex items-center gap-2" data-tour="forecasting-period">
             <select
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
@@ -177,10 +179,10 @@ export function ForecastingPage(): JSX.Element {
                 <option key={i + 1} value={i + 1}>{m}</option>
               ))}
             </select>
-            <Button variant="outline" size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Button variant="outline" size="sm" onClick={() => setShowForm((v) => !v)} data-tour="forecasting-quota-btn">
               {showForm ? 'Anulează' : 'Setează target'}
             </Button>
-          </>
+          </span>
         }
       />
 
@@ -203,7 +205,7 @@ export function ForecastingPage(): JSX.Element {
       {data && (
         <>
           {/* KPI cards */}
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-3" data-tour="forecasting-kpis">
             <KpiCard
               title="Pipeline total (ponderat)"
               value={data.pipeline ?? 0}

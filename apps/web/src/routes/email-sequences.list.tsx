@@ -13,6 +13,7 @@ import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 export const emailSequencesRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -21,6 +22,7 @@ export const emailSequencesRoute = createRoute({
 });
 
 function EmailSequencesPage(): JSX.Element {
+  useTour('email-sequences');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
@@ -60,7 +62,7 @@ function EmailSequencesPage(): JSX.Element {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Secvențe email</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>
+        <Button onClick={() => setShowForm((v) => !v)} data-tour="sequences-new-btn">
           {showForm ? 'Anulează' : '+ Secvență nouă'}
         </Button>
       </div>
@@ -70,7 +72,7 @@ function EmailSequencesPage(): JSX.Element {
       {isLoading && <ListSkeleton rows={5} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca secvențele de email." />
 
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="sequences-list">
         {(sequences as EmailSequence[]).map((seq) => (
           <Card key={seq.id}>
             <CardContent className="py-4">

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 export const commissionsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -19,6 +20,7 @@ export const commissionsListRoute = createRoute({
 });
 
 function CommissionsPage(): JSX.Element {
+  useTour('commissions-list');
   const qc = useQueryClient();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -60,7 +62,7 @@ function CommissionsPage(): JSX.Element {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Comisioane Vânzări</h1>
 
-      <Card>
+      <Card data-tour="commissions-plans">
         <CardHeader><CardTitle className="text-lg">Planuri comision</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
@@ -85,7 +87,7 @@ function CommissionsPage(): JSX.Element {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="commissions-compute">
         <CardHeader><CardTitle className="text-lg">Calcul lunar</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-end gap-2">
@@ -108,7 +110,7 @@ function CommissionsPage(): JSX.Element {
 
       <QueryError isError={isError} error={queryError} label="Nu am putut încărca comisioanele." />
 
-      <Card>
+      <Card data-tour="commissions-results">
         <CardHeader><CardTitle className="text-lg">Rezultate {year}/{String(month).padStart(2, '0')}</CardTitle></CardHeader>
         {(commissions ?? []).length === 0 ? (
           <EmptyState

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ const TRIGGER_LABELS: Record<WorkflowTrigger, string> = {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function WorkflowsPage(): JSX.Element {
+  useTour('workflows-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
@@ -104,7 +106,7 @@ export function WorkflowsPage(): JSX.Element {
       <PageHeader
         title="Workflows"
         subtitle="Automatizări pe trigger-e (deal creat, contact actualizat etc.)."
-        actions={<Button onClick={() => setShowForm(true)}>+ Workflow nou</Button>}
+        actions={<Button onClick={() => setShowForm(true)} data-tour="workflows-new-btn">+ Workflow nou</Button>}
       />
 
       {isLoading && <ListSkeleton rows={5} />}
@@ -120,7 +122,7 @@ export function WorkflowsPage(): JSX.Element {
         </Card>
       )}
 
-      <div className="grid gap-4">
+      <div className="grid gap-4" data-tour="workflows-list">
         {workflows.map((wf) => (
           <Card key={wf.id} className={wf.isActive ? '' : 'opacity-60'}>
             <CardHeader className="pb-2">

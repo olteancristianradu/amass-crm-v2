@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 export const casesListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -161,6 +162,7 @@ function NewCaseForm({ onDone }: { onDone: () => void }): JSX.Element {
 }
 
 function CasesListPage(): JSX.Element {
+  useTour('cases-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [filterStatus, setFilterStatus] = useState<CaseStatus | ''>('');
@@ -198,14 +200,14 @@ function CasesListPage(): JSX.Element {
         title="Tichete suport"
         subtitle="Cereri și incidente raportate de clienți. Atenție la SLA-urile depășite."
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)} data-tour="cases-new-btn">
             <Plus size={14} className="mr-1.5" />
             {showForm ? 'Anulează' : 'Tichet nou'}
           </Button>
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+      <div className="mb-5 grid gap-3 sm:grid-cols-3" data-tour="cases-kpis">
         <KpiCard title="Tichete deschise" value={open.length} />
         <KpiCard title="SLA depășit" value={breached} highlight={breached > 0} />
         <KpiCard title="Urgente" value={urgent} />
@@ -213,7 +215,7 @@ function CasesListPage(): JSX.Element {
 
       {showForm && <NewCaseForm onDone={() => setShowForm(false)} />}
 
-      <Toolbar>
+      <Toolbar data-tour="cases-filters">
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value as CaseStatus | '')}
@@ -252,7 +254,7 @@ function CasesListPage(): JSX.Element {
       )}
 
       {data && (
-        <ListSurface>
+        <ListSurface data-tour="cases-table">
           {rows.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
