@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/page-header';
+import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -101,10 +101,11 @@ export function WorkflowsPage(): JSX.Element {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Automatizări (Workflows)</h1>
-        <Button onClick={() => setShowForm(true)}>+ Workflow nou</Button>
-      </div>
+      <PageHeader
+        title="Workflows"
+        subtitle="Automatizări pe trigger-e (deal creat, contact actualizat etc.)."
+        actions={<Button onClick={() => setShowForm(true)}>+ Workflow nou</Button>}
+      />
 
       {isLoading && <ListSkeleton rows={5} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca workflow-urile." />

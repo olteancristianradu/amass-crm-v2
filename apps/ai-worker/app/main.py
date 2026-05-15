@@ -51,7 +51,15 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
             "placeholder transcript. Set WHISPER_MODEL=base/medium/large to enable.",
         )
     try:
-        import presidio_analyzer  # type: ignore  # noqa: F401
+        from .redaction import PRESIDIO_READY  # type: ignore
+        if PRESIDIO_READY:
+            logger.info("Presidio PII redaction active (RO + EN)")
+        else:
+            logger.warning(
+                "[STUB-MODE] Presidio import succeeded but engine init failed — "
+                "falling back to regex stub (CNP/phone/email/card only). "
+                "Check spaCy model availability (ro_core_news_sm, en_core_web_sm).",
+            )
     except ImportError:
         logger.warning(
             "[STUB-MODE] Presidio PII redaction is NOT installed — falling back "
@@ -73,8 +81,9 @@ app = FastAPI(title="amass-ai-worker", version="0.13.0", lifespan=lifespan)
 @app.get("/health")
 def health() -> dict[str, Any]:
     try:
-        import presidio_analyzer  # type: ignore  # noqa: F401
-        presidio_available = True
+        # Reflect actual engine readiness, not just import success — the spaCy
+        # models may be missing even when the package is installed.
+        from .redaction import PRESIDIO_READY as presidio_available  # type: ignore
     except ImportError:
         presidio_available = False
 

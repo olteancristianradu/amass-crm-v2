@@ -22,6 +22,13 @@ COPY apps/ai-worker/requirements.txt .
 RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu \
  && pip install --no-cache-dir -r requirements.txt
 
+# Presidio uses spaCy under the hood for NER-based PII detection.
+# Download Romanian + English models (~13MB each). Required for redaction.py
+# to enter the real Presidio path; without these spaCy models the import
+# succeeds but AnalyzerEngine.analyze(language="ro") will raise.
+RUN python -m spacy download ro_core_news_sm \
+ && python -m spacy download en_core_web_sm
+
 COPY apps/ai-worker/app ./app
 
 # Non-root user — python image has no default unprivileged user, create one.

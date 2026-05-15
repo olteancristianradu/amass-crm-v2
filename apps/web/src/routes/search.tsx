@@ -5,6 +5,7 @@ import { authedRoute } from './authed';
 import { searchApi } from '@/features/search/api';
 import type { SearchResult } from '@/lib/types';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
+import { PageHeader } from '@/components/ui/page-header';
 
 const searchParamsSchema = z.object({
   q: z.string().default(''),
@@ -43,7 +44,10 @@ function SearchPage(): JSX.Element {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <h1 className="text-xl font-semibold">Rezultate pentru „{q}"</h1>
+      <PageHeader
+        title="Căutare globală"
+        subtitle={q ? `Rezultate pentru „${q}"` : undefined}
+      />
 
       {isLoading && <ListSkeleton rows={5} />}
 

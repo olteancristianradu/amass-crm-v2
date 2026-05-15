@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/page-header';
+import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
@@ -49,17 +49,20 @@ export function WhatsAppInboxPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">WhatsApp</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowConnectForm((v) => !v)}>
-            {showConnectForm ? 'Anulează' : '+ Conectează cont'}
-          </Button>
-          <Button onClick={() => setShowSendForm((v) => !v)}>
-            {showSendForm ? 'Anulează' : '+ Trimite mesaj'}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="WhatsApp"
+        subtitle="Conversații cu clienții pe WhatsApp Business."
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setShowConnectForm((v) => !v)}>
+              {showConnectForm ? 'Anulează' : '+ Conectează cont'}
+            </Button>
+            <Button onClick={() => setShowSendForm((v) => !v)}>
+              {showSendForm ? 'Anulează' : '+ Trimite mesaj'}
+            </Button>
+          </>
+        }
+      />
 
       {showConnectForm && <ConnectAccountForm onDone={() => setShowConnectForm(false)} />}
       {showSendForm && (

@@ -5,6 +5,7 @@ import { authedRoute } from './authed';
 import { notificationsApi, type Notification, type NotificationType } from '@/features/notifications/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { QueryError } from '@/components/ui/QueryError';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 
@@ -80,27 +81,30 @@ function NotificationsPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Notificări</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-md border p-1">
-            <TabButton active={filter === 'all'} onClick={() => setFilter('all')}>
-              Toate
-            </TabButton>
-            <TabButton active={filter === 'unread'} onClick={() => setFilter('unread')}>
-              Necitite{unreadCount > 0 ? ` (${unreadCount})` : ''}
-            </TabButton>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => markAllReadMut.mutate()}
-            disabled={markAllReadMut.isPending || unreadCount === 0}
-          >
-            Marchează toate citite
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Notificări"
+        subtitle="Alerte și mesaje."
+        actions={
+          <>
+            <div className="flex gap-1 rounded-md border p-1">
+              <TabButton active={filter === 'all'} onClick={() => setFilter('all')}>
+                Toate
+              </TabButton>
+              <TabButton active={filter === 'unread'} onClick={() => setFilter('unread')}>
+                Necitite{unreadCount > 0 ? ` (${unreadCount})` : ''}
+              </TabButton>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => markAllReadMut.mutate()}
+              disabled={markAllReadMut.isPending || unreadCount === 0}
+            >
+              Marchează toate citite
+            </Button>
+          </>
+        }
+      />
 
       {isLoading && <ListSkeleton rows={6} />}
       <QueryError isError={isError} error={error} label="Nu am putut încărca notificările." />

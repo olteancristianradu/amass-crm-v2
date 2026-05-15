@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { EmptyState } from '@/components/ui/page-header';
+import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
 
@@ -46,7 +46,10 @@ export function EventsPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Evenimente</h1>
+      <PageHeader
+        title="Evenimente"
+        subtitle="Webinare, conferințe și meetup-uri cu tracking participanți."
+      />
 
       <Card>
         <CardHeader><CardTitle className="text-lg">Eveniment nou</CardTitle></CardHeader>

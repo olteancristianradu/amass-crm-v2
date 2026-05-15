@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CardSkeleton } from '@/components/ui/Skeleton';
+import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses } from '@/lib/status-colors';
 import { useTour } from '@/lib/tours/useTour';
@@ -47,12 +48,15 @@ export function CalendarPage(): JSX.Element {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Calendar</h1>
-        <Button onClick={() => setShowEventForm((v) => !v)} data-tour="calendar-new-event">
-          {showEventForm ? 'Anulează' : '+ Eveniment nou'}
-        </Button>
-      </div>
+      <PageHeader
+        title="Calendar"
+        subtitle="Evenimente programate și integrare cu Google/Outlook."
+        actions={
+          <Button onClick={() => setShowEventForm((v) => !v)} data-tour="calendar-new-event">
+            {showEventForm ? 'Anulează' : '+ Eveniment nou'}
+          </Button>
+        }
+      />
 
       {showEventForm && (
         <NewEventForm

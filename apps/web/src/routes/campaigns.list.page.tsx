@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { EmptyState } from '@/components/ui/page-header';
+import { EmptyState, PageHeader } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
@@ -156,12 +156,15 @@ export function CampaignsListPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Campanii Marketing</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Anulează' : '+ Campanie nouă'}
-        </Button>
-      </div>
+      <PageHeader
+        title="Campanii"
+        subtitle="Campanii de marketing multi-canal și atribuire de revenue."
+        actions={
+          <Button onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Anulează' : '+ Campanie nouă'}
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

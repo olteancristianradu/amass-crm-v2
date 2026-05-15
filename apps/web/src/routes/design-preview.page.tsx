@@ -1,4 +1,5 @@
 import { GlassCard, GlassPill, StatusDot, type StatusTone } from '@/components/ui/glass-card';
+import { PageHeader } from '@/components/ui/page-header';
 import { useUiPreferencesStore } from '@/stores/ui-preferences';
 
 /**
@@ -14,15 +15,10 @@ import { useUiPreferencesStore } from '@/stores/ui-preferences';
 export function DesignPreview() {
   return (
     <div className="mx-auto max-w-6xl space-y-10 p-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Design system v2 — frosted glass</h1>
-        <p className="text-muted-foreground">
-          Reference page for the new tokens. Compare against the SugarCRM mockup the redesign
-          is based on. Open the dev tools and toggle{' '}
-          <code className="rounded bg-secondary px-1.5 py-0.5 text-xs">prefers-reduced-transparency</code>{' '}
-          to see the fallback for browsers without backdrop-filter.
-        </p>
-      </header>
+      <PageHeader
+        title="Preview design"
+        subtitle="Componente UI și tokens."
+      />
 
       <Section title="Surfaces">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { GlassCard } from '@/components/ui/glass-card';
+import { PageHeader } from '@/components/ui/page-header';
 
 export const settings2faRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -83,13 +84,10 @@ function Settings2faPage(): JSX.Element {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Autentificare în doi pași</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Adaugă un strat suplimentar de securitate la cont folosind o aplicație de autentificare
-          (Google Authenticator, Authy, 1Password).
-        </p>
-      </header>
+      <PageHeader
+        title="Autentificare în doi pași"
+        subtitle="Configurează 2FA pentru contul tău."
+      />
 
       <GlassCard className="p-6">
         {/* ── Status header ─────────────────────────────────────────── */}

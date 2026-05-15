@@ -5,6 +5,7 @@ import { companiesApi } from '@/features/companies/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton, ListSkeleton } from '@/components/ui/loading-skeleton';
+import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 
 export function DuplicatesPage(): JSX.Element {
@@ -87,9 +88,10 @@ export function DuplicatesPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Duplicate Companii</h1>
-      </div>
+      <PageHeader
+        title="Duplicate companii"
+        subtitle="Detectează și unifică înregistrările duplicate."
+      />
 
       <Card>
         <CardHeader>

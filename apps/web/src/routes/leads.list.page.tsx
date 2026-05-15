@@ -17,6 +17,7 @@ import {
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { InlineEditCell } from '@/components/ui/InlineEditCell';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -294,6 +295,7 @@ function NewLeadForm({ onDone }: { onDone: () => void }): JSX.Element {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function LeadsListPage(): JSX.Element {
+  useTour('leads-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [filterStatus, setFilterStatus] = useState<LeadStatus | ''>('');
@@ -335,14 +337,14 @@ export function LeadsListPage(): JSX.Element {
         title="Leads"
         subtitle="Lead-urile încă necalificate care încă nu au devenit contacte."
         actions={
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button size="sm" onClick={() => setShowForm((v) => !v)} data-tour="leads-new-btn">
             <Plus size={14} className="mr-1.5" />
             {showForm ? 'Anulează' : 'Lead nou'}
           </Button>
         }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-tour="leads-kpis">
         <KpiCard title="Total leads" value={totalLeads} />
         <KpiCard title="Noi azi" value={newToday} />
         <KpiCard title="Calificați" value={qualified} />
@@ -351,7 +353,7 @@ export function LeadsListPage(): JSX.Element {
 
       {showForm && <NewLeadForm onDone={() => setShowForm(false)} />}
 
-      <Toolbar>
+      <Toolbar data-tour="leads-filters">
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value as LeadStatus | '')}
@@ -391,7 +393,7 @@ export function LeadsListPage(): JSX.Element {
       )}
 
       {data && (
-        <ListSurface>
+        <ListSurface data-tour="leads-table">
           {rows.length === 0 ? (
             <EmptyState
               icon={Target}

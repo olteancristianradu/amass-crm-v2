@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
+import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { statusBadgeClasses, type StatusTone } from '@/lib/status-colors';
 
@@ -46,12 +47,15 @@ export function ExportsPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Exporturi</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Anulează' : '+ Export nou'}
-        </Button>
-      </div>
+      <PageHeader
+        title="Exporturi"
+        subtitle="Solicită fișiere CSV/Excel cu datele tale."
+        actions={
+          <Button onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Anulează' : '+ Export nou'}
+          </Button>
+        }
+      />
 
       {showForm && <RequestExportForm onDone={() => setShowForm(false)} />}
 

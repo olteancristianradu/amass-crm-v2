@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { QueryError } from '@/components/ui/QueryError';
 import { ListSkeleton, Skeleton } from '@/components/ui/loading-skeleton';
+import { PageHeader } from '@/components/ui/page-header';
 import { useTour } from '@/lib/tours/useTour';
 
 interface DealStats {
@@ -109,39 +110,40 @@ export function ReportsPage(): JSX.Element {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Rapoarte</h1>
-
-        {/* Period selector */}
-        <div className="flex items-center gap-2 flex-wrap" data-tour="reports-period">
-          {(['7d', '30d', '90d', '1y', 'custom'] as Period[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPeriod(p)}
-              className={`rounded px-3 py-1 text-sm font-medium ${
-                period === p
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/70'
-              }`}
-            >
-              {PERIOD_LABELS[p]}
-            </button>
-          ))}
-          {period === 'custom' && (
-            <div className="flex items-center gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">De la</Label>
-                <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-8 text-xs" />
+      <PageHeader
+        title="Rapoarte"
+        subtitle="KPI-uri, financiar, forecast și desfășurătorul de apeluri."
+        actions={
+          <div className="flex items-center gap-2 flex-wrap" data-tour="reports-period">
+            {(['7d', '30d', '90d', '1y', 'custom'] as Period[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriod(p)}
+                className={`rounded px-3 py-1 text-sm font-medium ${
+                  period === p
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                }`}
+              >
+                {PERIOD_LABELS[p]}
+              </button>
+            ))}
+            {period === 'custom' && (
+              <div className="flex items-center gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">De la</Label>
+                  <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-8 text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Până la</Label>
+                  <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-8 text-xs" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Până la</Label>
-                <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-8 text-xs" />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </div>
+        }
+      />
 
       {/* Tab navigation */}
       <div className="flex gap-1 border-b" data-tour="reports-tabs">

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/page-header';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { ApiError } from '@/lib/api';
+import { useTour } from '@/lib/tours/useTour';
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 

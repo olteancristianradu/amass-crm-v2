@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/ui/page-header';
 import { ListSkeleton } from '@/components/ui/loading-skeleton';
 import { ApiError } from '@/lib/api';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 export const contactSegmentsRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -58,6 +59,7 @@ function emptyRule(): RuleDraft {
 }
 
 function ContactSegmentsPage(): JSX.Element {
+  useTour('segments-list');
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [previewSegId, setPreviewSegId] = useState<string | null>(null);
@@ -76,7 +78,7 @@ function ContactSegmentsPage(): JSX.Element {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Segmente contacte</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>
+        <Button onClick={() => setShowForm((v) => !v)} data-tour="segments-new-btn">
           {showForm ? 'Anulează' : '+ Segment nou'}
         </Button>
       </div>
@@ -86,7 +88,7 @@ function ContactSegmentsPage(): JSX.Element {
       {isLoading && <p className="text-sm text-muted-foreground">Se încarcă…</p>}
       <QueryError isError={isError} error={error} label="Nu am putut încărca segmentele." />
 
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="segments-list">
         {(segments as ContactSegment[]).map((seg) => (
           <Card key={seg.id}>
             <CardContent className="py-4">

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 
 
@@ -153,33 +154,35 @@ export function ForecastingPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">Prognoze Vânzări</h1>
-        <div className="flex items-center gap-2">
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(Number(e.target.value))}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {MONTHS.map((m, i) => (
-              <option key={i + 1} value={i + 1}>{m}</option>
-            ))}
-          </select>
-          <Button variant="outline" size="sm" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Anulează' : 'Setează target'}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Prognoze vânzări"
+        subtitle="Target-uri și progresul echipei pe lună/an."
+        actions={
+          <>
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(Number(e.target.value))}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {MONTHS.map((m, i) => (
+                <option key={i + 1} value={i + 1}>{m}</option>
+              ))}
+            </select>
+            <Button variant="outline" size="sm" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? 'Anulează' : 'Setează target'}
+            </Button>
+          </>
+        }
+      />
 
       {showForm && <SetQuotaForm onDone={() => setShowForm(false)} />}
 

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/page-header';
 import type { Project, ProjectStatus } from '@/lib/types';
 import { QueryError } from '@/components/ui/QueryError';
+import { useTour } from '@/lib/tours/useTour';
 
 export const projectsListRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -26,6 +27,7 @@ export const projectsListRoute = createRoute({
 });
 
 function ProjectsListPage(): JSX.Element {
+  useTour('projects-list');
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const { data, isLoading, isError, error } = useQuery({
@@ -51,7 +53,7 @@ function ProjectsListPage(): JSX.Element {
         title="Proiecte"
         subtitle="Proiectele apar automat când un deal e marcat câștigat — sau le poți crea manual."
         actions={
-          <Button size="sm" onClick={() => setShowCreate(true)}>
+          <Button size="sm" onClick={() => setShowCreate(true)} data-tour="projects-new-btn">
             <Plus size={14} className="mr-1.5" />
             Proiect nou
           </Button>
@@ -73,7 +75,7 @@ function ProjectsListPage(): JSX.Element {
         </GlassCard>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="projects-list">
         {data?.data.map((p) =>
           editingId === p.id ? (
             <EditProjectCard key={p.id} project={p} onDone={() => setEditingId(null)} />

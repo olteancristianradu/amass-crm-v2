@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 
 
@@ -67,12 +68,15 @@ export function ReportBuilderPage(): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Report Builder</h1>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Anulează' : '+ Template nou'}
-        </Button>
-      </div>
+      <PageHeader
+        title="Constructor rapoarte"
+        subtitle="Construiește rapoarte custom."
+        actions={
+          <Button onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Anulează' : '+ Template nou'}
+          </Button>
+        }
+      />
 
       {showForm && <CreateTemplateForm onDone={() => setShowForm(false)} />}
 
