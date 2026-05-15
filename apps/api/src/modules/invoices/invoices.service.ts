@@ -16,6 +16,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
+import { SyncPublisherService } from '../../infra/ws/sync-publisher.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
@@ -45,7 +46,22 @@ export class InvoicesService {
     private readonly storage: StorageService,
     private readonly pdf: InvoicePdfService,
     private readonly metrics: BusinessMetricsService,
+    private readonly sync: SyncPublisherService,
   ) {}
+
+  /**
+   * B1-PR2 — Fire-and-forget WS broadcast. Wrap so a thrown publisher cannot
+   * bubble into the mutation path; the HTTP request must never stall on it.
+   */
+  private safePublish(tenantId: string, event: string, payload: unknown): void {
+    try {
+      this.sync.publish(tenantId, event, payload);
+    } catch (err) {
+      this.logger.warn(
+        `sync publish failed event=${event} tenant=${tenantId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   async create(dto: CreateInvoiceDto): Promise<InvoiceWithLines> {
     const ctx = requireTenantContext();
@@ -266,6 +282,12 @@ export class InvoicesService {
     // we instrument that separately so dashboards can distinguish "user
     // marked paid" from "system computed paid from a Payment row".
     this.metrics.recordInvoiceStatus(ctx.tenantId, dto.status);
+    // B1-PR2: WS broadcast — after the DB write, never await, never throw.
+    this.safePublish(ctx.tenantId, 'invoice.status_changed', {
+      invoiceId: id,
+      fromStatus: existing.status,
+      toStatus: dto.status,
+    });
     return updated;
   }
 

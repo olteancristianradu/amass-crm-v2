@@ -68,8 +68,11 @@ function build(opts: { signatureValid?: boolean } = {}) {
   const metrics = {
     recordCallCompleted: vi.fn(),
   } as unknown as ConstructorParameters<typeof CallsService>[6];
-  const svc = new CallsService(prisma, twilio, activities, subjects, redis, aiQueue, metrics);
-  return { svc, prisma, prismaPhone, prismaCall, tx, twilio, activities, subjects, redis, redisStore, aiQueue, metrics };
+  const sync = {
+    publish: vi.fn(),
+  } as unknown as ConstructorParameters<typeof CallsService>[7];
+  const svc = new CallsService(prisma, twilio, activities, subjects, redis, aiQueue, metrics, sync);
+  return { svc, prisma, prismaPhone, prismaCall, tx, twilio, activities, subjects, redis, redisStore, aiQueue, metrics, sync };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -378,6 +381,52 @@ describe('CallsService.handleStatusWebhook', () => {
     );
     const update = h.tx.call.update.mock.calls[0]![0] as { data: { twilioCallSid?: string } };
     expect(update.data.twilioCallSid).toBeUndefined();
+  });
+
+  // ─── B1-PR2: sync broadcast on COMPLETED ──────────────────────────────
+
+  it('B1-PR2: emits call.completed (with duration) on COMPLETED status', async () => {
+    const h = build();
+    h.prismaCall.findFirst.mockResolvedValue({
+      id: 'call-1', tenantId: 'tenant-9', subjectType: 'CONTACT', subjectId: 'c-1',
+      direction: 'OUTBOUND', startedAt: new Date(), answeredAt: null, endedAt: null, twilioCallSid: null,
+    } as never);
+    await h.svc.handleStatusWebhook(
+      { CallStatus: 'completed', CallSid: 'CA-done', CallDuration: '73' }, 'sig', '/w', 'call-1',
+    );
+    expect(h.sync.publish).toHaveBeenCalledWith(
+      'tenant-9',
+      'call.completed',
+      expect.objectContaining({ callId: 'call-1', duration: 73 }),
+    );
+  });
+
+  it('B1-PR2: does NOT emit call.completed on non-terminal statuses', async () => {
+    const h = build();
+    h.prismaCall.findFirst.mockResolvedValue({
+      id: 'call-1', tenantId: 'tenant-1', subjectType: 'CONTACT', subjectId: 'c-1',
+      direction: 'OUTBOUND', startedAt: new Date(), answeredAt: null, endedAt: null, twilioCallSid: null,
+    } as never);
+    await h.svc.handleStatusWebhook(
+      { CallStatus: 'in-progress', CallSid: 'CA-mid' }, 'sig', '/w', 'call-1',
+    );
+    expect(h.sync.publish).not.toHaveBeenCalled();
+  });
+
+  it('B1-PR2: publisher failure does NOT throw — webhook resolves normally', async () => {
+    const h = build();
+    h.prismaCall.findFirst.mockResolvedValue({
+      id: 'call-1', tenantId: 'tenant-1', subjectType: 'CONTACT', subjectId: 'c-1',
+      direction: 'OUTBOUND', startedAt: new Date(), answeredAt: null, endedAt: null, twilioCallSid: null,
+    } as never);
+    vi.mocked(h.sync.publish).mockImplementationOnce(() => {
+      throw new Error('ws crashed');
+    });
+    await expect(
+      h.svc.handleStatusWebhook(
+        { CallStatus: 'completed', CallSid: 'CA-x', CallDuration: '10' }, 'sig', '/w', 'call-1',
+      ),
+    ).resolves.toBeUndefined();
   });
 });
 

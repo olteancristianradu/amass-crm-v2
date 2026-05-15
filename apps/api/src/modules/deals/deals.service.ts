@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
+import { SyncPublisherService } from '../../infra/ws/sync-publisher.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { PipelinesService } from '../pipelines/pipelines.service';
@@ -52,7 +53,24 @@ export class DealsService {
     private readonly workflows: WorkflowsService,
     private readonly projects: ProjectsService,
     private readonly metrics: BusinessMetricsService,
+    private readonly sync: SyncPublisherService,
   ) {}
+
+  /**
+   * B1-PR2 — Fire-and-forget WS broadcast. Wrap every call in try/catch so a
+   * thrown publisher (gateway not booted, malformed payload, anything) can
+   * never bubble into the mutation path. We deliberately do NOT await: the
+   * broadcast is best-effort and the HTTP request must not stall on it.
+   */
+  private safePublish(tenantId: string, event: string, payload: unknown): void {
+    try {
+      this.sync.publish(tenantId, event, payload);
+    } catch (err) {
+      this.logger.warn(
+        `sync publish failed event=${event} tenant=${tenantId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   async create(dto: CreateDealDto): Promise<Deal> {
     const ctx = requireTenantContext();
@@ -267,6 +285,29 @@ export class DealsService {
     // doesn't pollute won/lost dashboards because OPEN→OPEN is its own
     // label bucket).
     this.metrics.recordDealStatusChange(ctx.tenantId, existing.status, newStatus);
+    // B1-PR2: WS broadcasts — always emit deal.moved (every move, including
+    // same-stage DnD reorders). Additionally emit deal.won / deal.lost when
+    // the move crosses into a closed bucket so the FE can show a toast +
+    // re-invalidate the forecast/reports queries that don't subscribe to
+    // every move.
+    this.safePublish(ctx.tenantId, 'deal.moved', {
+      dealId: updated.id,
+      fromStageId: existing.stageId,
+      toStageId: dto.stageId,
+      dealStatus: newStatus,
+    });
+    if (targetStage.type === 'WON' && existing.status !== 'WON') {
+      this.safePublish(ctx.tenantId, 'deal.won', {
+        dealId: updated.id,
+        amount: updated.value ? updated.value.toString() : null,
+        currency: updated.currency,
+      });
+    } else if (targetStage.type === 'LOST' && existing.status !== 'LOST') {
+      this.safePublish(ctx.tenantId, 'deal.lost', {
+        dealId: updated.id,
+        lostReason: dto.lostReason ?? null,
+      });
+    }
     if (existing.companyId) {
       await this.activities.log({
         subjectType: 'COMPANY',

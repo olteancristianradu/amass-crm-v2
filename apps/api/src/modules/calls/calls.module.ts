@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { WsModule } from '../../infra/ws/ws.module';
 import { AuthModule } from '../auth/auth.module';
 import { CallsController } from './calls.controller';
 import { CallsService } from './calls.service';
@@ -19,9 +20,10 @@ import { TwilioClient } from './twilio.client';
  *   - QueueModule (global)    — BullMQ 'ai-calls' queue
  *   - ActivitiesModule (global) — timeline logging
  *   - AuditModule (global)    — audit log
+ *   - WsModule                 — SyncPublisherService for call.completed (B1-PR2)
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, WsModule],
   controllers: [CallsController, CallsWebhookController, PhoneNumbersController],
   providers: [CallsService, PhoneNumbersService, TwilioClient],
   exports: [CallsService],

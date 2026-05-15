@@ -13,6 +13,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { RedisService } from '../../infra/redis/redis.service';
 import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
+import { SyncPublisherService } from '../../infra/ws/sync-publisher.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { SubjectResolver } from '../activities/subject-resolver';
 import { TwilioClient } from './twilio.client';
@@ -39,7 +40,22 @@ export class CallsService {
     private readonly redis: RedisService,
     @InjectQueue(QUEUE_AI_CALLS) private readonly aiQueue: Queue,
     private readonly metrics: BusinessMetricsService,
+    private readonly sync: SyncPublisherService,
   ) {}
+
+  /**
+   * B1-PR2 — Fire-and-forget WS broadcast. Wrap so a thrown publisher cannot
+   * bubble into a Twilio webhook handler (would cause Twilio to retry).
+   */
+  private safePublish(tenantId: string, event: string, payload: unknown): void {
+    try {
+      this.sync.publish(tenantId, event, payload);
+    } catch (err) {
+      this.logger.warn(
+        `sync publish failed event=${event} tenant=${tenantId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
 
   // ─── Outbound call initiation ────────────────────────────────────
 
@@ -317,6 +333,12 @@ export class CallsService {
       // call that "missed" for funnel reporting, distinct from "answered".
       const outcome = durationSec && durationSec > 0 ? 'answered' : 'missed';
       this.metrics.recordCallCompleted(existing.tenantId, existing.direction, outcome);
+      // B1-PR2: WS broadcast — tenantId from the Call row, not ALS (this
+      // path runs from a Twilio webhook outside the tenant context).
+      this.safePublish(existing.tenantId, 'call.completed', {
+        callId,
+        duration: durationSec ?? null,
+      });
     }
 
     this.logger.log(`Call ${callId} status → ${ourStatus}`);

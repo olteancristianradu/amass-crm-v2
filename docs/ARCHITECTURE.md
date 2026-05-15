@@ -119,7 +119,22 @@ Live data-sync over Socket.IO. **B1-PR1** ships gateway + handshake + per-tenant
 | `SyncProvider` (FE) | `apps/web/src/features/sync/SyncProvider.tsx` | Mounted inside `<AppShell>`. Opens `io('/sync', { auth: { token } })` when authed, wires the event → React Query invalidation table. Returns `<>{children}</>` — no UI. Reconnect handled natively by socket.io (1-5s backoff). |
 | `useSyncStatus` (FE) | `apps/web/src/features/sync/useSyncStatus.ts` | `{ connected, lastEventAt }` view onto the `useSyncStore` (Zustand). Consumed by the topbar "Live" badge in AppShell. |
 
-**Isolation invariant**: `server.to('tenant:' + tenantId).emit(...)` confines every broadcast to one tenant's room. Tested explicitly in `sync.gateway.spec.ts` with two mock sockets in different rooms — a broadcast to tenant A must leave tenant B's inbox empty. This is the WS-layer twin of layers 1-3 in the multi-tenant defense-in-depth table above; if a publisher accidentally reads the wrong `tenantId`, the layer cannot save you, so per-mutation publishers must source `tenantId` from `runWithTenant`'s context, not request payload.
+**Isolation invariant**: `server.to('tenant:' + tenantId).emit(...)` confines every broadcast to one tenant's room. Tested explicitly in `sync.gateway.spec.ts` with two mock sockets in different rooms — a broadcast to tenant A must leave tenant B's inbox empty. This is the WS-layer twin of layers 1-3 in the multi-tenant defense-in-depth table above; if a publisher accidentally reads the wrong `tenantId`, the layer cannot save you, so per-mutation publishers must source `tenantId` from `runWithTenant`'s context (or the entity's own `tenantId` field for webhook-driven paths like Twilio status callbacks), not request payload.
+
+**Publisher contract (B1-PR2)**:
+- Emit **after** the DB write succeeds — no premature broadcasts.
+- **Fire-and-forget**: never `await` the publisher; wrap in a per-service `safePublish()` helper so a thrown publisher (gateway not booted, broken payload, anything) degrades to a warn log and cannot bubble into the mutation path or stall the HTTP request.
+- Payloads stay small — just enough for the FE to invalidate React Query keys. Full entities re-fetch on demand.
+
+**Event catalog** (server-side, B1-PR2):
+
+| Event | Emitted from | Payload | When |
+|-|-|-|-|
+| `deal.moved` | `DealsService.move` | `{ dealId, fromStageId, toStageId, dealStatus }` | Every kanban move (same-stage DnD reorders included) |
+| `deal.won` | `DealsService.move` | `{ dealId, amount, currency }` | Move crosses into a `WON` stage from a non-WON state |
+| `deal.lost` | `DealsService.move` | `{ dealId, lostReason }` | Move crosses into a `LOST` stage from a non-LOST state |
+| `invoice.status_changed` | `InvoicesService.changeStatus` | `{ invoiceId, fromStatus, toStatus }` | Every user-initiated status transition (payment-driven recompute is a separate path, not yet broadcast) |
+| `call.completed` | `CallsService.handleStatusWebhook` | `{ callId, duration }` | Twilio status webhook lands on `COMPLETED` |
 
 **FE event → query-key invalidation** (kept in lockstep with publishers):
 

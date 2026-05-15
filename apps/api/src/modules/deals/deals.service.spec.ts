@@ -77,8 +77,11 @@ function build() {
   const metrics = {
     recordDealStatusChange: vi.fn(),
   } as unknown as ConstructorParameters<typeof DealsService>[6];
-  const svc = new DealsService(prisma, audit, activities, pipelines, workflows, projects, metrics);
-  return { svc, prisma, tx, audit, activities, pipelines, workflows, projects, metrics };
+  const sync = {
+    publish: vi.fn(),
+  } as unknown as ConstructorParameters<typeof DealsService>[7];
+  const svc = new DealsService(prisma, audit, activities, pipelines, workflows, projects, metrics, sync);
+  return { svc, prisma, tx, audit, activities, pipelines, workflows, projects, metrics, sync };
 }
 
 describe('DealsService.create', () => {
@@ -402,6 +405,75 @@ describe('DealsService.move', () => {
     expect(h.activities.log).toHaveBeenCalledWith(
       expect.objectContaining({ subjectType: 'COMPANY', action: 'deal.won' }),
     );
+  });
+
+  // ─── B1-PR2: sync broadcast ───────────────────────────────────────────
+
+  it('B1-PR2: emits deal.moved on every move (OPEN→OPEN included)', async () => {
+    const h = build();
+    h.tx.deal.findFirst.mockResolvedValue(makeDeal({ stageId: 'stage-1' }));
+    vi.mocked(h.pipelines.findStage).mockResolvedValue(makeStage('OPEN', 'stage-2'));
+    h.tx.deal.update.mockResolvedValue(makeDeal({ stageId: 'stage-2' }));
+    await h.svc.move('deal-1', { stageId: 'stage-2' } as never);
+    expect(h.sync.publish).toHaveBeenCalledWith(
+      'tenant-1',
+      'deal.moved',
+      expect.objectContaining({
+        dealId: 'deal-1',
+        fromStageId: 'stage-1',
+        toStageId: 'stage-2',
+        dealStatus: 'OPEN',
+      }),
+    );
+  });
+
+  it('B1-PR2: emits deal.won (with amount + currency) when moving into a WON stage', async () => {
+    const h = build();
+    h.tx.deal.findFirst.mockResolvedValue(makeDeal({ status: 'OPEN', currency: 'RON' }));
+    vi.mocked(h.pipelines.findStage).mockResolvedValue(makeStage('WON', 'stage-won'));
+    h.tx.deal.update.mockResolvedValue(makeDeal({ status: 'WON', value: new Prisma.Decimal(1500), currency: 'RON' }));
+    await h.svc.move('deal-1', { stageId: 'stage-won' } as never);
+    expect(h.sync.publish).toHaveBeenCalledWith(
+      'tenant-1',
+      'deal.won',
+      expect.objectContaining({ dealId: 'deal-1', amount: '1500', currency: 'RON' }),
+    );
+  });
+
+  it('B1-PR2: emits deal.lost (with lostReason) when moving into a LOST stage', async () => {
+    const h = build();
+    h.tx.deal.findFirst.mockResolvedValue(makeDeal({ status: 'OPEN' }));
+    vi.mocked(h.pipelines.findStage).mockResolvedValue(makeStage('LOST', 'stage-lost'));
+    h.tx.deal.update.mockResolvedValue(makeDeal({ status: 'LOST', lostReason: 'undercut' }));
+    await h.svc.move('deal-1', { stageId: 'stage-lost', lostReason: 'undercut' } as never);
+    expect(h.sync.publish).toHaveBeenCalledWith(
+      'tenant-1',
+      'deal.lost',
+      expect.objectContaining({ dealId: 'deal-1', lostReason: 'undercut' }),
+    );
+  });
+
+  it('B1-PR2: does NOT re-emit deal.won when already WON (same-bucket move)', async () => {
+    const h = build();
+    h.tx.deal.findFirst.mockResolvedValue(makeDeal({ status: 'WON', closedAt: new Date() }));
+    vi.mocked(h.pipelines.findStage).mockResolvedValue(makeStage('WON', 'stage-won-2'));
+    h.tx.deal.update.mockResolvedValue(makeDeal({ status: 'WON' }));
+    await h.svc.move('deal-1', { stageId: 'stage-won-2' } as never);
+    const calls = (h.sync.publish as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(calls.some((c) => c[1] === 'deal.won')).toBe(false);
+    // but still emits deal.moved
+    expect(calls.some((c) => c[1] === 'deal.moved')).toBe(true);
+  });
+
+  it('B1-PR2: publisher failure does NOT throw — move resolves normally', async () => {
+    const h = build();
+    h.tx.deal.findFirst.mockResolvedValue(makeDeal());
+    vi.mocked(h.pipelines.findStage).mockResolvedValue(makeStage('OPEN', 'stage-2'));
+    h.tx.deal.update.mockResolvedValue(makeDeal({ stageId: 'stage-2' }));
+    vi.mocked(h.sync.publish).mockImplementationOnce(() => {
+      throw new Error('ws gateway crashed');
+    });
+    await expect(h.svc.move('deal-1', { stageId: 'stage-2' } as never)).resolves.toBeTruthy();
   });
 });
 

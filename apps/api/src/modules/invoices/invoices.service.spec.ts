@@ -66,8 +66,11 @@ function build() {
   const metrics = {
     recordInvoiceStatus: vi.fn(),
   } as unknown as ConstructorParameters<typeof InvoicesService>[5];
-  const svc = new InvoicesService(prisma, audit, activities, storage, pdf, metrics);
-  return { svc, prisma, tx, audit, activities, storage, pdf, metrics };
+  const sync = {
+    publish: vi.fn(),
+  } as unknown as ConstructorParameters<typeof InvoicesService>[6];
+  const svc = new InvoicesService(prisma, audit, activities, storage, pdf, metrics, sync);
+  return { svc, prisma, tx, audit, activities, storage, pdf, metrics, sync };
 }
 
 const sampleLine = {
@@ -307,6 +310,34 @@ describe('InvoicesService.changeStatus', () => {
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'invoice.status', subjectId: 'inv-1' }),
     );
+  });
+
+  // ─── B1-PR2: sync broadcast ───────────────────────────────────────────
+
+  it('B1-PR2: emits invoice.status_changed with from/to status after DB write', async () => {
+    const h = build();
+    h.tx.invoice.findFirst.mockResolvedValue(makeExistingDraft({ status: 'ISSUED' }));
+    h.tx.invoice.update.mockResolvedValue({ ...makeExistingDraft(), status: 'CANCELLED' });
+    await h.svc.changeStatus('inv-1', { status: 'CANCELLED' });
+    expect(h.sync.publish).toHaveBeenCalledWith(
+      'tenant-1',
+      'invoice.status_changed',
+      expect.objectContaining({
+        invoiceId: 'inv-1',
+        fromStatus: 'ISSUED',
+        toStatus: 'CANCELLED',
+      }),
+    );
+  });
+
+  it('B1-PR2: publisher failure does NOT throw — changeStatus resolves normally', async () => {
+    const h = build();
+    h.tx.invoice.findFirst.mockResolvedValue(makeExistingDraft({ status: 'ISSUED' }));
+    h.tx.invoice.update.mockResolvedValue({ ...makeExistingDraft(), status: 'CANCELLED' });
+    vi.mocked(h.sync.publish).mockImplementationOnce(() => {
+      throw new Error('gateway not booted');
+    });
+    await expect(h.svc.changeStatus('inv-1', { status: 'CANCELLED' })).resolves.toBeTruthy();
   });
 });
 
