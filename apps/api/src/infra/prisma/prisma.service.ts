@@ -51,6 +51,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Note',
   'Notification',
   'Order',
+  'Passkey',
   'Payment',
   'PhoneNumber',
   'Pipeline',

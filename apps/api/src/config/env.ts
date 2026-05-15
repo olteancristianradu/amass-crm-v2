@@ -283,6 +283,21 @@ const envSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.string().regex(/^\d{1,2}-\d{1,2}$/, 'CONDITIONAL_ACCESS_BUSINESS_HOURS must be "HH-HH"').optional(),
   ),
+
+  // B2: WebAuthn / FIDO2 Relying Party identity.
+  //
+  // RP_ID must be the effective domain of the FE (no scheme, no port). In dev
+  // 'localhost' works; in prod it MUST be the real domain (e.g. "app.amass.ro").
+  // RP_NAME is shown by the authenticator UI when the user creates a passkey.
+  // ORIGIN is the FE origin (scheme + host + optional port). Must match what
+  // navigator.credentials.create() reports as `origin` in clientDataJSON.
+  //
+  // The prodOnlyChecks below reject the dev defaults (localhost / 5173 origin)
+  // so a deploy with no override fails fast at boot rather than silently
+  // accepting passkeys for the wrong RP.
+  WEBAUTHN_RP_ID: z.string().min(1).default('localhost'),
+  WEBAUTHN_RP_NAME: z.string().min(1).default('Amass CRM (dev)'),
+  WEBAUTHN_ORIGIN: z.string().url().default('http://localhost:5173'),
 });
 
 /**
@@ -335,6 +350,19 @@ const prodOnlyChecks = (data: z.infer<typeof envSchema>): string[] => {
   const metricsIps = data.METRICS_ALLOWED_IPS.split(',').map((s) => s.trim()).filter(Boolean);
   if (metricsIps.length === 0 && !data.METRICS_AUTH_TOKEN) {
     errors.push('METRICS_ALLOWED_IPS or METRICS_AUTH_TOKEN must be set in production');
+  }
+
+  // B2: WebAuthn RP identity must NOT use the dev defaults in production —
+  // an attacker who controls a 'localhost' DNS entry (or a misconfigured
+  // box) could forge attestations otherwise.
+  if (data.WEBAUTHN_RP_ID === 'localhost') {
+    errors.push('WEBAUTHN_RP_ID must be the production domain (not "localhost")');
+  }
+  if (data.WEBAUTHN_ORIGIN === 'http://localhost:5173') {
+    errors.push('WEBAUTHN_ORIGIN must be the production frontend origin (not localhost:5173)');
+  }
+  if (data.WEBAUTHN_RP_NAME === 'Amass CRM (dev)') {
+    errors.push('WEBAUTHN_RP_NAME must be set to a production-appropriate value');
   }
 
   return errors;

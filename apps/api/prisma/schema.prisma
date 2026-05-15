@@ -66,7 +66,8 @@ model Tenant {
   suspendedAt     DateTime?
   suspendedReason String?
 
-  users User[]
+  users    User[]
+  passkeys Passkey[]
 
   @@index([shardId])
   @@index([region])
@@ -102,6 +103,7 @@ model User {
   sessions                Session[]
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  passkeys                Passkey[]
   // Back-relations from business_fk_constraints + saved_views migrations.
   ownedDeals       Deal[]      @relation("DealOwner")
   assignedTasks    Task[]      @relation("TaskAssignee")
@@ -154,6 +156,35 @@ model EmailVerificationToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("email_verification_tokens")
+}
+
+/**
+ * B2: WebAuthn / FIDO2 passkey credentials. One row per registered authenticator
+ * (a single user can have many — phone, laptop, hardware key). Public key + counter
+ * are persisted; the private key never leaves the user's device.
+ *
+ * Tenant-scoped: a passkey belongs to a (tenant, user) tuple. RLS + tenantExtension
+ * filter listings by tenantId so a cross-tenant join cannot enumerate another
+ * tenant's authenticators. Credential IDs are globally unique (the WebAuthn spec
+ * guarantees this), which keeps the assertion lookup at login a single index probe.
+ */
+model Passkey {
+  id           String    @id @default(cuid())
+  tenantId     String
+  userId       String
+  credentialId String    @unique @map("credential_id")
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt    @default(0)
+  transports   String[]  @default([])
+  deviceName   String?   @map("device_name")
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@map("passkeys")
 }
 
 enum ImportType {

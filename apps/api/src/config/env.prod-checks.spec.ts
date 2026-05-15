@@ -21,6 +21,11 @@ function makeProdBase(): Record<string, string | undefined> {
     METRICS_ALLOWED_IPS: '127.0.0.1',
     AI_WORKER_SECRET: 'c'.repeat(64),
     WEBHOOK_TRUSTED_HOSTS: '',
+    // B2: WebAuthn — prod checks reject the dev defaults, so the fixture
+    // supplies realistic non-default values. Tests can override per-case.
+    WEBAUTHN_RP_ID: 'app.example.com',
+    WEBAUTHN_RP_NAME: 'Amass CRM',
+    WEBAUTHN_ORIGIN: 'https://app.example.com',
   };
 }
 
