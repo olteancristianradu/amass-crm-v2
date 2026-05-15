@@ -2,15 +2,16 @@ import { KeyRound, Smartphone } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTour } from '@/lib/tours/useTour';
+import { DeviceList } from '@/features/passkeys/DeviceList';
 import { RegisterPasskeyButton } from '@/features/passkeys/RegisterPasskeyButton';
 
 /**
  * Settings → Securitate.
  *
- * Today this page hosts the passkey registration UI (B2-PR3). The device
- * list + revoke action lands in B2-PR4 — the slot is reserved here so the
- * page layout is stable across PRs and the future component just swaps
- * into the placeholder.
+ * Hosts the passkey registration UI (B2-PR3) and the device list +
+ * revoke action (B2-PR4). The two cards share the same React Query key
+ * (`passkeysQueryKey`) so a successful registration above auto-refreshes
+ * the device list below — no manual wiring.
  *
  * Why a separate page (instead of /settings/2fa): we already have a
  * `/settings/2fa` page for TOTP. Mixing TOTP and passkey config on the
@@ -42,26 +43,17 @@ export function SettingsSecurityPage(): JSX.Element {
         <RegisterPasskeyButton />
       </GlassCard>
 
-      <GlassCard className="p-6" data-tour="settings-security-devices">
+      <GlassCard className="p-6">
         <header className="mb-4 flex items-center gap-2">
           <Smartphone size={16} className="text-muted-foreground" />
           <h2 className="text-base font-semibold">Dispozitivele tale</h2>
         </header>
         {/*
-          Placeholder until B2-PR4 ships the real device list + revoke.
-          The data-tour anchor and section header are already in place so
-          the tour script + Settings nav don't need to change when the
-          component swaps in.
+          DeviceList renders its own wrapper carrying the
+          data-tour="settings-security-devices" anchor, matching the
+          placeholder slot it replaces.
         */}
-        <div className="rounded-md border border-dashed border-border/70 bg-secondary/30 p-6 text-center">
-          <p className="text-sm font-medium">
-            Lista cu device-urile tale va apărea aici
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Odată ce înregistrezi un passkey, îl vei vedea aici cu data
-            ultimei utilizări și un buton de revocare. (În curând, B2-PR4.)
-          </p>
-        </div>
+        <DeviceList />
       </GlassCard>
     </div>
   );

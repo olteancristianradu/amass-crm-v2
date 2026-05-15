@@ -1,4 +1,15 @@
-import { Body, Controller, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { z } from 'zod';
@@ -6,6 +17,7 @@ import { loadEnv } from '../../config/env';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { AuditService } from '../audit/audit.service';
 import { AuthTokens } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { setRefreshCookie } from '../auth/refresh-cookie';
@@ -87,7 +99,10 @@ export class WebauthnController {
   private readonly env = loadEnv();
   private readonly isProd = this.env.NODE_ENV === 'production';
 
-  constructor(private readonly webauthn: WebauthnService) {}
+  constructor(
+    private readonly webauthn: WebauthnService,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Mirror of AuthController.commitTokensToCookie — commits the refresh
@@ -175,5 +190,64 @@ export class WebauthnController {
       },
     );
     return { ...result, tokens: this.commitTokensToCookie(res, result.tokens) };
+  }
+
+  /**
+   * B2-PR4 — list the caller's registered passkeys.
+   *
+   * JwtAuthGuard ensures we know who's asking. `user.userId` +
+   * `user.tenantId` come from the access token claims (never trusted
+   * from the body) so a user cannot enumerate another user's devices
+   * even within the same tenant.
+   *
+   * Response is wrapped in `{ devices: [...] }` to leave room for
+   * pagination meta / counters in the future without breaking clients.
+   * Each row carries only display-safe fields — no public key, no
+   * counter (those are crypto state, not user-visible).
+   */
+  @Get('devices')
+  @UseGuards(JwtAuthGuard)
+  async listDevices(@CurrentUser() user: AuthenticatedUser) {
+    const devices = await this.webauthn.listDevices(user.userId, user.tenantId);
+    return { devices };
+  }
+
+  /**
+   * B2-PR4 — revoke (hard-delete) a single passkey.
+   *
+   * 204 No Content on success. The service throws NotFoundException
+   * when the passkey doesn't exist OR isn't owned by the caller's
+   * user/tenant — a uniform 404 keeps cross-user/cross-tenant existence
+   * from leaking.
+   *
+   * Audited as `webauthn.device_revoked` (security-relevant: a user
+   * removing a factor is the kind of event a SIEM rule wants to watch
+   * for — sudden mass-revoke could be an attacker locking out the
+   * legitimate user before pivoting).
+   */
+  @Delete('devices/:id')
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard)
+  async revokeDevice(
+    @Param('id') passkeyId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ): Promise<void> {
+    const { revokedId } = await this.webauthn.revokeDevice(
+      passkeyId,
+      user.userId,
+      user.tenantId,
+    );
+    // Best-effort audit — never throws (see AuditService.log). Done AFTER
+    // the delete so a failed revoke doesn't leave a misleading log entry.
+    await this.audit.log({
+      action: 'webauthn.device_revoked',
+      subjectType: 'Passkey',
+      subjectId: revokedId,
+      tenantId: user.tenantId,
+      actorId: user.userId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 }

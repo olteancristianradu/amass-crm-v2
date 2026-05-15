@@ -27,11 +27,23 @@ function makeSvc() {
     verifyRegistration: vi.fn(),
     generateAuthenticationOptions: vi.fn(),
     verifyAuthentication: vi.fn(),
+    listDevices: vi.fn(),
+    revokeDevice: vi.fn(),
   };
 }
 
-function build(s: ReturnType<typeof makeSvc>) {
-  return new WebauthnController(s as unknown as WebauthnService);
+function makeAudit() {
+  return { log: vi.fn().mockResolvedValue(undefined) };
+}
+
+function build(
+  s: ReturnType<typeof makeSvc>,
+  audit: ReturnType<typeof makeAudit> = makeAudit(),
+) {
+  return new WebauthnController(
+    s as unknown as WebauthnService,
+    audit as never,
+  );
 }
 
 function fakeRes(): Response {
@@ -149,5 +161,80 @@ describe('WebauthnController.authenticateVerify', () => {
     const cookieCall = vi.mocked(setRefreshCookie).mock.calls[0];
     expect(cookieCall[1]).toBe('R_OPAQUE');
     expect(cookieCall[2]).toBe(7 * 24 * 60 * 60);
+  });
+});
+
+describe('WebauthnController.listDevices', () => {
+  it('passes userId + tenantId from CurrentUser and wraps in { devices: [...] }', async () => {
+    const svc = makeSvc();
+    const fakeDevices = [
+      {
+        id: 'pk1',
+        credentialId: 'CRED_A',
+        deviceName: 'MacBook',
+        transports: ['internal'],
+        createdAt: new Date(),
+        lastUsedAt: null,
+      },
+    ];
+    svc.listDevices.mockResolvedValue(fakeDevices);
+    const ctrl = build(svc);
+
+    const r = await ctrl.listDevices(fakeUser);
+
+    expect(svc.listDevices).toHaveBeenCalledWith('u1', 't1');
+    expect(r).toEqual({ devices: fakeDevices });
+  });
+});
+
+describe('WebauthnController.revokeDevice', () => {
+  it('delegates to service.revokeDevice with the passkey id + caller scope', async () => {
+    const svc = makeSvc();
+    const audit = makeAudit();
+    svc.revokeDevice.mockResolvedValue({ revokedId: 'pk1' });
+    const ctrl = build(svc, audit);
+    const req = fakeReq({ ip: '203.0.113.9', userAgent: 'TestBrowser' });
+
+    const result = await ctrl.revokeDevice('pk1', fakeUser, req);
+
+    // Service got the (passkeyId, userId, tenantId) triple from path + JWT.
+    expect(svc.revokeDevice).toHaveBeenCalledWith('pk1', 'u1', 't1');
+    // 204 — controller method returns void.
+    expect(result).toBeUndefined();
+  });
+
+  it('writes a webauthn.device_revoked audit entry with the actor, tenant, IP, and UA', async () => {
+    const svc = makeSvc();
+    const audit = makeAudit();
+    svc.revokeDevice.mockResolvedValue({ revokedId: 'pk1' });
+    const ctrl = build(svc, audit);
+    const req = fakeReq({ ip: '203.0.113.9', userAgent: 'TestBrowser' });
+
+    await ctrl.revokeDevice('pk1', fakeUser, req);
+
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    const entry = audit.log.mock.calls[0][0];
+    expect(entry).toMatchObject({
+      action: 'webauthn.device_revoked',
+      subjectType: 'Passkey',
+      subjectId: 'pk1',
+      tenantId: 't1',
+      actorId: 'u1',
+      ipAddress: '203.0.113.9',
+      userAgent: 'TestBrowser',
+    });
+  });
+
+  it('does NOT audit when revoke throws (service-level failure short-circuits the audit call)', async () => {
+    const svc = makeSvc();
+    const audit = makeAudit();
+    svc.revokeDevice.mockRejectedValue(new Error('not found'));
+    const ctrl = build(svc, audit);
+    const req = fakeReq();
+
+    await expect(ctrl.revokeDevice('pk1', fakeUser, req)).rejects.toThrow('not found');
+    // Audit is written AFTER the delete succeeds — a thrown revoke must
+    // not log a misleading "device_revoked" event.
+    expect(audit.log).not.toHaveBeenCalled();
   });
 });

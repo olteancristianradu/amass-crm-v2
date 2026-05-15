@@ -1,4 +1,10 @@
-import { Inject, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -424,5 +430,96 @@ export class WebauthnService {
     const tokens = await this.auth.issueTokensForUser(user, meta);
 
     return { user: toSafeUser(user), tokens };
+  }
+
+  /**
+   * B2-PR4 — list the user's registered passkeys (newest first).
+   *
+   * Runs inside `runWithTenant(tenantId, ...)` so the tenantExtension +
+   * Postgres RLS both filter the SELECT to the active tenant. A passkey
+   * row from tenant A is invisible when the call runs under tenant B's
+   * context — verified by the multi-tenant test in webauthn.service.spec.ts.
+   *
+   * The shape returned here is consumed directly by the Settings →
+   * Securitate "device list" UI; we deliberately do NOT expose
+   * `publicKey` or `counter` — those are cryptographic state, not
+   * user-facing metadata. The controller wraps the result in a
+   * `{ devices: [...] }` envelope to match the rest of /api/v1.
+   */
+  async listDevices(userId: string, tenantId: string): Promise<
+    Array<{
+      id: string;
+      credentialId: string;
+      deviceName: string | null;
+      transports: string[];
+      createdAt: Date;
+      lastUsedAt: Date | null;
+    }>
+  > {
+    return this.prisma.runWithTenant(tenantId, async (tx) => {
+      const rows = await tx.passkey.findMany({
+        where: { userId, tenantId },
+        // Newest first — the most recently registered device is usually
+        // the one the user wants to inspect when arriving at this page
+        // (e.g. immediately after a successful register ceremony).
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          credentialId: true,
+          deviceName: true,
+          transports: true,
+          createdAt: true,
+          lastUsedAt: true,
+        },
+      });
+      return rows;
+    });
+  }
+
+  /**
+   * B2-PR4 — hard-delete a single passkey.
+   *
+   * Defence in depth:
+   *   1. `runWithTenant(tenantId, ...)` scopes the lookup + delete to the
+   *      caller's tenant (extension + RLS).
+   *   2. We *also* assert `userId` matches — passkeys are per-user, and
+   *      one user must not be able to revoke another's authenticator
+   *      even within the same tenant. If the row isn't owned by the
+   *      caller we throw NotFoundException (not Forbidden) so we don't
+   *      leak the row's existence under a different owner.
+   *
+   * No soft-delete: passkey revocation is permanent. If a user wants the
+   * device back they re-register via the ceremony, which assigns a fresh
+   * credentialId — the old row's `credential_id` would conflict on the
+   * unique index even if we tried to "undelete".
+   *
+   * Audit-logged by the controller (security-relevant event).
+   */
+  async revokeDevice(
+    passkeyId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<{ revokedId: string }> {
+    return this.prisma.runWithTenant(tenantId, async (tx) => {
+      // findFirst (not findUnique) so we can include the userId/tenantId
+      // filter atomically — findUnique would only consult the @id index.
+      const row = await tx.passkey.findFirst({
+        where: { id: passkeyId, userId, tenantId },
+        select: { id: true },
+      });
+      if (!row) {
+        // Uniform NotFoundException — covers three cases without leaking
+        // which one is true: (a) the passkey doesn't exist, (b) it
+        // belongs to another user in this tenant, (c) it belongs to
+        // another tenant entirely (filtered out by RLS).
+        throw new NotFoundException({
+          code: 'PASSKEY_NOT_FOUND',
+          message: 'Passkey not found',
+        });
+      }
+
+      await tx.passkey.delete({ where: { id: passkeyId } });
+      return { revokedId: passkeyId };
+    });
   }
 }

@@ -137,22 +137,28 @@ Two append-only streams, easy to confuse:
 
 Both are tenant-scoped. Both are created from feature services (companies/contacts/clients/notes/attachments) on every mutation.
 
-### Passkeys (B2)
+### Passkeys (B2) — COMPLETE
 
-WebAuthn / FIDO2 lives in `apps/api/src/modules/webauthn/`. Backed by **@simplewebauthn/server v13**.
+WebAuthn / FIDO2 lives in `apps/api/src/modules/webauthn/`. Backed by **@simplewebauthn/server v13** on the BE and **@simplewebauthn/browser v13** on the FE.
 
-The ceremony is four calls in two halves — both halves wired:
+End-to-end flow shipped: a user can register a passkey at `/app/settings/security`, log in at `/login` with that passkey (Face ID / Touch ID / Windows Hello / YubiKey), see all registered devices, and revoke any one of them.
 
-| Half | Call | Status |
-|-|-|-|
-| **Register** (B2-PR1) | `POST /webauthn/register/options` → PublicKeyCredentialCreationOptions | live, `JwtAuthGuard` |
-| | `POST /webauthn/register/verify` → persist Passkey row | live, `JwtAuthGuard` |
-| **Authenticate** (B2-PR2) | `POST /webauthn/authenticate/options` → PublicKeyCredentialRequestOptions | live, `@Public()` |
-| | `POST /webauthn/authenticate/verify` → mint `{ user, tokens }` | live, `@Public()` |
+The surface is six endpoints — four ceremony calls plus device CRUD:
 
-**FE register UI (B2-PR3, shipped):** the registration ceremony has a corresponding React surface at `/app/settings/security` — see `apps/web/src/routes/settings.security.page.tsx` and `apps/web/src/features/passkeys/RegisterPasskeyButton.tsx`. Backed by **@simplewebauthn/browser v13** (matches the server v13 wire format). Flow: button click → `passkeysApi.registerOptions()` → `startRegistration({ optionsJSON })` (browser native sheet for Face ID / Touch ID / Windows Hello / YubiKey) → `passkeysApi.registerVerify(response, deviceName?)`. The device list + revoke land in B2-PR4; today the Settings page reserves a placeholder slot and `passkeysApi.list()` swallows a 404 from the not-yet-wired `GET /webauthn/devices`.
+| Group | Call | Auth | PR |
+|-|-|-|-|
+| **Register** | `POST /webauthn/register/options` → PublicKeyCredentialCreationOptions | `JwtAuthGuard` | B2-PR1 |
+| | `POST /webauthn/register/verify` → persist Passkey row | `JwtAuthGuard` | B2-PR1 |
+| **Authenticate** | `POST /webauthn/authenticate/options` → PublicKeyCredentialRequestOptions + `userId` hint | `@Public()` | B2-PR2 |
+| | `POST /webauthn/authenticate/verify` → mint `{ user, tokens }` (same shape as `/auth/login`) | `@Public()` | B2-PR2 |
+| **Devices** | `GET /webauthn/devices` → `{ devices: [...] }` (newest first) | `JwtAuthGuard` | B2-PR4 |
+| | `DELETE /webauthn/devices/:id` → 204 No Content, audited `webauthn.device_revoked` | `JwtAuthGuard` | B2-PR4 |
 
-**FE login UI (B2-PR4, next):** the authenticate ceremony is wired on the backend but the FE login button has not landed yet — the FE will gain a "Sign in with passkey" CTA that calls `passkeysApi.authenticateOptions({ email })` → `startAuthentication({ optionsJSON })` → `passkeysApi.authenticateVerify({ userId, response })` and then hydrates the same auth store as the password flow (the response shape is identical to `/auth/login`).
+**FE register UI (B2-PR3):** `apps/web/src/features/passkeys/RegisterPasskeyButton.tsx`, mounted on `/app/settings/security`. Click → `passkeysApi.registerOptions()` → `startRegistration({ optionsJSON })` (browser native sheet) → `passkeysApi.registerVerify(response, deviceName?)`. Invalidates `passkeysQueryKey` on success so the device list refreshes automatically.
+
+**FE login UI (B2-PR4):** `apps/web/src/features/passkeys/LoginWithPasskeyButton.tsx`, mounted above the email/password form on `/login`. Hidden entirely when `browserSupportsWebAuthn()` is false (no disabled control). Click → `authenticateOptions(email)` → `startAuthentication({ optionsJSON })` → `authenticateVerify(userId, response)` → `setSession(user, tokens)` → navigate to `/app`. Uniform "no passkey" error in Romanian that does NOT leak account presence.
+
+**FE device list + revoke (B2-PR4):** `apps/web/src/features/passkeys/DeviceList.tsx`, mounted in the second card of `/app/settings/security`. Lists devices (relative timestamps via `Intl.RelativeTimeFormat('ro')`, transport badges, "Device necunoscut" fallback for null names), revoke button per row with `window.confirm` and a Romanian success toast.
 
 - **Challenge store:** Redis with two separate prefixes so a register challenge can never be replayed into authenticate (different ceremony, different expected RP flags):
   - `webauthn:challenge:<userId>` — register challenge, TTL 300s, deleted on successful verify.
@@ -165,7 +171,7 @@ The ceremony is four calls in two halves — both halves wired:
 - **Token mint:** on successful verify, `WebauthnService` calls `AuthService.issueTokensForUser(user, meta)` — same access JWT + opaque refresh token + `sessions` row as `/auth/login`. The controller commits the refresh token to the httpOnly cookie and strips it from the JSON body, so the FE login flow is uniform across password / passkey paths.
 - **Session-binding hint:** `authenticate/options` returns the resolved `userId` in its response. The FE echoes it back on `/verify`. The hint is not a credential — the actual proof is the WebAuthn assertion signature checked against the persisted public key. Tampering with the `userId` either fails to find the user OR finds a different user whose passkey list does not include the responder's `credentialId`, both falling through to `INVALID_CREDENTIALS`.
 
-Out of scope (PR4): FE login button, device-list/revoke endpoints + UI, recovery codes integration.
+**Future (optional B2-PR5):** recovery codes integration — share the TOTP backup-codes module so a user who loses every registered authenticator can still get back in. Not blocking GA; passkey users with multiple devices (phone + laptop) already have redundancy.
 
 ### SCIM 2.0 (B3)
 

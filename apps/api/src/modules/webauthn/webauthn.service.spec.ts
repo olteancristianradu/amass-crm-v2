@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 
 // Mock the @simplewebauthn/server package up-front so the service imports
 // our fakes instead of the real implementation (which would try to do
@@ -37,6 +37,7 @@ function build() {
       create: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
   };
 
@@ -504,5 +505,139 @@ describe('WebauthnService.verifyAuthentication', () => {
     });
     expect(swServer.verifyAuthenticationResponse).not.toHaveBeenCalled();
     expect(h.auth.issueTokensForUser).not.toHaveBeenCalled();
+  });
+});
+
+// =====================================================================
+// B2-PR4 — device list + revoke tests
+// =====================================================================
+
+describe('WebauthnService.listDevices', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns the user passkeys ordered newest-first and selects only display-safe fields', async () => {
+    const h = build();
+    const rows = [
+      {
+        id: 'pk2',
+        credentialId: 'CRED_B',
+        deviceName: 'YubiKey',
+        transports: ['usb'],
+        createdAt: new Date('2026-03-01'),
+        lastUsedAt: null,
+      },
+      {
+        id: 'pk1',
+        credentialId: 'CRED_A',
+        deviceName: 'MacBook',
+        transports: ['internal'],
+        createdAt: new Date('2026-02-01'),
+        lastUsedAt: new Date('2026-04-15'),
+      },
+    ];
+    h.tx.passkey.findMany.mockResolvedValueOnce(rows);
+
+    const out = await h.svc.listDevices('u1', 'tenantA');
+    expect(out).toEqual(rows);
+
+    const args = h.tx.passkey.findMany.mock.calls[0][0];
+    expect(args.where).toEqual({ userId: 'u1', tenantId: 'tenantA' });
+    expect(args.orderBy).toEqual({ createdAt: 'desc' });
+    // Crypto state must NOT be leaked through the list response.
+    expect(args.select).toEqual({
+      id: true,
+      credentialId: true,
+      deviceName: true,
+      transports: true,
+      createdAt: true,
+      lastUsedAt: true,
+    });
+    // The query ran under the caller-supplied tenant context.
+    expect(h.runWithTenantCalls).toContain('tenantA');
+  });
+
+  it('returns [] when the user has no registered passkeys', async () => {
+    const h = build();
+    h.tx.passkey.findMany.mockResolvedValueOnce([]);
+    const out = await h.svc.listDevices('u_alone', 'tenantA');
+    expect(out).toEqual([]);
+  });
+
+  it('multi-tenant: a passkey from tenant A is NOT returned when listDevices runs under tenant B', async () => {
+    // The tenantExtension in PrismaService rewrites every passkey.findMany
+    // to inject tenantId. We model that here: under tenantB the stub
+    // returns [] because the row belongs to tenantA.
+    const h = build();
+    h.tx.passkey.findMany.mockImplementation(async (args: { where: { tenantId: string } }) => {
+      // Simulate the tenantExtension: the actual rows live in tenantA only.
+      if (args.where.tenantId === 'tenantA') {
+        return [
+          {
+            id: 'pk_A',
+            credentialId: 'CRED_A',
+            deviceName: 'Device A',
+            transports: ['internal'],
+            createdAt: new Date(),
+            lastUsedAt: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const tenantA = await h.svc.listDevices('uShared', 'tenantA');
+    const tenantB = await h.svc.listDevices('uShared', 'tenantB');
+
+    expect(tenantA).toHaveLength(1);
+    expect(tenantB).toEqual([]);
+    expect(h.runWithTenantCalls).toEqual(expect.arrayContaining(['tenantA', 'tenantB']));
+  });
+});
+
+describe('WebauthnService.revokeDevice', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('deletes the passkey row and returns { revokedId } when caller owns the device', async () => {
+    const h = build();
+    h.tx.passkey.findFirst.mockResolvedValueOnce({ id: 'pk1' });
+    h.tx.passkey.delete.mockResolvedValueOnce({ id: 'pk1' });
+
+    const out = await h.svc.revokeDevice('pk1', 'u1', 'tenantA');
+    expect(out).toEqual({ revokedId: 'pk1' });
+    // Ownership probe was done with the full triple — no missing scope.
+    expect(h.tx.passkey.findFirst).toHaveBeenCalledWith({
+      where: { id: 'pk1', userId: 'u1', tenantId: 'tenantA' },
+      select: { id: true },
+    });
+    // Hard delete (no soft delete on passkeys — revocation is final).
+    expect(h.tx.passkey.delete).toHaveBeenCalledWith({ where: { id: 'pk1' } });
+    expect(h.runWithTenantCalls).toContain('tenantA');
+  });
+
+  it('throws NotFoundException (NOT Forbidden) when the passkey belongs to another user — does not leak existence', async () => {
+    const h = build();
+    // Ownership filter (userId in where) makes the row invisible.
+    h.tx.passkey.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      h.svc.revokeDevice('pk_owned_by_other', 'attackerUser', 'tenantA'),
+    ).rejects.toThrow(NotFoundException);
+
+    // Never touched the DB beyond the probe.
+    expect(h.tx.passkey.delete).not.toHaveBeenCalled();
+  });
+
+  it('multi-tenant: throws NotFoundException when the passkey belongs to a different tenant', async () => {
+    // The tenantExtension makes the cross-tenant row invisible — findFirst
+    // returns null under tenantB even though the row exists in tenantA.
+    const h = build();
+    h.tx.passkey.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      h.svc.revokeDevice('pk_in_tenantA', 'u1', 'tenantB'),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(h.tx.passkey.delete).not.toHaveBeenCalled();
+    expect(h.runWithTenantCalls).toContain('tenantB');
   });
 });
