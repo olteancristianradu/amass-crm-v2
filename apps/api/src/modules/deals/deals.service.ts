@@ -8,6 +8,7 @@ import {
 } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { PipelinesService } from '../pipelines/pipelines.service';
@@ -50,6 +51,7 @@ export class DealsService {
     private readonly pipelines: PipelinesService,
     private readonly workflows: WorkflowsService,
     private readonly projects: ProjectsService,
+    private readonly metrics: BusinessMetricsService,
   ) {}
 
   async create(dto: CreateDealDto): Promise<Deal> {
@@ -259,6 +261,12 @@ export class DealsService {
         status: newStatus,
       },
     });
+    // D2-PR2: emit deal_status_changed_total when the status actually
+    // changes (a same-stage move keeps newStatus === existing.status — we
+    // still record it for "deal touched" attribution; column-only DnD
+    // doesn't pollute won/lost dashboards because OPEN→OPEN is its own
+    // label bucket).
+    this.metrics.recordDealStatusChange(ctx.tenantId, existing.status, newStatus);
     if (existing.companyId) {
       await this.activities.log({
         subjectType: 'COMPANY',

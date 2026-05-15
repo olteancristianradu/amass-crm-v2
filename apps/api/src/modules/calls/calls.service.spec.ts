@@ -65,8 +65,11 @@ function build(opts: { signatureValid?: boolean } = {}) {
   const aiQueue = {
     add: vi.fn().mockResolvedValue({ id: 'job-1' }),
   } as unknown as ConstructorParameters<typeof CallsService>[5];
-  const svc = new CallsService(prisma, twilio, activities, subjects, redis, aiQueue);
-  return { svc, prisma, prismaPhone, prismaCall, tx, twilio, activities, subjects, redis, redisStore, aiQueue };
+  const metrics = {
+    recordCallCompleted: vi.fn(),
+  } as unknown as ConstructorParameters<typeof CallsService>[6];
+  const svc = new CallsService(prisma, twilio, activities, subjects, redis, aiQueue, metrics);
+  return { svc, prisma, prismaPhone, prismaCall, tx, twilio, activities, subjects, redis, redisStore, aiQueue, metrics };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

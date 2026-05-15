@@ -12,6 +12,7 @@ import { AiCallResultDto, InitiateCallDto, ListCallsQueryDto } from '@amass/shar
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { RedisService } from '../../infra/redis/redis.service';
+import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { SubjectResolver } from '../activities/subject-resolver';
 import { TwilioClient } from './twilio.client';
@@ -37,6 +38,7 @@ export class CallsService {
     private readonly subjects: SubjectResolver,
     private readonly redis: RedisService,
     @InjectQueue(QUEUE_AI_CALLS) private readonly aiQueue: Queue,
+    private readonly metrics: BusinessMetricsService,
   ) {}
 
   // ─── Outbound call initiation ────────────────────────────────────
@@ -309,6 +311,12 @@ export class CallsService {
         tenantId: existing.tenantId,
         actorId: existing.userId,
       });
+      // D2-PR2: emit call_completed_total. Outcome derives from duration:
+      // a Twilio COMPLETED with durationSec=0 means the line connected but
+      // nobody spoke (voicemail hang-up, immediate disconnect) — we still
+      // call that "missed" for funnel reporting, distinct from "answered".
+      const outcome = durationSec && durationSec > 0 ? 'answered' : 'missed';
+      this.metrics.recordCallCompleted(existing.tenantId, existing.direction, outcome);
     }
 
     this.logger.log(`Call ${callId} status → ${ourStatus}`);

@@ -8,6 +8,7 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { loadEnv } from './config/env';
+import { HttpMetricsInterceptor } from './infra/metrics/http-metrics.interceptor';
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv(); // fail-fast on missing env
@@ -33,6 +34,10 @@ async function bootstrap(): Promise<void> {
   // Replace the default Nest console logger with Pino. This also picks up the
   // PII-redaction config from LoggerModule.forRoot().
   app.useLogger(app.get(Logger));
+
+  // D2-PR2: HTTP request duration histogram. Resolved from the DI container
+  // (MetricsModule is @Global) so the prom-client registry stays a singleton.
+  app.useGlobalInterceptors(app.get(HttpMetricsInterceptor));
 
   // Behind Caddy / any reverse proxy: trust the single hop in front of us so
   // req.ip returns the real client IP (from X-Forwarded-For) instead of the

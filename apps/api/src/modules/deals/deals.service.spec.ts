@@ -74,8 +74,11 @@ function build() {
   const projects = {
     createFromDeal: vi.fn().mockResolvedValue(null),
   } as unknown as ConstructorParameters<typeof DealsService>[5];
-  const svc = new DealsService(prisma, audit, activities, pipelines, workflows, projects);
-  return { svc, prisma, tx, audit, activities, pipelines, workflows, projects };
+  const metrics = {
+    recordDealStatusChange: vi.fn(),
+  } as unknown as ConstructorParameters<typeof DealsService>[6];
+  const svc = new DealsService(prisma, audit, activities, pipelines, workflows, projects, metrics);
+  return { svc, prisma, tx, audit, activities, pipelines, workflows, projects, metrics };
 }
 
 describe('DealsService.create', () => {

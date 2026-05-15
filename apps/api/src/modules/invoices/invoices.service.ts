@@ -15,6 +15,7 @@ import {
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
@@ -43,6 +44,7 @@ export class InvoicesService {
     private readonly activities: ActivitiesService,
     private readonly storage: StorageService,
     private readonly pdf: InvoicePdfService,
+    private readonly metrics: BusinessMetricsService,
   ) {}
 
   async create(dto: CreateInvoiceDto): Promise<InvoiceWithLines> {
@@ -259,6 +261,11 @@ export class InvoicesService {
       action: `invoice.${dto.status.toLowerCase()}`,
       metadata: { invoiceId: id, number: `${existing.series}-${existing.number}` },
     });
+    // D2-PR2: emit invoice_status_total on each user-initiated transition.
+    // Payment-driven transitions go through recomputeStatusFromPayments —
+    // we instrument that separately so dashboards can distinguish "user
+    // marked paid" from "system computed paid from a Payment row".
+    this.metrics.recordInvoiceStatus(ctx.tenantId, dto.status);
     return updated;
   }
 

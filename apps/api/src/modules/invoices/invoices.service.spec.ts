@@ -63,8 +63,11 @@ function build() {
   const pdf = {
     render: vi.fn().mockResolvedValue(Buffer.from('%PDF-1.4 stub')),
   } as unknown as ConstructorParameters<typeof InvoicesService>[4];
-  const svc = new InvoicesService(prisma, audit, activities, storage, pdf);
-  return { svc, prisma, tx, audit, activities, storage, pdf };
+  const metrics = {
+    recordInvoiceStatus: vi.fn(),
+  } as unknown as ConstructorParameters<typeof InvoicesService>[5];
+  const svc = new InvoicesService(prisma, audit, activities, storage, pdf, metrics);
+  return { svc, prisma, tx, audit, activities, storage, pdf, metrics };
 }
 
 const sampleLine = {
