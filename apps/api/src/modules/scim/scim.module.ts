@@ -8,6 +8,7 @@ import { ScimAdminController } from './scim-admin.controller';
 import { ScimBearerGuard } from './scim-bearer.guard';
 import { ScimController } from './scim.controller';
 import { ScimGroupsService } from './scim-groups.service';
+import { ScimMetaController } from './scim-meta.controller';
 import { ScimService } from './scim.service';
 import { ScimTokenService } from './scim-token.service';
 
@@ -16,11 +17,13 @@ import { ScimTokenService } from './scim-token.service';
  *
  * - B3-PR1 shipped /Users CRUD.
  * - B3-PR2 added /Groups (synthetic, role-mapped).
- * - B3-PR3 (this PR) replaces the temporary `X-Tenant-Id` header with real
- *   bearer-token auth (`ScimBearerGuard` + `ScimTokenService`) and adds a
- *   JWT-protected admin surface (`ScimAdminController`) for tenant OWNER/ADMIN
- *   to create + list + revoke tokens.
- * - B3-PR4 will add the ServiceProviderConfig / Schemas meta endpoints.
+ * - B3-PR3 replaced the temporary `X-Tenant-Id` header with real bearer-token
+ *   auth (`ScimBearerGuard` + `ScimTokenService`) and added a JWT-protected
+ *   admin surface (`ScimAdminController`) for tenant OWNER/ADMIN to create
+ *   + list + revoke tokens.
+ * - B3-PR5 (this PR) lands the discovery surface: `ServiceProviderConfig`,
+ *   `Schemas`, `ResourceTypes` (`ScimMetaController`). Public per RFC 7644
+ *   §4 — IdP wizards probe these before any token exists. B3 epic complete.
  *
  * AuditService is provided by the global AuditModule, so no explicit import.
  * JwtModule is registered locally (NOT imported from AuthModule) to avoid a
@@ -39,7 +42,7 @@ import { ScimTokenService } from './scim-token.service';
       },
     }),
   ],
-  controllers: [ScimController, ScimAdminController],
+  controllers: [ScimController, ScimAdminController, ScimMetaController],
   providers: [ScimService, ScimGroupsService, ScimTokenService, ScimBearerGuard, JwtAuthGuard],
 })
 export class ScimModule {}

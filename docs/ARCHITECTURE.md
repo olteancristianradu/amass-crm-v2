@@ -238,6 +238,16 @@ The "remove → downgrade to VIEWER" choice is deliberate: every `User` row carr
 
 Out of scope for PR3: Okta E2E integration test (B3-PR4) and the `ServiceProviderConfig` / `ResourceTypes` / `Schemas` meta endpoints (B3-PR4).
 
+#### Discovery surface (B3-PR5) — **B3 epic COMPLETE**
+
+`scim-meta.controller.ts` + `scim-meta.fixtures.ts` add the five SCIM 2.0 discovery endpoints required by RFC 7644 §4. These are intentionally **public** (no `ScimBearerGuard`) because Okta / Azure AD probe them BEFORE the operator has pasted a bearer token into the wizard — gating them on auth breaks the preflight and fails several certification checks. The endpoints expose capability metadata only (no tenant data), so anonymous access is safe:
+
+- `GET /scim/v2/ServiceProviderConfig` — declares: `patch.supported=true`, `filter.supported=true, maxResults=100`, `bulk.supported=false`, `changePassword.supported=false` (SSO-only), `sort.supported=false`, `etag.supported=false`, `authenticationSchemes=[oauthbearertoken]`.
+- `GET /scim/v2/Schemas` + `GET /scim/v2/Schemas/:urn` — User + Group attribute schemas (RFC 7643 §8.7.1/§8.7.2 shapes; only attributes the /Users + /Groups handlers actually read are advertised).
+- `GET /scim/v2/ResourceTypes` + `GET /scim/v2/ResourceTypes/:id` — binds `User` → `/Users` + User schema URN, `Group` → `/Groups` + Group schema URN.
+
+After B3-PR5 the SCIM 2.0 surface is feature-complete: `/Users` CRUD (PR1), `/Groups` (PR2, synthetic + role-derived), bearer-token auth + admin surface (PR3), Okta integration test (PR4), discovery (PR5). Full RFC 7644 compliance for the implemented subset.
+
 ### Error shape
 
 All errors flow through `common/filters/all-exceptions.filter.ts` and produce:
