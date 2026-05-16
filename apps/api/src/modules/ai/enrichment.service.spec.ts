@@ -7,19 +7,25 @@ vi.mock('../../infra/prisma/tenant-context', () => ({
   requireTenantContext: () => ({ tenantId: 'tenant-1', userId: 'user-1' }),
 }));
 
+// Vitest 4: arrow functions cannot be constructors. Use class syntax so
+// `new Anthropic({...})` / `new GoogleGenAI({...})` work like prod code.
 const anthropicCreate = vi.fn();
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: { create: anthropicCreate },
-  })),
-}));
+vi.mock('@anthropic-ai/sdk', () => {
+  class Anthropic {
+    messages = { create: anthropicCreate };
+    constructor(_opts: unknown) {}
+  }
+  return { default: Anthropic };
+});
 
 const geminiGenerate = vi.fn();
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({
-    models: { generateContent: geminiGenerate },
-  })),
-}));
+vi.mock('@google/genai', () => {
+  class GoogleGenAI {
+    models = { generateContent: geminiGenerate };
+    constructor(_opts: unknown) {}
+  }
+  return { GoogleGenAI };
+});
 
 vi.mock('../../common/resilience/circuit-breaker', () => ({
   getBreaker: () => ({ exec: <T>(fn: () => Promise<T>) => fn() }),

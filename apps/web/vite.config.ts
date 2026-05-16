@@ -1,3 +1,9 @@
+/// <reference types="vitest/config" />
+// Vitest 4 + vite 6: the `test` config field is contributed by vitest,
+// not by vite. Without this reference, TS rejects it as
+// "Object literal may only specify known properties". The
+// /// <reference> triple-slash directive augments vite's UserConfig with
+// the InlineConfig from vitest.
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';

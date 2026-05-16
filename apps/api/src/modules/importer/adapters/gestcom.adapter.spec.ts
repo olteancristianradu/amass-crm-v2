@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
+// Vitest 4: arrow functions can't be constructors. Use a class so
+// `new mod.PDFParse({...})` works.
 vi.mock('pdf-parse', () => ({
-  PDFParse: vi.fn().mockImplementation(({ data }: { data: Buffer }) => ({
-    getText: vi.fn(async () => ({ text: data.toString('utf8'), total: 1 })),
-  })),
+  PDFParse: class PDFParse {
+    constructor(private readonly opts: { data: Buffer }) {}
+    async getText(): Promise<{ text: string; total: number }> {
+      return { text: this.opts.data.toString('utf8'), total: 1 };
+    }
+  },
 }));
 
 import { GestComAdapter, parseRecord, splitIntoRecordBlocks } from './gestcom.adapter';

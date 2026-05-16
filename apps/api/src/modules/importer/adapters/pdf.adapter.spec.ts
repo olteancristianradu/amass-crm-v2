@@ -1,27 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 
+// Vitest 4 no longer auto-wraps arrow functions as constructors —
+// `new (() => {})()` throws. Use class syntax so `new PDFParse(...)`
+// / `new GoogleGenerativeAI(...)` work like the production code.
 vi.mock('pdf-parse', () => ({
-  // pdf-parse v2+ exports a `PDFParse` class — mock it accordingly so the
-  // adapter's `new mod.PDFParse({ data }).getText()` path works.
-  PDFParse: vi.fn().mockImplementation(({ data }: { data: Buffer }) => ({
-    getText: vi.fn(async () => ({ text: data.toString('utf8'), total: 1 })),
-  })),
+  PDFParse: class PDFParse {
+    constructor(private readonly opts: { data: Buffer }) {}
+    async getText(): Promise<{ text: string; total: number }> {
+      return { text: this.opts.data.toString('utf8'), total: 1 };
+    }
+  },
 }));
 
 // Mock Gemini SDK so the adapter doesn't make real API calls in tests.
 // `OCR_MOCK_TEXT` lets each test set what the SDK pretends to return.
 const OCR_MOCK = { text: '' as string, throw: false };
 vi.mock('@google/generative-ai', () => {
-  return {
-    GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
-      getGenerativeModel: () => ({
-        generateContent: vi.fn().mockImplementation(async () => {
+  class GoogleGenerativeAI {
+    constructor(_apiKey: string) {}
+    getGenerativeModel(): {
+      generateContent: () => Promise<{ response: { text: () => string } }>;
+    } {
+      return {
+        generateContent: async () => {
           if (OCR_MOCK.throw) throw new Error('mock OCR failure');
           return { response: { text: () => OCR_MOCK.text } };
-        }),
-      }),
-    })),
-  };
+        },
+      };
+    }
+  }
+  return { GoogleGenerativeAI };
 });
 
 import { PdfAdapter } from './pdf.adapter';

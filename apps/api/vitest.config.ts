@@ -58,6 +58,9 @@ export default defineConfig({
   plugins: [
     // SWC is required so TypeScript decorator metadata is emitted —
     // NestJS DI relies on it (esbuild doesn't emit it).
+    // Cast to `unknown` then back: vite 6 + unplugin-swc 1.x ship slightly
+    // diverged Plugin types (vite 5/6 transition). The plugin works
+    // correctly at runtime; the type narrowing is purely cosmetic.
     swc.vite({
       module: { type: 'es6' },
       jsc: {
@@ -65,6 +68,6 @@ export default defineConfig({
         parser: { syntax: 'typescript', decorators: true },
         transform: { legacyDecorator: true, decoratorMetadata: true },
       },
-    }),
+    }) as unknown as never,
   ],
 });

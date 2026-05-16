@@ -32,7 +32,10 @@ function mockWindow({
   // proprietary `navigator.standalone`.
   (window.navigator as Navigator & { standalone?: boolean }).standalone = standalone;
 
-  vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+  // Vitest 4 + jsdom 25 no longer ship a default matchMedia stub; spyOn
+  // throws "Received undefined". Define a stub first, then replace via
+  // assignment (no spyOn needed — the hook only reads the function).
+  const matchMediaStub = vi.fn((query: string): MediaQueryList => ({
     matches:
       query === '(pointer: coarse)' ? pointerCoarse : query === '(display-mode: standalone)' ? standalone : false,
     media: query,
@@ -43,6 +46,11 @@ function mockWindow({
     removeListener: vi.fn(),
     dispatchEvent: vi.fn(),
   }) as MediaQueryList);
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: matchMediaStub,
+  });
 }
 
 beforeEach(() => {
@@ -142,16 +150,20 @@ describe('useDeviceKind — resize reactivity', () => {
 
     act(() => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
-      vi.spyOn(window, 'matchMedia').mockImplementation((q: string) => ({
-        matches: false,
-        media: q,
-        onchange: null,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      }) as MediaQueryList);
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: vi.fn((q: string): MediaQueryList => ({
+          matches: false,
+          media: q,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as MediaQueryList),
+      });
       window.dispatchEvent(new Event('resize'));
     });
     expect(result.current.kind).toBe('desktop');

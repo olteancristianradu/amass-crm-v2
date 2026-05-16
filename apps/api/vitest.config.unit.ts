@@ -46,6 +46,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    // See vitest.config.ts for why this cast is necessary.
     swc.vite({
       module: { type: 'es6' },
       jsc: {
@@ -53,6 +54,6 @@ export default defineConfig({
         parser: { syntax: 'typescript', decorators: true },
         transform: { legacyDecorator: true, decoratorMetadata: true },
       },
-    }),
+    }) as unknown as never,
   ],
 });
