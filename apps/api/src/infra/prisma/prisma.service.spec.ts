@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaService, applyTenantScope, tenantExtension } from './prisma.service';
+import { getTenantContext, tenantStorage } from './tenant-context';
 
 // runWithTenant tests construct a real PrismaService instance but stub the
 // `extended` / `readExtended` fields (private) so no real Postgres is needed.
@@ -213,6 +214,46 @@ describe('PrismaService.runWithTenant', () => {
     await svc.runWithTenant(VALID_TENANT, 'rw', async () => 'primary');
     expect(extendedTransaction).toHaveBeenCalledTimes(1);
     expect(readExtendedTransaction).not.toHaveBeenCalled();
+  });
+
+  // ─── B3-PR4 e2e finding: ALS context inside the transaction ───────────
+  // The SCIM bearer flow + system-job paths don't have a TenantContextMiddleware
+  // upstream. runWithTenant now sets the AsyncLocalStorage itself so the
+  // tenantExtension query handler can read `getTenantContext()` and stamp
+  // tenantId on every write. Regression test for commit 5d9fc42.
+
+  it('exposes a populated tenant ALS context inside the transaction callback', async () => {
+    // Re-import getTenantContext so the test sees the live module instance.
+    let observed: { tenantId?: string } | undefined;
+    await svc.runWithTenant(VALID_TENANT, async () => {
+      observed = getTenantContext();
+      return 'inner';
+    });
+    expect(observed).toBeDefined();
+    expect(observed?.tenantId).toBe(VALID_TENANT);
+  });
+
+  it('OVERRIDES the upstream tenantId in ALS (defense — caller-supplied tenantId is the source of truth inside the txn)', async () => {
+    const otherTenant = 'cothertenant33344445555666f';
+    let observed: { tenantId?: string; userId?: string } | undefined;
+    await tenantStorage.run({ tenantId: otherTenant, userId: 'u-99' }, () =>
+      svc.runWithTenant(VALID_TENANT, async () => {
+        observed = getTenantContext();
+        return undefined;
+      }),
+    );
+    // tenantId overridden to the caller-supplied value — prevents a leaked
+    // upstream ALS from accidentally writing to the wrong tenant.
+    expect(observed?.tenantId).toBe(VALID_TENANT);
+    // BUT we preserve the upstream userId for audit-trail continuity.
+    expect(observed?.userId).toBe('u-99');
+  });
+
+  it('ALS context unwinds after the callback resolves (no leak across calls)', async () => {
+    expect(getTenantContext()).toBeUndefined(); // baseline
+    await svc.runWithTenant(VALID_TENANT, async () => 'done');
+    // After the run() resolves we should be back to the original (empty) ctx.
+    expect(getTenantContext()).toBeUndefined();
   });
 });
 
