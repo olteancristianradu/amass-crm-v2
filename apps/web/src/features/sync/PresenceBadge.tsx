@@ -1,5 +1,6 @@
 import { Eye } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { useUserNames } from './useUserNames';
 
 /**
  * B1-PR4 — "Someone else is viewing this page" chip.
@@ -7,10 +8,9 @@ import { cn } from '@/lib/cn';
  * Renders nothing when there are no other viewers — empty UI is the
  * correct UI here; we don't want a "0 persoane" pill cluttering the page.
  *
- * Hover surface: the chip's `title` attribute carries the (truncated)
- * list of viewer userIds. Full name resolution lives in a future PR
- * (B2: presence avatars); for now the userId is enough to confirm the
- * indicator is real and not a phantom.
+ * Tooltip uses `useUserNames` to resolve viewer userIds to fullNames
+ * via the cached /users/lookup endpoint. While the lookup is in flight
+ * we show a "loading" message instead of stale cuid placeholders.
  */
 export interface PresenceBadgeProps {
   viewerUserIds: string[];
@@ -21,6 +21,9 @@ export function PresenceBadge({
   viewerUserIds,
   className,
 }: PresenceBadgeProps): JSX.Element | null {
+  // ORDER: hook calls must run unconditionally — early-return AFTER the hook.
+  const { loading, nameFor } = useUserNames(viewerUserIds);
+
   if (viewerUserIds.length === 0) return null;
 
   const count = viewerUserIds.length;
@@ -30,9 +33,11 @@ export function PresenceBadge({
       ? '+1 persoană vede această pagină'
       : `+${count} persoane văd această pagină`;
 
-  // Tooltip lists viewer userIds (cap at 5 so a flash mob doesn't blow
-  // out the title attribute). Future PR will swap to real names.
-  const tooltipLines = viewerUserIds.slice(0, 5).map((id) => `User ${id}`);
+  // Tooltip lists viewer names (cap at 5). When the lookup is mid-flight
+  // we surface a friendly loading message — better than flickering raw IDs.
+  const tooltipLines = loading
+    ? ['Se încarcă numele...']
+    : viewerUserIds.slice(0, 5).map((id) => nameFor(id));
   if (viewerUserIds.length > 5) {
     tooltipLines.push(`… și încă ${viewerUserIds.length - 5}`);
   }

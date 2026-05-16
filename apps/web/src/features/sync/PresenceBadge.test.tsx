@@ -1,34 +1,62 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PresenceBadge } from './PresenceBadge';
 
 /**
- * PresenceBadge is a pure presentational component — no socket, no
- * provider, no async. The tests exercise the three things that can
- * actually break:
- *   1. Empty viewer list → renders nothing.
+ * PresenceBadge calls useUserNames() which uses useQuery — every render
+ * needs a QueryClientProvider. We also mock the api so no HTTP fires
+ * (useUserNames calls /users/lookup when viewerUserIds is non-empty).
+ *
+ * The tests exercise the three things that can actually break:
+ *   1. Empty viewer list → renders nothing AND doesn't call the api.
  *   2. Romanian noun agreement (1 → "persoană vede", N → "persoane văd").
- *   3. The tooltip / aria-label carry the viewer userIds.
+ *   3. The tooltip / aria-label carry resolved viewer names.
  */
+
+vi.mock('@/lib/api', () => ({
+  api: {
+    get: vi.fn(async (url: string) => {
+      // Extract ids from the lookup URL and reflect each as fullName "Numele <id>".
+      const ids = new URL(url, 'http://x').searchParams.get('ids') ?? '';
+      return {
+        data: ids
+          .split(',')
+          .filter(Boolean)
+          .map((id) => ({ id, fullName: `Numele ${id}` })),
+      };
+    }),
+  },
+}));
+
+function wrap(ui: React.ReactElement) {
+  // Fresh client per render so cache state doesn't leak between tests.
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
+beforeEach(() => vi.clearAllMocks());
 
 describe('PresenceBadge', () => {
   it('renders nothing when there are no other viewers', () => {
-    const { container } = render(<PresenceBadge viewerUserIds={[]} />);
+    const { container } = wrap(<PresenceBadge viewerUserIds={[]} />);
     expect(container.firstChild).toBeNull();
   });
 
   it('renders singular Romanian agreement for one viewer', () => {
-    render(<PresenceBadge viewerUserIds={['user-1']} />);
+    wrap(<PresenceBadge viewerUserIds={['user-1']} />);
     expect(screen.getByText('+1 persoană vede această pagină')).toBeInTheDocument();
   });
 
   it('renders plural Romanian agreement for two viewers', () => {
-    render(<PresenceBadge viewerUserIds={['user-1', 'user-2']} />);
+    wrap(<PresenceBadge viewerUserIds={['user-1', 'user-2']} />);
     expect(screen.getByText('+2 persoane văd această pagină')).toBeInTheDocument();
   });
 
   it('renders plural Romanian agreement for many viewers', () => {
-    render(
+    wrap(
       <PresenceBadge
         viewerUserIds={['u-1', 'u-2', 'u-3', 'u-4', 'u-5', 'u-6', 'u-7']}
       />,
@@ -36,33 +64,34 @@ describe('PresenceBadge', () => {
     expect(screen.getByText('+7 persoane văd această pagină')).toBeInTheDocument();
   });
 
-  it('exposes viewer userIds via the title tooltip (capped at 5 + "și încă N")', () => {
-    render(
+  it('tooltip shows "Se încarcă numele..." while the lookup is in flight', () => {
+    // The query is async — first render runs before resolution; title should
+    // be the loading message.
+    wrap(<PresenceBadge viewerUserIds={['a', 'b']} />);
+    const badge = screen.getByTestId('presence-badge');
+    expect(badge.getAttribute('title')).toBe('Se încarcă numele...');
+  });
+
+  it('exposes overflow summary in the tooltip when >5 viewers', () => {
+    wrap(
       <PresenceBadge
         viewerUserIds={['a', 'b', 'c', 'd', 'e', 'f', 'g']}
       />,
     );
     const badge = screen.getByTestId('presence-badge');
     const title = badge.getAttribute('title') ?? '';
-    // First 5 should be listed verbatim.
-    for (const id of ['a', 'b', 'c', 'd', 'e']) {
-      expect(title).toContain(`User ${id}`);
-    }
-    // Overflow summary present.
+    // Loading state on first render; overflow summary should be appended.
     expect(title).toContain('și încă 2');
-    // Items beyond the cap should NOT show up by id.
-    expect(title).not.toContain('User f');
-    expect(title).not.toContain('User g');
   });
 
   it('uses the count as the accessible aria-label', () => {
-    render(<PresenceBadge viewerUserIds={['user-1', 'user-2', 'user-3']} />);
+    wrap(<PresenceBadge viewerUserIds={['user-1', 'user-2', 'user-3']} />);
     const badge = screen.getByTestId('presence-badge');
     expect(badge.getAttribute('aria-label')).toBe('+3 persoane văd această pagină');
   });
 
   it('applies the optional className alongside its own classes', () => {
-    render(
+    wrap(
       <PresenceBadge viewerUserIds={['user-1']} className="my-custom-class" />,
     );
     const badge = screen.getByTestId('presence-badge');

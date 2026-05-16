@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -19,6 +19,24 @@ export class UsersController {
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   async list() {
     return this.users.listForCurrentTenant();
+  }
+
+  /**
+   * Minimal display-name lookup for the presence indicator. Open to all
+   * authenticated roles because AGENT / VIEWER users also need to see who
+   * else is on a record. Returns ONLY {id, fullName} — no email/role leak.
+   *
+   * Query format: `?ids=u1,u2,u3` (comma-separated). Max 100 ids per call.
+   * Declared BEFORE @Get(':id') so the literal "lookup" doesn't match :id.
+   */
+  @Get('lookup')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  async lookup(@Query('ids') ids?: string) {
+    const list = (ids ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return { data: await this.users.lookupDisplayNames(list) };
   }
 
   @Get(':id')

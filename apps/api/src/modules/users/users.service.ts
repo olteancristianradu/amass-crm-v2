@@ -51,6 +51,35 @@ export class UsersService {
     });
   }
 
+  /**
+   * Minimal lookup for display purposes — returns `{id, fullName}` only for
+   * userIds that exist in the current tenant. Designed for the FE
+   * PresenceBadge ("Dana editează acest deal") so an AGENT/VIEWER user can
+   * resolve a coworker's display name without needing OWNER/ADMIN/MANAGER
+   * access to the full /users surface.
+   *
+   * Privacy: only fullName + id leak — no email, no role, no last-login.
+   * The id MUST already be known to the caller (they got it from the
+   * presence WebSocket broadcast), so this is not a directory leak.
+   *
+   * Tenant-scoped: rows from other tenants are filtered out by the
+   * tenantExtension; the explicit `tenantId: ctx.tenantId` filter is
+   * defense-in-depth.
+   */
+  async lookupDisplayNames(userIds: string[]) {
+    if (userIds.length === 0) return [];
+    // Cap at 100 to prevent a malicious or buggy caller from enumerating
+    // an entire (large) tenant in one request.
+    const capped = userIds.slice(0, 100);
+    const ctx = requireTenantContext();
+    return this.prisma.runWithTenant(ctx.tenantId, async (tx) =>
+      tx.user.findMany({
+        where: { id: { in: capped }, tenantId: ctx.tenantId },
+        select: { id: true, fullName: true },
+      }),
+    );
+  }
+
   /** Create a new user in the current tenant (OWNER/ADMIN only). */
   async invite(dto: InviteUserDto, actorId: string) {
     const ctx = requireTenantContext();
