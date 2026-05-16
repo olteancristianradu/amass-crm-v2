@@ -208,18 +208,22 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // `tenantExtension()` no-ops on every write → `Argument tenant is
     // missing` PrismaClientValidationError.
     //
-    // Fix: runWithTenant now wraps the $transaction in `tenantStorage.run()`
-    // itself. If a tenant context is already present (JWT path), we
-    // preserve userId/role; otherwise we set just {tenantId}. Either way,
-    // the extension sees a valid context for the lifetime of the txn.
+    // Fix: runWithTenant now ENSURES an ALS context exists for the
+    // transaction lifetime. If one is already present (JWT path), we
+    // KEEP IT UNCHANGED — overriding the upstream tenantId would silence
+    // legitimate developer-error / cross-tenant-write attempts that RLS
+    // is meant to catch (regression caught by multi-tenant.e2e.spec.ts
+    // "RLS: writing to wrong tenant from inside runWithTenant fails").
+    // Only when there's no upstream context do we synthesize one.
     //
-    // Defense-in-depth invariant: the SET LOCAL config + extension still
-    // independently scope by tenantId — this fix doesn't change WHICH
-    // tenant is targeted, only ensures the extension sees it.
-    const existingCtx = getTenantContext();
-    const ctx = existingCtx
-      ? { ...existingCtx, tenantId }
-      : { tenantId };
+    // Defense-in-depth invariant intact:
+    //  - SET LOCAL app.tenant_id below → Postgres RLS uses the caller-
+    //    supplied tenantId regardless of ALS, so cross-tenant writes
+    //    still fail at the DB layer.
+    //  - tenantExtension reads the now-populated ALS and stamps reads/
+    //    writes with the original ALS tenant (JWT case) OR the caller's
+    //    tenant (SCIM bearer case).
+    const ctx = getTenantContext() ?? { tenantId };
 
     return tenantStorage.run(ctx, () =>
       target.$transaction(async (tx) => {

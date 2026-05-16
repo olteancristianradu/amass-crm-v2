@@ -233,7 +233,7 @@ describe('PrismaService.runWithTenant', () => {
     expect(observed?.tenantId).toBe(VALID_TENANT);
   });
 
-  it('OVERRIDES the upstream tenantId in ALS (defense — caller-supplied tenantId is the source of truth inside the txn)', async () => {
+  it('PRESERVES the upstream ALS unchanged when one exists (do NOT override tenantId)', async () => {
     const otherTenant = 'cothertenant33344445555666f';
     let observed: { tenantId?: string; userId?: string } | undefined;
     await tenantStorage.run({ tenantId: otherTenant, userId: 'u-99' }, () =>
@@ -242,11 +242,18 @@ describe('PrismaService.runWithTenant', () => {
         return undefined;
       }),
     );
-    // tenantId overridden to the caller-supplied value — prevents a leaked
-    // upstream ALS from accidentally writing to the wrong tenant.
-    expect(observed?.tenantId).toBe(VALID_TENANT);
-    // BUT we preserve the upstream userId for audit-trail continuity.
+    // Overriding the upstream tenantId here would silence the legitimate
+    // developer-error / cross-tenant-write attempts that RLS catches —
+    // see commit message of the fix following 5d9fc42, and
+    // test/multi-tenant.e2e.spec.ts "RLS: writing to wrong tenant from
+    // inside runWithTenant fails" for the security contract.
+    expect(observed?.tenantId).toBe(otherTenant);
     expect(observed?.userId).toBe('u-99');
+    // The SET LOCAL config (Postgres RLS) still uses the CALLER-supplied
+    // tenant (VALID_TENANT) — that's how RLS catches the mismatch when
+    // the extension stamps the wrong tenantId. Verify the raw SQL went
+    // out with VALID_TENANT, not the upstream ALS tenant.
+    expect(txDouble.$executeRaw.mock.calls[0]?.[1]).toBe(VALID_TENANT);
   });
 
   it('ALS context unwinds after the callback resolves (no leak across calls)', async () => {
