@@ -1,7 +1,7 @@
 import { createRoute } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { CheckCircle2, ShieldCheck, ShieldX, Smartphone } from 'lucide-react';
+import { CheckCircle2, Copy, Download, KeyRound, ShieldCheck, ShieldX, Smartphone } from 'lucide-react';
 import { authedRoute } from './authed';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,15 @@ interface SetupResponse {
   tempSecret: string;
 }
 
+interface EnableResponse {
+  message: string;
+  backupCodes: string[];
+}
+
+interface BackupCodesRemainingResponse {
+  remaining: number;
+}
+
 /**
  * Settings → 2FA. Three flow branches:
  *   - 2FA already enabled → password-confirmed disable form
@@ -42,11 +51,25 @@ function Settings2faPage(): JSX.Element {
   const [qrData, setQrData] = useState<SetupResponse | null>(null);
   const [enableCode, setEnableCode] = useState('');
   const [disablePassword, setDisablePassword] = useState('');
+  const [regenPassword, setRegenPassword] = useState('');
   const [error, setError] = useState('');
+  // B2-PR5: holds the freshly-issued backup codes from enable() or
+  // regenerateBackupCodes(). Surfaced in a panel that the user MUST
+  // dismiss (the codes are shown ONCE — the BE stores only SHA-256
+  // hashes, so if you close without saving you're locked out of the
+  // recovery path until you regenerate).
+  const [freshCodes, setFreshCodes] = useState<string[] | null>(null);
 
   const { data: me } = useQuery({
     queryKey: ['me-totp'],
     queryFn: () => api.get<MeResponse>('/auth/me'),
+  });
+
+  const { data: remaining } = useQuery({
+    queryKey: ['totp-backup-codes-remaining'],
+    queryFn: () => api.get<BackupCodesRemainingResponse>('/auth/totp/backup-codes/remaining'),
+    // Only fetch when 2FA is enabled — otherwise the endpoint returns {remaining: 0}.
+    enabled: me?.totpEnabled === true,
   });
 
   const setupMut = useMutation({
@@ -59,11 +82,13 @@ function Settings2faPage(): JSX.Element {
   });
 
   const enableMut = useMutation({
-    mutationFn: () => api.post('/auth/totp/enable', { code: enableCode }),
-    onSuccess: () => {
+    mutationFn: () => api.post<EnableResponse>('/auth/totp/enable', { code: enableCode }),
+    onSuccess: (data) => {
       setStep('done');
       setError('');
+      setFreshCodes(data.backupCodes);
       qc.invalidateQueries({ queryKey: ['me-totp'] });
+      qc.invalidateQueries({ queryKey: ['totp-backup-codes-remaining'] });
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -80,7 +105,48 @@ function Settings2faPage(): JSX.Element {
     onError: (err: Error) => setError(err.message),
   });
 
+  const regenerateMut = useMutation({
+    mutationFn: () =>
+      api.post<{ backupCodes: string[] }>('/auth/totp/backup-codes/regenerate', {
+        password: regenPassword,
+      }),
+    onSuccess: (data) => {
+      setFreshCodes(data.backupCodes);
+      setRegenPassword('');
+      setError('');
+      qc.invalidateQueries({ queryKey: ['totp-backup-codes-remaining'] });
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
   const totpEnabled = me?.totpEnabled ?? false;
+
+  // Helpers for the codes panel — clipboard + download .txt. No external
+  // deps; both are vanilla browser APIs available everywhere we ship.
+  const copyCodes = async (codes: string[]) => {
+    try {
+      await navigator.clipboard.writeText(codes.join('\n'));
+    } catch {
+      // Clipboard API can fail under HTTP or in iframes; the visible UI
+      // still shows the codes so the user can copy manually.
+    }
+  };
+  const downloadCodes = (codes: string[]) => {
+    const blob = new Blob(
+      [
+        `Coduri de rezervă 2FA — Amass CRM\nGenerate la ${new Date().toLocaleString('ro-RO')}\n\n${codes.join('\n')}\n\nFiecare cod e valid o singură dată. Păstrează acest fișier în siguranță.\n`,
+      ],
+      { type: 'text/plain' },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `amass-2fa-backup-codes-${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -234,12 +300,106 @@ function Settings2faPage(): JSX.Element {
               <p className="font-medium text-foreground">2FA activată cu succes</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 La următorul login vei fi rugat să introduci codul din aplicația de autentificare.
-                Salvează codurile de rezervă într-un loc sigur.
+                Vezi codurile de rezervă mai jos — salvează-le acum.
               </p>
             </div>
           </div>
         )}
       </GlassCard>
+
+      {/* ── BACKUP CODES PANEL (B2-PR5) ─────────────────────────────
+          Shown immediately after enable() or regenerate(). The codes
+          are visible exactly once — BE stores only SHA-256 hashes —
+          so we force the user to acknowledge before dismissing.
+       */}
+      {freshCodes && freshCodes.length > 0 && (
+        <GlassCard className="border-accent-amber/40 bg-accent-amber/5 p-6">
+          <div className="flex items-start gap-3">
+            <KeyRound size={20} className="mt-1 text-accent-amber" />
+            <div className="flex-1">
+              <h2 className="font-medium text-foreground">Codurile tale de rezervă</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Fiecare cod e valid o singură dată — folosește-le dacă pierzi accesul
+                la aplicația de autentificare. <strong>Salvează-le acum:</strong> nu
+                vor mai fi vizibile după ce închizi acest panou.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-md border border-border/70 bg-background/60 p-4 font-mono text-sm">
+                {freshCodes.map((code) => (
+                  <code key={code} className="select-all">
+                    {code}
+                  </code>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => copyCodes(freshCodes)}>
+                  <Copy size={14} className="mr-1.5" />
+                  Copiază
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => downloadCodes(freshCodes)}>
+                  <Download size={14} className="mr-1.5" />
+                  Descarcă .txt
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFreshCodes(null)}
+                  className="ml-auto"
+                >
+                  Am salvat, închide
+                </Button>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {/* ── REGENERATE BACKUP CODES (when 2FA already enabled) ─────── */}
+      {totpEnabled && (
+        <GlassCard className="p-6">
+          <div className="flex items-start gap-3">
+            <KeyRound size={18} className="mt-0.5 text-muted-foreground" />
+            <div className="flex-1">
+              <h2 className="font-medium">Coduri de rezervă</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {remaining?.remaining === undefined
+                  ? 'Se verifică numărul codurilor rămase…'
+                  : remaining.remaining === 0
+                    ? 'Nu mai ai coduri de rezervă. Regenerează acum.'
+                    : remaining.remaining <= 2
+                      ? `Atenție: mai ai doar ${remaining.remaining} cod${remaining.remaining === 1 ? '' : 'uri'} de rezervă.`
+                      : `Ai ${remaining.remaining} coduri de rezervă rămase.`}
+              </p>
+              <form
+                className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  regenerateMut.mutate();
+                }}
+              >
+                <div className="flex-1">
+                  <label htmlFor="regen-pw" className="block text-xs font-medium text-muted-foreground">
+                    Confirmă cu parola contului
+                  </label>
+                  <Input
+                    id="regen-pw"
+                    type="password"
+                    placeholder="Parola ta"
+                    value={regenPassword}
+                    onChange={(e) => setRegenPassword(e.target.value)}
+                  />
+                </div>
+                <Button type="submit" disabled={regenerateMut.isPending || !regenPassword}>
+                  {regenerateMut.isPending ? 'Se regenerează…' : 'Regenerează coduri'}
+                </Button>
+              </form>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Codurile vechi devin invalide imediat ce noile coduri sunt afișate.
+              </p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       <GlassCard className="p-6 text-sm text-muted-foreground">
         <h2 className="text-sm font-medium uppercase tracking-widest text-muted-foreground/80">
