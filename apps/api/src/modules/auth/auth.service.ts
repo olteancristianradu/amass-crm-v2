@@ -321,6 +321,11 @@ export class AuthService {
           subjectId: user.id,
           metadata: { remaining: consumed.remaining.length },
         });
+        // B2-PR5 polish: emit a metric so dashboards can alert on a
+        // surge of backup-code usage (could be a brute-force past the
+        // primary TOTP, or a legitimate "phone lost" incident worth a
+        // support follow-up).
+        this.metrics.recordBackupCodeConsumed(user.tenantId);
       }
     }
 

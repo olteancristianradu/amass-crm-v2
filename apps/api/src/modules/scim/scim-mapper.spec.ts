@@ -159,19 +159,55 @@ describe('applyScimPatch', () => {
 describe('parseScimFilter', () => {
   it('parses `userName eq "value"`', () => {
     expect(parseScimFilter('userName eq "alice@example.com"')).toEqual({
-      userName: 'alice@example.com',
+      attribute: 'userName',
+      op: 'eq',
+      value: 'alice@example.com',
     });
   });
 
   it('lowercases the matched value', () => {
     expect(parseScimFilter('userName eq "ALICE@EXAMPLE.COM"')).toEqual({
-      userName: 'alice@example.com',
+      attribute: 'userName',
+      op: 'eq',
+      value: 'alice@example.com',
+    });
+  });
+
+  it('parses ne (not-equal), sw (starts-with), ew (ends-with), co (contains)', () => {
+    expect(parseScimFilter('userName ne "x@y"')).toEqual({
+      attribute: 'userName',
+      op: 'ne',
+      value: 'x@y',
+    });
+    expect(parseScimFilter('userName sw "alice"')).toEqual({
+      attribute: 'userName',
+      op: 'sw',
+      value: 'alice',
+    });
+    expect(parseScimFilter('userName ew "@example.com"')).toEqual({
+      attribute: 'userName',
+      op: 'ew',
+      value: '@example.com',
+    });
+    expect(parseScimFilter('userName co "smith"')).toEqual({
+      attribute: 'userName',
+      op: 'co',
+      value: 'smith',
+    });
+  });
+
+  it('parses presence: `userName pr` (no value)', () => {
+    expect(parseScimFilter('userName pr')).toEqual({
+      attribute: 'userName',
+      op: 'pr',
     });
   });
 
   it('returns null for unsupported filters', () => {
     expect(parseScimFilter('active eq true')).toBeNull();
-    expect(parseScimFilter('userName sw "a"')).toBeNull();
+    expect(parseScimFilter('userName gt "a"')).toBeNull(); // gt not supported
+    expect(parseScimFilter('userName eq "a" and active eq true')).toBeNull(); // no compound
+    expect(parseScimFilter('name.givenName eq "John"')).toBeNull(); // nested attrs
     expect(parseScimFilter('garbage')).toBeNull();
   });
 });

@@ -63,23 +63,48 @@ export class ScimService {
     // SCIM uses 1-based startIndex. Prisma's `skip` is 0-based.
     const skip = Math.max(0, startIndex - 1);
 
-    let whereFilter: { email?: string } = {};
+    // SCIM filter → Prisma where mapping. Supports the 6 operators that
+    // Okta + Azure AD exercise during reconcile: eq, ne, sw, ew, co, pr.
+    // Anything else returns 400 invalidFilter. See parseScimFilter in
+    // scim-mapper.ts for the supported grammar.
+    let whereFilter: { email?: string | Prisma.StringFilter } = {};
     if (filter !== undefined && filter.trim() !== '') {
       const parsed = parseScimFilter(filter);
       if (!parsed) {
-        // RFC 7644 §3.4.2.2: "If the specified attribute or filter contains
-        // an illegal expression, return 400 with scimType=invalidFilter."
         throw new HttpException(
           {
             schemas: [SCIM_ERROR_SCHEMA_URN],
             scimType: 'invalidFilter',
-            detail: `Unsupported filter expression. Only 'userName eq "value"' is supported.`,
+            detail:
+              "Unsupported filter expression. Supported: userName {eq|ne|sw|ew|co} \"value\" or 'userName pr'.",
             status: '400',
           },
           HttpStatus.BAD_REQUEST,
         );
       }
-      whereFilter = { email: parsed.userName };
+      switch (parsed.op) {
+        case 'eq':
+          whereFilter = { email: parsed.value };
+          break;
+        case 'ne':
+          whereFilter = { email: { not: parsed.value } };
+          break;
+        case 'sw':
+          whereFilter = { email: { startsWith: parsed.value } };
+          break;
+        case 'ew':
+          whereFilter = { email: { endsWith: parsed.value } };
+          break;
+        case 'co':
+          whereFilter = { email: { contains: parsed.value } };
+          break;
+        case 'pr':
+          // "present" — userName / email is never null on a real User row,
+          // so this is functionally a no-op filter (matches all). Left in
+          // for spec compliance.
+          whereFilter = {};
+          break;
+      }
     }
 
     return this.prisma.runWithTenant(tenantId, async (tx) => {

@@ -64,6 +64,14 @@ const metricProviders = [
     name: 'backup_last_success_timestamp_seconds',
     help: 'Unix timestamp of the last successful database backup (heartbeat from backup-db.sh).',
   }),
+  // B2-PR5 polish: count of TOTP backup-code consumptions (a.k.a. recovery
+  // codes). Lets dashboards surge-alert on attackers brute-forcing TOTP
+  // fallback OR legitimate user-lost-phone incidents.
+  makeCounterProvider({
+    name: 'totp_backup_code_consumed_total',
+    help: 'Count of TOTP backup codes consumed at login, by tenant.',
+    labelNames: ['tenant'],
+  }),
 ];
 
 @Global()

@@ -106,6 +106,7 @@ function build() {
     recordInvoiceStatus: vi.fn(),
     recordCallCompleted: vi.fn(),
     recordAuthLogin: vi.fn(),
+    recordBackupCodeConsumed: vi.fn(),
   } as unknown as ConstructorParameters<typeof AuthService>[5];
 
   const svc = new AuthService(prisma, jwt, audit, redis, totpSvc, metrics);

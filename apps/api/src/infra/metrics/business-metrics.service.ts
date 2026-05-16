@@ -17,7 +17,7 @@
  * and the time-series DB OOMs. `tenant` is intentionally a tenant UUID
  * because we expect at most ~thousands of tenants, not millions.
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import type { Counter, Histogram } from 'prom-client';
 
@@ -34,6 +34,9 @@ export class BusinessMetricsService {
     private readonly callCompleted: Counter<string>,
     @InjectMetric('auth_login_total')
     private readonly authLogin: Counter<string>,
+    @Optional()
+    @InjectMetric('totp_backup_code_consumed_total')
+    private readonly backupCodeConsumed?: Counter<string>,
   ) {}
 
   /**
@@ -76,5 +79,20 @@ export class BusinessMetricsService {
 
   recordAuthLogin(tenantId: string, success: boolean): void {
     this.authLogin.labels(tenantId, success ? 'success' : 'failure').inc();
+  }
+
+  /**
+   * TOTP backup code consumed during login — operator-visible signal
+   * that a user lost their authenticator and is burning through their
+   * one-time fallback codes. Used by dashboards to alert when a tenant
+   * sees a surge of backup-code logins (could be legitimate phone-lost
+   * incident OR an attacker who got past TOTP).
+   *
+   * @Optional() on the inject because the metric was added in B2-PR5's
+   * polish wave — existing test fixtures that construct BusinessMetrics-
+   * Service without the new provider keep working.
+   */
+  recordBackupCodeConsumed(tenantId: string): void {
+    this.backupCodeConsumed?.labels(tenantId).inc();
   }
 }

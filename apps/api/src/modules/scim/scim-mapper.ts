@@ -209,15 +209,45 @@ function splitFullNameForRecompose(fullName: string): { givenName: string; famil
 }
 
 /**
- * Parse the SCIM `filter` query param. We support ONLY `userName eq "x"`
- * (and the case-insensitive variants Okta sends). Any other filter expression
- * returns `null` so the service can throw a 400 with a clear message.
+ * Parsed SCIM filter — either a simple userName-attribute predicate (the
+ * subset Okta + Azure AD typically send for reconcile flows) or null when
+ * the expression is unsupported. Returns the OPERATOR + VALUE so the
+ * service can map to the right Prisma where clause.
+ *
+ * Supported (per RFC 7644 §3.4.2.2 operators):
+ *   userName eq "alice@x"   → equality
+ *   userName ne "alice@x"   → not-equal
+ *   userName sw "alice"     → starts-with
+ *   userName ew "@x.com"    → ends-with
+ *   userName co "rule"      → contains (substring)
+ *   userName pr             → "present" — userName exists / is non-null
+ *
+ * NOT supported: gt/ge/lt/le, complex (and/or/not) expressions, nested
+ * attribute paths (e.g. name.givenName), multi-attribute filters. They
+ * return null so the controller responds 400 invalidFilter — same as
+ * before this change, just on a smaller set of expressions.
  */
-export function parseScimFilter(filter: string): { userName: string } | null {
-  // userName eq "value" — quotes can be single or double, whitespace flexible.
-  const m = filter.match(/^\s*userName\s+eq\s+["']([^"']+)["']\s*$/i);
+export type ScimFilterOp = 'eq' | 'ne' | 'sw' | 'ew' | 'co' | 'pr';
+
+export interface ScimFilter {
+  attribute: 'userName';
+  op: ScimFilterOp;
+  value?: string; // omitted for 'pr' (presence)
+}
+
+export function parseScimFilter(filter: string): ScimFilter | null {
+  // PRESENCE: `userName pr` (no value)
+  if (/^\s*userName\s+pr\s*$/i.test(filter)) {
+    return { attribute: 'userName', op: 'pr' };
+  }
+  // BINARY: `userName <op> "value"` — quotes can be single or double.
+  const m = filter.match(/^\s*userName\s+(eq|ne|sw|ew|co)\s+["']([^"']+)["']\s*$/i);
   if (!m) return null;
-  return { userName: m[1]!.toLowerCase() };
+  return {
+    attribute: 'userName',
+    op: m[1]!.toLowerCase() as Exclude<ScimFilterOp, 'pr'>,
+    value: m[2]!.toLowerCase(),
+  };
 }
 
 // ─── SCIM Groups (synthetic, role-derived) ──────────────────────────────────
