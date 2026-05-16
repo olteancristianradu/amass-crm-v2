@@ -1,4 +1,9 @@
 import 'reflect-metadata';
+// OTel must initialise BEFORE any other import that the auto-instr should
+// patch (http, express, @nestjs/*, prisma, socket.io, ioredis…). No-op
+// when OTEL_EXPORTER_OTLP_ENDPOINT is unset (the default).
+import { startOtel } from './infra/tracing/otel';
+startOtel();
 import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
