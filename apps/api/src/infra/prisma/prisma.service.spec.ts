@@ -124,6 +124,61 @@ describe('applyTenantScope — Layer 2 auto-inject tenantId', () => {
     const out = applyTenantScope('Deal', 'someFutureOp', before, ctx);
     expect(out).toEqual(before);
   });
+
+  // ── PRESERVE explicit tenantId (defense-in-depth) ────────────────────
+  // Fix following 049e50a: when the caller explicitly provides a
+  // tenantId (in where for reads/updates, or in data for writes), the
+  // extension MUST NOT overwrite it. The mismatch is left for Postgres
+  // RLS to catch. Test contract pinned by
+  // multi-tenant.e2e.spec.ts "RLS: writing to wrong tenant from inside
+  // runWithTenant fails".
+
+  it('does NOT override explicit data.tenantId on create (RLS catches mismatch)', () => {
+    const out = applyTenantScope(
+      'User',
+      'create',
+      { data: { tenantId: 'tenant-B-explicit', email: 'evil@x' } },
+      ctx, // ctx says A but data says B
+    );
+    expect((out.data as { tenantId: string }).tenantId).toBe('tenant-B-explicit');
+  });
+
+  it('does NOT override explicit row.tenantId on createMany (per row)', () => {
+    const out = applyTenantScope(
+      'Contact',
+      'createMany',
+      {
+        data: [
+          { tenantId: 'tenant-B', email: 'a@b' },
+          { email: 'c@d' }, // no explicit — gets stamped
+        ],
+      },
+      ctx,
+    );
+    const rows = out.data as Array<{ tenantId: string }>;
+    expect(rows[0].tenantId).toBe('tenant-B');
+    expect(rows[1].tenantId).toBe(TENANT);
+  });
+
+  it('does NOT override explicit where.tenantId on update', () => {
+    const out = applyTenantScope(
+      'Deal',
+      'update',
+      { where: { id: 'd1', tenantId: 'tenant-B' } },
+      ctx,
+    );
+    expect((out.where as { tenantId: string }).tenantId).toBe('tenant-B');
+  });
+
+  it('does NOT override explicit where.tenantId on findMany', () => {
+    const out = applyTenantScope(
+      'Deal',
+      'findMany',
+      { where: { tenantId: 'tenant-B' } },
+      ctx,
+    );
+    expect((out.where as { tenantId: string }).tenantId).toBe('tenant-B');
+  });
 });
 
 // ─── runWithTenant ─────────────────────────────────────────────────────

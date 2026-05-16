@@ -294,6 +294,22 @@ export function applyTenantScope(
   const tenantId = ctx.tenantId;
   const a: Record<string, unknown> = { ...args };
 
+  // IMPORTANT semantics for read/update/delete WHERE clauses + create/createMany DATA:
+  //
+  // Only STAMP tenantId when the caller hasn't explicitly provided one.
+  // If they did provide one (e.g. `where: { id, tenantId: 'B' }` from
+  // inside a runWithTenant('A', ...)), DO NOT override — pass it through
+  // verbatim and let Postgres RLS catch the mismatch.
+  //
+  // This preserves two invariants:
+  //   1. The "forgotten where" case (the original purpose of this
+  //      extension): app code that forgets `where: { tenantId }` is
+  //      auto-corrected, never leaking cross-tenant rows.
+  //   2. The "developer mismatch / hostile insert" case: app code that
+  //      explicitly asks for tenant B from inside a tenant-A txn gets
+  //      REJECTED by RLS, not silently coerced. multi-tenant.e2e.spec.ts
+  //      "RLS: writing to wrong tenant from inside runWithTenant fails"
+  //      pins this contract.
   if (
     operation === 'findFirst' ||
     operation === 'findMany' ||
@@ -307,13 +323,18 @@ export function applyTenantScope(
     operation === 'delete' ||
     operation === 'upsert'
   ) {
-    a.where = { ...((a.where as object | undefined) ?? {}), tenantId };
+    const whereObj = (a.where as Record<string, unknown> | undefined) ?? {};
+    a.where = 'tenantId' in whereObj ? whereObj : { ...whereObj, tenantId };
   } else if (operation === 'create') {
-    a.data = { ...((a.data as object | undefined) ?? {}), tenantId };
+    const dataObj = (a.data as Record<string, unknown> | undefined) ?? {};
+    a.data = 'tenantId' in dataObj ? dataObj : { ...dataObj, tenantId };
   } else if (operation === 'createMany') {
     const data = a.data;
     if (Array.isArray(data)) {
-      a.data = data.map((row) => ({ ...(row as object), tenantId }));
+      a.data = data.map((row) => {
+        const r = row as Record<string, unknown>;
+        return 'tenantId' in r ? r : { ...r, tenantId };
+      });
     }
   }
   return a;
