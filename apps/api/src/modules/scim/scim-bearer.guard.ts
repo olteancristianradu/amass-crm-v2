@@ -1,7 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 import { AuditService } from '../audit/audit.service';
-import { tenantStorage } from '../../infra/prisma/tenant-context';
 import { ScimTokenService } from './scim-token.service';
 
 /**
@@ -59,24 +58,17 @@ export class ScimBearerGuard implements CanActivate {
     req.scimTenantId = verified.tenantId;
     req.scimTokenId = verified.tokenId;
 
-    // CRITICAL FIX (B3-PR4 e2e finding): NestJS guards cannot wrap the
-    // downstream handler in tenantStorage.run(ctx, fn) — they only
-    // return true/false. Without ALS context, the prisma `tenantExtension`
-    // reads `getTenantContext() === undefined` and short-circuits, sending
-    // `prisma.user.create()` without a tenantId → 500 "Argument tenant is
-    // missing".
+    // Tenant context propagation: `runWithTenant()` in PrismaService wraps
+    // its own $transaction in `tenantStorage.run({tenantId}, ...)`, so
+    // services that go through `prisma.runWithTenant(req.scimTenantId, fn)`
+    // get the correct ALS context for the transaction's lifetime — even
+    // when no upstream middleware set it. We deliberately do NOT call
+    // `tenantStorage.enterWith()` here (was the first attempt — works for
+    // the immediate handler but pollutes the next request that lands on
+    // the same Node worker thread).
     //
-    // Fix: use AsyncLocalStorage.enterWith() — Node 14+ — which sets the
-    // store for the REST of the current async chain without requiring a
-    // callback. The next handler (controller) and every service it calls
-    // will see this ALS as their store.
-    //
-    // Multi-tenant invariant remains intact: the tenantId is sourced from
-    // the verified bearer token row, never from user input.
-    tenantStorage.enterWith({
-      tenantId: verified.tenantId,
-      role: 'SCIM_PROVISIONER',
-    });
+    // Multi-tenant invariant: tenantId comes from the verified bearer
+    // token row, never from user input.
 
     // Best-effort audit. AuditService.log() swallows its own errors, so we
     // do not await — we keep the SCIM path fast. We log the HTTP method +

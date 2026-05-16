@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { getTenantContext } from './tenant-context';
+import { getTenantContext, tenantStorage } from './tenant-context';
 
 /**
  * Models that store tenantId and must be auto-filtered.
@@ -201,24 +201,46 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const target =
       mode === 'ro' && this.readClient !== (this as unknown as PrismaClient) ? this.readExtended : this.extended;
 
-    return target.$transaction(async (tx) => {
-      // `set_config(name, value, is_local=true)` is the parameter-bindable
-      // equivalent of `SET LOCAL name = value`. Prefer this over the old
-      // `$executeRawUnsafe(`SET LOCAL ... = '${tenantId}'`)` path because
-      // Prisma's tagged-template `$executeRaw` binds the placeholder, so
-      // even if `isValidTenantId` above ever regressed, the value cannot
-      // break out of the SQL string literal.
-      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
-      // SET ROLE has no parameter-bindable form, but 'app_user' is a
-      // hardcoded identifier (not user input) so it is injection-proof.
-      await tx.$executeRawUnsafe(`SET LOCAL ROLE app_user`);
-      if (mode === 'ro') {
-        // On replica this is required (host is read-only anyway); on primary
-        // it's belt-and-braces — any accidental write throws immediately.
-        await tx.$executeRawUnsafe(`SET LOCAL transaction_read_only = on`);
-      }
-      return fn(tx as unknown as Prisma.TransactionClient);
-    }) as Promise<T>;
+    // B3-PR4 e2e finding: TenantContextMiddleware sets ALS for JWT-auth
+    // requests, but the SCIM bearer-token flow (and any future non-JWT
+    // auth) does NOT go through that middleware — so `getTenantContext()`
+    // returns undefined inside the transaction callback, and the
+    // `tenantExtension()` no-ops on every write → `Argument tenant is
+    // missing` PrismaClientValidationError.
+    //
+    // Fix: runWithTenant now wraps the $transaction in `tenantStorage.run()`
+    // itself. If a tenant context is already present (JWT path), we
+    // preserve userId/role; otherwise we set just {tenantId}. Either way,
+    // the extension sees a valid context for the lifetime of the txn.
+    //
+    // Defense-in-depth invariant: the SET LOCAL config + extension still
+    // independently scope by tenantId — this fix doesn't change WHICH
+    // tenant is targeted, only ensures the extension sees it.
+    const existingCtx = getTenantContext();
+    const ctx = existingCtx
+      ? { ...existingCtx, tenantId }
+      : { tenantId };
+
+    return tenantStorage.run(ctx, () =>
+      target.$transaction(async (tx) => {
+        // `set_config(name, value, is_local=true)` is the parameter-bindable
+        // equivalent of `SET LOCAL name = value`. Prefer this over the old
+        // `$executeRawUnsafe(`SET LOCAL ... = '${tenantId}'`)` path because
+        // Prisma's tagged-template `$executeRaw` binds the placeholder, so
+        // even if `isValidTenantId` above ever regressed, the value cannot
+        // break out of the SQL string literal.
+        await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+        // SET ROLE has no parameter-bindable form, but 'app_user' is a
+        // hardcoded identifier (not user input) so it is injection-proof.
+        await tx.$executeRawUnsafe(`SET LOCAL ROLE app_user`);
+        if (mode === 'ro') {
+          // On replica this is required (host is read-only anyway); on primary
+          // it's belt-and-braces — any accidental write throws immediately.
+          await tx.$executeRawUnsafe(`SET LOCAL transaction_read_only = on`);
+        }
+        return fn(tx as unknown as Prisma.TransactionClient);
+      }),
+    ) as Promise<T>;
   }
 
   /**
