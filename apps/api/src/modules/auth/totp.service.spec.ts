@@ -117,8 +117,16 @@ describe('TotpService.enable', () => {
       totpEnabled: false,
     } as never);
     vi.mocked(otplib.verify).mockResolvedValueOnce({ valid: true } as never);
-    await h.svc.enable('u', 't', '123456');
-    expect(vi.mocked(h.prisma.user.update).mock.calls[0][0].data).toEqual({ totpEnabled: true });
+    const result = await h.svc.enable('u', 't', '123456');
+    const updateData = vi.mocked(h.prisma.user.update).mock.calls[0][0].data as {
+      totpEnabled: boolean;
+      totpBackupCodes: string[];
+    };
+    expect(updateData.totpEnabled).toBe(true);
+    // B2-PR5: enable now also generates 10 backup codes, stored as SHA-256 hashes.
+    expect(updateData.totpBackupCodes).toHaveLength(10);
+    expect(result.backupCodes).toHaveLength(10);
+    expect(result.backupCodes[0]).toMatch(/^[a-z0-9]{8}$/);
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'auth.totp.enabled', actorId: 'u' }),
     );

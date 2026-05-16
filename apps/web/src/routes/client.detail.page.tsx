@@ -17,6 +17,8 @@ import { CallsTab } from '@/features/calls/CallsTab';
 import { GdprPanel } from '@/features/gdpr/GdprPanel';
 import { ApiError } from '@/lib/api';
 import { useTour } from '@/lib/tours/useTour';
+import { usePresence } from '@/features/sync/usePresence';
+import { PresenceBadge } from '@/features/sync/PresenceBadge';
 import { clientDetailRoute } from './client.detail';
 
 type TabKey = 'timeline' | 'notes' | 'tasks' | 'reminders' | 'email' | 'calls' | 'attachments';
@@ -40,6 +42,8 @@ export function ClientDetailPage(): JSX.Element {
     queryKey: ['clients', 'detail', id],
     queryFn: () => clientsApi.get(id),
   });
+  // B1-PR4: presence indicator.
+  const { viewerUserIds } = usePresence('client', id);
 
   if (isLoading) return <ListSkeleton rows={4} />;
   if (isError) {
@@ -73,6 +77,7 @@ export function ClientDetailPage(): JSX.Element {
             {data.firstName} {data.lastName}
           </span>
           <Users size={16} className="text-muted-foreground" aria-hidden="true" />
+          <PresenceBadge viewerUserIds={viewerUserIds} />
         </span>
       }
       subtitle={

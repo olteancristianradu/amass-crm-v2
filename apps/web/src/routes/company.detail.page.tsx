@@ -21,6 +21,8 @@ import { EmailTab } from '@/features/email/EmailTab';
 import { CallsTab } from '@/features/calls/CallsTab';
 import { ApiError } from '@/lib/api';
 import { useTour } from '@/lib/tours/useTour';
+import { usePresence } from '@/features/sync/usePresence';
+import { PresenceBadge } from '@/features/sync/PresenceBadge';
 import { companyDetailRoute } from './company.detail';
 
 type TabKey =
@@ -59,6 +61,10 @@ export function CompanyDetailPage(): JSX.Element {
     queryKey: ['companies', 'detail', id],
     queryFn: () => companiesApi.get(id),
   });
+  // B1-PR4: presence indicator. Hook is safe to call before `data` lands —
+  // it no-ops when resourceId is undefined; here we always have `id` from
+  // the route param so the effect runs on first render.
+  const { viewerUserIds } = usePresence('company', id);
 
   const deleteMut = useMutation({
     mutationFn: () => companiesApi.remove(id),
@@ -116,6 +122,7 @@ export function CompanyDetailPage(): JSX.Element {
           </span>
           <span>{data.name}</span>
           <Building2 size={16} className="text-muted-foreground" aria-hidden="true" />
+          <PresenceBadge viewerUserIds={viewerUserIds} />
         </span>
       }
       subtitle={

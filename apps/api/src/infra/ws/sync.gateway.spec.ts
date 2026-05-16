@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SyncGateway } from './sync.gateway';
+import type { PresenceService } from './presence.service';
 
 /**
  * Unit tests for SyncGateway. Drives handleConnection / broadcast directly
@@ -12,6 +13,7 @@ import { SyncGateway } from './sync.gateway';
  */
 
 interface MockSocket {
+  id: string;
   handshake: {
     auth?: Record<string, string>;
     headers: Record<string, string | undefined>;
@@ -23,8 +25,9 @@ interface MockSocket {
   disconnect: () => void;
 }
 
-function makeSocket(): MockSocket {
+function makeSocket(id = 'sock-default'): MockSocket {
   const socket: MockSocket = {
+    id,
     handshake: { headers: {} },
     data: {},
     disconnected: false,
@@ -43,12 +46,27 @@ const fakeJwt = {
   verifyAsync: vi.fn(),
 } as unknown as import('@nestjs/jwt').JwtService;
 
+function makeFakePresence(): {
+  presence: PresenceService;
+  enter: ReturnType<typeof vi.fn>;
+  leave: ReturnType<typeof vi.fn>;
+  cleanupSocket: ReturnType<typeof vi.fn>;
+} {
+  const enter = vi.fn(async () => undefined);
+  const leave = vi.fn(async () => undefined);
+  const cleanupSocket = vi.fn(async () => [] as Array<{ tenantId: string; resourceType: string; resourceId: string; userId: string }>);
+  const presence = { enter, leave, cleanupSocket, list: vi.fn() } as unknown as PresenceService;
+  return { presence, enter, leave, cleanupSocket };
+}
+
 describe('SyncGateway', () => {
   let gateway: SyncGateway;
+  let presenceMocks: ReturnType<typeof makeFakePresence>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    gateway = new SyncGateway(fakeJwt);
+    presenceMocks = makeFakePresence();
+    gateway = new SyncGateway(fakeJwt, presenceMocks.presence);
   });
 
   describe('handleConnection', () => {
@@ -197,8 +215,135 @@ describe('SyncGateway', () => {
   });
 
   describe('handleDisconnect', () => {
-    it('does not throw', () => {
-      expect(() => gateway.handleDisconnect({ id: 'sock-1' } as never)).not.toThrow();
+    it('does not throw', async () => {
+      // server stub for broadcast path inside cleanup; cleanupSocket returns []
+      // so no broadcasts happen, but we still need server to be set or the
+      // emit-by-room call would NPE.
+      gateway.server = { to: vi.fn().mockReturnValue({ emit: vi.fn() }) } as never;
+      await expect(gateway.handleDisconnect({ id: 'sock-1' } as never)).resolves.not.toThrow();
+    });
+
+    it('cleans up presence and broadcasts presence:left for every tracked resource', async () => {
+      presenceMocks.cleanupSocket.mockResolvedValueOnce([
+        { tenantId: 'tenant-A', resourceType: 'company', resourceId: 'co-1', userId: 'user-1' },
+        { tenantId: 'tenant-A', resourceType: 'deal', resourceId: 'd-1', userId: 'user-1' },
+      ]);
+      const emit = vi.fn();
+      const to = vi.fn().mockReturnValue({ emit });
+      gateway.server = { to } as never;
+
+      await gateway.handleDisconnect({ id: 'sock-disc' } as never);
+
+      expect(presenceMocks.cleanupSocket).toHaveBeenCalledWith('sock-disc');
+      // Two broadcasts (one per tracked resource), all addressed to tenant-A's room.
+      expect(to).toHaveBeenCalledTimes(2);
+      expect(to).toHaveBeenCalledWith('tenant:tenant-A');
+      expect(emit).toHaveBeenCalledWith('presence:left', {
+        resourceType: 'company',
+        resourceId: 'co-1',
+        userId: 'user-1',
+      });
+      expect(emit).toHaveBeenCalledWith('presence:left', {
+        resourceType: 'deal',
+        resourceId: 'd-1',
+        userId: 'user-1',
+      });
+    });
+
+    it('swallows presence cleanup errors (never throws out of handleDisconnect)', async () => {
+      presenceMocks.cleanupSocket.mockRejectedValueOnce(new Error('redis down'));
+      gateway.server = { to: vi.fn().mockReturnValue({ emit: vi.fn() }) } as never;
+      await expect(gateway.handleDisconnect({ id: 'sock-x' } as never)).resolves.not.toThrow();
+    });
+  });
+
+  describe('presence:enter / presence:leave', () => {
+    it('presence:enter records in Redis + broadcasts presence:joined to the tenant room', async () => {
+      const emit = vi.fn();
+      const to = vi.fn().mockReturnValue({ emit });
+      gateway.server = { to } as never;
+
+      const socket = makeSocket('sock-enter');
+      socket.data['tenantId'] = 'tenant-A';
+      socket.data['userId'] = 'user-1';
+
+      await gateway.onPresenceEnter(
+        { resourceType: 'company', resourceId: 'co-42' },
+        socket as never,
+      );
+
+      expect(presenceMocks.enter).toHaveBeenCalledWith(
+        'tenant-A',
+        'company',
+        'co-42',
+        'user-1',
+        'sock-enter',
+      );
+      expect(to).toHaveBeenCalledWith('tenant:tenant-A');
+      expect(emit).toHaveBeenCalledWith('presence:joined', {
+        resourceType: 'company',
+        resourceId: 'co-42',
+        userId: 'user-1',
+      });
+    });
+
+    it('presence:enter from a socket without tenantId/userId is a silent no-op', async () => {
+      const emit = vi.fn();
+      const to = vi.fn().mockReturnValue({ emit });
+      gateway.server = { to } as never;
+
+      // Socket whose handshake never ran (defense in depth).
+      const socket = makeSocket('sock-nojwt');
+
+      await gateway.onPresenceEnter(
+        { resourceType: 'company', resourceId: 'co-1' },
+        socket as never,
+      );
+
+      expect(presenceMocks.enter).not.toHaveBeenCalled();
+      expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('presence:enter ignores malformed payloads', async () => {
+      gateway.server = { to: vi.fn().mockReturnValue({ emit: vi.fn() }) } as never;
+      const socket = makeSocket('sock-bad');
+      socket.data['tenantId'] = 'tenant-A';
+      socket.data['userId'] = 'user-1';
+
+      await gateway.onPresenceEnter(
+        { resourceType: '', resourceId: '' } as never,
+        socket as never,
+      );
+
+      expect(presenceMocks.enter).not.toHaveBeenCalled();
+    });
+
+    it('presence:leave removes from Redis + broadcasts presence:left to the tenant room', async () => {
+      const emit = vi.fn();
+      const to = vi.fn().mockReturnValue({ emit });
+      gateway.server = { to } as never;
+
+      const socket = makeSocket('sock-leave');
+      socket.data['tenantId'] = 'tenant-A';
+      socket.data['userId'] = 'user-1';
+
+      await gateway.onPresenceLeave(
+        { resourceType: 'deal', resourceId: 'd-9' },
+        socket as never,
+      );
+
+      expect(presenceMocks.leave).toHaveBeenCalledWith(
+        'tenant-A',
+        'deal',
+        'd-9',
+        'user-1',
+      );
+      expect(to).toHaveBeenCalledWith('tenant:tenant-A');
+      expect(emit).toHaveBeenCalledWith('presence:left', {
+        resourceType: 'deal',
+        resourceId: 'd-9',
+        userId: 'user-1',
+      });
     });
   });
 });

@@ -109,15 +109,18 @@ For now the processor runs in the API process. When we split to a separate worke
 
 ### Real-time sync (B1)
 
-Live data-sync over Socket.IO. **B1-PR1** ships gateway + handshake + per-tenant rooms; **B1-PR2** wires per-mutation publishers (deals/invoices/calls); **B1-PR3** ships the FE consumer documented below.
+Live data-sync over Socket.IO. **B1-PR1** ships gateway + handshake + per-tenant rooms; **B1-PR2** wires per-mutation publishers (deals/invoices/calls); **B1-PR3** ships the FE consumer documented below; **B1-PR4** adds presence indicators ("+N persoane văd această pagină") on detail pages.
 
 | Piece | File | Role |
 |-|-|-|
-| `SyncGateway` | `apps/api/src/infra/ws/sync.gateway.ts` | Socket.IO namespace `/sync`. On connect: verifies JWT (handshake auth.token → `Authorization: Bearer` → `amass_at` cookie), joins `tenant:<tid>` room. Invalid/missing/expired token → `socket.disconnect()`, never throws. |
+| `SyncGateway` | `apps/api/src/infra/ws/sync.gateway.ts` | Socket.IO namespace `/sync`. On connect: verifies JWT (handshake auth.token → `Authorization: Bearer` → `amass_at` cookie), joins `tenant:<tid>` room. Invalid/missing/expired token → `socket.disconnect()`, never throws. Also handles `presence:enter`/`presence:leave` (B1-PR4) — payload-supplied tenantId/userId is ignored; the trusted values come from `client.data` set at handshake. |
 | `SyncPublisherService` | `apps/api/src/infra/ws/sync-publisher.service.ts` | Thin facade feature modules inject. `publish(tenantId, event, payload)` delegates to `gateway.broadcast(...)`. Drops with a warn log if the Socket.IO server is null (boot race). |
-| `WsModule` | `apps/api/src/infra/ws/ws.module.ts` | Wires both gateways. Imports `JwtModule` lazily so env validation isn't forced at module-import time. Exports `SyncPublisherService` (the public surface). |
-| `SyncProvider` (FE) | `apps/web/src/features/sync/SyncProvider.tsx` | Mounted inside `<AppShell>`. Opens `io('/sync', { auth: { token } })` when authed, wires the event → React Query invalidation table. Returns `<>{children}</>` — no UI. Reconnect handled natively by socket.io (1-5s backoff). |
+| `PresenceService` | `apps/api/src/infra/ws/presence.service.ts` | Redis-backed presence map (B1-PR4). Primary key shape `presence:<tenantId>:<resourceType>:<resourceId>` → Set<userId> with 60s TTL (heartbeat-refreshed). Secondary index `presence:socket:<socketId>` → Set<JSON{tenantId, resourceType, resourceId, userId}> lets `cleanupSocket()` revoke a dead socket from every resource it was watching in one Redis round-trip. tenantId is the first segment of every primary key — cross-tenant leaks are impossible by construction (tested explicitly in `presence.service.spec.ts`). Internal to WsModule. |
+| `WsModule` | `apps/api/src/infra/ws/ws.module.ts` | Wires both gateways. Imports `JwtModule` lazily so env validation isn't forced at module-import time. Registers `PresenceService` as an internal provider (only `SyncGateway` consumes it). Exports `SyncPublisherService` (the public surface). |
+| `SyncProvider` (FE) | `apps/web/src/features/sync/SyncProvider.tsx` | Mounted inside `<AppShell>`. Opens `io('/sync', { auth: { token } })` when authed, wires the event → React Query invalidation table. Exposes the live socket via `useSyncSocket()` so feature hooks (presence today, optimistic channels later) share one connection. Returns `<>{children}</>` — no UI. Reconnect handled natively by socket.io (1-5s backoff). |
 | `useSyncStatus` (FE) | `apps/web/src/features/sync/useSyncStatus.ts` | `{ connected, lastEventAt }` view onto the `useSyncStore` (Zustand). Consumed by the topbar "Live" badge in AppShell. |
+| `usePresence` (FE) | `apps/web/src/features/sync/usePresence.ts` | `usePresence(resourceType, resourceId) → { viewerUserIds, count }` (B1-PR4). On mount emits `presence:enter`, heartbeats every 30s (inside the 60s server TTL), subscribes to `presence:joined`/`presence:left` filtered to this resource, emits `presence:leave` on unmount. Self-userId filtered out of the returned list. |
+| `PresenceBadge` (FE) | `apps/web/src/features/sync/PresenceBadge.tsx` | Renders the "+N persoane văd această pagină" chip (Eye icon, Romanian noun agreement for 1 vs N). Renders nothing when `viewerUserIds` is empty. Wired into company/contact/client detail pages next to the title. |
 
 **Isolation invariant**: `server.to('tenant:' + tenantId).emit(...)` confines every broadcast to one tenant's room. Tested explicitly in `sync.gateway.spec.ts` with two mock sockets in different rooms — a broadcast to tenant A must leave tenant B's inbox empty. This is the WS-layer twin of layers 1-3 in the multi-tenant defense-in-depth table above; if a publisher accidentally reads the wrong `tenantId`, the layer cannot save you, so per-mutation publishers must source `tenantId` from `runWithTenant`'s context (or the entity's own `tenantId` field for webhook-driven paths like Twilio status callbacks), not request payload.
 
@@ -146,7 +149,18 @@ Live data-sync over Socket.IO. **B1-PR1** ships gateway + handshake + per-tenant
 | `invoice.status_changed` | `['invoices']` |
 | `call.completed` | `['calls']` |
 
-We invalidate rather than patch in place: cheapest correct behaviour, and the next refetch makes the server the canonical source-of-truth (no risk of skew between an optimistic local merge and the server projection). Optimistic deltas + presence land in B1-PR4; offline buffer in B1-PR5.
+We invalidate rather than patch in place: cheapest correct behaviour, and the next refetch makes the server the canonical source-of-truth (no risk of skew between an optimistic local merge and the server projection). Presence shipped in B1-PR4 (see below); offline buffer in B1-PR5; load test in B1-PR6.
+
+**Presence (B1-PR4)** events, FE-driven:
+
+| Event | Direction | Payload | Notes |
+|-|-|-|-|
+| `presence:enter` | FE → BE | `{ resourceType, resourceId }` | tenantId/userId NOT in payload — sourced from JWT-verified `client.data`. Idempotent; heartbeats every 30s. |
+| `presence:leave` | FE → BE | `{ resourceType, resourceId }` | Emitted on hook unmount (route change, tab close). |
+| `presence:joined` | BE → FE (tenant room) | `{ resourceType, resourceId, userId }` | Broadcast after `enter` lands in Redis. |
+| `presence:left` | BE → FE (tenant room) | `{ resourceType, resourceId, userId }` | Broadcast after `leave` lands; also emitted by `handleDisconnect` for every resource the dead socket was watching (via `PresenceService.cleanupSocket`). |
+
+Redis schema: primary set `presence:<tenantId>:<resourceType>:<resourceId>` (Set<userId>, TTL 60s); secondary index `presence:socket:<socketId>` (Set<JSON entry>, TTL 60s) for crash-safe cleanup. Both keys' TTLs are refreshed every `presence:enter` so the FE heartbeat keeps them alive while the tab is open. If the tab/network dies the entry self-expires within 60s — no zombie viewers.
 
 #### Offline write buffer (B1-PR5)
 

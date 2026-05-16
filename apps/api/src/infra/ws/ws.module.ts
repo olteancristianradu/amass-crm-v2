@@ -5,6 +5,7 @@ import { RedisModule } from '../redis/redis.module';
 import { WsGateway } from './ws.gateway';
 import { SyncGateway } from './sync.gateway';
 import { SyncPublisherService } from './sync-publisher.service';
+import { PresenceService } from './presence.service';
 
 /**
  * WS infrastructure module.
@@ -29,10 +30,11 @@ import { SyncPublisherService } from './sync-publisher.service';
       useFactory: () => ({ secret: loadEnv().JWT_SECRET }),
     }),
   ],
-  providers: [WsGateway, SyncGateway, SyncPublisherService],
+  providers: [WsGateway, SyncGateway, SyncPublisherService, PresenceService],
   // SyncPublisherService is the public surface — feature modules import
   // WsModule and inject the publisher. WsGateway stays exported for the
   // existing reminders consumer that emits reminder:fired directly.
+  // PresenceService stays internal: the gateway is its only consumer.
   exports: [WsGateway, SyncPublisherService],
 })
 export class WsModule {}

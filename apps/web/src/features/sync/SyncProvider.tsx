@@ -5,6 +5,19 @@ import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
 
 /**
+ * Context that exposes the live Socket.IO instance to descendants.
+ * Consumers should use `useSyncSocket()` rather than reading the context
+ * directly. Returns `null` when there is no active socket (logged out, or
+ * the connection has not been opened yet) — hooks must handle that case.
+ */
+const SyncSocketContext = React.createContext<Socket | null>(null);
+
+/** Read the live `/sync` Socket.IO instance, or `null` if unauthenticated. */
+export function useSyncSocket(): Socket | null {
+  return React.useContext(SyncSocketContext);
+}
+
+/**
  * B1-PR3 — Frontend Socket.IO consumer.
  *
  * Lifecycle:
@@ -54,6 +67,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }): JSX.E
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
   const setConnected = useSyncStore((s) => s.setConnected);
   const markEvent = useSyncStore((s) => s.markEvent);
+  // Expose the live socket through context so feature hooks (presence,
+  // future optimistic update channels) can subscribe without re-opening
+  // a second connection per consumer. Stored in state, not a ref, so the
+  // context re-renders consumers when the socket actually changes.
+  const [socket, setSocket] = React.useState<Socket | null>(null);
 
   React.useEffect(() => {
     // No token yet → bail out and stay disconnected. Once login completes
@@ -61,6 +79,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }): JSX.E
     // and this effect re-runs with a real value.
     if (!isAuthenticated || !accessToken) {
       setConnected(false);
+      // Intentional: we are exposing the externally-managed Socket.IO
+      // instance through React state so descendant hooks can subscribe.
+      // On logout the socket must be cleared from context; deriving this
+      // from a memo would mean tearing down the Socket.IO connection during
+      // render, which is worse.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSocket(null);
       return;
     }
 
@@ -75,6 +100,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }): JSX.E
       reconnectionDelay: 1_000,
       reconnectionDelayMax: 5_000,
     });
+    // Intentional: the new Socket.IO instance is an external resource we
+    // own for the lifetime of this effect. Publishing it through state is
+    // the only way for `useSyncSocket()` consumers to re-render when it
+    // changes (e.g. on a token refresh that re-opens the connection).
+    setSocket(socket);
 
     socket.on('connect', () => {
       // eslint-disable-next-line no-console -- intentional one-shot info log
@@ -127,8 +157,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }): JSX.E
       socket.off('call.completed', invalidateCalls);
       socket.disconnect();
       setConnected(false);
+      // Cleanup path; same rationale as above (external resource teardown).
+      setSocket(null);
     };
   }, [accessToken, isAuthenticated, queryClient, setConnected, markEvent]);
 
-  return <>{children}</>;
+  return <SyncSocketContext.Provider value={socket}>{children}</SyncSocketContext.Provider>;
 }

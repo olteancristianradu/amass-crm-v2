@@ -18,6 +18,8 @@ import { GdprPanel } from '@/features/gdpr/GdprPanel';
 import { StatusBadge } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api';
 import { useTour } from '@/lib/tours/useTour';
+import { usePresence } from '@/features/sync/usePresence';
+import { PresenceBadge } from '@/features/sync/PresenceBadge';
 import { contactDetailRoute } from './contact.detail';
 
 type TabKey = 'timeline' | 'notes' | 'tasks' | 'reminders' | 'email' | 'calls' | 'attachments';
@@ -41,6 +43,8 @@ export function ContactDetailPage(): JSX.Element {
     queryKey: ['contacts', 'detail', id],
     queryFn: () => contactsApi.get(id),
   });
+  // B1-PR4: presence indicator.
+  const { viewerUserIds } = usePresence('contact', id);
 
   if (isLoading) return <ListSkeleton rows={4} />;
   if (isError) {
@@ -75,6 +79,7 @@ export function ContactDetailPage(): JSX.Element {
             {data.firstName} {data.lastName}
           </span>
           <Contact2 size={16} className="text-muted-foreground" aria-hidden="true" />
+          <PresenceBadge viewerUserIds={viewerUserIds} />
         </span>
       }
       subtitle={

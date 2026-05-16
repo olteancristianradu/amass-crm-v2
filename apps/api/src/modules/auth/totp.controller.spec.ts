@@ -33,14 +33,17 @@ describe('TotpController', () => {
     expect(r).toEqual({ otpAuthUrl: 'otpauth://...', secret: 'xxx' });
   });
 
-  it('POST enable → enable(userId, tenantId, code) and returns success message', async () => {
+  it('POST enable → enable(userId, tenantId, code) and returns success message + backup codes', async () => {
     const svc = makeSvc();
-    svc.enable.mockResolvedValue(undefined);
+    svc.enable.mockResolvedValue({ backupCodes: ['aaaa1111', 'bbbb2222', 'cccc3333', 'dddd4444', 'eeee5555', 'ffff6666', 'gggg7777', 'hhhh8888', 'iiii9999', 'jjjj0000'] });
     const ctrl = build(svc);
 
     const r = await ctrl.enable({ code: '123456' }, fakeUser);
     expect(svc.enable).toHaveBeenCalledWith('u1', 't1', '123456');
-    expect(r).toEqual({ message: '2FA enabled successfully' });
+    expect(r).toEqual({
+      message: '2FA enabled successfully',
+      backupCodes: ['aaaa1111', 'bbbb2222', 'cccc3333', 'dddd4444', 'eeee5555', 'ffff6666', 'gggg7777', 'hhhh8888', 'iiii9999', 'jjjj0000'],
+    });
   });
 
   it('PATCH disable → disable(userId, tenantId, password) and returns success message', async () => {
