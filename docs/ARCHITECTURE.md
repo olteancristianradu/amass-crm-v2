@@ -148,6 +148,37 @@ Live data-sync over Socket.IO. **B1-PR1** ships gateway + handshake + per-tenant
 
 We invalidate rather than patch in place: cheapest correct behaviour, and the next refetch makes the server the canonical source-of-truth (no risk of skew between an optimistic local merge and the server projection). Optimistic deltas + presence land in B1-PR4; offline buffer in B1-PR5.
 
+#### Offline write buffer (B1-PR5)
+
+When `fetch` rejects with a network error (DNS failure, browser offline, server unreachable) on a mutation (`POST`/`PATCH`/`PUT`/`DELETE`) under `/api/v1/`, `apps/web/src/lib/api.ts` redirects it through `offlineQueue.enqueue(...)` instead of throwing. The call resolves synchronously with `{ queued: true, queuedId }` so React Query's optimistic update is **not** rolled back.
+
+| Piece | File | Role |
+|-|-|-|
+| `offlineQueue` | `apps/web/src/features/offline/offline-queue.ts` | `idb` wrapper around the `amass-offline-v1` IndexedDB. Store `mutations` keyed by autoincrement id. Methods: `enqueue / dequeue / peekAll / incrementAttempt`. |
+| `useOfflineQueue` | `apps/web/src/features/offline/useOfflineQueue.ts` | React hook. Returns `{ pendingCount, isReplaying, lastError, replay }`. Subscribes to `window.online` to auto-replay on reconnect; also polls every 5s to catch cross-tab enqueues. |
+| `OfflineIndicator` | `apps/web/src/features/offline/OfflineIndicator.tsx` | Topbar chip. Hidden when online with empty queue. Amber when offline. Blue with spinner + count while draining. |
+
+**Exclusions** (never queued — always thrown):
+- `GET` (reads are not safe to replay — they have no commit semantics).
+- `/api/v1/auth/*` (token issuance — replaying a stale login is meaningless).
+- `/api/v1/webhooks/*` (inbound only; defensive).
+- `/api/v1/uploads/*` presigned URL issuance (short TTL would be expired by replay time).
+
+**Replay strategy**:
+- **Sequential** drain — never parallel. Two queued mutations on the same entity could race and re-introduce the conflict problem we deliberately punted on.
+- **Exponential backoff** per row: 1s, 2s, 4s, 8s, 16s, capped at 30s. The `attempts` counter lives on the IndexedDB row, so backoff survives page reloads.
+- **4xx → drop + surface**: a 400 from the server means the body was invalid; retrying won't help and would block every later mutation in the queue. The error bubbles to `useOfflineQueue().lastError` for the indicator tooltip.
+- **5xx / network error → keep + back off**: transient. The next `online` event or interval tick re-tries.
+- **Auth header re-injection at replay**: the access token may have rotated between enqueue and replay, so the hook reads the current token from `useAuthStore` at execute-time (mirroring `api.ts`'s pattern). The body and other headers are persisted verbatim from the original call.
+- **Cache invalidation after success**: extracts the first path segment after `/api/v1/` and calls `queryClient.invalidateQueries({ queryKey: [segment] })` so the FE refetches once the canonical server projection is durable.
+
+**Conflict policy**: last-write-wins. No CRDT, no operational transform. If two tabs queue conflicting PATCHes, the second replay overwrites the first — same as online behaviour. Per-user / per-tenant queue partitioning is deferred to B1-PR6 (today the queue is a single device-wide store).
+
+**Limitations** (acknowledged, not bugs):
+- Repeatedly clicking "Save" while offline enqueues N rows. No dedupe in PR5.
+- File uploads are not queued — they'd blow IndexedDB quota and the presigned-PUT TTL.
+- Replay does **not** show per-row progress in PR5; the indicator just shows the running total.
+
 Co-existing gateways:
 - `/sync` (this) — domain mutation events, broadcast-to-tenant.
 - `/notifications` (modules/notifications/notifications.gateway.ts) — per-user push, room `tenant:<tid>:user:<sub>`.
@@ -237,6 +268,10 @@ amass-crm has no Group/Team table. The 5 SCIM Groups exposed per tenant are SYNT
 The "remove → downgrade to VIEWER" choice is deliberate: every `User` row carries a non-null `role` column, so removing the role entirely isn't representable. VIEWER matches the create-time default in `scimToUserCreateInput` and our least-privilege bias. When a real Group/Team table lands (multi-team, scoped permissions), POST/DELETE become real implementations and this section is the canonical place to revisit the contract.
 
 Out of scope for PR3: Okta E2E integration test (B3-PR4) and the `ServiceProviderConfig` / `ResourceTypes` / `Schemas` meta endpoints (B3-PR4).
+
+#### Okta sandbox cert milestone (B3-PR4)
+
+Black-box proof that the SCIM surface speaks the dialect Okta actually emits — not just the dialect our unit tests speak. Lives in [`apps/api/test/scim-okta-flow.e2e.spec.ts`](../apps/api/test/scim-okta-flow.e2e.spec.ts) and replays the full provisioning ceremony: `POST /Users` (with Okta-shaped extras: `externalId`, secondary emails, `phoneNumbers`, enterprise extension URN — all silently dropped by Zod), `GET /Users?filter=userName eq`, `GET /Users/:id`, `PATCH active=false` to deprovision, `GET /Groups` (the 5 synthetic role-derived entries), `PATCH /Groups/role:ADMIN` add + the Okta legacy `members[value eq "id"]` remove form, `DELETE /Users/:id` soft-delete. Security envelope: no Authorization header → 401, revoked token → 401, malformed `Bearer ` prefix → 401, tenant-B token attempting to read tenant-A users → empty list + 404 on direct id GET (multi-tenant RLS holding the line). Documented limitations exercised: complex Okta reconcile filters → 400 `invalidFilter`, `POST /Groups` → 501 `notImplemented`. Fixtures captured from Okta's published SCIM 2.0 Test App payloads in [`apps/api/test/fixtures/okta-scim-payloads.ts`](../apps/api/test/fixtures/okta-scim-payloads.ts). Operator runbook for wiring a real Okta sandbox tenant (token mint → app config → attribute map → group-to-role map → push test → troubleshooting + token rotation) lives in [`docs/SCIM_OKTA_SETUP.md`](./SCIM_OKTA_SETUP.md). No real Okta credentials are ever embedded — the runbook is reproducible against any free developer org.
 
 #### Discovery surface (B3-PR5) — **B3 epic COMPLETE**
 

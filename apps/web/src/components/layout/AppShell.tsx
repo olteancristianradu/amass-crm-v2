@@ -63,6 +63,7 @@ import { useReminderPoller } from '@/hooks/useReminderPoller';
 import { NotificationsBell } from './NotificationsBell';
 import { SyncProvider } from '@/features/sync/SyncProvider';
 import { useSyncStatus } from '@/features/sync/useSyncStatus';
+import { OfflineIndicator } from '@/features/offline/OfflineIndicator';
 
 interface Props {
   children: React.ReactNode;
@@ -473,6 +474,7 @@ function Topbar({
         <ThemeToggle />
         <DensityToggle />
         <LiveBadge />
+        <OfflineIndicator />
         <NotificationsBell />
         <UserMenu user={user} onLogout={onLogout} />
       </div>

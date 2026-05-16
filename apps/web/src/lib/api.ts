@@ -16,8 +16,45 @@
  * requests that all hit a 401 at once will share ONE refresh round-trip.
  */
 import { useAuthStore } from '@/stores/auth';
+import { offlineQueue, type HttpMethod } from '@/features/offline/offline-queue';
 
 const API_BASE = '/api/v1';
+
+/**
+ * Response shape returned to the caller when a mutation got queued for
+ * offline replay instead of hitting the network. React Query mutation
+ * `onSuccess` handlers should treat `queued: true` as "optimistic update
+ * stays — the replay will commit it later". `queuedId` lets the caller
+ * cancel the queued mutation if it's been superseded.
+ */
+export interface QueuedResponse {
+  queued: true;
+  queuedId: number;
+}
+
+export function isQueuedResponse(value: unknown): value is QueuedResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { queued?: unknown }).queued === true
+  );
+}
+
+/**
+ * Endpoints we MUST NOT queue offline:
+ *   - /auth/*  — token issuance is meaningless to replay later.
+ *   - /webhooks/* — inbound only, never called by the SPA but defensive.
+ *   - /uploads/* presigned PUT issuance — short TTL, would be expired by
+ *     replay time. The browser also handles the actual MinIO PUT outside
+ *     this api wrapper.
+ */
+function isQueueableMutation(path: string, method: HttpMethod | 'GET'): boolean {
+  if (method === 'GET') return false;
+  if (path.startsWith('/auth/')) return false;
+  if (path.startsWith('/webhooks/')) return false;
+  if (path.startsWith('/uploads/')) return false;
+  return true;
+}
 
 export interface ApiErrorShape {
   code?: string;
@@ -125,15 +162,42 @@ async function rawFetch<T = unknown>(path: string, opts: RequestOptions = {}): P
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(url.toString(), {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    // M-10: `same-origin` is enough here because the SPA and API share
-    // the origin behind Caddy. It makes the httpOnly refresh cookie
-    // ride along on /auth/refresh and /auth/logout.
-    credentials: 'same-origin',
-  });
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      // M-10: `same-origin` is enough here because the SPA and API share
+      // the origin behind Caddy. It makes the httpOnly refresh cookie
+      // ride along on /auth/refresh and /auth/logout.
+      credentials: 'same-origin',
+    });
+  } catch (networkErr) {
+    // B1-PR5: pure network failure (no Response object — DNS, offline,
+    // CORS, etc.). For safe-to-queue mutations we stash the request in
+    // IndexedDB and return a synthetic queued response so the calling
+    // React Query mutation doesn't roll back its optimistic update.
+    // GETs still throw — there's nothing safe to "replay" for a read.
+    if (isQueueableMutation(path, method)) {
+      try {
+        const queuedId = await offlineQueue.enqueue({
+          method: method as HttpMethod,
+          // Store the absolute URL (including any query string) so replay
+          // doesn't have to re-serialise the params. Strip the origin
+          // because `fetch` resolves it from `window.location` at replay.
+          url: url.pathname + url.search,
+          body,
+        });
+        return { queued: true, queuedId } as unknown as T;
+      } catch {
+        // IndexedDB unavailable (private mode, quota). Fall through and
+        // rethrow the original network error — better the user sees the
+        // failure than silently loses the edit.
+      }
+    }
+    throw networkErr;
+  }
 
   if (res.status === 401 && !skipRefresh) {
     const refreshed = await tryRefresh();
