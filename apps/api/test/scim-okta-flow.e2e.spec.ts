@@ -82,7 +82,7 @@ import {
  * `AllExceptionsFilter` overwrites the `scimType` field. Documented in
  * `docs/SCIM_OKTA_SETUP.md` troubleshooting + the report.
  */
-describe.skip('SCIM Okta flow (e2e) — blocked on B3-PR3.1', () => {
+describe('SCIM Okta flow (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   const stamp = Date.now();

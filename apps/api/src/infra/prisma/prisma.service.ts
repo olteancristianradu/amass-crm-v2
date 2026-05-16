@@ -68,6 +68,10 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'QuoteLine',
   'Reminder',
   'ReportTemplate',
+  // B3-PR3 SCIM bearer tokens — added per B3-PR4 e2e finding (writes to
+  // scim_tokens previously bypassed tenantExtension because the model
+  // wasn't in this set, causing 500 on POST /scim/tokens).
+  'ScimToken',
   'SequenceEnrollment',
   'Session',
   'SmsMessage',

@@ -11,6 +11,26 @@ interface ErrorResponseBody {
   timestamp: string;
 }
 
+/**
+ * B3-PR4 e2e finding: SCIM responses MUST follow RFC 7644 §3.12 error
+ * envelope shape: `{ schemas: [...], detail: ..., status: ..., scimType?: ... }`.
+ * The standard CRM envelope (above) is wrong shape for Okta/Azure parsers —
+ * they reject any 4xx/5xx that doesn't include the schemas array. We detect
+ * SCIM-bound requests by URL prefix and remap.
+ */
+function isScimRequest(url: string): boolean {
+  return url.startsWith('/api/v1/scim/v2/') || url.startsWith('/scim/v2/');
+}
+
+interface ScimErrorBody {
+  schemas: string[];
+  detail: string;
+  status: string;
+  scimType?: string;
+}
+
+const SCIM_ERROR_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:Error';
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -25,6 +45,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let code = 'INTERNAL_ERROR';
     let message = 'Unexpected error';
     let details: unknown;
+    // B3-PR4: preserved through to the SCIM response body when the request
+    // hits a /scim/v2/* route. RFC 7644 §3.12 defines values like
+    // "invalidFilter", "tooMany", "uniqueness", "noTarget", etc.
+    let scimType: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -33,9 +57,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
         const r = res as Record<string, unknown>;
-        message = (r.message as string | undefined) ?? exception.message;
+        message = (r.message as string | undefined) ?? (r.detail as string | undefined) ?? exception.message;
         code = (r.code as string | undefined) ?? code;
         details = r.details ?? r.errors;
+        scimType = r.scimType as string | undefined;
       }
       // Default code mapping based on status if not explicitly set
       if (code === 'INTERNAL_ERROR') {
@@ -51,7 +76,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // string they can quote alongside the traceId.
     const safeMessage = status >= 500 ? 'Internal server error' : message;
 
-    const body: ErrorResponseBody = {
+    const standardBody: ErrorResponseBody = {
       code,
       message: safeMessage,
       details: status >= 500 ? undefined : details,
@@ -69,6 +94,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
       exception instanceof Error ? exception.stack : undefined,
     );
 
-    response.status(status).json(body);
+    if (isScimRequest(request.url)) {
+      // SCIM response envelope per RFC 7644 §3.12. Okta/Azure parsers
+      // reject anything without the `schemas` field, so we re-shape.
+      const scimBody: ScimErrorBody = {
+        schemas: [SCIM_ERROR_SCHEMA],
+        detail: safeMessage,
+        status: String(status),
+        ...(scimType ? { scimType } : {}),
+      };
+      response
+        .status(status)
+        .setHeader('Content-Type', 'application/scim+json')
+        .json(scimBody);
+      return;
+    }
+
+    response.status(status).json(standardBody);
   }
 }
