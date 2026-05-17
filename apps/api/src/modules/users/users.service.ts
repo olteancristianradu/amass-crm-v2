@@ -1,10 +1,12 @@
-import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { type Locale, LocaleSchema, resolveLocale } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { AuditService } from '../audit/audit.service';
+import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
 import { USER_REVOKED_BEFORE_PREFIX } from '../auth/auth.service';
 import { InviteUserDto, UpdateUserRoleDto } from './users.dto';
 
@@ -14,6 +16,7 @@ const SAFE_SELECT = {
   fullName: true,
   role: true,
   isActive: true,
+  preferredLocale: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -26,6 +29,9 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly redis: RedisService,
+    // @Optional-style: the metrics service is `@Global()` so DI always
+    // satisfies it. The spec file mocks it explicitly — see users.service.spec.ts.
+    private readonly metrics: BusinessMetricsService,
   ) {}
 
   async listForCurrentTenant() {
@@ -205,6 +211,106 @@ export class UsersService {
       });
 
       return updated;
+    });
+  }
+
+  /**
+   * Phase 0 / Feature 1 — user-scoped locale switch.
+   *
+   * Cascade applied at write-time so a user can't pick a locale the tenant
+   * admin has since revoked:
+   *   1. Zod has already whitelisted `locale` against `LocaleSchema` at
+   *      the controller. Defense-in-depth re-validate here in case a future
+   *      caller bypasses the pipe.
+   *   2. Tenant's `enabledLocales` must contain the target — else 400
+   *      `LOCALE_DISABLED_BY_TENANT`. We don't 403 because the user IS
+   *      allowed to manage their own preference; the tenant just doesn't
+   *      offer the chosen locale today.
+   *   3. On success, emit audit row + Prometheus counter + return the
+   *      updated user (FE replaces the local cache).
+   */
+  async updateMyLocale(userId: string, locale: Locale) {
+    const ctx = requireTenantContext();
+
+    // Re-validate (belt-and-braces; Zod at the pipe is the primary gate).
+    const parsed = LocaleSchema.safeParse(locale);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: 'INVALID_LOCALE', message: 'Locale not supported' });
+    }
+
+    return this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const tenant = await tx.tenant.findUniqueOrThrow({
+        where: { id: ctx.tenantId },
+        select: { enabledLocales: true, defaultLocale: true },
+      });
+      if (!tenant.enabledLocales.includes(parsed.data)) {
+        throw new BadRequestException({
+          code: 'LOCALE_DISABLED_BY_TENANT',
+          message: 'This locale is not enabled for your workspace',
+        });
+      }
+
+      const current = await tx.user.findFirstOrThrow({
+        where: { id: userId, tenantId: ctx.tenantId },
+        select: { preferredLocale: true },
+      });
+
+      // No-op fast path: don't audit a non-change.
+      if (current.preferredLocale === parsed.data) {
+        const unchanged = await tx.user.findFirstOrThrow({
+          where: { id: userId, tenantId: ctx.tenantId },
+          select: SAFE_SELECT,
+        });
+        return unchanged;
+      }
+
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { preferredLocale: parsed.data },
+        select: SAFE_SELECT,
+      });
+
+      // Metrics + audit. Audit FIRST so a metric blip doesn't silently lose
+      // compliance evidence — audit is the harder requirement (T-I18N-R-01).
+      await this.audit.log({
+        tenantId: ctx.tenantId,
+        actorId: userId,
+        action: 'user.locale_change',
+        subjectType: 'user',
+        subjectId: userId,
+        metadata: { from: current.preferredLocale, to: parsed.data },
+      });
+
+      this.metrics.recordLocaleSwitch(ctx.tenantId, current.preferredLocale, parsed.data);
+
+      return updated;
+    });
+  }
+
+  /**
+   * Read the resolved locale for the current user (cascade: user pref →
+   * tenant default → 'ro'). Used by BE-side template rendering hooks that
+   * need a single source-of-truth locale lookup without re-implementing the
+   * cascade in every service.
+   */
+  async resolveMyLocale(userId: string): Promise<Locale> {
+    const ctx = requireTenantContext();
+    return this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const [user, tenant] = await Promise.all([
+        tx.user.findFirstOrThrow({
+          where: { id: userId, tenantId: ctx.tenantId },
+          select: { preferredLocale: true },
+        }),
+        tx.tenant.findUniqueOrThrow({
+          where: { id: ctx.tenantId },
+          select: { defaultLocale: true, enabledLocales: true },
+        }),
+      ]);
+      return resolveLocale({
+        userPreferred: user.preferredLocale,
+        tenantDefault: tenant.defaultLocale,
+        enabledLocales: tenant.enabledLocales,
+      });
     });
   }
 

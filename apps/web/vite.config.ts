@@ -55,6 +55,15 @@ export default defineConfig({
       },
     },
   },
+  // Align dev (dep pre-bundle + source transform) with build target so
+  // dependencies that ship ES2022 destructuring in their ESM bundle
+  // (e.g. i18next-browser-languagedetector@8.2+) don't throw
+  // "Transforming destructuring to chrome87 not supported" on `pnpm dev`.
+  // esbuild 0.27+ no longer auto-transforms these patterns.
+  optimizeDeps: {
+    esbuildOptions: { target: 'es2022' },
+  },
+  esbuild: { target: 'es2022' },
   build: {
     // ES2022 target — esbuild 0.27+ no longer transforms async-iterator and
     // private-field destructuring down to ES2020 (the older default vite

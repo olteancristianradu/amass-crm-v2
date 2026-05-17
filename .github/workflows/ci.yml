@@ -39,6 +39,12 @@ jobs:
         run: pnpm --filter @amass/api exec prisma generate
       - run: pnpm lint
       - run: pnpm typecheck
+      # Phase 0 / Feature 1: enforce RO↔EN catalog key parity before build.
+      # The script is dependency-free (pure node) so it runs in <100ms and
+      # adds negligible CI time. Place BEFORE `pnpm build` because a parity
+      # drift means a missing translation will show up as raw key in the UI.
+      - name: i18n catalog parity (RO ↔ EN)
+        run: pnpm --filter @amass/web i18n:parity
       - run: pnpm build
 
   # ── 2. Secret scan — gitleaks ──────────────────────────────────────────────

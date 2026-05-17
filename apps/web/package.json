@@ -12,7 +12,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "e2e:smoke": "playwright test --grep smoke"
+    "e2e:smoke": "playwright test --grep smoke",
+    "i18n:parity": "node scripts/i18n-parity.mjs"
   },
   "dependencies": {
     "@amass/shared": "workspace:*",
@@ -24,12 +25,15 @@
     "@tanstack/react-table": "^8.20.5",
     "clsx": "^2.1.1",
     "driver.js": "^1.4.0",
+    "i18next": "^25",
+    "i18next-browser-languagedetector": "^8",
     "idb": "^8.0.3",
     "isomorphic-dompurify": "^3.12.0",
     "lucide-react": "^1.14.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.75.0",
+    "react-i18next": "^15",
     "socket.io-client": "^4.8.0",
     "tailwind-merge": "^2.5.4",
     "zod": "^3.23.8",

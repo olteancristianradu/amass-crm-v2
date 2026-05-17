@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { PageHeader } from '@/components/ui/page-header';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTour } from '@/lib/tours/useTour';
 import {
   useUiPreferencesStore,
@@ -207,6 +208,17 @@ export function SettingsAppearancePage(): JSX.Element {
         title="Aspect"
         subtitle="Personalizează tema, densitatea, rotunjirea, fontul, mișcarea și culoarea de accent. Modificările sunt vizibile imediat."
       />
+
+      {/* ── Language ───────────────────────────────────────────────── */}
+      <GlassCard className="mb-6 p-6">
+        <header className="mb-4">
+          <h2 className="text-base font-semibold">Limbă</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Limba interfeței aplicației. Setarea se salvează pe contul tău și se aplică pe orice browser.
+          </p>
+        </header>
+        <LanguageSwitcher />
+      </GlassCard>
 
       {/* ── Theme ──────────────────────────────────────────────────── */}
       <GlassCard className="mb-6 p-6" data-tour="appearance-themes">

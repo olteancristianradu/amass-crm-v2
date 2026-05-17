@@ -6,6 +6,11 @@ import './styles.css';
 import { router } from './router';
 import { queryClient } from './lib/queryClient';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { initI18n } from './i18n';
+
+// Init i18next BEFORE the first render so RO is available synchronously.
+// The function is idempotent — HMR / StrictMode double-mount is fine.
+initI18n();
 
 // Sentry: dynamic-imported only when VITE_SENTRY_DSN is set. Without
 // this, `import * as Sentry` would pull @sentry/react (~120KB gzip)

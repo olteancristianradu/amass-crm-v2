@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { UsersService } from './users.service';
 
@@ -16,10 +16,14 @@ function build() {
     user: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      findFirstOrThrow: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       count: vi.fn(),
+    },
+    tenant: {
+      findUniqueOrThrow: vi.fn(),
     },
     session: { updateMany: vi.fn() },
   };
@@ -28,7 +32,8 @@ function build() {
   } as unknown as ConstructorParameters<typeof UsersService>[0];
   const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof UsersService>[1];
   const redis = { client: { setex: vi.fn().mockResolvedValue('OK') } } as unknown as ConstructorParameters<typeof UsersService>[2];
-  return { svc: new UsersService(prisma, audit, redis), prisma, tx, audit, redis };
+  const metrics = { recordLocaleSwitch: vi.fn() } as unknown as ConstructorParameters<typeof UsersService>[3];
+  return { svc: new UsersService(prisma, audit, redis, metrics), prisma, tx, audit, redis, metrics };
 }
 
 describe('UsersService.listForCurrentTenant', () => {
@@ -184,6 +189,65 @@ describe('UsersService.deactivate', () => {
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'user.deactivate' }),
     );
+  });
+});
+
+describe('UsersService.updateMyLocale', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('rejects when tenant has disabled the requested locale', async () => {
+    const h = build();
+    h.tx.tenant.findUniqueOrThrow.mockResolvedValue({ enabledLocales: ['ro'], defaultLocale: 'ro' });
+    await expect(h.svc.updateMyLocale('u-1', 'en')).rejects.toThrow(BadRequestException);
+  });
+
+  it('no-ops when the user already has the requested locale (no audit row)', async () => {
+    const h = build();
+    h.tx.tenant.findUniqueOrThrow.mockResolvedValue({ enabledLocales: ['ro', 'en'], defaultLocale: 'ro' });
+    h.tx.user.findFirstOrThrow
+      .mockResolvedValueOnce({ preferredLocale: 'en' })
+      .mockResolvedValueOnce({ id: 'u-1', preferredLocale: 'en' });
+    await h.svc.updateMyLocale('u-1', 'en');
+    expect(h.tx.user.update).not.toHaveBeenCalled();
+    expect(h.audit.log).not.toHaveBeenCalled();
+    expect(h.metrics.recordLocaleSwitch).not.toHaveBeenCalled();
+  });
+
+  it('persists the new locale + audits + emits metric on real change', async () => {
+    const h = build();
+    h.tx.tenant.findUniqueOrThrow.mockResolvedValue({ enabledLocales: ['ro', 'en'], defaultLocale: 'ro' });
+    h.tx.user.findFirstOrThrow.mockResolvedValueOnce({ preferredLocale: 'ro' });
+    h.tx.user.update.mockResolvedValue({ id: 'u-1', preferredLocale: 'en' });
+    const out = await h.svc.updateMyLocale('u-1', 'en');
+    expect(out.preferredLocale).toBe('en');
+    expect(h.tx.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'u-1' }, data: { preferredLocale: 'en' } }),
+    );
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user.locale_change',
+        metadata: { from: 'ro', to: 'en' },
+      }),
+    );
+    expect(h.metrics.recordLocaleSwitch).toHaveBeenCalledWith('tenant-1', 'ro', 'en');
+  });
+});
+
+describe('UsersService.resolveMyLocale', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns the user preference when it is in the tenant whitelist', async () => {
+    const h = build();
+    h.tx.user.findFirstOrThrow.mockResolvedValue({ preferredLocale: 'en' });
+    h.tx.tenant.findUniqueOrThrow.mockResolvedValue({ defaultLocale: 'ro', enabledLocales: ['ro', 'en'] });
+    expect(await h.svc.resolveMyLocale('u-1')).toBe('en');
+  });
+
+  it('falls back to tenant default when user preference was disabled', async () => {
+    const h = build();
+    h.tx.user.findFirstOrThrow.mockResolvedValue({ preferredLocale: 'en' });
+    h.tx.tenant.findUniqueOrThrow.mockResolvedValue({ defaultLocale: 'ro', enabledLocales: ['ro'] });
+    expect(await h.svc.resolveMyLocale('u-1')).toBe('ro');
   });
 });
 

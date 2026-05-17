@@ -7,7 +7,14 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CedarGuard } from '../access-control/cedar.guard';
 import { RequireCedar } from '../access-control/cedar.decorator';
-import { InviteUserDto, InviteUserSchema, UpdateUserRoleDto, UpdateUserRoleSchema } from './users.dto';
+import {
+  InviteUserDto,
+  InviteUserSchema,
+  UpdateMyLocaleDto,
+  UpdateMyLocaleSchema,
+  UpdateUserRoleDto,
+  UpdateUserRoleSchema,
+} from './users.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -37,6 +44,24 @@ export class UsersController {
       .map((s) => s.trim())
       .filter(Boolean);
     return { data: await this.users.lookupDisplayNames(list) };
+  }
+
+  /**
+   * Phase 0 / Feature 1 — locale switch.
+   *
+   * Open to every authenticated role (no `@Roles(...)`) because a user's
+   * own locale is intrinsic to their account, not a tenant-admin decision.
+   * The tenant admin still gates which locales are AVAILABLE via the
+   * `Tenant.enabledLocales` list — service-layer enforces that.
+   *
+   * Declared BEFORE `@Get(':id')` so "me" doesn't get matched as `:id`.
+   */
+  @Patch('me/locale')
+  async updateMyLocale(
+    @Body(new ZodValidationPipe(UpdateMyLocaleSchema)) dto: UpdateMyLocaleDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.users.updateMyLocale(actor.userId, dto.locale);
   }
 
   @Get(':id')
