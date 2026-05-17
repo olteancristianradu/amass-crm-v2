@@ -24,12 +24,27 @@ import { toast } from '@/stores/toasts';
  *    whitelist).
  *  - All visible strings come from `common:language.*` so the switcher
  *    label itself is translated.
+ *  - Hidden when `VITE_FEATURE_I18N_EN` is not truthy — Phase 0 ships only
+ *    RO copy, and exposing a switcher whose target locale is half-translated
+ *    is worse for users than no switcher at all (WCAG 3.1.2 — language of
+ *    parts must be accurate; can't promise EN if the catalog is "[TODO-EN]").
+ *    Flip the flag once the EN catalog is translation-complete.
+ *
+ * Accessibility:
+ *  - Group landmark labelled "Interface language" / "Limba interfeței"
+ *    (WCAG 4.1.2 + 1.3.1) — the old aria-label was a partial sentence.
+ *  - Each pill is a toggle button (`aria-pressed`) with full-opacity border
+ *    for ≥3:1 contrast on unselected state (WCAG 1.4.11).
+ *  - `:focus-visible` ring follows the global accent (WCAG 2.4.7).
+ *  - `aria-busy` exposes pending state to SR while the network round-trip
+ *    completes (WCAG 4.1.3).
  *
  * Layout: small inline button row, designed to drop into the Appearance
  * page's existing GlassCard pattern without extra styling.
  */
-export function LanguageSwitcher(): JSX.Element {
+export function LanguageSwitcher(): JSX.Element | null {
   const { i18n, t } = useTranslation('common');
+
   const current = (LocaleSchema.safeParse(i18n.resolvedLanguage).success
     ? (i18n.resolvedLanguage as Locale)
     : 'ro');
@@ -49,7 +64,9 @@ export function LanguageSwitcher(): JSX.Element {
       // Roll back the optimistic switch on failure.
       const previous = (ctx as { previous?: Locale } | undefined)?.previous ?? 'ro';
       void changeLanguageWithLoad(previous);
-      const msg = err instanceof ApiError ? err.message : 'Network error';
+      // Translated network-error fallback — no English literal leaking
+      // through when the UI is RO (WCAG 4.1.3).
+      const msg = err instanceof ApiError ? err.message : t('language.networkError');
       toast(t('toast.error'), msg);
     },
     onSuccess: () => {
@@ -75,8 +92,19 @@ export function LanguageSwitcher(): JSX.Element {
     }
   }
 
+  // Phase-0 feature gate (placed after hooks to comply with rules-of-hooks).
+  // The switcher is not rendered when the EN catalog is still a stub
+  // (default in dev/prod until the translation pass lands).
+  if (!import.meta.env.VITE_FEATURE_I18N_EN) {
+    return null;
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('language.switchTo', { language: '' })}>
+    <div
+      className="flex flex-wrap items-center gap-2"
+      role="group"
+      aria-label={t('language.groupLabel')}
+    >
       {LOCALE_VALUES.map((code) => {
         const selected = current === code;
         const isPending = pending === code;
@@ -87,10 +115,11 @@ export function LanguageSwitcher(): JSX.Element {
             onClick={() => void handleSwitch(code)}
             disabled={mut.isPending}
             aria-pressed={selected}
-            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+            aria-busy={isPending}
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               selected
                 ? 'border-foreground bg-foreground text-background'
-                : 'border-border/70 bg-card hover:border-border'
+                : 'border-border bg-card hover:border-foreground'
             } ${mut.isPending ? 'opacity-60' : ''}`}
           >
             <Languages size={12} />

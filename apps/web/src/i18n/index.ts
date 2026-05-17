@@ -299,6 +299,21 @@ export function initI18n(): typeof i18next {
       },
     });
 
+  // WCAG 3.1.1 / 3.1.2 — keep <html lang> in sync with the active locale.
+  // SR/AT switch pronunciation engine + per-element fallbacks rely on this.
+  // We update on every change AND set the initial value below, because
+  // i18next's detector may resolve a locale *after* the DOM has loaded.
+  if (typeof document !== 'undefined') {
+    const normalise = (lng: string): string => lng.split('-')[0] ?? DEFAULT_LOCALE;
+    i18next.on('languageChanged', (lng) => {
+      document.documentElement.lang = normalise(lng);
+    });
+    // Initial set — language may already be resolved if detection ran sync.
+    if (i18next.language) {
+      document.documentElement.lang = normalise(i18next.language);
+    }
+  }
+
   // If the language detector picked 'en', pre-load EN now so the very first
   // render does not flash RO before EN swaps in. Best-effort, fire-and-forget.
   if (i18next.language?.startsWith('en')) {

@@ -158,9 +158,11 @@
     "pastDate": "[TODO-EN] Data trebuie să fie în trecut"
   },
   "language": {
-    "ro": "[TODO-EN] Română",
-    "en": "[TODO-EN] Engleză",
-    "switchTo": "[TODO-EN] Schimbă în {{language}}"
+    "ro": "Romanian",
+    "en": "English",
+    "switchTo": "Switch to {{language}}",
+    "groupLabel": "Interface language",
+    "networkError": "Network error"
   },
   "currency": {
     "ron": "[TODO-EN] RON",

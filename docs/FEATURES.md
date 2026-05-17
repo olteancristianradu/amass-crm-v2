@@ -405,6 +405,92 @@ contabil + auditor fiscal.
 ### 10.10 Notifications (Settings)
 - **Ce face:** Preferințe per user — ce notificări vrei (email/push/in-app) pentru fiecare tip event.
 
+### 10.11 Saved Views (Vizualizări salvate per utilizator) — Phase 0 / 2026-05-17
+
+- **Ce face:** Fiecare user își salvează combinații custom de filtre + sort pe paginile de listă (deals, companies, contacts, clients, leads, cases, invoices, quotes). View-urile sunt strict pe owner — nimeni altcineva din tenant nu le vede.
+- **De ce contează:** "RO SMBs > 5 angajați, stagiu Negociere, owner = eu" — în loc să refaci filtrele zilnic.
+- **UI:** dropdown "Vizualizări" pe fiecare listă (în curs de roll-out FE).
+- **System defaults (read-only):** pentru `deals` server-ul livrează 3 default-uri (`Ale mele` / `Câștigate luna asta` / `Pierdute ultimele 30 zile`) cu id-uri prefixate `system:` ca să nu se ciocnească cu cuids reale. Alte resurse returnează `[]` și FE pune fallback-urile lui.
+- **Limite:** payload max 16 KB per request (deals filtrele tipice ~1 KB); nume unic per `(owner, resource, name)` — duplicat returnează 409.
+
+**Endpoints** (`apps/api/src/modules/saved-views/saved-views.controller.ts`):
+
+- `POST   /api/v1/saved-views` — creează view. Body Zod `{ resource, name, filters }`. Erori: `400 VALIDATION_ERROR`, `409 SAVED_VIEW_NAME_TAKEN`, `413 PAYLOAD_TOO_LARGE`.
+- `GET    /api/v1/saved-views?resource=<resource>` — listează view-urile curentului user pentru resursa dată (ordonate `updatedAt desc`).
+- `GET    /api/v1/saved-views/:id` — un singur view, owner-scoped (`404 SAVED_VIEW_NOT_FOUND` pentru orice id necunoscut SAU id al altcuiva — răspuns identic, fără timing side-channel).
+- `GET    /api/v1/saved-views/system-defaults?resource=<resource>` — default-uri statice, fără persistență. Disponibile pentru toți userii autentificați.
+- `PATCH  /api/v1/saved-views/:id` — update parțial (`name` ȘI/SAU `filters`). Body required: cel puțin un câmp.
+- `DELETE /api/v1/saved-views/:id` — `204 No Content` la succes.
+
+**Body create (exemplu):**
+```json
+{
+  "resource": "deals",
+  "name": "RO SMBs >5 employees",
+  "filters": { "country": "RO", "employees_min": 5 }
+}
+```
+
+**Resurse acceptate** (`SavedViewResourceSchema`): `companies | contacts | clients | leads | deals | cases | invoices | quotes`.
+
+**Securitate:** XSS-blocked în `name` (regex respinge `<script>`, `<iframe>`, `javascript:`, `on*=`, control chars); prototype-pollution-blocked în `filters` (chei `__proto__`/`prototype`/`constructor` la orice nivel respinse); recursivitate cap 8 nivele; payload cap 16 KB; audit row pe orice mutație (`saved_view.{create,update,delete}`).
+
+### 10.12 Exchange Rates (Curs valutar zilnic) — Phase 0 / 2026-05-17
+
+- **Ce face:** Cron zilnic 06:00 Europe/Bucharest preia rata oficială ECB pentru valutele suportate și o stochează în tabelul global `ExchangeRate`. Deal-urile create / actualizate în alte valute decât baza tenantului primesc snapshot `(amountBase, fxRateAt)` la momentul creării — niciodată nu se recalculează istoric (T-FX-T-03).
+- **Valute suportate:** `RON, EUR, USD, GBP, CHF, PLN` (whitelist închis în `@amass/shared/schemas/fx-rates.ts:18`).
+- **Sursă:** `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` (HTTPS-only, hostname-pinned, 10 s timeout, strict-regex parse).
+- **Math:** end-to-end `Prisma.Decimal` (no float drift); cross-rate via EUR pivot când perechea nu e directă.
+- **Reziliență:** cache Redis 1h pe lookup; 15 % day-over-day sanity bound emite counter Prometheus `fx_rates_sanity_bound_violation_total{from,to}`.
+
+**Endpoint** (`apps/api/src/modules/fx-rates/fx-rates.controller.ts`):
+
+- `GET /api/v1/exchange-rates?from=<CCY>&to=<CCY>[&date=YYYY-MM-DD]` — JWT-guarded, throttled 100 req/min per tenant.
+
+**Răspuns 200:**
+```json
+{
+  "fromCurrency": "EUR",
+  "toCurrency": "RON",
+  "rate": "4.9756",
+  "asOf": "2026-05-16",
+  "source": "ECB",
+  "stale": false
+}
+```
+
+`stale: true` semnalează că ultima rată disponibilă e mai veche de 24h (weekend / outage ECB). FE poate afișa avertisment dar rata e safe de folosit.
+
+**Erori:** `400` (currency în afara whitelist-ului SAU format `date` invalid), `404` (nu există rată în range — ex: input `from=RON&to=EUR` înainte de prima rulare cron), `429` (throttler).
+
+**Schema impact:**
+- `ExchangeRate` (NEW, global): unique `(fromCurrency, toCurrency, asOf)`; index pe `asOf DESC`; `app_user` are doar `SELECT`, cron-ul scrie cu client neextins.
+- `Deal.amountBase` (Decimal(14,2)?), `Deal.fxRateAt` (Date?): server-computed, `UpdateDealSchema.strict()` blochează clientul să le seteze.
+- `Tenant.baseCurrency` (default `'RON'`): cuv-cheie pentru roll-up dashboards.
+
+### 10.13 Locale (limba UI per user și per tenant) — Phase 0 / 2026-05-17
+
+- **Ce face:** Userul își alege limba UI (`ro` sau `en`) din `/app/settings/appearance`. Tenant admin setează default-ul + lista de limbi disponibile. Cascade: preferință user → default tenant → `'ro'`.
+- **Status RO/EN:** RO complet (52 namespaces, 1538 chei, eager-loaded); EN parity-checked dar ascuns în spatele flag-ului `VITE_FEATURE_I18N_EN` până la traducere completă.
+
+**Endpoints:**
+
+- `PATCH /api/v1/users/me/locale` (toți userii autentificați) — body Zod `{ "locale": "ro" | "en" }`. Audit: `user.locale.update`. Counter Prometheus: `i18n_locale_switched_total`. Service refuză o locale dezactivată de tenant (chiar dacă e în whitelist-ul global).
+- `GET   /api/v1/tenant/locale` — toți userii citesc config-ul tenantului curent (`{ defaultLocale, enabledLocales }`).
+- `PATCH /api/v1/tenant/locale` (OWNER + ADMIN) — body `{ defaultLocale, enabledLocales }`; cross-field rule: `defaultLocale ∈ enabledLocales` (altfel 400).
+
+**Body update tenant (exemplu):**
+```json
+{ "defaultLocale": "ro", "enabledLocales": ["ro", "en"] }
+```
+
+**Securitate:** `LocaleSchema` whitelist rejectează codepoints bidi control (U+202A..U+202E, U+2066..U+2069) — atac de UI spoofing prin RTL override (T-I18N-S-02). i18next configurat `escapeValue: false` doar acolo unde React deja escape-uiește (T-I18N-T-02). Parsing `Accept-Language` cap 10 entries (T-I18N-D-01 CPU exhaustion).
+
+**FE pieces** (`apps/web/src`):
+- `components/LanguageSwitcher.tsx` — dropdown cu optimistic UI + rollback la fail
+- `i18n/index.ts` — init react-i18next cu RO eager + EN lazy chunk
+- `scripts/i18n-parity.mjs` — guard CI care eșuează build-ul la chei lipsă RO ↔ EN
+
 ---
 
 ## 11. Funcții NEIMPLEMENTATE
@@ -589,7 +675,7 @@ Gap-urile mari spre Salesforce Enterprise (€165+/user/lună):
 ---
 
 *Document generat automat de Claude Code. Actualizează după fiecare sprint major.*
-*Ultima actualizare: 2026-04-21*
+*Ultima actualizare: 2026-05-17 (Phase 0 Sprint 2: i18n + multi-currency + saved-views)*
 
 
 

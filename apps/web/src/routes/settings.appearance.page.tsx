@@ -210,15 +210,21 @@ export function SettingsAppearancePage(): JSX.Element {
       />
 
       {/* ── Language ───────────────────────────────────────────────── */}
-      <GlassCard className="mb-6 p-6">
-        <header className="mb-4">
-          <h2 className="text-base font-semibold">Limbă</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Limba interfeței aplicației. Setarea se salvează pe contul tău și se aplică pe orice browser.
-          </p>
-        </header>
-        <LanguageSwitcher />
-      </GlassCard>
+      {/* Phase-0: only render this card when the EN catalog flag is on.
+       * Otherwise we'd ship a UI section that says "personalizează limba"
+       * but contains nothing — worse than hiding it.
+       * Toggle with VITE_FEATURE_I18N_EN=true once the EN translation is in. */}
+      {import.meta.env.VITE_FEATURE_I18N_EN ? (
+        <GlassCard className="mb-6 p-6">
+          <header className="mb-4">
+            <h2 className="text-base font-semibold">Limbă</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Limba interfeței aplicației. Setarea se salvează pe contul tău și se aplică pe orice browser.
+            </p>
+          </header>
+          <LanguageSwitcher />
+        </GlassCard>
+      ) : null}
 
       {/* ── Theme ──────────────────────────────────────────────────── */}
       <GlassCard className="mb-6 p-6" data-tour="appearance-themes">
@@ -236,10 +242,10 @@ export function SettingsAppearancePage(): JSX.Element {
                 key={opt.value}
                 type="button"
                 onClick={() => setTheme(opt.value)}
-                className={`group relative overflow-hidden rounded-lg border p-3 text-left transition ${
+                className={`group relative overflow-hidden rounded-lg border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   selected
                     ? 'border-primary ring-2 ring-primary/40'
-                    : 'border-border/70 hover:border-border'
+                    : 'border-border hover:border-foreground'
                 }`}
                 aria-pressed={selected}
               >
@@ -283,10 +289,10 @@ export function SettingsAppearancePage(): JSX.Element {
                 key={opt.value}
                 type="button"
                 onClick={() => setAccentPreset(opt.value)}
-                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   selected
                     ? 'border-foreground bg-foreground text-background'
-                    : 'border-border/70 bg-card hover:border-border'
+                    : 'border-border bg-card hover:border-foreground'
                 }`}
                 aria-pressed={selected}
               >
@@ -300,7 +306,7 @@ export function SettingsAppearancePage(): JSX.Element {
           })}
 
           {/* Custom HEX picker */}
-          <div className="flex items-center gap-2 rounded-full border border-border/70 bg-card px-3 py-1.5">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
             <span
               className="h-3 w-3 rounded-full ring-1 ring-border/40"
               style={{ background: `hsl(${accentTenant})` }}
@@ -491,10 +497,10 @@ function CardChooser<V extends string>({
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`rounded-md border p-3 text-left transition ${
+            className={`rounded-md border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               selected
                 ? 'border-primary ring-2 ring-primary/30'
-                : 'border-border/70 hover:border-border'
+                : 'border-border hover:border-foreground'
             }`}
             aria-pressed={selected}
           >

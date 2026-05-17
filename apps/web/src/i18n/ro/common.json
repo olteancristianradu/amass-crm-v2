@@ -160,7 +160,9 @@
   "language": {
     "ro": "Română",
     "en": "Engleză",
-    "switchTo": "Schimbă în {{language}}"
+    "switchTo": "Schimbă în {{language}}",
+    "groupLabel": "Limba interfeței",
+    "networkError": "Eroare de rețea"
   },
   "currency": {
     "ron": "RON",
