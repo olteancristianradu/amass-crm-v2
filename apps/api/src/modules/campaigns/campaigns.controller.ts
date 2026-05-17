@@ -146,8 +146,12 @@ export class CampaignsController {
     return this.campaigns.resume(id);
   }
 
+  // Phase 1 F1 / T-MAIL-I-03: campaign engagement aggregates can reveal who
+  // a tenant is targeting + how many recipients hard-bounced (= competitive
+  // intelligence about churn). Restricted to OWNER/ADMIN/MANAGER per threat
+  // model. AGENT + VIEWER intentionally dropped.
   @Get(':id/stats')
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
   stats(@Param('id') id: string) {
     return this.campaigns.getStats(id);
   }

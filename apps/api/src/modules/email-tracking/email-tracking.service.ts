@@ -1,11 +1,13 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EmailTrackKind } from '@prisma/client';
+import { EmailTrackKind, EmailSuppressionReason } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { loadEnv } from '../../config/env';
+import { AuditService } from '../audit/audit.service';
+import { EmailSuppressionService } from '../email-suppression/email-suppression.service';
 
 /**
- * Email open/click tracking.
+ * Email open/click/unsubscribe/bounce tracking.
  *
  * Tracking endpoints are PUBLIC — they're hit by recipient mail clients,
  * who have no session. We look up the EmailMessage by id (using the
@@ -16,12 +18,34 @@ import { loadEnv } from '../../config/env';
  * Per CLAUDE.md: GDPR-minded — we log IP + UA as "audit" data. Do NOT
  * store recipient-identifying strings in the tracking URL itself (they
  * would leak via email forwarding / client logs).
+ *
+ * Phase 1 (F1) additions:
+ *  - Open-pixel HMAC: pixel URL now includes an HMAC signature so an
+ *    attacker who knows a messageId cannot forge synthetic OPEN events
+ *    to inflate engagement counters (T-MAIL-S-01).
+ *  - Unsubscribe endpoint: HMAC-signed token redeemable at /e/u/<token>
+ *    that records an UNSUBSCRIBE event and adds the recipient email to
+ *    the suppression list (T-MAIL-E-02 + spec D9).
+ *  - Bounce/spam recording: programmatic `recordBounce()` API for the
+ *    eventual SMTP DSN parser / provider webhook; hard bounces auto-add
+ *    the recipient to the suppression list with reason=BOUNCE_HARD.
+ *  - GDPR PII purge: `purgePiiBatch()` nullifies ip_address + user_agent
+ *    on rows older than 90 days and stamps pii_hashed_at (T-MAIL-I-01).
+ *    Driven by a daily BullMQ cron at 03:00 Europe/Bucharest.
  */
 @Injectable()
 export class EmailTrackingService {
   private readonly logger = new Logger(EmailTrackingService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Audit + suppression are OPTIONAL at construction time so existing
+    // unit tests that build EmailTrackingService manually with just the
+    // Prisma stub don't break. Production wiring always provides them via
+    // EmailTrackingModule.
+    private readonly audit?: AuditService,
+    private readonly suppression?: EmailSuppressionService,
+  ) {}
 
   /**
    * Absolute base for tracking URLs. Falls back to TWILIO_WEBHOOK_BASE_URL
@@ -42,13 +66,16 @@ export class EmailTrackingService {
    * Rewrite outbound HTML to inject tracking. No-op if PUBLIC_API_BASE_URL
    * is unset — we refuse to inject relative URLs that would break delivery.
    *
-   * - Appends a 1x1 tracking pixel to the end of the body.
+   * - Appends a 1x1 tracking pixel (with HMAC sig) to the end of the body.
    * - Rewrites every `<a href="http(s)://…">` to pass through the click
-   *   endpoint. Anchors without a protocol (mailto:, tel:, #anchor) are
-   *   left alone.
+   *   endpoint (already HMAC-signed). Anchors without a protocol
+   *   (mailto:, tel:, #anchor) are left alone.
    * - Each click URL is signed with HMAC(JWT_SECRET, messageId|url) so an
    *   attacker who knows a messageId cannot craft `?u=https://phishing` and
    *   abuse the legitimate CRM domain for phishing (open redirect defense).
+   * - The pixel URL is signed with HMAC(JWT_SECRET, messageId) so an
+   *   attacker cannot synthesize fake opens by hitting `/open.gif` with a
+   *   guessed messageId (T-MAIL-S-01 — engagement-counter spoofing).
    */
   injectTracking(messageId: string, html: string): string {
     const base = this.publicBaseUrl();
@@ -64,15 +91,53 @@ export class EmailTrackingService {
       },
     );
 
-    const pixel = `<img src="${base}/e/t/${messageId}/open.gif" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px" />`;
+    const openSig = signOpenToken(messageId);
+    // Pixel URL: messageId stays in the path for backward-compat with the
+    // existing route shape; `?s=` carries the HMAC signature that the
+    // pixel endpoint now requires (under EMAIL_TRACKING_REQUIRE_SIG).
+    const pixel = `<img src="${base}/e/t/${messageId}/open.gif?s=${openSig}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px" />`;
     return `${rewritten}\n${pixel}`;
   }
 
   /**
-   * Record an OPEN event. Returns the 1x1 transparent GIF bytes regardless
-   * of whether the message exists (avoids leaking valid-ID probing).
+   * Build an unsubscribe URL pointed at the public `/e/u/<token>` endpoint.
+   * The token encodes (messageId, recipientEmail) under an HMAC so the
+   * endpoint can resolve which suppression to write without taking
+   * recipientEmail as a query param (which would leak via forwards/logs).
+   *
+   * Caller (templates / sequence sender / campaign dispatcher) splices the
+   * returned URL into the `List-Unsubscribe` header AND a visible footer link.
    */
-  async recordOpen(messageId: string, ip: string | null, ua: string | null): Promise<Buffer> {
+  buildUnsubscribeUrl(messageId: string, recipientEmail: string): string | null {
+    const base = this.publicBaseUrl();
+    if (!base) return null;
+    const token = encodeUnsubscribeToken(messageId, recipientEmail);
+    return `${base}/e/u/${token}`;
+  }
+
+  /**
+   * Record an OPEN event. Returns the 1x1 transparent GIF bytes regardless
+   * of whether the message exists OR whether the signature verifies — this
+   * keeps the pixel response indistinguishable, so a probing attacker can't
+   * tell a real from a fake messageId. Drops the DB write silently when
+   * the signature is missing/wrong.
+   */
+  async recordOpen(
+    messageId: string,
+    sig: string | null,
+    ip: string | null,
+    ua: string | null,
+  ): Promise<Buffer> {
+    const env = loadEnv();
+    const requireSig = env.EMAIL_TRACKING_REQUIRE_SIG !== 'false';
+    if (requireSig || sig) {
+      if (!sig || !verifyOpenToken(messageId, sig)) {
+        // Silent drop — return the same pixel bytes a legit hit returns.
+        this.logger.warn(`Open pixel rejected: invalid signature for messageId=${messageId}`);
+        return TRANSPARENT_GIF;
+      }
+    }
+
     try {
       const message = await this.prisma.emailMessage.findUnique({
         where: { id: messageId },
@@ -90,6 +155,16 @@ export class EmailTrackingService {
             },
           }),
         );
+        // Audit hook is fire-and-forget — never breaks the pixel response.
+        if (this.audit) {
+          await this.audit.log({
+            tenantId: message.tenantId,
+            action: 'email.opened',
+            subjectType: 'email_message',
+            subjectId: message.id,
+            metadata: { messageId: message.id },
+          });
+        }
       }
     } catch (err) {
       // Tracking must never break email delivery UX.
@@ -150,11 +225,232 @@ export class EmailTrackingService {
           },
         }),
       );
+      if (this.audit) {
+        await this.audit.log({
+          tenantId: message.tenantId,
+          action: 'email.clicked',
+          subjectType: 'email_message',
+          subjectId: message.id,
+          metadata: { url: targetUrl },
+        });
+      }
       return targetUrl;
     } catch (err) {
       this.logger.warn(`recordClick failed: ${err instanceof Error ? err.message : err}`);
       return targetUrl; // still redirect — tracking failure shouldn't brick links
     }
+  }
+
+  /**
+   * Record an UNSUBSCRIBE event from the public `/e/u/<token>` endpoint.
+   *
+   * Resolves (messageId, recipientEmail) from the HMAC token, then:
+   *   1. Adds the email to the EmailSuppression list with reason=USER_UNSUBSCRIBE
+   *   2. Writes an EmailTrack row kind=UNSUBSCRIBE
+   *   3. Writes an audit event `email.unsubscribed`
+   *
+   * Returns the masked email (for the confirmation HTML) on success,
+   * or null on any validation failure (caller serves 404). Idempotent:
+   * re-redeeming the same token returns the same masked email and no-ops
+   * the suppression upsert.
+   */
+  async recordUnsubscribe(token: string): Promise<{ emailMasked: string } | null> {
+    const decoded = decodeUnsubscribeToken(token);
+    if (!decoded) {
+      this.logger.warn('Unsubscribe token failed HMAC verification');
+      return null;
+    }
+    const { messageId, email } = decoded;
+
+    try {
+      const message = await this.prisma.emailMessage.findUnique({
+        where: { id: messageId },
+        select: { id: true, tenantId: true },
+      });
+      if (!message) return null;
+
+      // Add to suppression list (idempotent via upsert in service).
+      let masked = '';
+      if (this.suppression) {
+        const row = await this.suppression.addSystem(
+          message.tenantId,
+          email,
+          EmailSuppressionReason.USER_UNSUBSCRIBE,
+          'user:unsubscribe',
+          `Unsubscribed via email link from message ${messageId}`,
+        );
+        masked = row.emailMasked;
+      }
+
+      // Record the UNSUBSCRIBE event for engagement reporting.
+      await this.prisma.runWithTenant(message.tenantId, (tx) =>
+        tx.emailTrack.create({
+          data: {
+            tenantId: message.tenantId,
+            messageId: message.id,
+            kind: EmailTrackKind.UNSUBSCRIBE,
+          },
+        }),
+      );
+
+      if (this.audit) {
+        await this.audit.log({
+          tenantId: message.tenantId,
+          action: 'email.unsubscribed',
+          subjectType: 'email_message',
+          subjectId: message.id,
+          metadata: { messageId, emailMasked: masked || '****' },
+        });
+      }
+
+      return { emailMasked: masked || '****' };
+    } catch (err) {
+      this.logger.warn(`recordUnsubscribe failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Record a BOUNCE event from an upstream SMTP DSN parser or provider
+   * webhook (Mailgun/SendGrid/Postmark). This is the programmatic surface
+   * — there is no public HTTP route for it; callers (future webhook
+   * handler, future DSN reader) invoke directly with a verified payload.
+   *
+   * Hard bounces (`bounceType === 'hard'`) auto-add the recipient to the
+   * suppression list with reason=BOUNCE_HARD. Soft bounces are recorded
+   * but not suppressed (transient: mailbox full, greylisting, etc.).
+   *
+   * Caller passes tenantId explicitly because this runs outside an HTTP
+   * request ALS context (webhook handlers typically resolve tenant from
+   * the endpoint id).
+   */
+  async recordBounce(
+    tenantId: string,
+    recipientEmail: string,
+    bounceType: 'hard' | 'soft' | 'block' | 'spam' | string,
+    bounceCode: string | null,
+    messageId: string | null,
+  ): Promise<{ suppressed: boolean }> {
+    try {
+      await this.prisma.runWithTenant(tenantId, (tx) =>
+        tx.emailTrack.create({
+          data: {
+            tenantId,
+            messageId: messageId ?? null,
+            // recipientId resolution happens upstream — webhook handlers
+            // typically have access to a per-(campaign, email) row id.
+            recipientId: null,
+            kind: bounceType === 'spam' ? EmailTrackKind.SPAM_REPORT : EmailTrackKind.BOUNCE,
+            bounceType,
+            bounceCode,
+          },
+        }),
+      );
+    } catch (err) {
+      // Constraint violation expected if neither messageId nor recipientId
+      // is supplied — we log loudly so the integration is fixed, but the
+      // suppression below still runs.
+      this.logger.warn(`recordBounce track insert failed: ${err instanceof Error ? err.message : err}`);
+    }
+
+    const isHard = bounceType === 'hard' || bounceType === 'spam' || bounceType === 'block';
+    let suppressed = false;
+    if (isHard && this.suppression) {
+      const reason = bounceType === 'spam'
+        ? EmailSuppressionReason.SPAM_REPORT
+        : EmailSuppressionReason.BOUNCE_HARD;
+      await this.suppression.addSystem(
+        tenantId,
+        recipientEmail,
+        reason,
+        `webhook:bounce:${bounceType}`,
+        bounceCode ? `code=${bounceCode}` : undefined,
+      );
+      suppressed = true;
+    }
+
+    if (this.audit) {
+      await this.audit.log({
+        tenantId,
+        action: bounceType === 'spam' ? 'email.spam_reported' : 'email.bounced',
+        subjectType: 'email_message',
+        subjectId: messageId ?? 'unknown',
+        metadata: { bounceType, bounceCode, suppressed },
+      });
+    }
+
+    return { suppressed };
+  }
+
+  /**
+   * GDPR daily PII purge — nullifies ip_address + user_agent on email_tracks
+   * rows older than `olderThanDays` whose pii_hashed_at is still NULL.
+   *
+   * Walks the partial index `email_tracks_pii_pending_idx` in `batchSize`-row
+   * batches; returns the count purged in this call so the caller (cron) can
+   * loop until zero. Uses `updateMany` with a date predicate so we don't
+   * have to round-trip per row.
+   *
+   * Per-tenant audit lines (one per batch hit) are written via the audit
+   * service so a privacy review can prove the purge ran.
+   *
+   * Returns 0 if there's nothing to purge (the cron then sleeps until next day).
+   */
+  async purgePiiBatch(olderThanDays = 90, batchSize = 1000): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000);
+
+    // Step 1: pick a batch of candidate rows. We can't combine "select ids
+    // then update by ids" into one updateMany without losing batch control —
+    // updateMany lacks LIMIT in Prisma. So we do a small select then update
+    // by primary key set. The partial index makes the select cheap.
+    const candidates = await this.prisma.emailTrack.findMany({
+      where: {
+        piiHashedAt: null,
+        createdAt: { lt: cutoff },
+        OR: [{ ipAddress: { not: null } }, { userAgent: { not: null } }],
+      },
+      select: { id: true, tenantId: true },
+      orderBy: { createdAt: 'asc' },
+      take: batchSize,
+    });
+
+    if (candidates.length === 0) return 0;
+
+    // Step 2: update them. We bypass tenant context (system job) and rely
+    // on the primary-key predicate — but the update predicate itself does
+    // NOT include `piiHashedAt: null`, so a concurrent purge from another
+    // pod would harmlessly re-stamp the same rows. Acceptable.
+    const ids = candidates.map((r) => r.id);
+    const now = new Date();
+    const updated = await this.prisma.emailTrack.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        ipAddress: null,
+        userAgent: null,
+        piiHashedAt: now,
+      },
+    });
+
+    // Step 3: per-tenant audit so privacy reviews can prove this ran.
+    if (this.audit) {
+      // Bucket by tenantId so we emit one audit row per tenant per batch
+      // rather than one per record.
+      const byTenant = new Map<string, number>();
+      for (const c of candidates) {
+        byTenant.set(c.tenantId, (byTenant.get(c.tenantId) ?? 0) + 1);
+      }
+      for (const [tenantId, count] of byTenant) {
+        await this.audit.log({
+          tenantId,
+          action: 'gdpr.pii.purged',
+          subjectType: 'email_track',
+          metadata: { count, olderThanDays, batchSize, purgedAt: now.toISOString() },
+        });
+      }
+    }
+
+    this.logger.log(`purgePiiBatch nullified ${updated.count} rows (cutoff=${cutoff.toISOString()})`);
+    return updated.count;
   }
 
   /** Summary stats for one message — authed callers only. */
@@ -236,4 +532,81 @@ export function verifyTrackingSig(messageId: string, url: string, providedSig: s
   } catch {
     return false;
   }
+}
+
+/**
+ * Sign an open-pixel token (T-MAIL-S-01). Domain-separated by `email-open:`
+ * so it cannot be confused with a click signature. 16 hex chars / 64 bits is
+ * sufficient because the message-id namespace + rate limiting + low payoff
+ * (one fake "open" per crafted hit) make brute force pointless.
+ */
+export function signOpenToken(messageId: string): string {
+  const env = loadEnv();
+  return createHmac('sha256', env.JWT_SECRET)
+    .update(`email-open:${messageId}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+export function verifyOpenToken(messageId: string, providedSig: string): boolean {
+  const expected = signOpenToken(messageId);
+  const provided = providedSig.padEnd(expected.length, '0').slice(0, expected.length);
+  try {
+    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(provided, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Unsubscribe token format: base64url("<messageId>:<emailLowercase>:<sig>")
+ * where sig = HMAC-SHA256(JWT_SECRET, "email-unsub:" + messageId + "|" + email)
+ * truncated to 16 hex chars.
+ *
+ * We embed the email directly (lowercased) so the public endpoint never
+ * needs a query param — the URL is self-contained and the email leaks ONLY
+ * via the same channel that already had it (the recipient's own inbox).
+ * Base64url is used so the token is one path segment with no special chars.
+ */
+export function encodeUnsubscribeToken(messageId: string, email: string): string {
+  const env = loadEnv();
+  const normEmail = email.trim().toLowerCase();
+  const sig = createHmac('sha256', env.JWT_SECRET)
+    .update(`email-unsub:${messageId}|${normEmail}`)
+    .digest('hex')
+    .slice(0, 16);
+  // ":" is fine inside the base64url payload — only the resulting base64url
+  // chars (A-Za-z0-9_-) end up in the URL path segment.
+  return Buffer.from(`${messageId}:${normEmail}:${sig}`, 'utf8').toString('base64url');
+}
+
+export function decodeUnsubscribeToken(token: string): { messageId: string; email: string } | null {
+  let decoded: string;
+  try {
+    decoded = Buffer.from(token, 'base64url').toString('utf8');
+  } catch {
+    return null;
+  }
+  // Email local-parts CAN contain ":" (rare), so split from the right: the
+  // last 2 colons are the structural separators; everything before is the
+  // messageId, and we'll re-derive the email by joining the middle pieces.
+  const parts = decoded.split(':');
+  if (parts.length < 3) return null;
+  const sig = parts[parts.length - 1];
+  const messageId = parts[0];
+  const email = parts.slice(1, -1).join(':');
+  if (!messageId || !email || !sig) return null;
+
+  const env = loadEnv();
+  const expected = createHmac('sha256', env.JWT_SECRET)
+    .update(`email-unsub:${messageId}|${email}`)
+    .digest('hex')
+    .slice(0, 16);
+  const provided = sig.padEnd(expected.length, '0').slice(0, expected.length);
+  try {
+    if (!timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(provided, 'hex'))) return null;
+  } catch {
+    return null;
+  }
+  return { messageId, email };
 }

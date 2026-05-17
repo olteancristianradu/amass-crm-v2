@@ -7,6 +7,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { CsrfHeaderMiddleware } from './common/middleware/csrf-header.middleware';
 import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
+import { OutboxModule } from './infra/outbox/outbox.module';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { QueueModule } from './infra/queue/queue.module';
 import { RedisModule } from './infra/redis/redis.module';
@@ -34,6 +35,7 @@ import { SchedulerModule } from './infra/scheduler/scheduler.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { EmailModule } from './modules/email/email.module';
 import { EmailTrackingModule } from './modules/email-tracking/email-tracking.module';
+import { EmailSuppressionModule } from './modules/email-suppression/email-suppression.module';
 import { NotesModule } from './modules/notes/notes.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { TourProgressModule } from './modules/tour-progress/tour-progress.module';
@@ -202,6 +204,11 @@ import { resolveLogLevel } from './config/logging';
     }),
     PrismaModule,
     QueueModule,
+    // Phase 1 F3: @Global() — exports OutboxService + EnvelopeService +
+    // UrlValidatorService to all feature modules without explicit re-import.
+    // Wires the BullMQ poller + webhook-delivery processor (disabled in
+    // tests via OUTBOX_POLL_ENABLED=false env var).
+    OutboxModule,
     RedisModule,
     StorageModule,
     ActivitiesModule,
@@ -227,6 +234,7 @@ import { resolveLogLevel } from './config/logging';
     TasksModule,
     EmailModule,
     EmailTrackingModule,
+    EmailSuppressionModule,
     CallsModule,
     AiModule,
     InvoicesModule,

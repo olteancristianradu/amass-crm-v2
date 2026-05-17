@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { buildRedisConnection } from '../redis/redis-connection';
-import { QUEUE_AI_CALLS, QUEUE_CAMPAIGN_DISPATCH, QUEUE_EMAIL, QUEUE_EXPORT, QUEUE_FX_RATES, QUEUE_IMPORT, QUEUE_LEAD_SCORING, QUEUE_REMINDERS, QUEUE_WORKFLOWS } from './queue.constants';
+import { QUEUE_AI_CALLS, QUEUE_CAMPAIGN_DISPATCH, QUEUE_EMAIL, QUEUE_EMAIL_TRACKS_PII, QUEUE_EXPORT, QUEUE_FX_RATES, QUEUE_IMPORT, QUEUE_LEAD_SCORING, QUEUE_OUTBOX_POLL, QUEUE_REMINDERS, QUEUE_WEBHOOK_DELIVERY, QUEUE_WORKFLOWS } from './queue.constants';
 
 /**
  * Global BullMQ wiring. We share a single ioredis connection across queues
@@ -34,6 +34,9 @@ import { QUEUE_AI_CALLS, QUEUE_CAMPAIGN_DISPATCH, QUEUE_EMAIL, QUEUE_EXPORT, QUE
     BullModule.registerQueue({ name: QUEUE_EXPORT }),
     BullModule.registerQueue({ name: QUEUE_FX_RATES }),
     BullModule.registerQueue({ name: QUEUE_CAMPAIGN_DISPATCH }),
+    BullModule.registerQueue({ name: QUEUE_OUTBOX_POLL }),
+    BullModule.registerQueue({ name: QUEUE_WEBHOOK_DELIVERY }),
+    BullModule.registerQueue({ name: QUEUE_EMAIL_TRACKS_PII }),
   ],
   exports: [BullModule],
 })

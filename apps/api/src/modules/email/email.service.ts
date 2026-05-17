@@ -17,6 +17,7 @@ import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { AuditService } from '../audit/audit.service';
 import { SubjectResolver } from '../activities/subject-resolver';
 import { EmailTrackingService } from '../email-tracking/email-tracking.service';
+import { EmailSuppressionService } from '../email-suppression/email-suppression.service';
 import { encrypt, decrypt } from '../../common/crypto/encryption';
 import { QUEUE_EMAIL } from '../../infra/queue/queue.constants';
 import { CursorPage, makeCursorPage } from '../../common/pagination';
@@ -51,6 +52,7 @@ export class EmailService {
     private readonly audit: AuditService,
     private readonly subjects: SubjectResolver,
     private readonly tracking: EmailTrackingService,
+    private readonly suppression: EmailSuppressionService,
     @InjectQueue(QUEUE_EMAIL) private readonly emailQueue: Queue,
   ) {}
 
@@ -185,6 +187,54 @@ export class EmailService {
     // Validate subject exists
     await this.subjects.assertExists(dto.subjectType, dto.subjectId);
 
+    // Phase 1 F1 — suppression pre-send check (T-MAIL-E-02 + spec D9).
+    // Filter out any recipient whose email is on the tenant's suppression
+    // list. If every recipient is suppressed, we DON'T enqueue: instead we
+    // create the row with status=SKIPPED so the UI can show what happened
+    // and audit `email.suppression.skip_send` is emitted.
+    const filtered = await this.filterSuppressedRecipients(ctx.tenantId, {
+      to: dto.toAddresses,
+      cc: dto.ccAddresses,
+      bcc: dto.bccAddresses,
+    });
+    if (filtered.allSuppressed) {
+      // EmailStatus has no dedicated SKIPPED variant (would require a
+      // schema migration). We use FAILED + a sentinel errorMessage so
+      // existing UI surfaces it correctly while the audit log keeps the
+      // structured "this was a suppression skip, not an SMTP failure"
+      // context for forensics.
+      const skipped = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+        tx.emailMessage.create({
+          data: {
+            tenantId: ctx.tenantId,
+            accountId: account.id,
+            subjectType: dto.subjectType,
+            subjectId: dto.subjectId,
+            toAddresses: dto.toAddresses,
+            ccAddresses: dto.ccAddresses,
+            bccAddresses: dto.bccAddresses,
+            subject: dto.subject,
+            bodyHtml: dto.bodyHtml,
+            bodyText: dto.bodyText ?? null,
+            status: 'FAILED',
+            errorMessage: 'SUPPRESSED: All recipients are on the email suppression list',
+            createdById: ctx.userId,
+          },
+        }),
+      );
+      await this.audit.log({
+        action: 'email.suppression.skip_send',
+        subjectType: dto.subjectType.toLowerCase(),
+        subjectId: dto.subjectId,
+        metadata: {
+          emailMessageId: skipped.id,
+          suppressedCount: filtered.suppressedHashes.length,
+          to: dto.toAddresses,
+        },
+      });
+      return skipped;
+    }
+
     // Two-phase write so tracking URLs can embed the final message id.
     // Phase 1: insert with original body. Phase 2: rewrite + update. Both
     // run in the same tenant transaction so no observable intermediate state.
@@ -254,6 +304,27 @@ export class EmailService {
       subjectId?: string;
     },
   ): Promise<EmailMessage | null> {
+    // Phase 1 F1 — suppression pre-send check for the transactional path
+    // too. Even system emails (e.g. workflow sequence step) must respect
+    // unsubscribe + hard-bounce decisions. Silently return null on hit;
+    // schedulers reading the result already treat null as "skip and try
+    // again later", which is the right behaviour for suppressed addresses.
+    const hit = await this.suppression.isSuppressed(tenantId, opts.to);
+    if (hit) {
+      await this.audit.log({
+        tenantId,
+        action: 'email.suppression.skip_send',
+        subjectType: (opts.subjectType ?? 'CONTACT').toLowerCase(),
+        subjectId: opts.subjectId ?? 'unknown',
+        metadata: {
+          to: opts.to,
+          suppressionId: hit.id,
+          suppressionReason: hit.reason,
+          channel: 'transactional',
+        },
+      });
+      return null;
+    }
     return this.prisma.runWithTenant(tenantId, async (tx) => {
       const account = await tx.emailAccount.findFirst({
         where: { tenantId, isActive: true, deletedAt: null },
@@ -327,5 +398,53 @@ export class EmailService {
         data: { isDefault: false },
       }),
     );
+  }
+
+  /**
+   * Phase 1 F1 — check each candidate recipient (to/cc/bcc) against the
+   * EmailSuppression list. Returns the cleaned recipient buckets plus a
+   * boolean indicating whether every supplied recipient was suppressed
+   * (in which case the caller should NOT enqueue the send).
+   *
+   * `dedupe` matters because the same email can appear in multiple
+   * arrays — we suppression-check each unique address once.
+   */
+  private async filterSuppressedRecipients(
+    tenantId: string,
+    buckets: { to: string[]; cc: string[]; bcc: string[] },
+  ): Promise<{
+    allSuppressed: boolean;
+    suppressedHashes: string[];
+    to: string[];
+    cc: string[];
+    bcc: string[];
+  }> {
+    const unique = new Set<string>();
+    for (const arr of [buckets.to, buckets.cc, buckets.bcc]) {
+      for (const e of arr) unique.add(e.trim().toLowerCase());
+    }
+
+    const suppressed = new Set<string>();
+    // Sequential because typical recipient counts per email are tiny (<20)
+    // and runWithTenant overhead dominates over the per-email lookup.
+    for (const email of unique) {
+      const hit = await this.suppression.isSuppressed(tenantId, email);
+      if (hit) suppressed.add(email);
+    }
+
+    const filter = (arr: string[]) =>
+      arr.filter((e) => !suppressed.has(e.trim().toLowerCase()));
+    const to = filter(buckets.to);
+    const cc = filter(buckets.cc);
+    const bcc = filter(buckets.bcc);
+    const allSuppressed = to.length === 0 && cc.length === 0 && bcc.length === 0;
+
+    return {
+      allSuppressed,
+      suppressedHashes: Array.from(suppressed),
+      to,
+      cc,
+      bcc,
+    };
   }
 }

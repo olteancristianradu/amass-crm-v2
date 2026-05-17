@@ -37,9 +37,15 @@ function build() {
   } as unknown as ConstructorParameters<typeof EmailService>[3];
   const emailQueue = {
     add: vi.fn().mockResolvedValue({ id: 'job-1' }),
+  } as unknown as ConstructorParameters<typeof EmailService>[5];
+  // Phase 1 F1 — suppression service stub. Default: nothing suppressed.
+  // Individual tests can re-mock `isSuppressed` to exercise the skip-send path.
+  const suppression = {
+    isSuppressed: vi.fn().mockResolvedValue(null),
+    addSystem: vi.fn().mockResolvedValue({ id: 's-1', emailMasked: 'a****@x****.ro' }),
   } as unknown as ConstructorParameters<typeof EmailService>[4];
-  const svc = new EmailService(prisma, audit, subjects, tracking, emailQueue);
-  return { svc, prisma, tx, audit, subjects, tracking, emailQueue };
+  const svc = new EmailService(prisma, audit, subjects, tracking, suppression, emailQueue);
+  return { svc, prisma, tx, audit, subjects, tracking, suppression, emailQueue };
 }
 
 describe('EmailService — auth gate', () => {
@@ -208,6 +214,78 @@ describe('EmailService.send', () => {
     } as never);
     expect(h.tx.emailMessage.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'm-1' }, data: { bodyHtml: '<p>Hi</p><img/>' } }),
+    );
+  });
+
+  // Phase 1 F1 — suppression pre-send check
+  it('skips send + creates FAILED row + audits email.suppression.skip_send when ALL recipients suppressed', async () => {
+    const h = build();
+    h.tx.emailAccount.findFirst.mockResolvedValueOnce({ id: 'a-1' });
+    h.tx.emailMessage.create.mockResolvedValueOnce({ id: 'm-skipped' });
+    vi.mocked(h.suppression.isSuppressed).mockResolvedValue({
+      id: 's-1',
+      reason: 'USER_UNSUBSCRIBE',
+      emailMasked: 'x****@y****.ro',
+    } as never);
+    const out = await h.svc.send({
+      accountId: 'a-1',
+      subjectType: 'CONTACT',
+      subjectId: 'c-1',
+      toAddresses: ['x@y.ro'],
+      ccAddresses: [],
+      bccAddresses: [],
+      subject: 'Hi',
+      bodyHtml: '<p>Hi</p>',
+    } as never);
+    expect((out as { id: string }).id).toBe('m-skipped');
+    // No SMTP send queued
+    expect(h.emailQueue.add).not.toHaveBeenCalled();
+    // Status is FAILED with a sentinel errorMessage (no SKIPPED enum value).
+    const data = h.tx.emailMessage.create.mock.calls[0][0].data;
+    expect(data.status).toBe('FAILED');
+    expect(data.errorMessage).toContain('SUPPRESSED');
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'email.suppression.skip_send' }),
+    );
+  });
+
+  it('proceeds with send when no recipients are suppressed', async () => {
+    const h = build();
+    h.tx.emailAccount.findFirst.mockResolvedValueOnce({ id: 'a-1' });
+    h.tx.emailMessage.create.mockResolvedValueOnce({ id: 'm-1', bodyHtml: '<p>Hi</p>' });
+    vi.mocked(h.suppression.isSuppressed).mockResolvedValue(null);
+    await h.svc.send({
+      accountId: 'a-1',
+      subjectType: 'CONTACT',
+      subjectId: 'c-1',
+      toAddresses: ['ok@y.ro'],
+      ccAddresses: [],
+      bccAddresses: [],
+      subject: 'Hi',
+      bodyHtml: '<p>Hi</p>',
+    } as never);
+    expect(h.emailQueue.add).toHaveBeenCalled();
+  });
+
+  it('sendTransactional returns null + audits when recipient is suppressed', async () => {
+    const h = build();
+    vi.mocked(h.suppression.isSuppressed).mockResolvedValue({
+      id: 's-1',
+      reason: 'BOUNCE_HARD',
+      emailMasked: 'x****@y****.ro',
+    } as never);
+    const out = await h.svc.sendTransactional('tenant-1', {
+      to: 'x@y.ro',
+      subject: 'Hi',
+      bodyHtml: '<p>Hi</p>',
+    });
+    expect(out).toBeNull();
+    expect(h.emailQueue.add).not.toHaveBeenCalled();
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'email.suppression.skip_send',
+        metadata: expect.objectContaining({ channel: 'transactional' }),
+      }),
     );
   });
 });
