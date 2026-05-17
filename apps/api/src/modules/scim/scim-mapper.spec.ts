@@ -30,6 +30,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     totpEnabled: false,
     totpBackupCodes: null,
     completedTours: [],
+    preferredLocale: 'ro',
     createdAt: new Date('2026-01-01T10:00:00Z'),
     updatedAt: new Date('2026-01-02T11:00:00Z'),
     ...overrides,
