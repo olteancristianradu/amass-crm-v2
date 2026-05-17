@@ -70,6 +70,7 @@ import { ForecastingModule } from './modules/forecasting/forecasting.module';
 import { CasesModule } from './modules/cases/cases.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
+import { CampaignRecipientsModule } from './modules/campaign-recipients/campaign-recipients.module';
 import { CustomerSubscriptionsModule } from './modules/customer-subscriptions/customer-subscriptions.module';
 import { ValidationRulesModule } from './modules/validation-rules/validation-rules.module';
 import { FormulaFieldsModule } from './modules/formula-fields/formula-fields.module';
@@ -256,6 +257,7 @@ import { resolveLogLevel } from './config/logging';
     CasesModule,
     OrdersModule,
     CampaignsModule,
+    CampaignRecipientsModule,
     CustomerSubscriptionsModule,
     ValidationRulesModule,
     FormulaFieldsModule,
