@@ -4,6 +4,10 @@ All notable changes to AMASS CRM are documented here. Format roughly follows [Ke
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] — 2026-05-17 — Phase 0 (i18n + multi-currency + saved-views)
+
+Phase 0 of ROADMAP_V2 closes 3 foundation features (saved views CRUD, multi-currency with daily ECB rates, EN UI preview behind feature flag) plus a security hardening pass (FX sanity reject, scoped SavedView writes, bidi block, audit event naming canonical). Reviewed by `code-reviewer` (PASS_WITH_NITS), `security-red-team` (HIGH — no CRITICAL), `accessibility-auditor` (PASS_WITH_FIXES — all fixed). Test count: 1492/1492 unit tests passing.
+
 ### Added (2026-05-17 — Phase 0 Sprint 2: i18n + multi-currency + saved-views hardening)
 
 - **Multi-currency for Deals** (`feat(fx-rates)` [e06dae8](../../commit/e06dae8)): deals can now be created in EUR, USD, GBP, CHF, PLN (in addition to RON). A daily cron at 06:00 Europe/Bucharest fetches official ECB reference rates; every deal stores `amountBase` (Decimal) + `fxRateAt` (Date) snapshots in the tenant base currency so dashboards and forecasts roll up correctly across currencies. New public endpoint `GET /api/v1/exchange-rates?from=&to=&date=` (JWT-guarded, throttled 100/min/tenant) returns the most recent rate ≤ date (defaults to today) with a `stale` flag when ECB had a > 24h gap (weekend/outage). FX math is end-to-end `Prisma.Decimal`; 15 % day-over-day sanity bound emits a Prometheus counter when violated.
