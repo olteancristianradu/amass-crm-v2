@@ -6,8 +6,12 @@ import { getTenantContext, tenantStorage } from './tenant-context';
  * Models that store tenantId and must be auto-filtered.
  * NOTE: keep this in sync with schema.prisma — every tenant-scoped model goes here.
  * `tenants` itself is NOT in this list (lookups by slug happen pre-auth).
+ *
+ * Exported so prisma.service.spec.ts can introspect schema.prisma and assert
+ * every model with a `tenantId` column is registered here — silent omissions
+ * = silent multi-tenant isolation breach (CLAUDE.md rule #3).
  */
-const TENANT_SCOPED_MODELS = new Set<string>([
+export const TENANT_SCOPED_MODELS = new Set<string>([
   'Activity',
   'AnafSubmission',
   'ApprovalDecision',
@@ -24,9 +28,11 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Case',
   'ChatterPost',
   'Client',
+  'CockpitLayout',
   'Commission',
   'CommissionPlan',
   'Company',
+  'ConsentRecord',
   'Contact',
   'ContactSegment',
   'Contract',
@@ -41,6 +47,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'EmailSequenceStep',
   'EmailTrack',
   'Event',
+  'EventAttendee',
   'ForecastQuota',
   'FormulaField',
   'ImportJob',
@@ -51,6 +58,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Note',
   'Notification',
   'Order',
+  'OrderItem',
   'Passkey',
   'Payment',
   'PhoneNumber',
@@ -61,6 +69,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'PriceListItem',
   'Product',
   'ProductBundle',
+  'ProductBundleItem',
   'ProductCategory',
   'ProductVariant',
   'Project',
@@ -68,6 +77,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'QuoteLine',
   'Reminder',
   'ReportTemplate',
+  'SavedView',
   // B3-PR3 SCIM bearer tokens — added per B3-PR4 e2e finding (writes to
   // scim_tokens previously bypassed tenantExtension because the model
   // wasn't in this set, causing 500 on POST /scim/tokens).
@@ -78,11 +88,13 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'SsoConfig',
   'Task',
   'Territory',
+  'TerritoryAssignment',
   'Tag',
   'EntityTag',
   'OutlookToken',
   'User',
   'ValidationRule',
+  'WebhookDelivery',
   'WebhookEndpoint',
   'WhatsappAccount',
   'WhatsappMessage',

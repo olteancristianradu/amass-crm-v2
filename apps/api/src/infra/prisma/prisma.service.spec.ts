@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PrismaService, applyTenantScope, tenantExtension } from './prisma.service';
+import { PrismaService, TENANT_SCOPED_MODELS, applyTenantScope, tenantExtension } from './prisma.service';
 import { getTenantContext, tenantStorage } from './tenant-context';
 
 // runWithTenant tests construct a real PrismaService instance but stub the
@@ -387,5 +389,96 @@ describe('tenantExtension query handler', () => {
     const seen = query.mock.calls[0]![0] as { where: { tenantId?: string; name?: string } };
     expect(seen.where.tenantId).toBe('c11112222333344445555666f');
     expect(seen.where.name).toBe('acme');
+  });
+});
+
+// ─── Schema-introspection regression test ──────────────────────────────────
+// Pinned by 2026-05-17 audit (8 models had `tenantId` columns but were missing
+// from TENANT_SCOPED_MODELS — Layer-2 defense was silently no-oping for them).
+//
+// This test parses schema.prisma at test-time, finds every `model X { ... }`
+// block whose body contains a `tenantId` FIELD (not a relation named `tenant`,
+// not `@@unique([tenantId, ...])` index lines — only the actual column),
+// and asserts every such model is registered in TENANT_SCOPED_MODELS.
+//
+// Failure mode = a developer added a tenant-scoped model to schema.prisma
+// but forgot to register it here, which is exactly the bug class CLAUDE.md
+// rule #3 + the broken-window agent guidance call out.
+
+describe('TENANT_SCOPED_MODELS — schema synchronization invariant', () => {
+  // `Tenant` itself is the root entity: it IS the tenant, not tenant-scoped.
+  // Pre-auth lookups (login by slug) must hit it without ALS context.
+  const ROOT_EXCEPTIONS = new Set<string>(['Tenant']);
+
+  function modelsWithTenantIdColumn(): string[] {
+    const schemaPath = resolve(__dirname, '../../../prisma/schema.prisma');
+    const src = readFileSync(schemaPath, 'utf8');
+
+    // Match `model X {`  ...  `}` blocks (non-greedy, anchored to line start
+    // so we don't match keywords inside comments).
+    const modelRe = /^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm;
+    const out: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = modelRe.exec(src)) !== null) {
+      const [, name, body] = m;
+      if (!name || !body) continue;
+      // A `tenantId` FIELD line looks like:
+      //   tenantId  String   @map("tenant_id")
+      //   tenantId  String
+      // We must reject:
+      //   tenant     Tenant   @relation(...)           ← relation, not a column
+      //   @@unique([tenantId, slug])                    ← index attribute
+      //   @@index([tenantId])                           ← index attribute
+      // The rule: a line starting with whitespace then exact token `tenantId`
+      // followed by whitespace + a Prisma scalar type (String, Int, etc).
+      // We accept any scalar — schema currently uses `String`, but be forgiving.
+      const fieldRe = /^\s+tenantId\s+[A-Z]\w*/m;
+      if (fieldRe.test(body)) out.push(name);
+    }
+    return out;
+  }
+
+  it('every model in schema.prisma with a tenantId column is registered', () => {
+    const found = modelsWithTenantIdColumn();
+    // Sanity: parser caught a non-trivial set (current schema has 80+ such
+    // models). If this drops to a tiny number the regex regressed silently.
+    expect(found.length).toBeGreaterThan(30);
+
+    const missing: string[] = [];
+    for (const model of found) {
+      if (ROOT_EXCEPTIONS.has(model)) continue;
+      if (!TENANT_SCOPED_MODELS.has(model)) missing.push(model);
+    }
+
+    // Custom assertion so the failure points the developer at the exact fix.
+    if (missing.length > 0) {
+      const lines = missing
+        .map(
+          (m) =>
+            `  - Model ${m} has tenantId column but missing from TENANT_SCOPED_MODELS Set — add it to apps/api/src/infra/prisma/prisma.service.ts`,
+        )
+        .join('\n');
+      throw new Error(
+        `TENANT_SCOPED_MODELS is out of sync with schema.prisma:\n${lines}`,
+      );
+    }
+  });
+
+  it('regex finds the 8 historically-missed models (parser sanity)', () => {
+    // Pin the 2026-05-17 audit findings — guards against the regex regressing
+    // and silently passing the main assertion above by missing real columns.
+    const found = modelsWithTenantIdColumn();
+    for (const model of [
+      'CockpitLayout',
+      'ConsentRecord',
+      'EventAttendee',
+      'OrderItem',
+      'ProductBundleItem',
+      'SavedView',
+      'TerritoryAssignment',
+      'WebhookDelivery',
+    ]) {
+      expect(found, `expected parser to detect tenantId in ${model}`).toContain(model);
+    }
   });
 });
