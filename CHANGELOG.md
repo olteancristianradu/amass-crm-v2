@@ -4,7 +4,20 @@ All notable changes to AMASS CRM are documented here. Format roughly follows [Ke
 
 ## [Unreleased]
 
-### Added — Phase 1 (campaign builder + email tracking + outbound webhooks) — in progress
+## [1.0.0-rc.3] — 2026-05-17 — Phase 1 (engagement: campaign builder + email tracking + outbound webhooks)
+
+Phase 1 of ROADMAP_V2 closes 3 engagement features (drag-drop email campaign builder, email open/click tracking with HMAC-protected pixel + GDPR PII purge cron, outbound webhooks v2 with outbox pattern + envelope-encrypted secrets + DNS-rebinding defense). Plus Phase 1.1 patch sprint that closed 2 CRITICAL + 3 BLOCKER + 6 HIGH findings raised by `code-reviewer` and `security-red-team`. Final review verdicts: `code-reviewer` PASS_WITH_NITS, `security-red-team` GO (1 MED + 2 LOW, all deferred to Phase 1.1.1). Test count: **1665/1665 unit tests passing** (+173 since Phase 0 close at 1492).
+
+### Deferred to Phase 1.1.1 (tracked in follow-up tickets)
+- **CRIT-1 full** — `TenantSendingDomain` model + DKIM verify + `fromAddress` whitelist (partial fix shipped: send-test recipient must be active+verified User of tenant)
+- **HIGH-4** — Per-event Zod payload schemas for webhook events (1-day refactor)
+- **T-MAIL-T-03** — HTML body sanitizer (cheerio/DOMPurify) for `injectTracking`
+- **T-MAIL-D-01** — `@Throttle` decorator on `/e/t/*` tracking endpoints
+- **MED-4 + MEDIUM-1** — Outbox retention cron + suspended-tenant outbox cleanup
+- **I-2** — Wire `CampaignRecipientsService.recordEvent` from `EmailTrackingService.recordOpen/Click` (counter increment path)
+- **I-3** — `EmailService.sendTransactional` should call `injectTracking` (engagement reporting for workflow-driven emails)
+
+### Added — Phase 1 (campaign builder + email tracking + outbound webhooks)
 
 - **Email campaign builder backend (F2)** — extended `Campaign` model with envelope columns (`subject`, `fromName`, `fromAddress`, `replyTo`, `previewText`, `templateJson`, `scheduledAt`, `recipientFilter`) + per-campaign engagement counters (`recipientCount`, `sentSuccessCount`, `sentFailureCount`, `openCount`, `uniqueOpenCount`, `clickCount`, `uniqueClickCount`, `bounceCount`, `unsubscribeCount`, `spamReportCount`). New `CampaignRecipient` model with per-recipient HMAC tracking token, status lifecycle (PENDING → QUEUED → SENT → DELIVERED → BOUNCED/FAILED/SKIPPED). REST endpoints: `POST /campaigns/:id/send-test`, `POST /campaigns/:id/schedule`, `POST /campaigns/:id/cancel`, `POST /campaigns/:id/pause`, `POST /campaigns/:id/resume`, `GET /campaigns/:id/stats`. Send-test rate-limited 5/h/(campaign,user).
 - **Email open / click / unsubscribe / bounce tracking (F1)** — HMAC-signed open pixel + click redirect (T-MAIL-S-01 engagement spoofing defense). New `EmailSuppression` model with hashed-email storage (GDPR data-minimization). Public `/e/u/:token` one-click unsubscribe endpoint (HMAC-protected, bilingual RO/EN response). Daily PII purge cron nullifies `ip_address` + `user_agent` on rows older than 90 days. Bounce handler API (`recordBounce`) auto-adds hard bounces to suppression.
