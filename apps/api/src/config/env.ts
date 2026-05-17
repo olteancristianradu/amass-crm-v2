@@ -324,6 +324,23 @@ const envSchema = z.object({
   WEBAUTHN_RP_ID: z.string().min(1).default('localhost'),
   WEBAUTHN_RP_NAME: z.string().min(1).default('Amass CRM (dev)'),
   WEBAUTHN_ORIGIN: z.string().url().default('http://localhost:5173'),
+
+  // Phase 1 F3 — webhook envelope Key Encryption Key. Used by
+  // EnvelopeService to wrap WebhookEndpoint.secret at rest. Base64-encoded
+  // 32 bytes (256 bits). Generate with:
+  //   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  // Optional in dev/test (EnvelopeService falls back to a deterministic test
+  // KEK so unit specs don't need extra wiring). Required in production via
+  // prodOnlyChecks below — see threat model T-WH-T-06.
+  WEBHOOK_SECRET_KEK: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  // Stable identifier for the active KEK. Persisted on WebhookEndpoint.secretKid
+  // at rotation time so we can introspect "which key wrapped this secret" without
+  // decrypting. Bump this string (e.g. 'kek-2026-05') when you rotate the KEK
+  // value; old rows keep their old kid until they themselves rotate.
+  WEBHOOK_SECRET_KEK_KID: z.string().min(1).default('kek-default'),
 });
 
 /**
@@ -382,6 +399,30 @@ const prodOnlyChecks = (data: z.infer<typeof envSchema>): string[] => {
   // JWT_SECRET).
   if (!data.CAMPAIGN_HMAC_KEY) {
     errors.push('CAMPAIGN_HMAC_KEY must be set in production');
+  }
+
+  // Phase 1 F3 — WEBHOOK_SECRET_KEK required in prod. Without it, an attacker
+  // with DB read can lift every endpoint's signing secret (the legacy plaintext
+  // `secret` column is still dual-written for the 30-day migration window).
+  // The KEK must decode to exactly 32 bytes.
+  if (!data.WEBHOOK_SECRET_KEK) {
+    errors.push('WEBHOOK_SECRET_KEK must be set in production (≥32 bytes base64)');
+  } else {
+    try {
+      const buf = Buffer.from(data.WEBHOOK_SECRET_KEK, 'base64');
+      if (buf.length !== 32) {
+        errors.push(
+          `WEBHOOK_SECRET_KEK must decode to exactly 32 bytes (got ${buf.length})`,
+        );
+      }
+    } catch {
+      errors.push('WEBHOOK_SECRET_KEK must be valid base64');
+    }
+  }
+  if (data.WEBHOOK_SECRET_KEK_KID === 'kek-default') {
+    errors.push(
+      'WEBHOOK_SECRET_KEK_KID must be set to a stable identifier in production (not "kek-default")',
+    );
   }
 
   // B2: WebAuthn RP identity must NOT use the dev defaults in production —

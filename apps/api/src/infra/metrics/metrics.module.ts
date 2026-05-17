@@ -99,6 +99,28 @@ const metricProviders = [
     help: 'Count of user-locale changes via PATCH /users/me/locale, by tenant and from/to.',
     labelNames: ['tenant', 'from', 'to'],
   }),
+  // Phase 1 F3 — outbox poller batch drain. `status` is "published" (enqueued
+  // to webhook-delivery), "skipped" (no matching subscription), or "failed"
+  // (enqueue threw). Dashboards alert on a sustained `failed` rate > 0.
+  makeCounterProvider({
+    name: 'outbox_events_published_total',
+    help: 'Count of outbox events processed by the poller, by outcome.',
+    labelNames: ['status'],
+  }),
+  // Phase 1 F3 — per-(endpoint, event) webhook delivery outcome. `status`
+  // is "success" (2xx), "retry" (5xx/timeout, will retry), or "dead_letter"
+  // (attempts exhausted OR 410 Gone). Bounded label cardinality.
+  makeCounterProvider({
+    name: 'webhook_delivery_total',
+    help: 'Count of webhook delivery attempts, by event type and final status.',
+    labelNames: ['event', 'status'],
+  }),
+  // Phase 1 F3 — outbox lag in seconds. Computed each poll cycle as
+  // `now - min(created_at) WHERE status='PENDING'`. Alert if > 60s for 5min.
+  makeGaugeProvider({
+    name: 'outbox_oldest_pending_age_seconds',
+    help: 'Age (seconds) of the oldest PENDING outbox row. NaN if no pending rows.',
+  }),
 ];
 
 @Global()

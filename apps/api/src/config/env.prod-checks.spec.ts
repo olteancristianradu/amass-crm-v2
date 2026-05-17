@@ -28,6 +28,12 @@ function makeProdBase(): Record<string, string | undefined> {
     WEBAUTHN_RP_ID: 'app.example.com',
     WEBAUTHN_RP_NAME: 'Amass CRM',
     WEBAUTHN_ORIGIN: 'https://app.example.com',
+    // Phase 1 F3 — webhook envelope KEK is required in prod (must decode to
+    // exactly 32 bytes). 32 raw 'k' bytes = "a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tr"
+    // is shorter than expected base64 for 32 bytes; safer to compute from a
+    // 32-char raw string. Base64 of 32 bytes is always 44 chars.
+    WEBHOOK_SECRET_KEK: Buffer.from('k'.repeat(32)).toString('base64'),
+    WEBHOOK_SECRET_KEK_KID: 'kek-prod-2026',
   };
 }
 

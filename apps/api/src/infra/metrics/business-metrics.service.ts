@@ -19,7 +19,7 @@
  */
 import { Injectable, Optional } from '@nestjs/common';
 import { InjectMetric } from '@willsoto/nestjs-prometheus';
-import type { Counter, Histogram } from 'prom-client';
+import type { Counter, Gauge, Histogram } from 'prom-client';
 
 @Injectable()
 export class BusinessMetricsService {
@@ -49,6 +49,17 @@ export class BusinessMetricsService {
     @Optional()
     @InjectMetric('i18n_locale_switched_total')
     private readonly i18nLocaleSwitched?: Counter<string>,
+    // Phase 1 F3 — outbox + webhook delivery counters. @Optional() so the
+    // existing hand-built fixtures keep instantiating without these providers.
+    @Optional()
+    @InjectMetric('outbox_events_published_total')
+    private readonly outboxPublished?: Counter<string>,
+    @Optional()
+    @InjectMetric('webhook_delivery_total')
+    private readonly webhookDelivery?: Counter<string>,
+    @Optional()
+    @InjectMetric('outbox_oldest_pending_age_seconds')
+    private readonly outboxLag?: Gauge<string>,
   ) {}
 
   /**
@@ -135,5 +146,34 @@ export class BusinessMetricsService {
    */
   recordFxRatesSanityViolation(fromCurrency: string, toCurrency: string): void {
     this.fxRatesSanityViolation?.labels(fromCurrency, toCurrency).inc();
+  }
+
+  /**
+   * Phase 1 F3 (T-WH-T-05) — record one outbox poller drain outcome.
+   * `status` is "published" (enqueued to webhook-delivery), "skipped" (no
+   * matching subscription so the event is marked PUBLISHED with no fan-out),
+   * or "failed" (enqueue threw, row stays PENDING for retry).
+   */
+  recordOutboxProcessed(status: 'published' | 'skipped' | 'failed', delta = 1): void {
+    this.outboxPublished?.labels(status).inc(delta);
+  }
+
+  /**
+   * Phase 1 F3 — outcome of a single webhook delivery attempt.
+   *   "success"     — endpoint returned 2xx.
+   *   "retry"       — non-2xx OR network failure, BullMQ will retry.
+   *   "dead_letter" — attempts exhausted OR endpoint returned 410 Gone.
+   */
+  recordWebhookDelivery(event: string, status: 'success' | 'retry' | 'dead_letter'): void {
+    this.webhookDelivery?.labels(event, status).inc();
+  }
+
+  /**
+   * Phase 1 F3 — outbox queue lag. Caller passes the age in seconds of the
+   * oldest PENDING row (the poller computes this each cycle). NaN means no
+   * pending rows — Prometheus reads NaN as "no data" which is correct.
+   */
+  setOutboxLagSeconds(seconds: number): void {
+    this.outboxLag?.set(Number.isFinite(seconds) ? seconds : 0);
   }
 }
