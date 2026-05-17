@@ -14,6 +14,10 @@ interface TxMock {
     findMany: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
+  // Phase 1.1 CRIT-1 partial: sendTest now validates recipient against
+  // tenant's Users (must be verified + active). Mocked here so the existing
+  // happy-path tests still pass without setting up a real user lookup.
+  user: { findFirst: ReturnType<typeof vi.fn> };
 }
 
 function build(): {
@@ -28,18 +32,29 @@ function build(): {
   email: { sendTransactional: ReturnType<typeof vi.fn> };
   recipients: { enqueue: ReturnType<typeof vi.fn> };
   queue: { getJob: ReturnType<typeof vi.fn>; add: ReturnType<typeof vi.fn> };
+  outbox: { publish: ReturnType<typeof vi.fn> };
 } {
   const tx: TxMock = {
     campaign: {
       findFirst: vi.fn(),
       create: vi.fn(),
       findMany: vi.fn(),
+      // Phase 1.1 BLOCKER-3: launch() now wraps update in runWithTenant —
+      // configure the tx.campaign.update mock to mirror the legacy
+      // prisma.campaign.update return so the existing tests still see the
+      // expected value.
       update: vi.fn(),
+    },
+    user: {
+      // Default to "verified user found" so existing happy-path sendTest
+      // tests don't have to opt in to the recipient validation. Specific
+      // negative tests override to return null.
+      findFirst: vi.fn().mockResolvedValue({ id: 'u-A' }),
     },
   };
   const prisma = {
     runWithTenant: vi.fn(async (_id: string, fn: (t: TxMock) => unknown) => fn(tx)),
-    // Public-path methods on the global client (used by launch())
+    // Public-path methods on the global client (used by launch's pre-read).
     campaign: { findFirst: vi.fn(), update: vi.fn() },
   };
   const redis = { incr: vi.fn(), ttl: vi.fn().mockResolvedValue(1) };
@@ -50,6 +65,8 @@ function build(): {
     getJob: vi.fn().mockResolvedValue(null),
     add: vi.fn().mockResolvedValue({ id: 'job-1' }),
   };
+  // Phase 1.1 BLOCKER-3: outbox is now injected (optional ctor arg).
+  const outbox = { publish: vi.fn().mockResolvedValue('outbox-id-1') };
   const svc = new CampaignsService(
     prisma as unknown as ConstructorParameters<typeof CampaignsService>[0],
     redis as unknown as ConstructorParameters<typeof CampaignsService>[1],
@@ -57,8 +74,9 @@ function build(): {
     email as unknown as ConstructorParameters<typeof CampaignsService>[3],
     recipients as unknown as ConstructorParameters<typeof CampaignsService>[4],
     queue as unknown as ConstructorParameters<typeof CampaignsService>[5],
+    outbox as unknown as ConstructorParameters<typeof CampaignsService>[6],
   );
-  return { svc, prisma, tx, redis, audit, email, recipients, queue };
+  return { svc, prisma, tx, redis, audit, email, recipients, queue, outbox };
 }
 
 describe('CampaignsService.launch', () => {
@@ -91,25 +109,33 @@ describe('CampaignsService.launch', () => {
 
   it('transitions DRAFT → ACTIVE, back-fills startDate when null', async () => {
     const h = build();
-    const existing = { id: 'c-1', status: 'DRAFT', startDate: null };
-    const launched = { id: 'c-1', status: 'ACTIVE', startDate: new Date() };
+    const existing = { id: 'c-1', status: 'DRAFT', startDate: null, name: 'X', channel: 'EMAIL' };
+    const launched = { id: 'c-1', status: 'ACTIVE', startDate: new Date(), name: 'X', channel: 'EMAIL' };
     h.prisma.campaign.findFirst.mockResolvedValue(existing);
-    h.prisma.campaign.update.mockResolvedValue(launched);
+    // Phase 1.1 BLOCKER-3: launch now runs the update inside runWithTenant +
+    // emits CAMPAIGN_SENT to outbox in the same tx. Mock the tx-side update.
+    h.tx.campaign.update.mockResolvedValue(launched);
     const result = await h.svc.launch('c-1', 'tenant-1');
     expect(result).toBe(launched);
-    const arg = h.prisma.campaign.update.mock.calls[0][0];
+    const arg = h.tx.campaign.update.mock.calls[0][0];
     expect(arg.data.status).toBe('ACTIVE');
     expect(arg.data.startDate).toBeInstanceOf(Date);
+    // CAMPAIGN_SENT emitted in same tx
+    expect(h.outbox.publish).toHaveBeenCalledWith(
+      'CAMPAIGN_SENT',
+      expect.objectContaining({ campaignId: 'c-1' }),
+      expect.objectContaining({ tx: expect.anything(), aggregateType: 'Campaign' }),
+    );
   });
 
   it('transitions PAUSED → ACTIVE, preserves existing startDate', async () => {
     const h = build();
     const preset = new Date('2026-01-15');
-    const existing = { id: 'c-1', status: 'PAUSED', startDate: preset };
+    const existing = { id: 'c-1', status: 'PAUSED', startDate: preset, name: 'X', channel: 'EMAIL' };
     h.prisma.campaign.findFirst.mockResolvedValue(existing);
-    h.prisma.campaign.update.mockResolvedValue({ ...existing, status: 'ACTIVE' });
+    h.tx.campaign.update.mockResolvedValue({ ...existing, status: 'ACTIVE' });
     await h.svc.launch('c-1', 'tenant-1');
-    expect(h.prisma.campaign.update.mock.calls[0][0].data.startDate).toBe(preset);
+    expect(h.tx.campaign.update.mock.calls[0][0].data.startDate).toBe(preset);
   });
 });
 
@@ -158,15 +184,39 @@ describe('CampaignsService.sendTest', () => {
     const h = build();
     h.tx.campaign.findFirst.mockResolvedValue(ready);
     h.redis.incr.mockResolvedValueOnce(6);
+    // Phase 1.1 I-4: rate-limit now throws HttpException(429), not 400.
     await expect(h.svc.sendTest('c-1', { email: 't@x.ro' } as never))
+      .rejects.toMatchObject({ status: 429 });
+    expect(h.email.sendTransactional).not.toHaveBeenCalled();
+  });
+
+  // Phase 1.1 CRIT-1 partial: send-test now rejects recipients that are not
+  // verified active users of the calling tenant.
+  it('rejects SEND_TEST_RECIPIENT_NOT_USER when recipient is not a verified user', async () => {
+    const h = build();
+    h.tx.campaign.findFirst.mockResolvedValue(ready);
+    h.tx.user.findFirst.mockResolvedValueOnce(null);
+    await expect(h.svc.sendTest('c-1', { email: 'phish@evil.ro' } as never))
       .rejects.toThrow(BadRequestException);
+    expect(h.email.sendTransactional).not.toHaveBeenCalled();
+  });
+
+  // Phase 1.1 CRIT-1 partial: global per-user budget across campaigns.
+  it('throws TOO_MANY_REQUESTS when global per-user counter exceeds 10/h', async () => {
+    const h = build();
+    h.tx.campaign.findFirst.mockResolvedValue(ready);
+    // Per-campaign counter passes (1), global one trips (11).
+    h.redis.incr.mockResolvedValueOnce(1).mockResolvedValueOnce(11);
+    await expect(h.svc.sendTest('c-1', { email: 't@x.ro' } as never))
+      .rejects.toMatchObject({ status: 429 });
     expect(h.email.sendTransactional).not.toHaveBeenCalled();
   });
 
   it('sends preview with [TEST] subject prefix on success', async () => {
     const h = build();
     h.tx.campaign.findFirst.mockResolvedValue(ready);
-    h.redis.incr.mockResolvedValueOnce(1);
+    // 1st incr = per-campaign, 2nd = global. Both well under cap.
+    h.redis.incr.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
     const out = await h.svc.sendTest('c-1', { email: 't@x.ro' } as never);
     expect(out.messageId).toBe('msg-1');
     const arg = h.email.sendTransactional.mock.calls[0][1];

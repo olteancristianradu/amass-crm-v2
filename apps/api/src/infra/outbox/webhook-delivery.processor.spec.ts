@@ -23,10 +23,16 @@ function buildPrisma(opts: {
   endpoint: Record<string, unknown> | null;
   deliveryCreate?: Mock;
   endpointUpdate?: Mock;
+  // Phase 1.1 HIGH-3: tenant active-state gate before delivery. Defaults
+  // to "active healthy tenant" so the bulk of existing tests stay unchanged.
+  tenant?: { id: string; isActive: boolean; suspendedAt: Date | null } | null;
 }) {
   const findFirst = vi.fn().mockResolvedValue(opts.endpoint);
   const deliveryCreate = opts.deliveryCreate ?? vi.fn().mockResolvedValue({});
   const endpointUpdate = opts.endpointUpdate ?? vi.fn().mockResolvedValue({ consecutiveFailures: 0 });
+  const tenantFindUnique = vi.fn().mockResolvedValue(
+    opts.tenant ?? { id: 't1', isActive: true, suspendedAt: null },
+  );
 
   const runWithTenant = vi.fn().mockImplementation(
     async (
@@ -37,9 +43,11 @@ function buildPrisma(opts: {
   return {
     runWithTenant,
     webhookEndpoint: { update: endpointUpdate },
+    tenant: { findUnique: tenantFindUnique },
     findFirst,
     deliveryCreate,
     endpointUpdate,
+    tenantFindUnique,
   };
 }
 
@@ -344,5 +352,59 @@ describe('WebhookDeliveryProcessor', () => {
         opts: { attempts: 1 },
       } as never),
     ).rejects.toThrow();
+  });
+
+  // Phase 1.1 HIGH-3 regression guard: tenant suspended between outbox
+  // publish and delivery → drop the job, don't ship the event to the
+  // subscriber. Pre-fix, the processor only checked `endpoint.isActive`
+  // (tenant-level kill-switch was ignored).
+  it('regression HIGH-3: skips delivery when tenant is suspended (isActive=false)', async () => {
+    const prisma = buildPrisma({
+      endpoint: {
+        id: 'ep1',
+        url: 'https://example.com/hook',
+        isActive: true,
+        secret: 'k',
+        secretEncrypted: null,
+        secretKid: null,
+        previousSecretEncrypted: null,
+        previousSecretKid: null,
+        previousSecretValidUntil: null,
+        consecutiveFailures: 0,
+      },
+      tenant: { id: 't1', isActive: false, suspendedAt: new Date() },
+    });
+    const fetchMock = vi.fn();
+    const { proc, metrics } = makeProcessor(prisma, fetchMock);
+    await proc.process(makeJob() as never);
+    // Network NEVER hit — fan-out blocked at the tenant gate.
+    expect(fetchMock).not.toHaveBeenCalled();
+    // Endpoint findFirst not reached either.
+    expect(prisma.findFirst).not.toHaveBeenCalled();
+    // No delivery metric (it never executed).
+    expect(metrics.recordWebhookDelivery).not.toHaveBeenCalled();
+  });
+
+  it('regression HIGH-3: skips delivery when tenant has suspendedAt set (kill switch)', async () => {
+    const prisma = buildPrisma({
+      endpoint: {
+        id: 'ep1',
+        url: 'https://example.com/hook',
+        isActive: true,
+        secret: 'k',
+        secretEncrypted: null,
+        secretKid: null,
+        previousSecretEncrypted: null,
+        previousSecretKid: null,
+        previousSecretValidUntil: null,
+        consecutiveFailures: 0,
+      },
+      tenant: { id: 't1', isActive: true, suspendedAt: new Date() },
+    });
+    const fetchMock = vi.fn();
+    const { proc } = makeProcessor(prisma, fetchMock);
+    await proc.process(makeJob() as never);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(prisma.findFirst).not.toHaveBeenCalled();
   });
 });

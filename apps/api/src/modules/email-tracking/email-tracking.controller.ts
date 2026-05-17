@@ -98,9 +98,14 @@ export class EmailTrackingController {
       .send(renderUnsubSuccessHtml(out.emailMasked));
   }
 
+  // HIGH-5 (Phase 1.1, T-MAIL-I-03): VIEWER dropped from the stats endpoint.
+  // VIEWER is the "auditor + read-only support" role — they should NOT see
+  // engagement metrics on individual emails (which can be PII-adjacent: who
+  // opened what, when, from where). Limited to staff who own the campaign
+  // workflow (OWNER/ADMIN/MANAGER/AGENT).
   @Get('email/:id/tracking')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT, UserRole.VIEWER)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
   stats(@Param('id') id: string) {
     return this.tracking.statsForMessage(id);
   }

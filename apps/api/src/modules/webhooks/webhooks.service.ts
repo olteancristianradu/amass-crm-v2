@@ -32,6 +32,7 @@ import { UrlValidatorService } from '../../common/ssrf/url-validator.service';
 import { OutboxService } from '../../infra/outbox/outbox.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { requireTenantContext } from '../../infra/prisma/tenant-context';
+import { AuditService } from '../audit/audit.service';
 
 // Re-exported from the SSRF helper so legacy importers stay compiling.
 export { isPrivateOrReservedIp } from '../../common/ssrf/url-validator.service';
@@ -71,6 +72,11 @@ export class WebhooksService {
     private readonly urlValidator: UrlValidatorService,
     private readonly envelope: EnvelopeService,
     private readonly outbox: OutboxService,
+    // HIGH-2 (Phase 1.1): every endpoint mutation now writes an audit row
+    // (created/updated/deleted/secret_rotated/auto_disabled). Optional ctor
+    // arg so existing unit tests building WebhooksService positional still
+    // compile; production wiring injects via WebhooksModule.
+    private readonly audit?: AuditService,
   ) {}
 
   async create(dto: CreateWebhookEndpointDto) {
@@ -79,7 +85,7 @@ export class WebhooksService {
     const secret = randomBytes(24).toString('hex');
     const wrapped = this.envelope.encrypt(secret);
 
-    return this.prisma.runWithTenant(tenantId, (tx) =>
+    const created = await this.prisma.runWithTenant(tenantId, (tx) =>
       tx.webhookEndpoint.create({
         data: {
           tenantId,
@@ -94,6 +100,18 @@ export class WebhooksService {
         select: { id: true, url: true, events: true, isActive: true, createdAt: true, secret: true },
       }),
     );
+    if (this.audit) {
+      await this.audit.log({
+        action: 'webhook.endpoint.created',
+        subjectType: 'WebhookEndpoint',
+        subjectId: created.id,
+        // No secret in audit metadata — operators see it via the
+        // create-response (returned exactly once) and via rotation. The
+        // audit row should never let a forensic dump leak the signing key.
+        metadata: { url: created.url, events: dto.events, secretKid: wrapped.kid },
+      });
+    }
+    return created;
   }
 
   async list() {
@@ -122,7 +140,7 @@ export class WebhooksService {
     await this.get(id);
     if (dto.url !== undefined) await this.urlValidator.validateUrl(dto.url);
     const { tenantId } = requireTenantContext();
-    return this.prisma.runWithTenant(tenantId, (tx) =>
+    const updated = await this.prisma.runWithTenant(tenantId, (tx) =>
       tx.webhookEndpoint.update({
         where: { id },
         data: {
@@ -133,14 +151,33 @@ export class WebhooksService {
         select: PUBLIC_ENDPOINT_SELECT,
       }),
     );
+    if (this.audit) {
+      await this.audit.log({
+        action: 'webhook.endpoint.updated',
+        subjectType: 'WebhookEndpoint',
+        subjectId: id,
+        // Object.keys(dto) captures which fields the client actually
+        // touched — useful for "who toggled isActive" forensics.
+        metadata: { fields: Object.keys(dto), newUrl: dto.url, newIsActive: dto.isActive },
+      });
+    }
+    return updated;
   }
 
   async delete(id: string) {
     const { tenantId } = requireTenantContext();
-    await this.get(id);
+    const before = await this.get(id);
     await this.prisma.runWithTenant(tenantId, (tx) =>
       tx.webhookEndpoint.delete({ where: { id } }),
     );
+    if (this.audit) {
+      await this.audit.log({
+        action: 'webhook.endpoint.deleted',
+        subjectType: 'WebhookEndpoint',
+        subjectId: id,
+        metadata: { url: before.url, events: before.events },
+      });
+    }
   }
 
   /**
@@ -201,6 +238,20 @@ export class WebhooksService {
     this.logger.warn(
       `Webhook secret rotated for endpoint ${id} (tenant ${tenantId}) — grace until ${graceUntil.toISOString()}`,
     );
+    if (this.audit) {
+      await this.audit.log({
+        action: 'webhook.endpoint.secret_rotated',
+        subjectType: 'WebhookEndpoint',
+        subjectId: id,
+        // NEVER include the new plaintext secret in audit metadata.
+        // Caller sees it once in the HTTP response; that's the contract.
+        metadata: {
+          newKid: wrappedNew.kid,
+          previousKid: previousKid,
+          graceUntil: graceUntil.toISOString(),
+        },
+      });
+    }
     return { id, secret: newSecret, rotatedAt };
   }
 

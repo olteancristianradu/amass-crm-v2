@@ -1,10 +1,12 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { EmailTrackKind, EmailSuppressionReason } from '@prisma/client';
+import { EmailTrackKind, EmailSuppressionReason, WebhookEvent } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { requireTenantContext } from '../../infra/prisma/tenant-context';
 import { loadEnv } from '../../config/env';
 import { AuditService } from '../audit/audit.service';
 import { EmailSuppressionService } from '../email-suppression/email-suppression.service';
+import { OutboxService } from '../../infra/outbox/outbox.service';
 
 /**
  * Email open/click/unsubscribe/bounce tracking.
@@ -39,12 +41,13 @@ export class EmailTrackingService {
 
   constructor(
     private readonly prisma: PrismaService,
-    // Audit + suppression are OPTIONAL at construction time so existing
-    // unit tests that build EmailTrackingService manually with just the
-    // Prisma stub don't break. Production wiring always provides them via
-    // EmailTrackingModule.
+    // Audit + suppression + outbox are OPTIONAL at construction time so
+    // existing unit tests that build EmailTrackingService manually with
+    // just the Prisma stub don't break. Production wiring always provides
+    // them via EmailTrackingModule.
     private readonly audit?: AuditService,
     private readonly suppression?: EmailSuppressionService,
+    private readonly outbox?: OutboxService,
   ) {}
 
   /**
@@ -139,24 +142,59 @@ export class EmailTrackingService {
     }
 
     try {
+      // Open-pixel is PUBLIC (no session). Lookup is by id alone — the
+      // signature check above already gates write-side access. We use
+      // findUnique (bypass RLS) intentionally to resolve the tenantId of
+      // the message owner, then enter that tenant's RLS context for the
+      // write. NOT a cross-tenant breach: the messageId came from the
+      // signed pixel URL we generated for the recipient.
       const message = await this.prisma.emailMessage.findUnique({
         where: { id: messageId },
         select: { id: true, tenantId: true },
       });
       if (message) {
-        await this.prisma.runWithTenant(message.tenantId, (tx) =>
-          tx.emailTrack.create({
-            data: {
-              tenantId: message.tenantId,
-              messageId: message.id,
-              kind: EmailTrackKind.OPEN,
-              ipAddress: ip,
-              userAgent: ua,
-            },
-          }),
-        );
+        const inserted = await this.prisma.runWithTenant(message.tenantId, async (tx) => {
+          // HIGH-1 (Phase 1.1, T-MAIL-S-02): partial unique index
+          // (message_id, kind, ip_address, hourBucket) collapses Outlook
+          // prefetch / Gmail proxy multi-hits within the same hour into
+          // one tracked open. We swallow P2002 here so the response stays
+          // indistinguishable to the probing attacker.
+          try {
+            await tx.emailTrack.create({
+              data: {
+                tenantId: message.tenantId,
+                messageId: message.id,
+                kind: EmailTrackKind.OPEN,
+                ipAddress: ip,
+                userAgent: ua,
+              },
+            });
+          } catch (err) {
+            if (isUniqueConstraintError(err)) {
+              this.logger.debug(
+                `dedup hit on OPEN (messageId=${message.id}) — ignoring duplicate`,
+              );
+              return false;
+            }
+            throw err;
+          }
+          // BLOCKER-3 (Phase 1.1): close the F1↔F3 loop — emit EMAIL_OPENED
+          // to the outbox INSIDE the same tx as the EmailTrack write so a
+          // committed open guarantees a committed event row (and vice versa).
+          // Emit only when we actually inserted (skip dups so subscribers
+          // don't get N copies of the same logical open).
+          if (this.outbox) {
+            await this.outbox.publish(
+              WebhookEvent.EMAIL_OPENED,
+              { messageId: message.id, occurredAt: new Date().toISOString() },
+              { tx, aggregateType: 'EmailMessage', aggregateId: message.id },
+            );
+          }
+          return true;
+        });
         // Audit hook is fire-and-forget — never breaks the pixel response.
-        if (this.audit) {
+        // Only audit on actual insert (skip dups to keep log noise down).
+        if (inserted && this.audit) {
           await this.audit.log({
             tenantId: message.tenantId,
             action: 'email.opened',
@@ -213,19 +251,48 @@ export class EmailTrackingService {
         select: { id: true, tenantId: true },
       });
       if (!message) return null;
-      await this.prisma.runWithTenant(message.tenantId, (tx) =>
-        tx.emailTrack.create({
-          data: {
-            tenantId: message.tenantId,
-            messageId: message.id,
-            kind: EmailTrackKind.CLICK,
-            url: targetUrl,
-            ipAddress: ip,
-            userAgent: ua,
-          },
-        }),
-      );
-      if (this.audit) {
+      const inserted = await this.prisma.runWithTenant(message.tenantId, async (tx) => {
+        try {
+          await tx.emailTrack.create({
+            data: {
+              tenantId: message.tenantId,
+              messageId: message.id,
+              kind: EmailTrackKind.CLICK,
+              url: targetUrl,
+              ipAddress: ip,
+              userAgent: ua,
+            },
+          });
+        } catch (err) {
+          if (isUniqueConstraintError(err)) {
+            // HIGH-1 (Phase 1.1) dedup hit. Same recipient clicked the same
+            // tracked link within the same hour bucket from the same IP —
+            // still redirect them, just don't double-count.
+            this.logger.debug(
+              `dedup hit on CLICK (messageId=${message.id}) — ignoring duplicate`,
+            );
+            return false;
+          }
+          throw err;
+        }
+        // BLOCKER-3 (Phase 1.1): emit EMAIL_CLICKED in same tx so the outbox
+        // poller fans it out to webhook subscribers. URL included in payload
+        // so subscribers can correlate click destinations. Only on insert
+        // (skip dups so subscribers don't get N copies per logical click).
+        if (this.outbox) {
+          await this.outbox.publish(
+            WebhookEvent.EMAIL_CLICKED,
+            {
+              messageId: message.id,
+              url: targetUrl,
+              occurredAt: new Date().toISOString(),
+            },
+            { tx, aggregateType: 'EmailMessage', aggregateId: message.id },
+          );
+        }
+        return true;
+      });
+      if (inserted && this.audit) {
         await this.audit.log({
           tenantId: message.tenantId,
           action: 'email.clicked',
@@ -283,15 +350,31 @@ export class EmailTrackingService {
       }
 
       // Record the UNSUBSCRIBE event for engagement reporting.
-      await this.prisma.runWithTenant(message.tenantId, (tx) =>
-        tx.emailTrack.create({
+      await this.prisma.runWithTenant(message.tenantId, async (tx) => {
+        await tx.emailTrack.create({
           data: {
             tenantId: message.tenantId,
             messageId: message.id,
             kind: EmailTrackKind.UNSUBSCRIBE,
           },
-        }),
-      );
+        });
+        // BLOCKER-3 (Phase 1.1): emit EMAIL_UNSUBSCRIBED to outbox in same
+        // tx. We do NOT include the raw recipient email in the payload —
+        // only the masked form — because webhook payloads are forwarded to
+        // third-party subscribers and the unsubscribe is a privacy signal
+        // (T-MAIL-I-01 + GDPR data-minimization).
+        if (this.outbox) {
+          await this.outbox.publish(
+            WebhookEvent.EMAIL_UNSUBSCRIBED,
+            {
+              messageId: message.id,
+              emailMasked: masked || '****',
+              occurredAt: new Date().toISOString(),
+            },
+            { tx, aggregateType: 'EmailMessage', aggregateId: message.id },
+          );
+        }
+      });
 
       if (this.audit) {
         await this.audit.log({
@@ -332,8 +415,8 @@ export class EmailTrackingService {
     messageId: string | null,
   ): Promise<{ suppressed: boolean }> {
     try {
-      await this.prisma.runWithTenant(tenantId, (tx) =>
-        tx.emailTrack.create({
+      await this.prisma.runWithTenant(tenantId, async (tx) => {
+        await tx.emailTrack.create({
           data: {
             tenantId,
             messageId: messageId ?? null,
@@ -344,8 +427,29 @@ export class EmailTrackingService {
             bounceType,
             bounceCode,
           },
-        }),
-      );
+        });
+        // BLOCKER-3 (Phase 1.1): emit EMAIL_BOUNCED / EMAIL_SPAM_REPORTED
+        // to outbox in same tx. recipientEmail is included because the
+        // subscriber explicitly needs to act on the bounce (e.g. remove
+        // from their own list); the tenant opted in to receive bounces by
+        // subscribing to this event type.
+        if (this.outbox) {
+          const evt = bounceType === 'spam'
+            ? WebhookEvent.EMAIL_SPAM_REPORTED
+            : WebhookEvent.EMAIL_BOUNCED;
+          await this.outbox.publish(
+            evt,
+            {
+              messageId: messageId ?? null,
+              recipientEmail,
+              bounceType,
+              bounceCode,
+              occurredAt: new Date().toISOString(),
+            },
+            { tx, aggregateType: 'EmailMessage', aggregateId: messageId ?? undefined },
+          );
+        }
+      });
     } catch (err) {
       // Constraint violation expected if neither messageId nor recipientId
       // is supplied — we log loudly so the integration is fixed, but the
@@ -453,27 +557,38 @@ export class EmailTrackingService {
     return updated.count;
   }
 
-  /** Summary stats for one message — authed callers only. */
+  /**
+   * Summary stats for one message — authed callers only.
+   *
+   * CRIT-2 fix (Phase 1.1): previously this used `findUnique({id})` to
+   * resolve the tenantId from the message itself, then called
+   * `runWithTenant(message.tenantId, ...)` — meaning Tenant A could look up
+   * the messageId of Tenant B and the service would silently run reads
+   * inside Tenant B's RLS context. We now derive tenantId from the AUTHED
+   * caller's context FIRST, scope the message lookup with an explicit
+   * `tenantId` filter, and return 404 (not "stats from elsewhere") when the
+   * message doesn't belong to the caller. CLAUDE.md rule #3 — defense in
+   * depth: tenant filter + runWithTenant + RLS all aligned on caller ctx.
+   */
   async statsForMessage(messageId: string): Promise<{ opens: number; clicks: number; lastOpenedAt: Date | null }> {
-    // Caller must already be in tenant context via JwtAuthGuard. We'll
-    // rely on RLS to scope reads.
-    const message = await this.prisma.emailMessage.findUnique({
-      where: { id: messageId },
-      select: { id: true, tenantId: true },
-    });
-    if (!message) {
-      throw new NotFoundException({ code: 'EMAIL_NOT_FOUND', message: 'Email message not found' });
-    }
-    return this.prisma.runWithTenant(message.tenantId, async (tx) => {
+    const ctx = requireTenantContext();
+    return this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const message = await tx.emailMessage.findFirst({
+        where: { id: messageId, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!message) {
+        throw new NotFoundException({ code: 'EMAIL_NOT_FOUND', message: 'Email message not found' });
+      }
       const [opens, clicks, last] = await Promise.all([
         tx.emailTrack.count({
-          where: { tenantId: message.tenantId, messageId, kind: 'OPEN' },
+          where: { tenantId: ctx.tenantId, messageId, kind: 'OPEN' },
         }),
         tx.emailTrack.count({
-          where: { tenantId: message.tenantId, messageId, kind: 'CLICK' },
+          where: { tenantId: ctx.tenantId, messageId, kind: 'CLICK' },
         }),
         tx.emailTrack.findFirst({
-          where: { tenantId: message.tenantId, messageId, kind: 'OPEN' },
+          where: { tenantId: ctx.tenantId, messageId, kind: 'OPEN' },
           orderBy: { createdAt: 'desc' },
           select: { createdAt: true },
         }),
@@ -500,6 +615,17 @@ function isSafeHttpUrl(raw: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Detect Prisma's unique-constraint violation (P2002) without importing
+ * `Prisma.PrismaClientKnownRequestError` directly — the import is awkward in
+ * tests that stub `PrismaService`. Duck-type by code field.
+ */
+function isUniqueConstraintError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' && code === 'P2002';
 }
 
 /**

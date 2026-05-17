@@ -10,6 +10,13 @@ vi.mock('../../config/env', () => ({
   })),
 }));
 
+// Phase 1.1 CRIT-2 fix: statsForMessage now derives tenantId from the AUTHED
+// caller's context FIRST (instead of from the message itself). Mock the
+// tenant context resolver so unit tests don't need a real ALS store.
+vi.mock('../../infra/prisma/tenant-context', () => ({
+  requireTenantContext: vi.fn(() => ({ tenantId: 't-A', userId: 'u-A' })),
+}));
+
 import { EmailTrackingService, signTrackingUrl, verifyTrackingSig, signOpenToken, verifyOpenToken, encodeUnsubscribeToken, decodeUnsubscribeToken } from './email-tracking.service';
 import { loadEnv } from '../../config/env';
 
@@ -20,6 +27,7 @@ function build() {
       count: vi.fn(),
       findFirst: vi.fn(),
     },
+    emailMessage: { findFirst: vi.fn() },
   };
   const prisma = {
     emailMessage: { findUnique: vi.fn() },
@@ -131,6 +139,42 @@ describe('EmailTrackingService.recordOpen', () => {
     const sig = signOpenToken('m-1');
     const out = await h.svc.recordOpen('m-1', sig, null, null);
     expect(out.length).toBe(42);
+  });
+
+  // Phase 1.1 HIGH-1 (T-MAIL-S-02) dedup regression guard. The partial
+  // unique index on (message_id, kind, ip_address, hourBucket) trips P2002
+  // on duplicate open hits (Outlook prefetch / Gmail proxy). We swallow the
+  // error AND skip the outbox emit so subscribers don't get N copies.
+  it('regression HIGH-1: P2002 from dedup index swallowed silently (no throw, no audit, no outbox)', async () => {
+    // Build a fresh handle with outbox stub so we can assert no publish.
+    // (We don't use the shared `build()` helper here because we need to
+    // wire the outbox + audit explicitly to assert they were NOT called.)
+    const tx = {
+      emailTrack: {
+        create: vi.fn().mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'P2002' })),
+        count: vi.fn(),
+        findFirst: vi.fn(),
+      },
+      emailMessage: { findFirst: vi.fn() },
+    };
+    const prisma = {
+      emailMessage: {
+        findUnique: vi.fn().mockResolvedValueOnce({ id: 'm-1', tenantId: 't-A' }),
+      },
+      runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
+    } as unknown as ConstructorParameters<typeof EmailTrackingService>[0];
+    const audit = { log: vi.fn().mockResolvedValue(undefined) };
+    const outbox = { publish: vi.fn().mockResolvedValue('id') };
+    const svc = new EmailTrackingService(prisma, audit as never, undefined, outbox as never);
+
+    const sig = signOpenToken('m-1');
+    const out = await svc.recordOpen('m-1', sig, '1.2.3.4', 'UA');
+
+    // Still returns the pixel — caller sees no error.
+    expect(out.length).toBe(42);
+    // Dedup hit → no audit, no outbox emit (subscribers don't get dupes).
+    expect(audit.log).not.toHaveBeenCalled();
+    expect(outbox.publish).not.toHaveBeenCalled();
   });
 
   // Phase 1 F1 / T-MAIL-S-01 — open-pixel HMAC defense.
@@ -510,19 +554,119 @@ describe('EmailTrackingService.purgePiiBatch', () => {
   });
 });
 
+// Phase 1.1 BLOCKER-3 regression guard: every tracking write must publish a
+// matching webhook event to the outbox IN THE SAME TRANSACTION as the business
+// write. Pre-fix, the new WebhookEvent enum values shipped in Phase 1 schema
+// (EMAIL_OPENED, EMAIL_CLICKED, EMAIL_BOUNCED, EMAIL_UNSUBSCRIBED,
+// EMAIL_SPAM_REPORTED) had no producer — subscribers got nothing.
+describe('EmailTrackingService — outbox wiring (BLOCKER-3 regression)', () => {
+  function buildWithOutbox() {
+    const tx = {
+      emailTrack: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      emailMessage: { findUnique: vi.fn() },
+      runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
+    } as unknown as ConstructorParameters<typeof EmailTrackingService>[0];
+    const audit = { log: vi.fn().mockResolvedValue(undefined) };
+    const suppression = {
+      addSystem: vi.fn().mockResolvedValue({ id: 's-1', emailMasked: 'a****@x****.ro' }),
+    };
+    const outbox = { publish: vi.fn().mockResolvedValue('outbox-id-1') };
+    const svc = new EmailTrackingService(
+      prisma,
+      audit as never,
+      suppression as never,
+      outbox as never,
+    );
+    return { svc, prisma, tx, audit, suppression, outbox };
+  }
+
+  it('recordOpen publishes EMAIL_OPENED in the same tx', async () => {
+    const h = buildWithOutbox();
+    vi.mocked(h.prisma.emailMessage.findUnique).mockResolvedValueOnce({
+      id: 'm-1',
+      tenantId: 't-A',
+    } as never);
+    const sig = signOpenToken('m-1');
+    await h.svc.recordOpen('m-1', sig, '1.2.3.4', 'UA');
+    expect(h.outbox.publish).toHaveBeenCalledWith(
+      'EMAIL_OPENED',
+      expect.objectContaining({ messageId: 'm-1' }),
+      expect.objectContaining({ tx: expect.anything(), aggregateType: 'EmailMessage' }),
+    );
+  });
+
+  it('recordClick publishes EMAIL_CLICKED in the same tx', async () => {
+    const h = buildWithOutbox();
+    vi.mocked(h.prisma.emailMessage.findUnique).mockResolvedValueOnce({
+      id: 'm-1',
+      tenantId: 't-A',
+    } as never);
+    const sig = signTrackingUrl('m-1', 'https://x.com');
+    await h.svc.recordClick('m-1', 'https://x.com', sig, '1.2.3.4', 'UA');
+    expect(h.outbox.publish).toHaveBeenCalledWith(
+      'EMAIL_CLICKED',
+      expect.objectContaining({ messageId: 'm-1', url: 'https://x.com' }),
+      expect.objectContaining({ tx: expect.anything(), aggregateType: 'EmailMessage' }),
+    );
+  });
+
+  it('recordUnsubscribe publishes EMAIL_UNSUBSCRIBED with masked email only', async () => {
+    const h = buildWithOutbox();
+    vi.mocked(h.prisma.emailMessage.findUnique).mockResolvedValueOnce({
+      id: 'm-1',
+      tenantId: 't-A',
+    } as never);
+    const token = encodeUnsubscribeToken('m-1', 'foo@bar.ro');
+    await h.svc.recordUnsubscribe(token);
+    expect(h.outbox.publish).toHaveBeenCalledWith(
+      'EMAIL_UNSUBSCRIBED',
+      expect.objectContaining({ messageId: 'm-1' }),
+      expect.objectContaining({ tx: expect.anything(), aggregateType: 'EmailMessage' }),
+    );
+    // GDPR: raw recipient email must NEVER appear in webhook payload.
+    const payload = h.outbox.publish.mock.calls[0][1] as Record<string, unknown>;
+    expect(JSON.stringify(payload)).not.toContain('foo@bar.ro');
+  });
+
+  it('recordBounce(hard) publishes EMAIL_BOUNCED in the same tx', async () => {
+    const h = buildWithOutbox();
+    await h.svc.recordBounce('t-A', 'a@x.ro', 'hard', '550', 'm-1');
+    expect(h.outbox.publish).toHaveBeenCalledWith(
+      'EMAIL_BOUNCED',
+      expect.objectContaining({ messageId: 'm-1', recipientEmail: 'a@x.ro', bounceType: 'hard' }),
+      expect.objectContaining({ tx: expect.anything() }),
+    );
+  });
+
+  it('recordBounce(spam) publishes EMAIL_SPAM_REPORTED in the same tx', async () => {
+    const h = buildWithOutbox();
+    await h.svc.recordBounce('t-A', 'a@x.ro', 'spam', null, 'm-1');
+    expect(h.outbox.publish).toHaveBeenCalledWith(
+      'EMAIL_SPAM_REPORTED',
+      expect.objectContaining({ messageId: 'm-1', recipientEmail: 'a@x.ro', bounceType: 'spam' }),
+      expect.objectContaining({ tx: expect.anything() }),
+    );
+  });
+});
+
 describe('EmailTrackingService.statsForMessage', () => {
+  // Phase 1.1 CRIT-2 fix: statsForMessage now scopes the message lookup with
+  // an EXPLICIT tenantId from the AUTHED caller context, not from the message
+  // itself. Tests now use tx.emailMessage.findFirst (inside runWithTenant)
+  // rather than the global emailMessage.findUnique (which leaked tenant
+  // scope pre-fix).
+
   it('throws EMAIL_NOT_FOUND when message is missing', async () => {
     const h = build();
-    vi.mocked(h.prisma.emailMessage.findUnique).mockResolvedValueOnce(null);
+    h.tx.emailMessage.findFirst.mockResolvedValueOnce(null);
     await expect(h.svc.statsForMessage('m-1')).rejects.toThrow(NotFoundException);
   });
 
   it('returns opens + clicks counts + lastOpenedAt timestamp', async () => {
     const h = build();
-    vi.mocked(h.prisma.emailMessage.findUnique).mockResolvedValueOnce({
-      id: 'm-1',
-      tenantId: 't-A',
-    } as never);
+    h.tx.emailMessage.findFirst.mockResolvedValueOnce({ id: 'm-1' } as never);
     h.tx.emailTrack.count
       .mockResolvedValueOnce(7) // opens
       .mockResolvedValueOnce(3); // clicks
@@ -533,5 +677,25 @@ describe('EmailTrackingService.statsForMessage', () => {
     expect(out.opens).toBe(7);
     expect(out.clicks).toBe(3);
     expect(out.lastOpenedAt?.toISOString()).toBe('2026-04-27T10:00:00.000Z');
+  });
+
+  // CRIT-2 regression guard: lookup must use the CALLER's tenantId, not
+  // resolve from a global findUnique on the messageId. Pre-fix, a Tenant A
+  // caller asking about Tenant B's messageId would get Tenant B's stats.
+  it('regression CRIT-2: scopes the message lookup by CALLER tenantId — returns 404 cross-tenant', async () => {
+    const h = build();
+    // tx.emailMessage.findFirst is wired through `where: { id, tenantId }`
+    // — when called from Tenant A (mocked at the requireTenantContext
+    // boundary as 't-A'), a messageId belonging to Tenant B is NOT
+    // visible. The mock returns null and the service throws 404.
+    h.tx.emailMessage.findFirst.mockResolvedValueOnce(null);
+    await expect(h.svc.statsForMessage('msg-of-tenant-B')).rejects.toThrow(NotFoundException);
+    // Confirm we did NOT fall back to the legacy findUnique path (which
+    // would expose the cross-tenant row).
+    expect(h.prisma.emailMessage.findUnique).not.toHaveBeenCalled();
+    // Confirm the where filter included the tenantId scope.
+    const whereArg = h.tx.emailMessage.findFirst.mock.calls[0][0].where;
+    expect(whereArg.tenantId).toBe('t-A');
+    expect(whereArg.id).toBe('msg-of-tenant-B');
   });
 });

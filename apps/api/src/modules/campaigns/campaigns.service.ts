@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   forwardRef,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
@@ -8,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { Campaign, Prisma } from '@prisma/client';
+import { Campaign, Prisma, WebhookEvent } from '@prisma/client';
 import {
   CreateCampaignDto,
   ListCampaignsQueryDto,
@@ -25,6 +27,7 @@ import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
 import { QUEUE_CAMPAIGN_DISPATCH } from '../../infra/queue/queue.constants';
 import { CampaignRecipientsService } from '../campaign-recipients/campaign-recipients.service';
+import { OutboxService } from '../../infra/outbox/outbox.service';
 
 /**
  * Phase 1 F2 — campaign builder. Extends the S58 CRUD scaffold with:
@@ -45,6 +48,10 @@ export class CampaignsService {
   // Spec D7: max 5 send-test per (campaignId, userId) per hour. The 3600s
   // window is set by the Redis TTL on the first INCR — see RedisService.
   private static readonly SEND_TEST_LIMIT_PER_HOUR = 5;
+  // Phase 1.1 CRIT-1 partial: GLOBAL per-user budget across ALL campaigns.
+  // Prevents D7 bypass where an attacker creates 100 throwaway campaigns and
+  // sends 5 test mails each (= 500/h phishing pipe with legit "from" envelope).
+  private static readonly SEND_TEST_GLOBAL_LIMIT_PER_HOUR = 10;
   private static readonly SEND_TEST_TTL_SECONDS = 3600;
 
   constructor(
@@ -58,6 +65,10 @@ export class CampaignsService {
     @Inject(forwardRef(() => CampaignRecipientsService))
     private readonly recipients: CampaignRecipientsService,
     @InjectQueue(QUEUE_CAMPAIGN_DISPATCH) private readonly dispatchQueue: Queue,
+    // OutboxService comes from the @Global OutboxModule — no import needed.
+    // Optional at construction time so existing unit tests that build the
+    // service with positional args don't break when adding this.
+    private readonly outbox?: OutboxService,
   ) {}
 
   /**
@@ -78,9 +89,27 @@ export class CampaignsService {
       return existing;
     }
     if (existing.status === 'ACTIVE') return existing;
-    return this.prisma.campaign.update({
-      where: { id: campaignId },
-      data: { status: 'ACTIVE', startDate: existing.startDate ?? new Date() },
+    // BLOCKER-3 (Phase 1.1): wrap status flip + outbox publish in one tx
+    // so subscribers cannot observe an ACTIVE campaign without a
+    // corresponding CAMPAIGN_SENT event in the outbox.
+    return this.prisma.runWithTenant(tenantId, async (tx) => {
+      const updated = await tx.campaign.update({
+        where: { id: campaignId },
+        data: { status: 'ACTIVE', startDate: existing.startDate ?? new Date() },
+      });
+      if (this.outbox) {
+        await this.outbox.publish(
+          WebhookEvent.CAMPAIGN_SENT,
+          {
+            campaignId: updated.id,
+            name: updated.name,
+            channel: updated.channel,
+            startedAt: (updated.startDate ?? new Date()).toISOString(),
+          },
+          { tx, aggregateType: 'Campaign', aggregateId: updated.id },
+        );
+      }
+      return updated;
     });
   }
 
@@ -229,6 +258,38 @@ export class CampaignsService {
     }
     const campaign = await this.findOne(id);
 
+    // CRIT-1 partial (Phase 1.1): the recipient of a "test send" MUST be a
+    // real verified user of this tenant. Pre-fix, the FE accepted ANY email
+    // string here — turning the campaign template + tenant's verified
+    // From address into a free phishing pipe (D7 threat).
+    //
+    // We resolve the recipient inside the caller's tenant context so RLS
+    // + explicit tenantId filter both pin us to the calling tenant; an
+    // attacker who knows a verified user's email at Tenant B can't use it
+    // here because the User row isn't reachable from Tenant A.
+    //
+    // Out of scope for this patch (Phase 1.1.1): TenantSendingDomain +
+    // DKIM verify + fromAddress whitelist (the deeper hardening — see
+    // commit body).
+    const recipientNorm = dto.email.trim().toLowerCase();
+    const recipientUser = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
+      tx.user.findFirst({
+        where: {
+          tenantId: ctx.tenantId,
+          email: recipientNorm,
+          emailVerifiedAt: { not: null },
+          isActive: true,
+        },
+        select: { id: true },
+      }),
+    );
+    if (!recipientUser) {
+      throw new BadRequestException({
+        code: 'SEND_TEST_RECIPIENT_NOT_USER',
+        message: 'Test sends are only allowed to verified users of this workspace',
+      });
+    }
+
     // Completeness check — template + subject + fromAddress mandatory.
     const missing: string[] = [];
     if (!campaign.templateJson) missing.push('templateJson');
@@ -242,19 +303,46 @@ export class CampaignsService {
       });
     }
 
-    // Per-hour rate-limit. Bucket the key by floor(epochSec/3600) so the
-    // window is wall-clock aligned and the TTL stays bounded even if the
-    // first increment happens late in the hour.
+    // Per-hour rate-limit. Two windows enforced in order — most-specific first
+    // so the global counter is only incremented when the per-campaign one
+    // passed (cheap pre-check). Bucket keys floor by epochSec/3600 so the
+    // window is wall-clock aligned and the TTL stays bounded.
+    //
+    // Quick-win I-4 (Phase 1.1): use HTTP 429 (TOO_MANY_REQUESTS), not
+    // 400 — rate-limit is the canonical 429 case, lets clients implement
+    // Retry-After correctly.
     const hourBucket = Math.floor(Date.now() / 1000 / 3600);
     const key = `campaign:test:${id}:${ctx.userId}:${hourBucket}`;
     const count = await this.redis.incr(key, CampaignsService.SEND_TEST_TTL_SECONDS);
     if (count > CampaignsService.SEND_TEST_LIMIT_PER_HOUR) {
       const ttl = await this.redis.ttl(key);
-      throw new BadRequestException({
-        code: 'TOO_MANY_REQUESTS',
-        message: `Max ${CampaignsService.SEND_TEST_LIMIT_PER_HOUR} test sends per campaign per hour`,
-        details: { retryAfter: Math.max(ttl, 1) },
-      });
+      throw new HttpException(
+        {
+          code: 'TOO_MANY_REQUESTS',
+          message: `Max ${CampaignsService.SEND_TEST_LIMIT_PER_HOUR} test sends per campaign per hour`,
+          details: { retryAfter: Math.max(ttl, 1) },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    // CRIT-1 partial: GLOBAL per-user budget across ALL campaigns (bypass
+    // defense). With per-campaign-only limits, an attacker could create N
+    // throwaway campaigns and burn 5*N test sends per hour.
+    const globalKey = `campaign:test:global:${ctx.userId}:${hourBucket}`;
+    const globalCount = await this.redis.incr(
+      globalKey,
+      CampaignsService.SEND_TEST_TTL_SECONDS,
+    );
+    if (globalCount > CampaignsService.SEND_TEST_GLOBAL_LIMIT_PER_HOUR) {
+      const ttl = await this.redis.ttl(globalKey);
+      throw new HttpException(
+        {
+          code: 'TOO_MANY_REQUESTS',
+          message: `Max ${CampaignsService.SEND_TEST_GLOBAL_LIMIT_PER_HOUR} test sends per user per hour (across all campaigns)`,
+          details: { retryAfter: Math.max(ttl, 1) },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     // Render template + interpolate placeholders. For test sends we use
@@ -339,16 +427,33 @@ export class CampaignsService {
       { jobId, delay },
     );
 
-    const updated = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
-      tx.campaign.update({
+    // BLOCKER-3 (Phase 1.1): SCHEDULED transition + CAMPAIGN_SENT outbox
+    // publish in one tx. Note "SENT" here is semantically "send initiated"
+    // — the dispatcher worker (not yet implemented) will own CAMPAIGN_COMPLETED
+    // once per-recipient send fan-out finishes. Documented in CHANGELOG.
+    const updated = await this.prisma.runWithTenant(ctx.tenantId, async (tx) => {
+      const row = await tx.campaign.update({
         where: { id },
         data: {
           status: 'SCHEDULED',
           scheduledAt: dto.scheduledAt,
           recipientCount,
         },
-      }),
-    );
+      });
+      if (this.outbox) {
+        await this.outbox.publish(
+          WebhookEvent.CAMPAIGN_SENT,
+          {
+            campaignId: row.id,
+            name: row.name,
+            scheduledAt: dto.scheduledAt.toISOString(),
+            recipientCount,
+          },
+          { tx, aggregateType: 'Campaign', aggregateId: row.id },
+        );
+      }
+      return row;
+    });
 
     await this.audit.log({
       action: 'campaign.scheduled',

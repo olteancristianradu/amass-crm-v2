@@ -29,11 +29,17 @@ vi.mock('../../infra/prisma/tenant-context', () => ({
   requireTenantContext: () => ({ tenantId: 'tenant-1', userId: 'user-1' }),
 }));
 
-function makeSvc(): WebhooksService {
+function makeSvc(audit?: { log: Mock }): WebhooksService {
   const urlValidator = new UrlValidatorService();
   const envelope = new EnvelopeService();
   const outbox = new OutboxService();
-  return new WebhooksService(mockPrisma, urlValidator, envelope, outbox);
+  return new WebhooksService(
+    mockPrisma,
+    urlValidator,
+    envelope,
+    outbox,
+    audit as never,
+  );
 }
 
 describe('WebhooksService', () => {
@@ -329,6 +335,109 @@ describe('WebhooksService', () => {
       mockRunWithTenant.mockRejectedValueOnce(new Error('db down'));
       expect(() => svc.dispatch('tenant-1', 'DEAL_CREATED' as never, { id: 'deal-1' })).not.toThrow();
     });
+  });
+});
+
+// Phase 1.1 HIGH-2 regression guard: every webhook endpoint mutation must
+// emit a structured audit row so operators can answer "who created/disabled
+// /rotated this endpoint, and when". Pre-fix, only the SQL row mutated;
+// audit log was silent (compliance gap).
+describe('WebhooksService — audit on CRUD + rotate (HIGH-2 regression)', () => {
+  let audit: { log: Mock };
+  let svcWithAudit: WebhooksService;
+
+  beforeEach(() => {
+    resetEnv();
+    vi.clearAllMocks();
+    audit = { log: vi.fn().mockResolvedValue(undefined) };
+    svcWithAudit = makeSvc(audit);
+  });
+
+  it('audits webhook.endpoint.created on create()', async () => {
+    const endpoint = {
+      id: 'ep-X',
+      url: 'https://example.com/hook',
+      events: ['DEAL_CREATED'],
+      isActive: true,
+      createdAt: new Date(),
+      secret: 'abc',
+    };
+    const create = vi.fn().mockResolvedValue(endpoint);
+    mockRunWithTenant.mockImplementationOnce(
+      async (_t: string, fn: (tx: { webhookEndpoint: { create: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { create } }),
+    );
+    await svcWithAudit.create({ url: 'https://example.com/hook', events: ['DEAL_CREATED' as never] });
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'webhook.endpoint.created',
+      subjectType: 'WebhookEndpoint',
+      subjectId: 'ep-X',
+    }));
+    // Secret plaintext MUST NEVER leak into audit metadata.
+    const metadata = audit.log.mock.calls[0]![0].metadata as Record<string, unknown>;
+    expect(JSON.stringify(metadata)).not.toContain('abc');
+  });
+
+  it('audits webhook.endpoint.updated on update()', async () => {
+    const ep = { id: 'ep-X', url: 'https://example.com/hook', events: ['DEAL_CREATED'], isActive: true, createdAt: new Date() };
+    // First runWithTenant call: get() reads the endpoint.
+    // Second: the actual update.
+    mockRunWithTenant
+      .mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(ep) } }),
+      )
+      .mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { update: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { update: vi.fn().mockResolvedValue(ep) } }),
+      );
+    await svcWithAudit.update('ep-X', { isActive: false });
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'webhook.endpoint.updated',
+      subjectId: 'ep-X',
+      metadata: expect.objectContaining({ fields: ['isActive'], newIsActive: false }),
+    }));
+  });
+
+  it('audits webhook.endpoint.deleted on delete()', async () => {
+    const ep = { id: 'ep-X', url: 'https://example.com/hook', events: ['DEAL_CREATED'], isActive: true, createdAt: new Date() };
+    mockRunWithTenant
+      .mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(ep) } }),
+      )
+      .mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { delete: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { delete: vi.fn().mockResolvedValue(ep) } }),
+      );
+    await svcWithAudit.delete('ep-X');
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'webhook.endpoint.deleted',
+      subjectId: 'ep-X',
+    }));
+  });
+
+  it('audits webhook.endpoint.secret_rotated on rotateSecret() — never leaks plaintext', async () => {
+    const before = {
+      id: 'ep-X',
+      secret: 'old-plain',
+      secretEncrypted: 'wrapped-old',
+      secretKid: 'kek-1',
+    };
+    mockRunWithTenant
+      .mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { findFirst: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { findFirst: vi.fn().mockResolvedValue(before) } }),
+      )
+      .mockImplementationOnce(async (_t: string, fn: (tx: { webhookEndpoint: { update: Mock } }) => Promise<unknown>) =>
+        fn({ webhookEndpoint: { update: vi.fn().mockResolvedValue({ id: 'ep-X' }) } }),
+      );
+    const out = await svcWithAudit.rotateSecret('ep-X');
+    // New plaintext returned to caller exactly once.
+    expect(out.secret).toMatch(/^[0-9a-f]{48}$/);
+    // Audit row written.
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'webhook.endpoint.secret_rotated',
+      subjectId: 'ep-X',
+    }));
+    // Plaintext secret NEVER in audit metadata.
+    const metadata = audit.log.mock.calls[0]![0].metadata as Record<string, unknown>;
+    expect(JSON.stringify(metadata)).not.toContain(out.secret);
   });
 });
 

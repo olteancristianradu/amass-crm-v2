@@ -87,11 +87,24 @@ export class OutboxPoller extends WorkerHost {
     // single tenant; the underlying $extends layer no-ops on missing ALS
     // context (verified in prisma.service.ts:298). Each row carries its
     // own tenantId so downstream processing stays scoped.
-    const rows = await this.prisma.outboxEvent.findMany({
+    const candidates = await this.prisma.outboxEvent.findMany({
       where: { status: OutboxEventStatus.PENDING, attempts: { lt: OUTBOX_MAX_ATTEMPTS } },
       orderBy: { createdAt: 'asc' },
       take: OUTBOX_BATCH_SIZE,
     });
+
+    // HIGH-3 (Phase 1.1): filter out events whose tenant is currently
+    // suspended/deactivated. We do this as a separate query (no Prisma
+    // @relation between OutboxEvent and Tenant — adding one would force a
+    // schema migration on a hot table). The query fetches only the unique
+    // tenantIds in the batch and returns the active set; events for
+    // inactive tenants are silently held back so a suspend can later be
+    // reversed and the events delivered (instead of dropping them).
+    //
+    // Why "held back" not "dropped": tenant suspension is sometimes
+    // operational (billing dispute under review). We don't want to lose
+    // events forever just because the resolution takes a day.
+    const rows = await this.filterActiveTenants(candidates);
 
     // Lag gauge — measured from the oldest row we just observed.
     if (rows.length > 0) {
@@ -192,6 +205,34 @@ export class OutboxPoller extends WorkerHost {
 
     await this.markPublished(row.id);
     this.metrics.recordOutboxProcessed('published', enqueued);
+  }
+
+  /**
+   * HIGH-3 (Phase 1.1): drop candidates whose tenant is inactive or
+   * suspended. Returns the surviving rows in the original order so the
+   * poller's "oldest first" lag-measurement still works on a representative
+   * row.
+   *
+   * Single query over the distinct tenantIds in the batch — N+1 free.
+   */
+  private async filterActiveTenants<
+    T extends { tenantId: string },
+  >(candidates: T[]): Promise<T[]> {
+    if (candidates.length === 0) return candidates;
+    const tenantIds = Array.from(new Set(candidates.map((c) => c.tenantId)));
+    const active = await this.prisma.tenant.findMany({
+      where: { id: { in: tenantIds }, isActive: true, suspendedAt: null },
+      select: { id: true },
+    });
+    const activeSet = new Set(active.map((t) => t.id));
+    const surviving = candidates.filter((c) => activeSet.has(c.tenantId));
+    const dropped = candidates.length - surviving.length;
+    if (dropped > 0) {
+      this.logger.warn(
+        `outbox: held back ${dropped} event(s) for suspended/inactive tenants`,
+      );
+    }
+    return surviving;
   }
 
   private async markPublished(id: string): Promise<void> {

@@ -267,6 +267,55 @@ describe('EmailService.send', () => {
     expect(h.emailQueue.add).toHaveBeenCalled();
   });
 
+  // Phase 1.1 BLOCKER-1 regression guard: partial suppression must:
+  //  (a) persist the FILTERED recipient buckets on the EmailMessage row,
+  //      not the raw DTO arrays. Pre-fix the create() used dto.toAddresses
+  //      verbatim so Nodemailer would send to the suppressed addresses.
+  //  (b) emit `email.suppression.skip_send` audit even on partial drops
+  //      (pre-fix only fired when ALL recipients were dropped).
+  it('regression BLOCKER-1: partial suppression filters persisted recipients + emits skip audit', async () => {
+    const h = build();
+    h.tx.emailAccount.findFirst.mockResolvedValueOnce({ id: 'a-1' });
+    h.tx.emailMessage.create.mockResolvedValueOnce({ id: 'm-mixed', bodyHtml: '<p>Hi</p>' });
+    // Suppress ONLY 'blocked@y.ro' — 'ok@y.ro' should still be delivered.
+    vi.mocked(h.suppression.isSuppressed).mockImplementation(
+      async (_tenantId: string, email: string) =>
+        email === 'blocked@y.ro'
+          ? ({ id: 's-1', reason: 'USER_UNSUBSCRIBE', emailMasked: 'b****@y****.ro' } as never)
+          : null,
+    );
+
+    await h.svc.send({
+      accountId: 'a-1',
+      subjectType: 'CONTACT',
+      subjectId: 'c-1',
+      toAddresses: ['ok@y.ro', 'blocked@y.ro'],
+      ccAddresses: ['blocked@y.ro'],
+      bccAddresses: [],
+      subject: 'Hi',
+      bodyHtml: '<p>Hi</p>',
+    } as never);
+
+    // (a) Persisted row reflects FILTERED arrays, NOT the original DTO.
+    const data = h.tx.emailMessage.create.mock.calls[0][0].data;
+    expect(data.toAddresses).toEqual(['ok@y.ro']);
+    expect(data.ccAddresses).toEqual([]);
+    expect(data.bccAddresses).toEqual([]);
+    // Status is QUEUED (not FAILED) because at least one recipient survived.
+    expect(data.status).toBe('QUEUED');
+
+    // (b) skip_send audit fired on partial drop.
+    type AuditCall = { action: string; metadata?: Record<string, unknown> };
+    const auditMock = h.audit.log as unknown as { mock: { calls: AuditCall[][] } };
+    const auditCalls: AuditCall[] = auditMock.mock.calls.map((c: AuditCall[]) => c[0]);
+    const skip = auditCalls.find((a: AuditCall) => a.action === 'email.suppression.skip_send');
+    expect(skip).toBeTruthy();
+    expect(skip!.metadata).toMatchObject({ suppressedCount: 1, channel: 'send' });
+
+    // SMTP job still enqueued — surviving recipients must be delivered.
+    expect(h.emailQueue.add).toHaveBeenCalled();
+  });
+
   it('sendTransactional returns null + audits when recipient is suppressed', async () => {
     const h = build();
     vi.mocked(h.suppression.isSuppressed).mockResolvedValue({

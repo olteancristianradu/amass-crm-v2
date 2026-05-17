@@ -797,8 +797,15 @@ model EmailMessage {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  account EmailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  tracks  EmailTrack[]
+  account            EmailAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tracks             EmailTrack[]
+  // Phase 1.1 BLOCKER-2: SQL migration 20260518110000 already wired the FK
+  // campaign_recipients.message_id → email_messages.id (ON DELETE SET NULL),
+  // but the Prisma side had no @relation — `prisma generate` was producing a
+  // client that didn't know about the link. Adding both sides now so
+  // `EmailMessage.delete()` correctly null-sweeps recipient rows and the
+  // type system surfaces the relation. Additive — no migration regenerated.
+  campaignRecipients CampaignRecipient[]
 
   @@index([tenantId, subjectType, subjectId, createdAt])
   @@index([tenantId, accountId, status])
@@ -2022,43 +2029,43 @@ enum WebhookEvent {
 }
 
 model WebhookEndpoint {
-  id                  String         @id @default(cuid())
-  tenantId            String         @map("tenant_id")
-  url                 String
+  id                       String         @id @default(cuid())
+  tenantId                 String         @map("tenant_id")
+  url                      String
   /// BLOCKER 2 phase 1: plaintext kept ADDITIVELY alongside secretEncrypted
   /// for 30 days. Phase 1.6 cleanup migration backfills + DROPs this column
   /// once dual-write is confirmed across all replicas + workers.
-  secret              String
+  secret                   String
   /// Envelope-encrypted secret (base64url(ciphertext||tag||iv)). Set by the
   /// app layer at create + rotate time. NULL until the dual-write migration
   /// ships in Phase 1.0+ (this column added in Phase 1.0 = additive).
-  secretEncrypted     String?        @map("secret_encrypted") @db.VarChar(1024)
+  secretEncrypted          String?        @map("secret_encrypted") @db.VarChar(1024)
   /// KMS key id used to wrap the data key. Allows offline rotation
   /// introspection (which keys are still in use, when to retire one).
-  secretKid           String?        @map("secret_kid") @db.VarChar(64)
-  events              WebhookEvent[]
-  isActive            Boolean        @default(true) @map("is_active")
+  secretKid                String?        @map("secret_kid") @db.VarChar(64)
+  events                   WebhookEvent[]
+  isActive                 Boolean        @default(true) @map("is_active")
   /// Optional human description shown in the admin UI ("Slack #sales").
-  description         String?        @db.VarChar(512)
+  description              String?        @db.VarChar(512)
   /// Operational health counters maintained by the delivery worker.
-  consecutiveFailures Int            @default(0) @map("consecutive_failures")
-  lastDeliveryAt      DateTime?      @map("last_delivery_at")
-  lastSuccessAt       DateTime?      @map("last_success_at")
+  consecutiveFailures      Int            @default(0) @map("consecutive_failures")
+  lastDeliveryAt           DateTime?      @map("last_delivery_at")
+  lastSuccessAt            DateTime?      @map("last_success_at")
   /// Auto-disable bookkeeping (410 Gone repeats, failure threshold trips).
-  disabledAt          DateTime?      @map("disabled_at")
-  disabledReason      String?        @map("disabled_reason") @db.VarChar(256)
+  disabledAt               DateTime?      @map("disabled_at")
+  disabledReason           String?        @map("disabled_reason") @db.VarChar(256)
   /// Audit: which user registered this endpoint. NULL for system-created.
-  createdById         String?        @map("created_by_id")
+  createdById              String?        @map("created_by_id")
   /// T-WH-T-03 secret rotation 24h grace window. When rotate is called we
   /// move the current envelope-encrypted secret into previousSecretEncrypted
   /// and set previousSecretValidUntil = now() + 24h. The delivery processor
   /// signs with BOTH (sending two signatures `v1=...,v1prev=...`) for the
   /// grace window so subscribers have time to roll over without lost events.
-  previousSecretEncrypted  String?    @map("previous_secret_encrypted") @db.VarChar(1024)
-  previousSecretKid        String?    @map("previous_secret_kid") @db.VarChar(64)
-  previousSecretValidUntil DateTime?  @map("previous_secret_valid_until")
-  createdAt           DateTime       @default(now()) @map("created_at")
-  updatedAt           DateTime       @updatedAt @map("updated_at")
+  previousSecretEncrypted  String?        @map("previous_secret_encrypted") @db.VarChar(1024)
+  previousSecretKid        String?        @map("previous_secret_kid") @db.VarChar(64)
+  previousSecretValidUntil DateTime?      @map("previous_secret_valid_until")
+  createdAt                DateTime       @default(now()) @map("created_at")
+  updatedAt                DateTime       @updatedAt @map("updated_at")
 
   deliveries WebhookDelivery[]
 
@@ -2579,8 +2586,12 @@ model CampaignRecipient {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  campaign Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   tracks   EmailTrack[]
+  // Phase 1.1 BLOCKER-2: FK from message_id → email_messages.id was wired
+  // by SQL migration 20260518110000 but the Prisma model was missing the
+  // @relation. Pairs with EmailMessage.campaignRecipients back-relation.
+  message  EmailMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
   @@unique([campaignId, subjectType, subjectId], map: "campaign_recipients_campaign_subject_uniq")
   @@unique([trackingToken], map: "campaign_recipients_tracking_token_uniq")

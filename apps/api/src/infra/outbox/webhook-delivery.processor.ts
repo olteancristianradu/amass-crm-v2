@@ -36,6 +36,7 @@ import { Job } from 'bullmq';
 import { z } from 'zod';
 import { EnvelopeService } from '../../common/crypto/envelope.service';
 import { UrlValidatorService, type ValidatedUrl } from '../../common/ssrf/url-validator.service';
+import { AuditService } from '../../modules/audit/audit.service';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_WEBHOOK_DELIVERY } from '../queue/queue.constants';
@@ -69,6 +70,9 @@ export class WebhookDeliveryProcessor extends WorkerHost {
     private readonly envelope: EnvelopeService,
     private readonly urlValidator: UrlValidatorService,
     private readonly metrics: BusinessMetricsService,
+    // Phase 1.1 HIGH-2: audit on auto-disable + tenant deactivation skip.
+    // Optional so existing processor unit tests stay compileable.
+    private readonly audit?: AuditService,
   ) {
     super();
   }
@@ -79,6 +83,40 @@ export class WebhookDeliveryProcessor extends WorkerHost {
       return;
     }
     const data = DeliveryJobSchema.parse(job.data);
+
+    // HIGH-3 (Phase 1.1): skip delivery if the tenant has been suspended /
+    // deactivated between outbox publish and delivery time. Otherwise we
+    // continue to leak business events for tenants that paid us to stop —
+    // a compliance failure for the "kill switch" semantics of
+    // tenant.isActive=false + tenant.suspendedAt. Fetch the tenant via
+    // the system-scope client (no runWithTenant — we WANT to see the row
+    // even if RLS would normally hide it).
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: data.tenantId },
+      select: { id: true, isActive: true, suspendedAt: true },
+    });
+    if (!tenant || !tenant.isActive || tenant.suspendedAt !== null) {
+      this.logger.warn(
+        `webhook delivery skipped — tenant ${data.tenantId} inactive/suspended (event=${data.event}, endpointId=${data.endpointId})`,
+      );
+      if (this.audit) {
+        await this.audit.log({
+          tenantId: data.tenantId,
+          action: 'webhook.delivery.skipped_tenant_inactive',
+          subjectType: 'WebhookEndpoint',
+          subjectId: data.endpointId,
+          metadata: {
+            event: data.event,
+            outboxEventId: data.outboxEventId,
+            tenantIsActive: tenant?.isActive ?? false,
+            tenantSuspendedAt: tenant?.suspendedAt?.toISOString() ?? null,
+          },
+        });
+      }
+      // Terminal — don't retry. The next outbox poll will skip them too
+      // (see outbox.poller.ts which now joins on tenant.isActive).
+      return;
+    }
 
     // Tenant-scoped endpoint fetch — re-read so we get the current secret
     // (rotation could have happened between outbox publish and delivery).
@@ -347,15 +385,30 @@ export class WebhookDeliveryProcessor extends WorkerHost {
   }
 
   private async disableEndpoint(endpointId: string, reason: string): Promise<void> {
-    await this.prisma.webhookEndpoint.update({
+    // Need the tenantId for the audit row — fetch first (system-scope so
+    // we see the row regardless of RLS).
+    const row = await this.prisma.webhookEndpoint.update({
       where: { id: endpointId },
       data: {
         isActive: false,
         disabledAt: new Date(),
         disabledReason: reason.slice(0, 256),
       },
+      select: { id: true, tenantId: true },
     });
     this.logger.warn(`webhook endpoint ${endpointId} auto-disabled: ${reason}`);
+    // HIGH-2 (Phase 1.1): operators want a structured record of
+    // auto-disables for the deliverability dashboard. Async / fire-and-
+    // forget — failure to audit must not block the disable itself.
+    if (this.audit) {
+      await this.audit.log({
+        tenantId: row.tenantId,
+        action: 'webhook.endpoint.auto_disabled',
+        subjectType: 'WebhookEndpoint',
+        subjectId: endpointId,
+        metadata: { reason: reason.slice(0, 256) },
+      });
+    }
   }
 
   /**

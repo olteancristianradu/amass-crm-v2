@@ -12,18 +12,29 @@ function buildPrisma(overrides: {
   findMany?: Mock;
   endpointFindMany?: Mock;
   update?: Mock;
+  // Phase 1.1 HIGH-3: tenant filter (active + not suspended) added to the
+  // poller's drain loop. Defaults to "all candidate tenants active" so the
+  // existing tests keep their old behaviour.
+  tenantFindMany?: Mock;
 }): {
   prisma: {
     outboxEvent: { findMany: Mock; update: Mock };
     webhookEndpoint: unknown;
+    tenant: { findMany: Mock };
     runWithTenant: Mock;
   };
   endpointFindMany: Mock;
   update: Mock;
+  tenantFindMany: Mock;
 } {
   const findMany = overrides.findMany ?? vi.fn().mockResolvedValue([]);
   const update = overrides.update ?? vi.fn().mockResolvedValue({ attempts: 1 });
   const endpointFindMany = overrides.endpointFindMany ?? vi.fn().mockResolvedValue([]);
+  // Default: every queried tenant looks active. Negative tests override.
+  const tenantFindMany = overrides.tenantFindMany ?? vi.fn().mockImplementation(
+    async (args: { where: { id: { in: string[] } } }) =>
+      args.where.id.in.map((id) => ({ id })),
+  );
   const runWithTenant = vi.fn().mockImplementation(
     async (
       _tenantId: string,
@@ -34,10 +45,12 @@ function buildPrisma(overrides: {
     prisma: {
       outboxEvent: { findMany, update },
       webhookEndpoint: undefined,
+      tenant: { findMany: tenantFindMany },
       runWithTenant,
     },
     endpointFindMany,
     update,
+    tenantFindMany,
   };
 }
 
@@ -221,6 +234,48 @@ describe('OutboxPoller', () => {
     expect(update.mock.calls[1][0]).toEqual(expect.objectContaining({
       where: { id: 'row1' },
       data: expect.objectContaining({ status: OutboxEventStatus.FAILED }),
+    }));
+  });
+
+  // Phase 1.1 HIGH-3 regression guard: filterActiveTenants drops candidates
+  // belonging to inactive/suspended tenants. The dropped rows stay PENDING
+  // (held back, NOT marked FAILED) so a later un-suspend can ship them.
+  it('regression HIGH-3: drops events for inactive tenants from the batch (no enqueue, no status flip)', async () => {
+    const rowA = {
+      id: 'r-A',
+      tenantId: 't-active',
+      eventType: 'DEAL_CREATED',
+      payload: { id: 'd1' },
+      createdAt: new Date(),
+    };
+    const rowB = {
+      id: 'r-B',
+      tenantId: 't-suspended',
+      eventType: 'DEAL_CREATED',
+      payload: { id: 'd2' },
+      createdAt: new Date(),
+    };
+    const findMany = vi.fn().mockResolvedValue([rowA, rowB]);
+    // Only the active tenant comes back from the active-set query.
+    const tenantFindMany = vi.fn().mockResolvedValue([{ id: 't-active' }]);
+    const endpointFindMany = vi.fn().mockResolvedValue([{ id: 'ep-a' }]);
+    const update = vi.fn().mockResolvedValue({ attempts: 1 });
+    const { prisma } = buildPrisma({ findMany, tenantFindMany, endpointFindMany, update });
+    const queueAdd = vi.fn().mockResolvedValue({});
+    const poller = makePoller({ prisma, queueAdd });
+
+    await poller.process(makeJob() as never);
+
+    // Only the active-tenant row got enqueued.
+    expect(queueAdd).toHaveBeenCalledTimes(1);
+    const enqueuedJob = queueAdd.mock.calls[0]![1] as { tenantId: string };
+    expect(enqueuedJob.tenantId).toBe('t-active');
+    // Active-tenant row marked PUBLISHED. Suspended-tenant row UNTOUCHED
+    // (stays PENDING for next tick — held back, not lost).
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toEqual(expect.objectContaining({
+      where: { id: 'r-A' },
+      data: expect.objectContaining({ status: OutboxEventStatus.PUBLISHED }),
     }));
   });
 });

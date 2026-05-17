@@ -235,6 +235,31 @@ export class EmailService {
       return skipped;
     }
 
+    // BLOCKER-1 (Phase 1.1): persist FILTERED recipient buckets, not the
+    // raw DTO arrays. Pre-fix, the suppression check ran but the
+    // EmailMessage row was created with `toAddresses: dto.toAddresses`
+    // (unfiltered) — meaning Nodemailer would happily send to the
+    // suppressed addresses anyway. The check was theatre. Now the row
+    // mirrors what the processor will actually send, and we emit a
+    // `email.suppression.skip_send` audit event whenever ANY recipient was
+    // dropped (not just when ALL were dropped).
+    if (filtered.suppressedHashes.length > 0) {
+      await this.audit.log({
+        action: 'email.suppression.skip_send',
+        subjectType: dto.subjectType.toLowerCase(),
+        subjectId: dto.subjectId,
+        metadata: {
+          suppressedCount: filtered.suppressedHashes.length,
+          // The original DTO arrays so investigators can correlate. The
+          // filtered arrays live on the EmailMessage row itself.
+          requestedTo: dto.toAddresses,
+          requestedCc: dto.ccAddresses,
+          requestedBcc: dto.bccAddresses,
+          channel: 'send',
+        },
+      });
+    }
+
     // Two-phase write so tracking URLs can embed the final message id.
     // Phase 1: insert with original body. Phase 2: rewrite + update. Both
     // run in the same tenant transaction so no observable intermediate state.
@@ -245,9 +270,9 @@ export class EmailService {
           accountId: account.id,
           subjectType: dto.subjectType,
           subjectId: dto.subjectId,
-          toAddresses: dto.toAddresses,
-          ccAddresses: dto.ccAddresses,
-          bccAddresses: dto.bccAddresses,
+          toAddresses: filtered.to,
+          ccAddresses: filtered.cc,
+          bccAddresses: filtered.bcc,
           subject: dto.subject,
           bodyHtml: dto.bodyHtml,
           bodyText: dto.bodyText ?? null,
@@ -278,7 +303,8 @@ export class EmailService {
       subjectId: dto.subjectId,
       metadata: {
         emailMessageId: message.id,
-        to: dto.toAddresses,
+        // Reflect what we actually queued, not what the caller asked for.
+        to: filtered.to,
         subject: dto.subject,
       },
     });

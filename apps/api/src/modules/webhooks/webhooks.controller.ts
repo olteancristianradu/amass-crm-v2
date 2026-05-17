@@ -76,8 +76,12 @@ export class WebhooksController {
     return this.svc.rotateSecret(id);
   }
 
+  // HIGH-6 (Phase 1.1, T-WH-I-03): MANAGER dropped — delivery logs include
+  // the full payload sent to subscribers, which can contain PII-adjacent
+  // business data (deal amounts, customer email, invoice totals). Limit to
+  // OWNER + ADMIN who are responsible for webhook configuration anyway.
   @Get('endpoints/:id/deliveries')
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
   deliveries(@Param('id') id: string) {
     return this.svc.listDeliveries(id);
   }
