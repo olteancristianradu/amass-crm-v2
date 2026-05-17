@@ -104,6 +104,26 @@ const envSchema = z.object({
   // are still in active inboxes. See docs/SECURITY.md.
   EMAIL_TRACKING_REQUIRE_SIG: z.string().default('true'),
 
+  // Phase 1 F2 — campaign builder per-recipient HMAC key. Used to sign the
+  // 32-byte random secret embedded in pixel / click / unsubscribe URLs so an
+  // attacker cannot guess a token and credit a fake open/click to a
+  // CampaignRecipient row. Generate with:
+  //   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  // Must be ≥32 hex chars. Falls back to JWT_SECRET in dev when unset so
+  // tests don't need extra env wiring; prod env validation rejects that
+  // fallback below.
+  CAMPAIGN_HMAC_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(32, 'CAMPAIGN_HMAC_KEY must be ≥32 chars').optional(),
+  ),
+
+  // Phase 1 F2 — per-tenant campaign batch send rate (emails/sec) and burst.
+  // Defaults align with spec D4 (50/sec, burst 200). Conservative defaults
+  // because most SMB tenants share an SMTP provider with per-second caps;
+  // tenants on a dedicated SMTP relay can request a bump.
+  EMAIL_CAMPAIGN_RATE_PER_SEC: z.coerce.number().int().positive().default(50),
+  EMAIL_CAMPAIGN_BURST: z.coerce.number().int().positive().default(200),
+
   // Twilio credentials + webhook base URL. The AUTH_TOKEN is used for
   // outbound REST calls AND for verifying inbound webhook signatures.
   // WEBHOOK_BASE_URL is the public URL Twilio can reach — in dev, this
@@ -284,6 +304,12 @@ const envSchema = z.object({
     z.string().regex(/^\d{1,2}-\d{1,2}$/, 'CONDITIONAL_ACCESS_BUSINESS_HOURS must be "HH-HH"').optional(),
   ),
 
+  // Phase 1 F2 — campaign HMAC key is required in production. In dev/test the
+  // service falls back to JWT_SECRET when unset, but allowing that fallback
+  // in prod means a compromise of one secret rotates the other — defeats the
+  // point of per-purpose keys.
+  // (Implemented below in prodOnlyChecks.)
+
   // B2: WebAuthn / FIDO2 Relying Party identity.
   //
   // RP_ID must be the effective domain of the FE (no scheme, no port). In dev
@@ -350,6 +376,12 @@ const prodOnlyChecks = (data: z.infer<typeof envSchema>): string[] => {
   const metricsIps = data.METRICS_ALLOWED_IPS.split(',').map((s) => s.trim()).filter(Boolean);
   if (metricsIps.length === 0 && !data.METRICS_AUTH_TOKEN) {
     errors.push('METRICS_ALLOWED_IPS or METRICS_AUTH_TOKEN must be set in production');
+  }
+
+  // Phase 1 F2 — CAMPAIGN_HMAC_KEY required in prod (rotation isolated from
+  // JWT_SECRET).
+  if (!data.CAMPAIGN_HMAC_KEY) {
+    errors.push('CAMPAIGN_HMAC_KEY must be set in production');
   }
 
   // B2: WebAuthn RP identity must NOT use the dev defaults in production —

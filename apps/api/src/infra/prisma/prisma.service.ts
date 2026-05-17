@@ -63,6 +63,9 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   'Notification',
   'Order',
   'OrderItem',
+  // Phase 1 F3 outbox pattern (new model 20260518150000). Tenant-scoped
+  // because every outbox event must be filterable + RLS-isolated per tenant.
+  'OutboxEvent',
   'Passkey',
   'Payment',
   'PhoneNumber',

@@ -84,6 +84,14 @@ model Tenant {
   suspendedAt     DateTime?
   suspendedReason String?
 
+  // Phase 1 / F1 — GDPR opt-out at tenant level. Disables tracking pixel +
+  // click-rewrite injection in EmailService for ALL outbound emails from this
+  // tenant. Defaults true (backward-compat with pre-Phase-1 sends); tenant
+  // admin can flip to false to comply with Art. 6 lawful-basis if the tenant
+  // chooses NOT to rely on legitimate-interest balancing for tracking.
+  // Per docs/threat-models/phase-1.md T-MAIL-E-02.
+  emailTrackingEnabled Boolean @default(true) @map("email_tracking_enabled")
+
   users      User[]
   passkeys   Passkey[]
   scimTokens ScimToken[]
@@ -2041,6 +2049,14 @@ model WebhookEndpoint {
   disabledReason      String?        @map("disabled_reason") @db.VarChar(256)
   /// Audit: which user registered this endpoint. NULL for system-created.
   createdById         String?        @map("created_by_id")
+  /// T-WH-T-03 secret rotation 24h grace window. When rotate is called we
+  /// move the current envelope-encrypted secret into previousSecretEncrypted
+  /// and set previousSecretValidUntil = now() + 24h. The delivery processor
+  /// signs with BOTH (sending two signatures `v1=...,v1prev=...`) for the
+  /// grace window so subscribers have time to roll over without lost events.
+  previousSecretEncrypted  String?    @map("previous_secret_encrypted") @db.VarChar(1024)
+  previousSecretKid        String?    @map("previous_secret_kid") @db.VarChar(64)
+  previousSecretValidUntil DateTime?  @map("previous_secret_valid_until")
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
 
@@ -2100,6 +2116,45 @@ model WebhookDelivery {
   // hand-rolled in SQL (webhook_deliveries_retry_pending_idx +
   // webhook_deliveries_dead_letter_idx). Prisma can't express WHERE filters.
   @@map("webhook_deliveries")
+}
+
+// ─── Phase 1 F3 Outbox pattern ────────────────────────────────────────────────
+// CLAUDE.md rule #3 + threat model T-WH-T-05: Promise.allSettled fire-and-forget
+// dispatch loses deliveries on restart. The outbox table is INSERTed in the
+// SAME transaction as the business write — atomicity guarantees no event is
+// emitted unless the business row also committed. A separate BullMQ poller
+// drains PENDING rows every 5s and enqueues per-endpoint delivery jobs.
+
+enum OutboxEventStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+model OutboxEvent {
+  id            String            @id @default(cuid())
+  tenantId      String            @map("tenant_id")
+  /// Stringified WebhookEvent enum so future event types added to the enum
+  /// don't require an outbox schema migration before they can be published.
+  eventType     String            @map("event_type") @db.VarChar(64)
+  /// Optional aggregate context — lets the FE/audit show "this outbox row
+  /// originated from Deal abc123" without parsing the payload.
+  aggregateType String?           @map("aggregate_type") @db.VarChar(64)
+  aggregateId   String?           @map("aggregate_id") @db.VarChar(64)
+  payload       Json
+  status        OutboxEventStatus @default(PENDING)
+  /// Number of times the poller has tried to dispatch this row. Bumped on
+  /// transient failures (e.g., Redis down → enqueue throws). Bounded retry.
+  attempts      Int               @default(0)
+  /// Last error message from a failed dispatch (truncated, no PII).
+  lastError     String?           @map("last_error") @db.VarChar(512)
+  publishedAt   DateTime?         @map("published_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  // Hot-path partial index for the poller: scan only PENDING rows ordered
+  // by creation. Defined hand-rolled in SQL (outbox_events_pending_idx).
+  @@map("outbox_events")
 }
 
 // ─── S51 Stripe Billing ───────────────────────────────────────────────────────
