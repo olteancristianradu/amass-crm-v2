@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { FxRateSource, Prisma } from '@prisma/client';
 import { FxRatesService } from './fx-rates.service';
+import { FxRateNotAvailableException } from './fx-rate-not-available.exception';
 
 /**
  * FxRatesService covers four code paths:
@@ -54,8 +54,9 @@ function build() {
   };
   const prisma = { exchangeRate } as unknown as ConstructorParameters<typeof FxRatesService>[0];
   const redis = { client: redisClient } as unknown as ConstructorParameters<typeof FxRatesService>[1];
-  const svc = new FxRatesService(prisma, redis);
-  return { svc, exchangeRate, redisClient };
+  const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof FxRatesService>[2];
+  const svc = new FxRatesService(prisma, redis, audit);
+  return { svc, exchangeRate, redisClient, audit: audit as unknown as { log: ReturnType<typeof vi.fn> } };
 }
 
 describe('FxRatesService.convert', () => {
@@ -77,11 +78,32 @@ describe('FxRatesService.convert', () => {
     expect(out.fxRateAt).toEqual(new Date('2026-05-17T00:00:00Z'));
   });
 
-  it('throws NotFoundException when no rate row exists', async () => {
+  it('throws FxRateNotAvailableException when no rate row exists', async () => {
     const h = build();
     h.exchangeRate.findFirst.mockResolvedValue(null);
     await expect(h.svc.convert(new Prisma.Decimal('100'), 'EUR', 'RON')).rejects.toBeInstanceOf(
-      NotFoundException,
+      FxRateNotAvailableException,
+    );
+  });
+
+  it('I-2: emits fx.rate.applied audit event on successful convert', async () => {
+    const h = build();
+    h.exchangeRate.findFirst.mockResolvedValue(makeRow({ rate: '5.0500' }));
+    await h.svc.convert(new Prisma.Decimal('1000'), 'EUR', 'RON');
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'fx.rate.applied',
+        subjectType: 'fx_rate',
+        metadata: expect.objectContaining({
+          from: 'EUR',
+          to: 'RON',
+          // Prisma.Decimal preserves the trailing zeros from the input
+          // ('5.0500' in, '5.0500' out) — we deliberately don't normalise.
+          rate: '5.0500',
+          amount: '1000',
+          amountBase: '5050',
+        }),
+      }),
     );
   });
 
@@ -130,10 +152,10 @@ describe('FxRatesService.lookup', () => {
     expect(out.stale).toBe(true);
   });
 
-  it('throws ServiceUnavailableException when no rate row exists', async () => {
+  it('throws FxRateNotAvailableException when no rate row exists', async () => {
     const h = build();
     h.exchangeRate.findFirst.mockResolvedValue(null);
-    await expect(h.svc.lookup('EUR', 'RON')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(h.svc.lookup('EUR', 'RON')).rejects.toBeInstanceOf(FxRateNotAvailableException);
   });
 
   it('falls through to DB when cache read errors (no throw)', async () => {
@@ -142,6 +164,32 @@ describe('FxRatesService.lookup', () => {
     h.exchangeRate.findFirst.mockResolvedValue(makeRow({ rate: '5.0500' }));
     const out = await h.svc.lookup('EUR', 'RON');
     expect(out.rate).toBe('5.0500');
+  });
+});
+
+describe('ExchangeRateQuerySchema — MED-3 (calendar-valid date)', () => {
+  it('accepts a real calendar date YYYY-MM-DD', async () => {
+    const { ExchangeRateQuerySchema } = await import('@amass/shared');
+    const r = ExchangeRateQuerySchema.safeParse({ from: 'EUR', to: 'RON', date: '2026-05-17' });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects garbage like 9999-99-99 (passes regex, fails refine)', async () => {
+    const { ExchangeRateQuerySchema } = await import('@amass/shared');
+    const r = ExchangeRateQuerySchema.safeParse({ from: 'EUR', to: 'RON', date: '9999-99-99' });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects Feb 30 (calendar-invalid, regex-valid)', async () => {
+    const { ExchangeRateQuerySchema } = await import('@amass/shared');
+    const r = ExchangeRateQuerySchema.safeParse({ from: 'EUR', to: 'RON', date: '2026-02-30' });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts Feb 29 in a leap year (2024)', async () => {
+    const { ExchangeRateQuerySchema } = await import('@amass/shared');
+    const r = ExchangeRateQuerySchema.safeParse({ from: 'EUR', to: 'RON', date: '2024-02-29' });
+    expect(r.success).toBe(true);
   });
 });
 
@@ -197,16 +245,74 @@ describe('FxRatesService.upsertEcbPayload', () => {
     expect(h.exchangeRate.upsert).toHaveBeenCalledTimes(4);
   });
 
-  it('T-FX-S-01: emits sanity violation when day-over-day move > 15%', async () => {
+  it('HIGH-1 / T-FX-S-01: REJECTS upsert on day-over-day move > 15% (yesterday\'s rate stays)', async () => {
     const h = build();
     // Prior rate 5.05; new rate 6.10 → ~20.8% jump → violation.
     h.exchangeRate.findFirst.mockResolvedValue(makeRow({ rate: '5.0500' }));
     const asOf = new Date('2026-05-17T00:00:00Z');
     const out = await h.svc.upsertEcbPayload(asOf, [{ currency: 'RON', rate: '6.1000' }]);
     expect(out.sanityViolations.length).toBeGreaterThan(0);
-    // The row is still upserted — we DON'T silently drop it (silently
-    // substituting yesterday's value would mask a real currency event).
-    expect(h.exchangeRate.upsert).toHaveBeenCalled();
+    // Violations should carry suspectedRate + lastValidRate + deviationPercent
+    // so the audit row + operator dashboard have enough context to triage.
+    expect(out.sanityViolations[0]).toMatchObject({
+      from: 'EUR',
+      to: 'RON',
+      suspectedRate: expect.any(String),
+      lastValidRate: expect.any(String),
+      deviationPercent: expect.any(Number),
+    });
+    // The CORE assertion: no upsert happens for the suspect pair. Yesterday's
+    // rate stays in place and Deal.amountBase keeps using it via findRate's
+    // `asOf: { lte }` ordering. The other direction (RON->EUR) is the
+    // mathematical inverse so it ALSO violates and is also skipped.
+    expect(h.exchangeRate.upsert).not.toHaveBeenCalled();
+    expect(out.written).toBe(0);
+  });
+
+  it('HIGH-1 / I-2: emits fx.rate.rejected audit event per violation', async () => {
+    const h = build();
+    h.exchangeRate.findFirst.mockResolvedValue(makeRow({ rate: '5.0500' }));
+    const asOf = new Date('2026-05-17T00:00:00Z');
+    await h.svc.upsertEcbPayload(asOf, [{ currency: 'RON', rate: '6.1000' }]);
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'fx.rate.rejected',
+        subjectType: 'fx_rate',
+        metadata: expect.objectContaining({
+          from: 'EUR',
+          to: 'RON',
+          suspectedRate: expect.any(String),
+          // Prisma.Decimal preserves the seed's trailing zeros (`5.0500`).
+          lastValidRate: '5.0500',
+          deviationPercent: expect.any(Number),
+          boundPercent: 15,
+        }),
+      }),
+    );
+  });
+
+  it('HIGH-1: still upserts pairs that pass sanity when only ONE pair violates', async () => {
+    const h = build();
+    // Make findRate return a prior 5.05 for EUR<->RON pair, null for everything else.
+    h.exchangeRate.findFirst.mockImplementation((args: { where: { fromCurrency: string; toCurrency: string } }) => {
+      const { fromCurrency, toCurrency } = args.where;
+      if ((fromCurrency === 'EUR' && toCurrency === 'RON') || (fromCurrency === 'RON' && toCurrency === 'EUR')) {
+        return Promise.resolve(makeRow({ rate: '5.0500' }));
+      }
+      return Promise.resolve(null); // no prior → can't compare → pair allowed through
+    });
+    const asOf = new Date('2026-05-17T00:00:00Z');
+    // EUR->RON jumps to 6.10 (violates). USD comes through clean. The other
+    // EUR-X / X-EUR / X-Y pairs all have no prior rate so they upsert freely.
+    const out = await h.svc.upsertEcbPayload(asOf, [
+      { currency: 'RON', rate: '6.1000' },
+      { currency: 'USD', rate: '1.1000' },
+    ]);
+    // EUR<->RON BOTH violate (forward + inverse) → 2 rejected, others upsert.
+    expect(out.sanityViolations.length).toBe(2);
+    // 3 codes covered (EUR, RON, USD) → 6 directed pairs total; 2 rejected → 4 written.
+    expect(out.written).toBe(4);
+    expect(h.exchangeRate.upsert).toHaveBeenCalledTimes(4);
   });
 
   it('skips currencies not in SUPPORTED_CURRENCIES (e.g. JPY, BRL)', async () => {
@@ -221,7 +327,7 @@ describe('FxRatesService.upsertEcbPayload', () => {
     expect(out.written).toBe(2);
   });
 
-  it('honours sanityCheck=false toggle (used in seed scripts)', async () => {
+  it('honours sanityCheck=false toggle (used in seed scripts) — bypasses reject', async () => {
     const h = build();
     h.exchangeRate.findFirst.mockResolvedValue(makeRow({ rate: '5.0500' }));
     const asOf = new Date('2026-05-17T00:00:00Z');
@@ -231,5 +337,8 @@ describe('FxRatesService.upsertEcbPayload', () => {
       { sanityCheck: false },
     );
     expect(out.sanityViolations).toEqual([]);
+    // With sanityCheck off, the suspect rate goes straight in — 2 EUR<->RON pairs.
+    expect(h.exchangeRate.upsert).toHaveBeenCalledTimes(2);
+    expect(out.written).toBe(2);
   });
 });

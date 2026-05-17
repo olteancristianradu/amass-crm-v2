@@ -2,6 +2,7 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logge
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import * as Sentry from '@sentry/node';
+import { FxRateNotAvailableException } from '../../modules/fx-rates/fx-rate-not-available.exception';
 
 interface ErrorResponseBody {
   code: string;
@@ -108,6 +109,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
         .setHeader('Content-Type', 'application/scim+json')
         .json(scimBody);
       return;
+    }
+
+    // N-6: FX rate unavailability is transient (ECB cron will fill it on
+    // next run). Surface Retry-After so well-behaved HTTP clients back off
+    // rather than hammering.
+    if (exception instanceof FxRateNotAvailableException) {
+      response.setHeader('Retry-After', String(FxRateNotAvailableException.RETRY_AFTER_SECONDS));
     }
 
     response.status(status).json(standardBody);

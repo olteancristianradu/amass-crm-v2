@@ -162,6 +162,17 @@ async function bootstrap(): Promise<void> {
   );
   app.use(urlencoded({ extended: true, limit: '2mb' }));
 
+  // MED-5: route-specific body cap stacked AFTER the global parser. The
+  // global 2MB limit is already generous for an API that never accepts file
+  // uploads (those go presigned-PUT direct to MinIO), but saved-view filter
+  // blobs are tiny structured objects — 32KB is ~50× any realistic payload.
+  // Stacking the route-scoped parser here means the limit is checked at the
+  // request boundary, BEFORE the body reaches Zod / the controller's belt-
+  // and-suspenders `enforcePayloadSize()`. Order matters: this MUST be
+  // declared after the global parser so Express picks the more specific
+  // matcher first for /api/v1/saved-views.
+  app.use('/api/v1/saved-views', json({ limit: '32kb' }));
+
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new AllExceptionsFilter());
 

@@ -37,12 +37,24 @@ export type FxRateSourceDto = z.infer<typeof FxRateSourceSchema>;
  * `date` is coerced to a Date so downstream `findFirst({ asOf: { lte } })`
  * can compare deterministically.
  */
+// Date validation runs two checks: (1) the surface shape is YYYY-MM-DD,
+// (2) the value is a real calendar date. The bare regex would accept
+// `9999-99-99`, which then becomes `Invalid Date` and silently turns the
+// downstream `findFirst({ asOf: { lte: NaN } })` into a wildcard — bad.
+// The refine round-trips through the parser and rejects when the
+// reconstructed Y-M-D doesn't match the input (catches Feb 30, Apr 31…).
 export const ExchangeRateQuerySchema = z.object({
   from: CurrencyCodeSchema,
   to: CurrencyCodeSchema,
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be ISO YYYY-MM-DD')
+    .refine((s) => {
+      const d = new Date(`${s}T00:00:00.000Z`);
+      if (Number.isNaN(d.getTime())) return false;
+      // Round-trip: a real Feb-29 in a leap year survives, Feb-30 doesn't.
+      return d.toISOString().slice(0, 10) === s;
+    }, { message: 'invalid_date' })
     .optional(),
 });
 export type ExchangeRateQueryDto = z.infer<typeof ExchangeRateQuerySchema>;

@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { BusinessMetricsService } from '../../infra/metrics/business-metrics.service';
 import { QUEUE_FX_RATES } from '../../infra/queue/queue.constants';
+import { AuditService } from '../audit/audit.service';
 import { fetchEcbDailyRates } from './ecb.client';
 import { FxRatesService } from './fx-rates.service';
 
@@ -46,6 +47,7 @@ export class FxRatesProcessor extends WorkerHost {
   constructor(
     private readonly svc: FxRatesService,
     private readonly metrics: BusinessMetricsService,
+    private readonly audit: AuditService,
   ) {
     super();
   }
@@ -74,6 +76,25 @@ export class FxRatesProcessor extends WorkerHost {
       }
     }
     this.metrics.recordFxRatesFetched('ECB', 'success', written);
+    // I-2: audit `fx.rate.fetched` so the SIEM trail shows when ECB was
+    // consulted + how many rows landed (separate from the individual
+    // `fx.rate.rejected` rows the service emits per violation). Tenant
+    // context is absent in the cron worker — AuditService falls back to a
+    // null tenant + drops the SIEM forward with a warn, which is the right
+    // shape for a global-scope event.
+    void this.audit.log({
+      tenantId: 'system',
+      action: 'fx.rate.fetched',
+      subjectType: 'fx_rate_batch',
+      subjectId: `ecb-${payload.asOf}`,
+      metadata: {
+        source: 'ECB',
+        asOf: payload.asOf,
+        ratesReceived: payload.rates.length,
+        pairsWritten: written,
+        sanityViolations: sanityViolations.length,
+      },
+    });
     this.logger.log(
       `fx-rates-daily done asOf=${payload.asOf} written=${written} sanityViolations=${sanityViolations.length}`,
     );

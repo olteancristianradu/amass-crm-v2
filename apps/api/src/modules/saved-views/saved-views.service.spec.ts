@@ -16,8 +16,12 @@ function build() {
       create: vi.fn(),
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      findFirstOrThrow: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
     },
   };
   const runWithTenant: Mock = vi.fn(async (_t: string, cbOrMode: unknown, maybeCb?: unknown) => {
@@ -75,7 +79,7 @@ describe('SavedViewsService.create', () => {
     await h.svc.create({ resource: 'companies', name: 'Acme deals', filters: {} });
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'saved_view.create',
+        action: 'savedview.created',
         subjectType: 'saved_view',
         subjectId: 'v1',
       }),
@@ -93,6 +97,25 @@ describe('SavedViewsService.create', () => {
       h.svc.create({ resource: 'companies', name: 'dup', filters: {} }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(h.audit.log).not.toHaveBeenCalled();
+  });
+
+  it('I-3: rejects with 409 SAVED_VIEW_LIMIT_REACHED when owner already has 50 views', async () => {
+    const h = build();
+    h.tx.savedView.count.mockResolvedValueOnce(50);
+    await expect(
+      h.svc.create({ resource: 'companies', name: 'overflow', filters: {} }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'SAVED_VIEW_LIMIT_REACHED' }),
+    });
+    expect(h.tx.savedView.create).not.toHaveBeenCalled();
+  });
+
+  it('I-3: allows the 50th view (exactly at limit) when count is 49', async () => {
+    const h = build();
+    h.tx.savedView.count.mockResolvedValueOnce(49);
+    h.tx.savedView.create.mockResolvedValueOnce({ id: 'v50', resource: 'companies', name: 'fiftieth' });
+    await h.svc.create({ resource: 'companies', name: 'fiftieth', filters: {} });
+    expect(h.tx.savedView.create).toHaveBeenCalled();
   });
 });
 
@@ -140,13 +163,37 @@ describe('SavedViewsService.update', () => {
     await expect(h.svc.update('ghost', { name: 'x' })).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('HIGH-2: uses scoped updateMany with tenantId + ownerId in WHERE (no TOCTOU)', async () => {
+    const h = build();
+    h.tx.savedView.findFirst.mockResolvedValueOnce({ id: 'v1', name: 'old', resource: 'deals' });
+    h.tx.savedView.updateMany.mockResolvedValueOnce({ count: 1 });
+    h.tx.savedView.findFirstOrThrow.mockResolvedValueOnce({ id: 'v1', name: 'New name', resource: 'deals' });
+    await h.svc.update('v1', { name: 'New name' });
+    expect(h.tx.savedView.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'v1', tenantId: 'tenant-1', ownerId: 'user-1' },
+        data: expect.objectContaining({ name: 'New name' }),
+      }),
+    );
+    // The legacy `.update({ where: { id } })` path must NOT be used anymore.
+    expect(h.tx.savedView.update).not.toHaveBeenCalled();
+  });
+
+  it('HIGH-2: throws NotFound when updateMany count is 0 (row vanished mid-tx)', async () => {
+    const h = build();
+    h.tx.savedView.findFirst.mockResolvedValueOnce({ id: 'v1', name: 'old', resource: 'deals' });
+    h.tx.savedView.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(h.svc.update('v1', { name: 'New' })).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('only patches keys present in the dto', async () => {
     const h = build();
     h.tx.savedView.findFirst.mockResolvedValueOnce({ id: 'v1', name: 'old', resource: 'deals' });
-    h.tx.savedView.update.mockResolvedValueOnce({ id: 'v1', name: 'New name', resource: 'deals' });
+    h.tx.savedView.updateMany.mockResolvedValueOnce({ count: 1 });
+    h.tx.savedView.findFirstOrThrow.mockResolvedValueOnce({ id: 'v1', name: 'New name', resource: 'deals' });
 
     await h.svc.update('v1', { name: 'New name' });
-    const data = h.tx.savedView.update.mock.calls[0][0].data;
+    const data = h.tx.savedView.updateMany.mock.calls[0][0].data;
     expect(data.name).toBe('New name');
     expect(data.filters).toBeUndefined();
   });
@@ -158,7 +205,8 @@ describe('SavedViewsService.update', () => {
       name: 'old',
       resource: 'deals',
     });
-    h.tx.savedView.update.mockResolvedValueOnce({
+    h.tx.savedView.updateMany.mockResolvedValueOnce({ count: 1 });
+    h.tx.savedView.findFirstOrThrow.mockResolvedValueOnce({
       id: 'v1',
       name: 'New',
       resource: 'deals',
@@ -166,7 +214,7 @@ describe('SavedViewsService.update', () => {
     await h.svc.update('v1', { name: 'New' });
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'saved_view.update',
+        action: 'savedview.updated',
         subjectId: 'v1',
         metadata: expect.objectContaining({
           resource: 'deals',
@@ -185,7 +233,7 @@ describe('SavedViewsService.update', () => {
       code: 'P2002',
       clientVersion: 'x',
     });
-    h.tx.savedView.update.mockRejectedValueOnce(err);
+    h.tx.savedView.updateMany.mockRejectedValueOnce(err);
     await expect(h.svc.update('v1', { name: 'taken' })).rejects.toBeInstanceOf(ConflictException);
   });
 });
@@ -199,23 +247,81 @@ describe('SavedViewsService.remove', () => {
     await expect(h.svc.remove('ghost')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('hard-deletes when found and audits the action', async () => {
+  it('HIGH-2: hard-deletes via scoped deleteMany and audits the action', async () => {
     const h = build();
     h.tx.savedView.findFirst.mockResolvedValueOnce({
       id: 'v1',
       name: 'gone',
       resource: 'deals',
     });
-    h.tx.savedView.delete.mockResolvedValueOnce({});
+    h.tx.savedView.deleteMany.mockResolvedValueOnce({ count: 1 });
     await h.svc.remove('v1');
-    expect(h.tx.savedView.delete).toHaveBeenCalledWith({ where: { id: 'v1' } });
+    expect(h.tx.savedView.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'v1', tenantId: 'tenant-1', ownerId: 'user-1' },
+    });
+    expect(h.tx.savedView.delete).not.toHaveBeenCalled();
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'saved_view.delete',
+        action: 'savedview.deleted',
         subjectId: 'v1',
         metadata: expect.objectContaining({ resource: 'deals', name: 'gone' }),
       }),
     );
+  });
+
+  it('HIGH-2: throws NotFound when deleteMany count is 0 (row vanished mid-tx)', async () => {
+    const h = build();
+    h.tx.savedView.findFirst.mockResolvedValueOnce({ id: 'v1', name: 'gone', resource: 'deals' });
+    h.tx.savedView.deleteMany.mockResolvedValueOnce({ count: 0 });
+    await expect(h.svc.remove('v1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('SavedView schema — HIGH-3 (bidi) + MED-1 (.strict())', () => {
+  // Construct the malicious payloads via escape sequences so the source
+  // file itself stays clean of bidi codepoints (eslint-plugin-security
+  // forbids them in source per security/detect-bidi-characters).
+  const RTL_OVERRIDE = String.fromCharCode(0x202e); // Right-to-Left override
+  const FIRST_STRONG_ISOLATE = String.fromCharCode(0x2068); // First Strong Isolate
+
+  it('HIGH-3: rejects names containing bidi override codepoints (e.g. U+202E)', async () => {
+    const { CreateSavedViewSchema } = await import('@amass/shared');
+    const result = CreateSavedViewSchema.safeParse({
+      resource: 'companies',
+      name: `Confirm${RTL_OVERRIDE}Delete`,
+      filters: {},
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('HIGH-3: rejects names containing isolate codepoints (U+2066–U+2069)', async () => {
+    const { CreateSavedViewSchema } = await import('@amass/shared');
+    const result = CreateSavedViewSchema.safeParse({
+      resource: 'companies',
+      name: `Safe${FIRST_STRONG_ISOLATE}Trap`,
+      filters: {},
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('MED-1: rejects unknown body keys (T-SV-S-01 mass-assignment defence)', async () => {
+    const { CreateSavedViewSchema } = await import('@amass/shared');
+    const result = CreateSavedViewSchema.safeParse({
+      resource: 'companies',
+      name: 'OK',
+      filters: {},
+      ownerId: 'attacker-stole-this',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('MED-1: UpdateSavedViewSchema also rejects unknown keys', async () => {
+    const { UpdateSavedViewSchema } = await import('@amass/shared');
+    const result = UpdateSavedViewSchema.safeParse({
+      name: 'OK',
+      tenantId: 'other-tenant',
+    });
+    expect(result.success).toBe(false);
   });
 });
 

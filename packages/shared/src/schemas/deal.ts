@@ -1,11 +1,14 @@
 import { z } from 'zod';
+import { CurrencyCodeSchema } from './fx-rates';
 
 /**
  * Deals live on the kanban. `value` is a string at the wire level so we
  * never lose precision going through JSON — the FE sends "1234.56" and
- * the API parses it into a Prisma Decimal. Currency is ISO-4217 ish but
- * we don't enforce a whitelist (Romanian SMBs occasionally quote in MDL
- * / UAH, so 3-letter uppercase is all we require).
+ * the API parses it into a Prisma Decimal. `currency` is locked to the
+ * Phase 0 / Feature 2 whitelist (CurrencyCodeSchema → RON|EUR|USD|GBP|
+ * CHF|PLN) so the FX recompute path always has a real ECB rate available
+ * and downstream invoicing rounding stays predictable (T-FX-E-01).
+ * Extending the list = update SUPPORTED_CURRENCIES in schemas/fx-rates.ts.
  */
 export const DealStatusSchema = z.enum(['OPEN', 'WON', 'LOST']);
 export type DealStatusDto = z.infer<typeof DealStatusSchema>;
@@ -21,7 +24,7 @@ export const CreateDealSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(4000).optional(),
   value: decimalString.optional(),
-  currency: z.string().trim().length(3).toUpperCase().default('RON'),
+  currency: CurrencyCodeSchema.default('RON'),
   probability: z.number().int().min(0).max(100).optional(),
   expectedCloseAt: z.coerce.date().optional(),
   companyId: z.string().min(1).max(64).optional(),
@@ -40,7 +43,7 @@ export const UpdateDealSchema = z
     title: z.string().trim().min(1).max(200),
     description: z.string().trim().max(4000).nullable(),
     value: decimalString.nullable(),
-    currency: z.string().trim().length(3).toUpperCase(),
+    currency: CurrencyCodeSchema,
     probability: z.number().int().min(0).max(100).nullable(),
     expectedCloseAt: z.coerce.date().nullable(),
     companyId: z.string().min(1).max(64).nullable(),

@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ExchangeRate, FxRateSource, Prisma } from '@prisma/client';
 import {
   ExchangeRateResponseDto,
@@ -12,6 +7,8 @@ import {
 } from '@amass/shared';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
+import { AuditService } from '../audit/audit.service';
+import { FxRateNotAvailableException } from './fx-rate-not-available.exception';
 
 /**
  * FxRatesService — multi-currency conversion + public lookup.
@@ -49,6 +46,7 @@ export class FxRatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly audit: AuditService,
   ) {}
 
   // ─── Conversion (used by DealsService) ───────────────────────────────
@@ -59,10 +57,11 @@ export class FxRatesService {
    * it directly without going through `parseFloat`.
    *
    * Throws:
-   *   - NotFoundException("FX_RATE_NOT_FOUND") when no rate exists
-   *     ≤ asOf for the pair. Mapped to 503 with Retry-After:3600 by the
-   *     controller for the public endpoint; for internal callers (Deals)
-   *     this surfaces a clear error rather than silently storing NULL.
+   *   - FxRateNotAvailableException when no rate exists ≤ asOf for the pair.
+   *     Mapped to HTTP 503 + Retry-After by AllExceptionsFilter so the FE
+   *     (and internal Deal callers) can back off cleanly. We deliberately
+   *     do NOT silently store NULL — that would skew weighted-forecast
+   *     reports without leaving a trace.
    */
   async convert(
     amount: Prisma.Decimal,
@@ -76,15 +75,32 @@ export class FxRatesService {
       // No-op: same currency, no rate row required, no fxRateAt to record.
       return { amountBase: amount, fxRateAt: null };
     }
-    const rate = await this.findRate(f, t, asOf ?? new Date());
+    const effectiveAsOf = asOf ?? new Date();
+    const rate = await this.findRate(f, t, effectiveAsOf);
     if (!rate) {
-      throw new NotFoundException({
-        code: 'FX_RATE_NOT_FOUND',
-        message: `No exchange rate available for ${f}→${t}`,
-      });
+      throw new FxRateNotAvailableException(f, t, effectiveAsOf);
     }
     // Prisma.Decimal arithmetic — T-FX-T-01.
     const amountBase = new Prisma.Decimal(amount).mul(rate.rate);
+    // I-2: emit `fx.rate.applied` so audit + SIEM can correlate a downstream
+    // money write (Deal.amountBase) with the exact FX snapshot used. Tenant +
+    // actor come from ALS — when DealsService calls this inside a request,
+    // both are present; when an internal job calls it (none today, but the
+    // shape is ready), the audit row is dropped with a warn (never throws).
+    void this.audit.log({
+      action: 'fx.rate.applied',
+      subjectType: 'fx_rate',
+      subjectId: `${f}-${t}-${rate.asOf.toISOString().slice(0, 10)}`,
+      metadata: {
+        from: f,
+        to: t,
+        rate: rate.rate.toString(),
+        asOf: rate.asOf.toISOString(),
+        source: rate.source,
+        amount: amount.toString(),
+        amountBase: amountBase.toString(),
+      },
+    });
     return { amountBase, fxRateAt: rate.asOf };
   }
 
@@ -127,12 +143,7 @@ export class FxRatesService {
 
     const row = await this.findRate(f, t, asOfDate);
     if (!row) {
-      throw new ServiceUnavailableException({
-        code: 'FX_RATE_NOT_FOUND',
-        message: `No exchange rate available for ${f}→${t} on or before ${asOfDate
-          .toISOString()
-          .slice(0, 10)}`,
-      });
+      throw new FxRateNotAvailableException(f, t, asOfDate);
     }
     const ageMs = Date.now() - row.asOf.getTime();
     const stale = ageMs > FxRatesService.STALE_THRESHOLD_MS;
@@ -168,7 +179,16 @@ export class FxRatesService {
     asOf: Date,
     eurRates: ReadonlyArray<{ currency: string; rate: string }>,
     options: { sanityCheck?: boolean } = {},
-  ): Promise<{ written: number; sanityViolations: Array<{ from: string; to: string }> }> {
+  ): Promise<{
+    written: number;
+    sanityViolations: Array<{
+      from: string;
+      to: string;
+      suspectedRate: string;
+      lastValidRate: string;
+      deviationPercent: number;
+    }>;
+  }> {
     const sanityCheck = options.sanityCheck ?? true;
     // Build EUR→X map filtered to our supported set + always include the
     // identity EUR→EUR=1 so cross-rate math (X→EUR via 1/EUR_X) closes.
@@ -199,26 +219,72 @@ export class FxRatesService {
       }
     }
 
-    const sanityViolations: Array<{ from: string; to: string }> = [];
+    // T-FX-S-01 — sanity check FIRST, then upsert only the survivors. The
+    // earlier implementation logged + upserted regardless, which defeats the
+    // purpose: a DNS-hijacked ECB feed claiming `1 EUR = 0.0001 RON` would
+    // still land in the DB and every downstream Deal.amountBase recompute
+    // would adopt it. Now: violations are REJECTED → yesterday's rate stays
+    // in place → operators are alerted via metrics + audit + log.
+    const sanityViolations: Array<{
+      from: string;
+      to: string;
+      suspectedRate: string;
+      lastValidRate: string;
+      deviationPercent: number;
+    }> = [];
     if (sanityCheck) {
       for (const p of pairs) {
         const prev = await this.findRate(p.from, p.to, this.daysAgo(asOf, 1));
-        if (!prev) continue; // no prior rate, can't compare
+        if (!prev) continue; // no prior rate, can't compare → must allow
         // |new - prev| / prev > 0.15 ?
         const delta = p.rate.minus(prev.rate).abs().div(prev.rate).toNumber();
         if (delta > FxRatesService.SANITY_BOUND_PCT) {
-          sanityViolations.push({ from: p.from, to: p.to });
+          sanityViolations.push({
+            from: p.from,
+            to: p.to,
+            suspectedRate: p.rate.toString(),
+            lastValidRate: prev.rate.toString(),
+            deviationPercent: Math.round(delta * 10_000) / 100, // 2-decimal pct
+          });
           this.logger.warn(
-            `T-FX-S-01: rate move ${p.from}->${p.to} = ${delta.toFixed(4)} (>${FxRatesService.SANITY_BOUND_PCT})`,
+            `T-FX-S-01 REJECT: ${p.from}->${p.to} delta=${delta.toFixed(4)} suspect=${p.rate} last=${prev.rate}`,
           );
         }
       }
     }
+    const rejectSet = new Set(sanityViolations.map((v) => `${v.from}->${v.to}`));
 
-    // Upsert each pair. Sequential is fine — ~30 rows max, and serializing
-    // keeps the audit log deterministic if we wire it later.
+    // Audit each rejection so an investigator can replay the decision. Best-
+    // effort (audit never throws) and we don't await individually — we let
+    // the loop fire-and-forget then move to the upsert phase.
+    for (const v of sanityViolations) {
+      void this.audit.log({
+        action: 'fx.rate.rejected',
+        subjectType: 'fx_rate',
+        subjectId: `${v.from}-${v.to}-${asOf.toISOString().slice(0, 10)}`,
+        metadata: {
+          from: v.from,
+          to: v.to,
+          asOf: asOf.toISOString(),
+          suspectedRate: v.suspectedRate,
+          lastValidRate: v.lastValidRate,
+          deviationPercent: v.deviationPercent,
+          boundPercent: FxRatesService.SANITY_BOUND_PCT * 100,
+        },
+      });
+    }
+
+    // Upsert each pair that survived sanity. Sequential is fine — ~30 rows
+    // max, and serializing keeps audit deterministic.
     let written = 0;
     for (const p of pairs) {
+      if (rejectSet.has(`${p.from}->${p.to}`)) {
+        // Skip upsert — last-known good rate from a prior day stays in place
+        // and FxRatesService.convert() will keep using it via findRate's
+        // `asOf: { lte }` ordering. The Deals that already have amountBase
+        // computed against the prior snapshot are untouched (T-FX-T-03).
+        continue;
+      }
       await this.prisma.exchangeRate.upsert({
         where: {
           fromCurrency_toCurrency_asOf: {

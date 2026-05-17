@@ -275,7 +275,9 @@ export class UsersService {
       await this.audit.log({
         tenantId: ctx.tenantId,
         actorId: userId,
-        action: 'user.locale_change',
+        // Dot-notation per threat model T-I18N-R-01 + Phase 0 audit naming
+        // canonical: `subject.verbInPastTense` with dot separators.
+        action: 'user.locale.changed',
         subjectType: 'user',
         subjectId: userId,
         metadata: { from: current.preferredLocale, to: parsed.data },

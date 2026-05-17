@@ -24,11 +24,15 @@ function build() {
     recordFxRatesFetched: vi.fn(),
     recordFxRatesSanityViolation: vi.fn(),
   };
+  const audit = {
+    log: vi.fn().mockResolvedValue(undefined),
+  };
   const proc = new FxRatesProcessor(
     svc as unknown as ConstructorParameters<typeof FxRatesProcessor>[0],
     metrics as unknown as ConstructorParameters<typeof FxRatesProcessor>[1],
+    audit as unknown as ConstructorParameters<typeof FxRatesProcessor>[2],
   );
-  return { proc, svc, metrics };
+  return { proc, svc, metrics, audit };
 }
 
 describe('FxRatesProcessor.process', () => {
@@ -54,6 +58,18 @@ describe('FxRatesProcessor.process', () => {
     expect(ratesArg).toEqual([{ currency: 'RON', rate: '5.0500' }]);
     expect(h.metrics.recordFxRatesFetched).toHaveBeenCalledWith('ECB', 'success', 6);
     expect(h.metrics.recordFxRatesSanityViolation).not.toHaveBeenCalled();
+    // I-2: every successful ECB cycle emits one fx.rate.fetched audit row.
+    expect(h.audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'fx.rate.fetched',
+        subjectType: 'fx_rate_batch',
+        metadata: expect.objectContaining({
+          source: 'ECB',
+          asOf: '2026-05-15',
+          pairsWritten: 6,
+        }),
+      }),
+    );
   });
 
   it('records a sanity-violation metric per offending pair (T-FX-S-01)', async () => {
@@ -65,8 +81,8 @@ describe('FxRatesProcessor.process', () => {
     h.svc.upsertEcbPayload.mockResolvedValue({
       written: 6,
       sanityViolations: [
-        { from: 'EUR', to: 'RON' },
-        { from: 'RON', to: 'EUR' },
+        { from: 'EUR', to: 'RON', suspectedRate: '6.10', lastValidRate: '5.05', deviationPercent: 20.79 },
+        { from: 'RON', to: 'EUR', suspectedRate: '0.16393', lastValidRate: '0.19802', deviationPercent: 17.21 },
       ],
     });
     await h.proc.process({

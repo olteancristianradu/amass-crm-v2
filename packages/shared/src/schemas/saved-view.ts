@@ -23,12 +23,21 @@ export type SavedViewResource = z.infer<typeof SavedViewResourceSchema>;
 // T-SV-I-03 — stored XSS via `name`. Names like "RO SMBs >5 employees stale"
 // are legitimate so we don't blanket-ban `<` / `>`. Instead:
 //   1. reject ASCII control chars (\x00–\x1F, \x7F) — never useful, breaks logs;
-//   2. reject literal HTML/JS injection patterns case-insensitively;
-//   3. cap length (handled separately via .max()).
+//   2. reject Unicode bidi-control codepoints (U+202A–U+202E, U+2066–U+2069)
+//      that flip visual direction of text — "Confirm[U+202E]Delete" renders
+//      as "Delete Confirm" and tricks users into wrong action (T-I18N-S-02
+//      applied to saved-view names);
+//   3. reject literal HTML/JS injection patterns case-insensitively;
+//   4. cap length (handled separately via .max()).
 // The frontend MUST still output-encode (React does by default), but server-
 // side rejection of obvious attack strings is non-negotiable defence in depth.
 const FORBIDDEN_NAME_PATTERNS: RegExp[] = [
   /[\x00-\x1F\x7F]/, // C0 controls + DEL
+  // Bidi/RTL override + isolate codepoints — declared via \u escapes so the
+  // source file stays free of actual bidi chars (security/detect-bidi-characters):
+  //   U+202A LRE, U+202B RLE, U+202C PDF, U+202D LRO, U+202E RLO
+  //   U+2066 LRI, U+2067 RLI, U+2068 FSI, U+2069 PDI
+  /[\u202A-\u202E\u2066-\u2069]/,
   /<\s*script/i,
   /<\s*iframe/i,
   /<\s*img[^>]*onerror/i,
@@ -88,19 +97,25 @@ const FiltersSchema = z
   .record(z.string(), z.unknown())
   .superRefine((val, ctx) => assertNoPrototypePollution(val, [], ctx));
 
-export const CreateSavedViewSchema = z.object({
-  resource: SavedViewResourceSchema,
-  name: z
-    .string()
-    .trim()
-    .min(1)
-    .max(80)
-    .refine(
-      (n) => !FORBIDDEN_NAME_PATTERNS.some((re) => re.test(n)),
-      { message: 'invalid_chars' },
-    ),
-  filters: FiltersSchema,
-});
+// `.strict()` on the create / update DTOs is the T-SV-S-01 mass-assignment
+// defence — a body that smuggles `ownerId: <victim>` or `tenantId: <other>`
+// returns 400 instead of being silently dropped (the service still pulls
+// owner/tenant from ALS regardless, but failing closed is the rule).
+export const CreateSavedViewSchema = z
+  .object({
+    resource: SavedViewResourceSchema,
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .refine(
+        (n) => !FORBIDDEN_NAME_PATTERNS.some((re) => re.test(n)),
+        { message: 'invalid_chars' },
+      ),
+    filters: FiltersSchema,
+  })
+  .strict();
 export type CreateSavedViewDto = z.infer<typeof CreateSavedViewSchema>;
 
 export const UpdateSavedViewSchema = z
@@ -117,6 +132,7 @@ export const UpdateSavedViewSchema = z
       .optional(),
     filters: FiltersSchema.optional(),
   })
+  .strict()
   .refine((d) => d.name !== undefined || d.filters !== undefined, {
     message: 'at_least_one_field_required',
   });

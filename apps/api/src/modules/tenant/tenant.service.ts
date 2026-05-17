@@ -83,7 +83,9 @@ export class TenantService {
       await this.audit.log({
         tenantId: ctx.tenantId,
         actorId,
-        action: 'tenant.locale_config_change',
+        // Dot-notation per Phase 0 audit naming canonical (see saved-view /
+        // fx-rate events) — `subject.detail.verbInPastTense`.
+        action: 'tenant.locale.config.changed',
         subjectType: 'tenant',
         subjectId: ctx.tenantId,
         metadata: {

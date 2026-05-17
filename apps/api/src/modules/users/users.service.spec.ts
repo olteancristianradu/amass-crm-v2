@@ -225,7 +225,7 @@ describe('UsersService.updateMyLocale', () => {
     );
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'user.locale_change',
+        action: 'user.locale.changed',
         metadata: { from: 'ro', to: 'en' },
       }),
     );

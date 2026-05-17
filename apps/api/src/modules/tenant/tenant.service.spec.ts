@@ -69,7 +69,7 @@ describe('TenantService.updateLocaleConfig', () => {
     );
     expect(h.audit.log).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'tenant.locale_config_change',
+        action: 'tenant.locale.config.changed',
         metadata: {
           from: { defaultLocale: 'ro', enabledLocales: ['ro'] },
           to: { defaultLocale: 'en', enabledLocales: ['ro', 'en'] },
