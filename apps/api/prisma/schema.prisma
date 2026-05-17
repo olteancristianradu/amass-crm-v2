@@ -50,25 +50,25 @@ model Tenant {
   // via Railway). Enterprise tier can request 'EU-RO' (Romanian DC) or
   // 'EU-DE'. NULL = same as 'EU' (legacy tenants pre-residency-feature).
   // Read by services that route data to region-specific sub-processors.
-  region                String?   @default("EU")
+  region String? @default("EU")
 
   // Script-compliance: per-tenant default list of points the agent should
   // hit on a sales/support call. AI worker uses this when evaluating a
   // call recording. NULL = feature disabled for the tenant.
   // Shape: string[] (e.g. ["a întrebat bugetul", "a oferit garanția 12 luni"])
-  defaultCallScript     Json?
+  defaultCallScript Json?
 
   // Phase 0 / Migration B — multi-currency base. ISO 4217 code that the
   // tenant uses as its reporting currency. All `Deal.amountBase` figures
   // are denominated in this currency. Default 'RON' for the RO/EU SMB
   // baseline; admin can switch in tenant settings.
-  baseCurrency   String   @default("RON") @map("base_currency")
+  baseCurrency String @default("RON") @map("base_currency")
 
   // Phase 0 / Migration A — i18n. Fallback locale served when a user has no
   // `preferredLocale` set. Short code ('ro'|'en') validated by Zod at the
   // service layer (`packages/shared/src/i18n/locale.schema.ts`). String not
   // enum to keep ALTER TYPE pain off the table when 'de'/'hu' arrive.
-  defaultLocale  String   @default("ro") @map("default_locale")
+  defaultLocale String @default("ro") @map("default_locale")
 
   // Phase 0 / Migration A — i18n. Subset of supported locales the tenant
   // allows. Catalog is shipped as static JSON in `apps/web/src/i18n/`;
@@ -96,13 +96,11 @@ model Tenant {
 /**
  * B3-PR3: SCIM bearer-token. One row per IdP integration (e.g. "Okta production"
  * and "Okta staging" are two separate tokens, both scoped to the same tenant).
- *
  * Storage model is the same as PasswordResetToken / EmailVerificationToken:
  * we persist a SHA-256 hash of the raw token so a DB dump does not leak
  * working credentials. The raw token is shown to the operator EXACTLY ONCE
  * at create time (GitHub PAT pattern) — `scim-token.service.ts#create`
  * returns it, then we never see it again.
- *
  * `lastUsedAt` is bumped on every successful verify so admins can detect
  * abandoned integrations. `revokedAt` is set by `revoke()` and never cleared;
  * the verify path filters by `revokedAt IS NULL` so revocation is permanent.
@@ -159,11 +157,11 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   passkeys                Passkey[]
   // Back-relations from business_fk_constraints + saved_views migrations.
-  ownedDeals       Deal[]      @relation("DealOwner")
-  assignedTasks    Task[]      @relation("TaskAssignee")
-  assignedCases    Case[]      @relation("CaseAssignee")
-  ownedLeads       Lead[]      @relation("LeadOwner")
-  savedViews       SavedView[]
+  ownedDeals              Deal[]                   @relation("DealOwner")
+  assignedTasks           Task[]                   @relation("TaskAssignee")
+  assignedCases           Case[]                   @relation("CaseAssignee")
+  ownedLeads              Lead[]                   @relation("LeadOwner")
+  savedViews              SavedView[]
 
   // Email is unique within a tenant, not globally — multi-tenant requirement.
   @@unique([tenantId, email])
@@ -216,7 +214,6 @@ model EmailVerificationToken {
  * B2: WebAuthn / FIDO2 passkey credentials. One row per registered authenticator
  * (a single user can have many — phone, laptop, hardware key). Public key + counter
  * are persisted; the private key never leaves the user's device.
- *
  * Tenant-scoped: a passkey belongs to a (tenant, user) tuple. RLS + tenantExtension
  * filter listings by tenantId so a cross-tenant join cannot enumerate another
  * tenant's authenticators. Credential IDs are globally unique (the WebAuthn spec
@@ -336,17 +333,17 @@ model Company {
   parent             Company?                     @relation("CompanyHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   subsidiaries       Company[]                    @relation("CompanyHierarchy")
 
-  contacts                Contact[]
-  quotes                  Quote[]
+  contacts               Contact[]
+  quotes                 Quote[]
   // Back-relations matching FKs added in business_fk_constraints migrations.
-  deals                   Deal[]
-  invoices                Invoice[]
-  cases                   Case[]
-  contracts               Contract[]
-  customer_subscriptions  CustomerSubscription[]
-  orders                  Order[]
-  portal_tokens           PortalToken[]
-  projects                Project[]
+  deals                  Deal[]
+  invoices               Invoice[]
+  cases                  Case[]
+  contracts              Contract[]
+  customer_subscriptions CustomerSubscription[]
+  orders                 Order[]
+  portal_tokens          PortalToken[]
+  projects               Project[]
 
   @@index([tenantId, createdAt])
   @@index([tenantId, name])
@@ -376,7 +373,7 @@ model Contact {
   /// See Company.embedding note above.
   embedding   Unsupported("vector(1536)")?
 
-  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  company              Company?             @relation(fields: [companyId], references: [id], onDelete: SetNull)
   // Back-relations from business_fk_constraints migrations.
   deals                Deal[]
   cases                Case[]
@@ -646,11 +643,11 @@ model Deal {
   // (e.g. non-RON deal awaiting first ECB load); reports surface the gap as
   // "+ N deals în alte valute (necalculate)" rather than silently dropping.
   // Precision aligned with `value` (14,2) to avoid atomic-bump risk.
-  amountBase      Decimal?   @db.Decimal(14, 2) @map("amount_base")
+  amountBase      Decimal?   @map("amount_base") @db.Decimal(14, 2)
   // Phase 0 / Migration B — snapshot of the FX date used to compute
   // `amountBase`. Lets historical reports stay reproducible across rate
   // updates; recompute job uses `asOf <= deal.updatedAt` guard (T-FX-T-03).
-  fxRateAt        DateTime?  @db.Date @map("fx_rate_at")
+  fxRateAt        DateTime?  @map("fx_rate_at") @db.Date
   probability     Int? // override of stage.probability (nullable → inherit)
   expectedCloseAt DateTime?
   status          DealStatus @default(OPEN)
@@ -805,28 +802,94 @@ model EmailMessage {
 enum EmailTrackKind {
   OPEN
   CLICK
+  // Phase 1 — deliverability events from provider webhooks + per-recipient
+  // tracking. BOUNCE/SPAM_REPORT may have NULL message_id (provider hook-back
+  // arrives before EmailMessage match) but MUST have recipient_id.
+  BOUNCE
+  UNSUBSCRIBE
+  SPAM_REPORT
+  DELIVERED
 }
 
 /// Tracks opens (tracking pixel hit) + clicks (redirect endpoint) for
-/// outbound emails. One row per event, not per recipient — we don't have
-/// per-recipient IDs because a single message can have multiple recipients
-/// and all share the same pixel/link URLs. If you need per-recipient
-/// granularity, generate separate EmailMessage rows per recipient.
+/// outbound emails. Phase 0: one row per event keyed by messageId.
+/// Phase 1: row may attribute to a CampaignRecipient (recipient_id) instead
+/// of or in addition to a message — provider hook-back events (BOUNCE,
+/// SPAM_REPORT) often arrive before we've matched them to an EmailMessage.
+/// CHECK constraint (in SQL migration): message_id IS NOT NULL OR
+/// recipient_id IS NOT NULL — orphaned rows rejected at DB layer.
 model EmailTrack {
-  id        String         @id @default(cuid())
-  tenantId  String         @map("tenant_id")
-  messageId String         @map("message_id")
-  kind      EmailTrackKind
-  url       String? // present for CLICK, null for OPEN
-  ipAddress String?        @map("ip_address")
-  userAgent String?        @map("user_agent")
-  createdAt DateTime       @default(now()) @map("created_at")
+  id          String         @id @default(cuid())
+  tenantId    String         @map("tenant_id")
+  // Phase 1: NULLABLE (was NOT NULL pre-Phase 1). Either message_id or
+  // recipient_id MUST be set — see CHECK email_tracks_attribution_chk.
+  messageId   String?        @map("message_id")
+  recipientId String?        @map("recipient_id")
+  kind        EmailTrackKind
+  url         String? // present for CLICK, null for OPEN
+  ipAddress   String?        @map("ip_address")
+  userAgent   String?        @map("user_agent")
+  // Phase 1 — bounce diagnostics from SMTP/provider hook-backs
+  bounceType  String?        @map("bounce_type") @db.VarChar(32)
+  bounceCode  String?        @map("bounce_code") @db.VarChar(64)
+  // Phase 1 — GDPR anonymization clock. NULL = still has raw PII;
+  // non-NULL = ip_address + user_agent have been nullified by daily cron.
+  piiHashedAt DateTime?      @map("pii_hashed_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
 
-  message EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message   EmailMessage?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipient CampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, messageId, createdAt])
   @@index([tenantId, kind, createdAt])
+  // Phase 1 — per-recipient timeline lookup (partial WHERE recipient_id IS
+  // NOT NULL is created hand-rolled in the SQL migration; Prisma's @@index
+  // can't express partial filters).
+  @@index([tenantId, recipientId, createdAt])
   @@map("email_tracks")
+}
+
+// ─── Phase 1 — EmailSuppression (GDPR hash-based unsub/bounce list) ──────
+
+enum EmailSuppressionReason {
+  USER_UNSUBSCRIBE
+  BOUNCE_HARD
+  SPAM_REPORT
+  MANUAL_ADD
+  COMPLAINT
+  GLOBAL_BLOCK
+}
+
+/// Persistent unsubscribe / hard-bounce / spam list. Stored as SHA-256 hash
+/// of lowercased email (no plaintext PII) so we satisfy BOTH GDPR Art. 17
+/// (right to erasure of the contact) AND CAN-SPAM §5(a)(4) (must not
+/// re-contact after unsubscribe). Pre-send check is a single lookup on
+/// (tenant_id, email_hash). emailMasked gives admin UI a non-PII rendering.
+model EmailSuppression {
+  id          String                 @id @default(cuid())
+  tenantId    String                 @map("tenant_id")
+  /// SHA-256 hex of lowercase(trim(email)). 64 hex chars, app computes.
+  emailHash   String                 @map("email_hash") @db.Char(64)
+  /// Masked rendering for admin UI (e.g., "j****@e****.com"). App enforces
+  /// the masking rule; DB just stores the chosen string.
+  emailMasked String                 @map("email_masked") @db.VarChar(320)
+  reason      EmailSuppressionReason
+  /// Free-form provenance hint ("webhook:mailgun", "user:abc", "import:csv").
+  source      String?                @db.VarChar(128)
+  addedAt     DateTime               @default(now()) @map("added_at")
+  /// Optional auto-expiry. NULL = indefinite (default for USER_UNSUBSCRIBE
+  /// and BOUNCE_HARD); MANUAL_ADD may have a TTL set by the admin.
+  expiresAt   DateTime?              @map("expires_at")
+  addedById   String?                @map("added_by_id")
+  notes       String?                @db.VarChar(1024)
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  @@unique([tenantId, emailHash], map: "email_suppressions_tenant_email_hash_uniq")
+  @@index([tenantId, reason, addedAt(sort: Desc)], map: "email_suppressions_tenant_reason_added_idx")
+  // Phase 1 — partial index "email_suppressions_expiry_idx" on
+  // (expires_at) WHERE expires_at IS NOT NULL is created hand-rolled in SQL.
+  @@map("email_suppressions")
 }
 
 /// Sprint 12 — Calls (Twilio).
@@ -927,23 +990,23 @@ model Call {
 /// large (full transcript JSON with diarization) and we often read Call
 /// rows without needing the transcript.
 model CallTranscript {
-  id           String   @id @default(cuid())
-  tenantId     String
-  callId       String   @unique
-  language     String? // ISO 639-1 detected by Whisper
-  rawText      String // full transcript, concatenated
-  segments     Json // array of { start, end, speaker, text }
-  redactedText String? // text after Presidio PII redaction
-  summary      String? // short Claude-generated summary
-  actionItems  Json? // array of extracted action items (strings)
-  sentiment              String? // positive / neutral / negative
-  topics                 Json? // array of topics
-  scriptComplianceScore  Int? // 0–100: % of sales script covered
-  scriptMissedItems      Json? // array of string — script points not covered
-  processedAt            DateTime @default(now())
-  model                  String? // which Claude model was used
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  tenantId              String
+  callId                String   @unique
+  language              String? // ISO 639-1 detected by Whisper
+  rawText               String // full transcript, concatenated
+  segments              Json // array of { start, end, speaker, text }
+  redactedText          String? // text after Presidio PII redaction
+  summary               String? // short Claude-generated summary
+  actionItems           Json? // array of extracted action items (strings)
+  sentiment             String? // positive / neutral / negative
+  topics                Json? // array of topics
+  scriptComplianceScore Int? // 0–100: % of sales script covered
+  scriptMissedItems     Json? // array of string — script points not covered
+  processedAt           DateTime @default(now())
+  model                 String? // which Claude model was used
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
 
@@ -1078,13 +1141,13 @@ model Invoice {
   updatedAt     DateTime        @updatedAt @map("updated_at")
   deletedAt     DateTime?       @map("deleted_at")
 
-  lines    InvoiceLine[]
-  payments Payment[]
+  lines            InvoiceLine[]
+  payments         Payment[]
   // Forward + back FK relations from business_fk_constraints migrations.
-  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  deal              Deal?             @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  anaf_submissions  AnafSubmission[]
-  quotes            Quote[]
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  deal             Deal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  anaf_submissions AnafSubmission[]
+  quotes           Quote[]
 
   @@unique([tenantId, series, number])
   @@index([tenantId, companyId, issueDate])
@@ -1239,13 +1302,13 @@ model Quote {
   updatedAt   DateTime        @updatedAt @map("updated_at")
   deletedAt   DateTime?       @map("deleted_at")
 
-  company  Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  lines    QuoteLine[]
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  lines             QuoteLine[]
   // Forward + back FK relations from business_fk_constraints migrations.
-  deal               Deal?              @relation(fields: [dealId], references: [id], onDelete: SetNull)
-  invoice            Invoice?           @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  approval_requests  ApprovalRequest[]
-  orders             Order[]
+  deal              Deal?             @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  invoice           Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  approval_requests ApprovalRequest[]
+  orders            Order[]
 
   @@unique([tenantId, number])
   @@index([tenantId, companyId, issueDate])
@@ -1587,29 +1650,29 @@ model ApprovalDecision {
 // ─── S40 SSO / SAML ──────────────────────────────────────────────────────────
 
 model SsoConfig {
-  id             String   @id @default(cuid())
-  tenantId       String   @unique @map("tenant_id")
+  id                String   @id @default(cuid())
+  tenantId          String   @unique @map("tenant_id")
   // IdP metadata — paste the SSO URL + public cert from your IdP dashboard
-  idpSsoUrl      String   @map("idp_sso_url")
+  idpSsoUrl         String   @map("idp_sso_url")
   // M-aud-M5: SAML signing material is encrypted at rest. The IdP cert
   // is technically a public key but we still encrypt it because tenants
   // sometimes paste private intermediate certs by mistake — encrypting
   // both columns means a DB breach yields ciphertext, not signing keys.
   // Same AES-256-GCM primitive as Session.refreshTokenHash et al.
-  idpCertificateEnc String @map("idp_certificate_enc")
+  idpCertificateEnc String   @map("idp_certificate_enc")
   // SP entity ID — usually https://your-domain/api/v1/sso/:tenantSlug/metadata
-  spEntityId     String   @map("sp_entity_id")
+  spEntityId        String   @map("sp_entity_id")
   // Optional: sign AuthnRequests with SP private key (encrypted)
-  spPrivateKeyEnc String? @map("sp_private_key_enc")
+  spPrivateKeyEnc   String?  @map("sp_private_key_enc")
   // SAML attribute names that map to our user fields
-  attrEmail      String   @default("email") @map("attr_email")
-  attrFirstName  String   @default("firstName") @map("attr_first_name")
-  attrLastName   String   @default("lastName") @map("attr_last_name")
+  attrEmail         String   @default("email") @map("attr_email")
+  attrFirstName     String   @default("firstName") @map("attr_first_name")
+  attrLastName      String   @default("lastName") @map("attr_last_name")
   // Optional attribute that maps to UserRole enum value
-  attrRole       String?  @map("attr_role")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  attrRole          String?  @map("attr_role")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("sso_configs")
 }
@@ -1830,8 +1893,8 @@ model PortalToken {
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
-  company   Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, email])
   @@index([tokenHash])
@@ -1939,42 +2002,103 @@ enum WebhookEvent {
   QUOTE_ACCEPTED
   CALL_COMPLETED
   APPROVAL_DECIDED
+  // Phase 1 — close the loop between F1 (email tracking) and F3 (webhooks).
+  // Additive; existing subscriptions ignore new events unless re-configured.
+  CAMPAIGN_SENT
+  CAMPAIGN_COMPLETED
+  EMAIL_OPENED
+  EMAIL_CLICKED
+  EMAIL_BOUNCED
+  EMAIL_UNSUBSCRIBED
+  EMAIL_SPAM_REPORTED
 }
 
 model WebhookEndpoint {
-  id        String         @id @default(cuid())
-  tenantId  String         @map("tenant_id")
-  url       String
-  secret    String
-  events    WebhookEvent[]
-  isActive  Boolean        @default(true) @map("is_active")
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  id                  String         @id @default(cuid())
+  tenantId            String         @map("tenant_id")
+  url                 String
+  /// BLOCKER 2 phase 1: plaintext kept ADDITIVELY alongside secretEncrypted
+  /// for 30 days. Phase 1.6 cleanup migration backfills + DROPs this column
+  /// once dual-write is confirmed across all replicas + workers.
+  secret              String
+  /// Envelope-encrypted secret (base64url(ciphertext||tag||iv)). Set by the
+  /// app layer at create + rotate time. NULL until the dual-write migration
+  /// ships in Phase 1.0+ (this column added in Phase 1.0 = additive).
+  secretEncrypted     String?        @map("secret_encrypted") @db.VarChar(1024)
+  /// KMS key id used to wrap the data key. Allows offline rotation
+  /// introspection (which keys are still in use, when to retire one).
+  secretKid           String?        @map("secret_kid") @db.VarChar(64)
+  events              WebhookEvent[]
+  isActive            Boolean        @default(true) @map("is_active")
+  /// Optional human description shown in the admin UI ("Slack #sales").
+  description         String?        @db.VarChar(512)
+  /// Operational health counters maintained by the delivery worker.
+  consecutiveFailures Int            @default(0) @map("consecutive_failures")
+  lastDeliveryAt      DateTime?      @map("last_delivery_at")
+  lastSuccessAt       DateTime?      @map("last_success_at")
+  /// Auto-disable bookkeeping (410 Gone repeats, failure threshold trips).
+  disabledAt          DateTime?      @map("disabled_at")
+  disabledReason      String?        @map("disabled_reason") @db.VarChar(256)
+  /// Audit: which user registered this endpoint. NULL for system-created.
+  createdById         String?        @map("created_by_id")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
 
   deliveries WebhookDelivery[]
 
   @@index([tenantId])
+  // Phase 1 — partial index "active endpoints per tenant" is created
+  // hand-rolled in SQL (webhook_endpoints_tenant_active_idx). Prisma can't
+  // express the WHERE filter.
   @@map("webhook_endpoints")
 }
 
 model WebhookDelivery {
-  id           String   @id @default(cuid())
+  id              String    @id @default(cuid())
   // P0-3 (audit 4-agent): tenantId added so RLS + Prisma extension scope
   // this sub-resource. Pre-fix, queries on webhook_deliveries bypassed RLS.
-  tenantId     String   @map("tenant_id")
-  endpointId   String   @map("endpoint_id")
-  event        String
-  payload      Json
-  statusCode   Int?     @map("status_code")
-  responseBody String?  @map("response_body")
-  attempt      Int      @default(1)
-  success      Boolean  @default(false)
-  createdAt    DateTime @default(now()) @map("created_at")
+  tenantId        String    @map("tenant_id")
+  endpointId      String    @map("endpoint_id")
+  event           String
+  payload         Json
+  statusCode      Int?      @map("status_code")
+  responseBody    String?   @map("response_body")
+  attempt         Int       @default(1)
+  success         Boolean   @default(false)
+  // Phase 1 — retry orchestration + idempotency + signature audit
+  /// SHA-256 hex of canonicalized payload JSON. Idempotency across retries.
+  payloadHash     String?   @map("payload_hash") @db.Char(64)
+  /// App-supplied dedup key (e.g., outbox_event_id::endpoint_id). Sent in
+  /// X-Idempotency-Key header so naive receivers can dedupe.
+  idempotencyKey  String?   @map("idempotency_key") @db.VarChar(128)
+  /// The X-Amass-Signature value we sent. Persisted for replay verification.
+  signature       String?   @db.VarChar(256)
+  /// KMS key id used for the HMAC at send time (matches endpoint.secretKid).
+  signatureKid    String?   @map("signature_kid") @db.VarChar(64)
+  /// Provider-returned headers (truncated). JSONB for ad-hoc queries.
+  responseHeaders Json?     @map("response_headers")
+  /// Per-delivery retry envelope. Default 8 matches BullMQ backoff plan
+  /// (30s, 1m, 5m, 30m, 2h, 6h, 1d, 3d).
+  maxAttempts     Int       @default(8) @map("max_attempts")
+  /// When the BullMQ poller should pick this row up again. NULL after
+  /// success OR deadLetter = TRUE (no further retries).
+  nextAttemptAt   DateTime? @map("next_attempt_at")
+  /// Terminal state — attempts exhausted or receiver returned 410 Gone.
+  /// Admin UI lists these for manual replay.
+  deadLetter      Boolean   @default(false) @map("dead_letter")
+  /// End-to-end network time (DNS + TCP + TLS + send + receive).
+  durationMs      Int?      @map("duration_ms")
+  /// When this delivery row finalized (success OR deadLetter).
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
 
   @@index([endpointId, createdAt])
   @@index([tenantId])
+  // Phase 1 — partial indexes for retry poller + DLQ listing are created
+  // hand-rolled in SQL (webhook_deliveries_retry_pending_idx +
+  // webhook_deliveries_dead_letter_idx). Prisma can't express WHERE filters.
   @@map("webhook_deliveries")
 }
 
@@ -2261,6 +2385,10 @@ enum CampaignStatus {
   ACTIVE
   PAUSED
   COMPLETED
+  // Phase 1 — drag-drop builder + scheduler lifecycle
+  SCHEDULED
+  SENDING
+  CANCELLED
 }
 
 enum CampaignChannel {
@@ -2291,10 +2419,120 @@ model Campaign {
   updatedAt   DateTime        @updatedAt @map("updated_at")
   deletedAt   DateTime?       @map("deleted_at")
 
+  // ─── Phase 1 — drag-drop email builder fields ────────────────────────
+  // Addressing
+  subject     String? @map("subject") @db.VarChar(998)
+  fromName    String? @map("from_name") @db.VarChar(80)
+  fromAddress String? @map("from_address") @db.VarChar(320)
+  replyTo     String? @map("reply_to") @db.VarChar(320)
+  previewText String? @map("preview_text") @db.VarChar(255)
+
+  // Template (block tree + rendered caches; HTML/text computed at send time)
+  templateJson Json?   @map("template_json")
+  templateHtml String? @map("template_html") @db.VarChar(1048576)
+  templateText String? @map("template_text") @db.VarChar(262144)
+
+  // Scheduling + audience snapshot
+  scheduledAt     DateTime? @map("scheduled_at")
+  sentAt          DateTime? @map("sent_at")
+  recipientFilter Json?     @map("recipient_filter")
+  recipientCount  Int       @default(0) @map("recipient_count")
+
+  // Engagement counters (denormalized from CampaignRecipient + EmailTrack;
+  // a nightly reconcile job corrects drift).
+  openCount        Int @default(0) @map("open_count")
+  uniqueOpenCount  Int @default(0) @map("unique_open_count")
+  clickCount       Int @default(0) @map("click_count")
+  uniqueClickCount Int @default(0) @map("unique_click_count")
+  bounceCount      Int @default(0) @map("bounce_count")
+  unsubscribeCount Int @default(0) @map("unsubscribe_count")
+  spamReportCount  Int @default(0) @map("spam_report_count")
+  sentSuccessCount Int @default(0) @map("sent_success_count")
+  sentFailureCount Int @default(0) @map("sent_failure_count")
+
+  // Relations
+  recipients CampaignRecipient[]
+
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
   @@index([tenantId, deletedAt])
+  // Phase 1 — scheduler hot path. Matches partial index
+  // campaigns_scheduler_pending_idx (Prisma can't express the WHERE filter,
+  // so the partial index is created hand-rolled in the SQL migration).
+  @@index([tenantId, scheduledAt])
   @@map("campaigns")
+}
+
+// ─── Phase 1 — CampaignRecipient (per-recipient send attribution) ────────
+
+enum CampaignRecipientStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  BOUNCED
+  FAILED
+  SKIPPED
+}
+
+/// Polymorphic subject types for campaign audiences. Separate from the
+/// global SubjectType (which covers Notes/Attachments/Activities) because
+/// campaigns ALSO target Leads — and extending the global enum would force
+/// a refactor of every consumer of that enum.
+enum SubjectTypeExt {
+  COMPANY
+  CONTACT
+  CLIENT
+  LEAD
+}
+
+/// One row per (campaign, contact/lead) at audience materialization time.
+/// Carries the per-recipient HMAC tracking token used to attribute opens/
+/// clicks back to THIS recipient without leaking the email address in the
+/// tracking URL. Counters are denormalized from EmailTrack for fast
+/// per-recipient timeline reads.
+model CampaignRecipient {
+  id            String                  @id @default(cuid())
+  tenantId      String                  @map("tenant_id")
+  campaignId    String                  @map("campaign_id")
+  subjectType   SubjectTypeExt          @map("subject_type")
+  subjectId     String                  @map("subject_id")
+  email         String                  @db.VarChar(320)
+  trackingToken String                  @map("tracking_token") @db.VarChar(64)
+  status        CampaignRecipientStatus @default(PENDING)
+
+  // Lifecycle
+  queuedAt    DateTime? @map("queued_at")
+  sentAt      DateTime? @map("sent_at")
+  deliveredAt DateTime? @map("delivered_at")
+  bouncedAt   DateTime? @map("bounced_at")
+  failedAt    DateTime? @map("failed_at")
+
+  // Per-recipient engagement
+  openCount   Int       @default(0) @map("open_count")
+  clickCount  Int       @default(0) @map("click_count")
+  lastOpenAt  DateTime? @map("last_open_at")
+  lastClickAt DateTime? @map("last_click_at")
+
+  // Diagnostic on failure
+  errorCode    String? @map("error_code") @db.VarChar(64)
+  errorMessage String? @map("error_message") @db.VarChar(2048)
+
+  // Resulting EmailMessage row (NULL until SENT).
+  messageId String? @map("message_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  campaign Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tracks   EmailTrack[]
+
+  @@unique([campaignId, subjectType, subjectId], map: "campaign_recipients_campaign_subject_uniq")
+  @@unique([trackingToken], map: "campaign_recipients_tracking_token_uniq")
+  @@index([tenantId, campaignId, status], map: "campaign_recipients_tenant_campaign_status_idx")
+  @@index([tenantId, subjectType, subjectId], map: "campaign_recipients_tenant_subject_idx")
+  @@index([tenantId, email], map: "campaign_recipients_tenant_email_idx")
+  @@map("campaign_recipients")
 }
 
 // ─── Validation Rules (custom field validation on entities) ───────────────────
@@ -2603,24 +2841,24 @@ model SavedView {
 // under GDPR (entities don't have GDPR rights, only natural persons do).
 
 model ConsentRecord {
-  id           String         @id @default(cuid())
-  tenantId     String
-  subjectType  SubjectType
-  subjectId    String
-  purpose      ConsentPurpose
-  lawfulBasis  LawfulBasis
-  status       ConsentStatus
-  grantedAt    DateTime?
-  revokedAt    DateTime?
+  id          String         @id @default(cuid())
+  tenantId    String
+  subjectType SubjectType
+  subjectId   String
+  purpose     ConsentPurpose
+  lawfulBasis LawfulBasis
+  status      ConsentStatus
+  grantedAt   DateTime?
+  revokedAt   DateTime?
   // Provenance — required for GDPR Art. 7(1) "controller shall be able to
   // demonstrate that the data subject has consented".
-  source       String? // e.g. "signup_form", "checkbox_email_marketing", "verbal_call"
-  ipAddress    String?
-  userAgent    String?
+  source      String? // e.g. "signup_form", "checkbox_email_marketing", "verbal_call"
+  ipAddress   String?
+  userAgent   String?
   // Arbitrary supporting evidence: form snapshot, call recording ref, etc.
-  evidence     Json?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  evidence    Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([tenantId, subjectType, subjectId])
   @@index([tenantId, purpose, status])
@@ -2669,11 +2907,11 @@ enum ConsentStatus {
 /// E.g. "are pompă căldură Aer-Apă", "consum 1000-2000 lei/lună".
 
 model Tag {
-  id        String    @id @default(cuid())
-  tenantId  String    @map("tenant_id")
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
   name      String
-  color     String?   // hex or tailwind color token
-  createdAt DateTime  @default(now()) @map("created_at")
+  color     String? // hex or tailwind color token
+  createdAt DateTime @default(now()) @map("created_at")
 
   entityTags EntityTag[]
 
@@ -2705,20 +2943,20 @@ model EntityTag {
 /// Separate from CalendarIntegration (which only has Calendars.ReadWrite scope).
 
 model OutlookToken {
-  id              String    @id @default(cuid())
-  tenantId        String    @map("tenant_id")
-  userId          String    @map("user_id")
-  email           String    // the connected Outlook email address
-  displayName     String?   @map("display_name")
-  accessTokenEnc  String    @map("access_token_enc")
-  refreshTokenEnc String    @map("refresh_token_enc")
-  tokenExpiresAt  DateTime  @map("token_expires_at")
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  userId          String   @map("user_id")
+  email           String // the connected Outlook email address
+  displayName     String?  @map("display_name")
+  accessTokenEnc  String   @map("access_token_enc")
+  refreshTokenEnc String   @map("refresh_token_enc")
+  tokenExpiresAt  DateTime @map("token_expires_at")
   // Inbox delta link from Graph /me/mailFolders/inbox/messages/delta — used for
   // incremental sync so we don't re-fetch the entire inbox on every sync call.
-  inboxDeltaLink  String?   @map("inbox_delta_link")
-  isActive        Boolean   @default(true) @map("is_active")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  inboxDeltaLink  String?  @map("inbox_delta_link")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@unique([tenantId, userId])
   @@index([tenantId])

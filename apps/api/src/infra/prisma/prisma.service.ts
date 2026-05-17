@@ -25,6 +25,8 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   'Call',
   'CallTranscript',
   'Campaign',
+  // Phase 1 — per-recipient send attribution (new model 20260518110000).
+  'CampaignRecipient',
   'Case',
   'ChatterPost',
   'Client',
@@ -45,6 +47,8 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   'EmailMessage',
   'EmailSequence',
   'EmailSequenceStep',
+  // Phase 1 — GDPR hash-based suppression list (new model 20260518130000).
+  'EmailSuppression',
   'EmailTrack',
   'Event',
   'EventAttendee',
