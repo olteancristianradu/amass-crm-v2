@@ -13,21 +13,24 @@ import { PrismaService } from '../src/infra/prisma/prisma.service';
  * Source-of-truth scenarios: docs/specs/phase-0.md §Feature 3 (Story 3.1, 3.2, 3.3)
  * Threat model:              docs/threat-models/phase-0.md §Feature 3 (T-SV-T-01, T-SV-D-01)
  *
- * Status of code as of scaffold creation (2026-05-17):
- *   - SavedView model EXISTS  [verificat: prisma/schema.prisma:2539]
- *   - SavedViewsController EXISTS  [verificat: apps/api/src/modules/saved-views/saved-views.controller.ts]
- *     - POST   /api/v1/saved-views        (create)
- *     - GET    /api/v1/saved-views?resource=...  (list, owner-scoped)
- *     - PATCH  /api/v1/saved-views/:id    (update — spec calls it PUT, controller is PATCH)
- *     - DELETE /api/v1/saved-views/:id    (remove)
+ * Status of code as of 2026-05-17 (post Task #2 hardening):
+ *   - SavedView model EXISTS  [verificat: prisma/schema.prisma:2574]
+ *   - SavedViewsController EXISTS  [verificat: saved-views.controller.ts]
+ *     - POST    /api/v1/saved-views                   (create)
+ *     - GET     /api/v1/saved-views?resource=...      (list, owner-scoped)
+ *     - GET     /api/v1/saved-views/:id               (read-one, owner-scoped)
+ *     - GET     /api/v1/saved-views/system-defaults?resource=...  (static defaults)
+ *     - PATCH   /api/v1/saved-views/:id               (update)
+ *     - DELETE  /api/v1/saved-views/:id               (remove, 204)
  *   - SavedViewResourceSchema enum  [verificat: packages/shared/src/schemas/saved-view.ts:11]
  *     allowed: companies | contacts | clients | leads | deals | cases | invoices | quotes
+ *   - Hardening landed in Task #2: 16KB payload cap, audit log emit on
+ *     create/update/delete, unicode-aware XSS regex on `name`, prototype
+ *     pollution block in `filters`, system defaults for `deals`.
  *
  * Real `it()`  = endpoint exists today, scenario MUST pass.
  * `it.todo()`  = scenario described in spec but not yet enforced server-side
- *                (system default views, payload size cap, per-resource Zod schema,
- *                CROSS_TENANT_READ_BLOCKED audit event, etc). Promote to real `it()`
- *                once the corresponding service/middleware lands.
+ *                (per-resource Zod schema for filters — Phase 1).
  */
 describe('SavedViews (e2e)', () => {
   let app: INestApplication;
@@ -178,8 +181,58 @@ describe('SavedViews (e2e)', () => {
     // spec mentions 100. Promote once decision is made.
     it.todo('accepts name of exactly max length (80 per schema, 100 per spec — reconcile)');
 
-    // T-SV-D-01 — filters payload >16KB should be 413. body-parser limit not yet set.
-    it.todo('rejects filters payload >16KB with 413 PAYLOAD_TOO_LARGE [T-SV-D-01, propus]');
+    it('rejects filters payload >16KB with 413 PAYLOAD_TOO_LARGE (T-SV-D-01)', async () => {
+      // Build ~20 KB of filter content via a long repeated string value.
+      const big = 'x'.repeat(20 * 1024);
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/saved-views')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ resource: 'companies', name: 'big', filters: { blob: big } });
+      expect(res.status).toBe(413);
+      expect(res.body.code ?? res.body?.error?.code).toBe('PAYLOAD_TOO_LARGE');
+    });
+
+    it('rejects prototype-pollution attempt in filters with 400 (T-SV-T-02)', async () => {
+      // Note: express body-parser silently strips `__proto__` keys (defence
+      // baked into the parser since ~2019), so the more meaningful probe is
+      // `constructor`, which IS preserved as an own key and would let an
+      // attacker swap a prototype chain. Our Zod superRefine catches it.
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/saved-views')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          resource: 'companies',
+          name: 'pp',
+          filters: { constructor: { prototype: { isAdmin: true } } },
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.code ?? res.body?.error?.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('rejects XSS attempt in name (script tag chars) with 400 (T-SV-I-03)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/saved-views')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          resource: 'companies',
+          name: '<script>alert(1)</script>',
+          filters: {},
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.code ?? res.body?.error?.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('accepts Romanian diacritics in name (ăâîșț — unicode regex)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/saved-views')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          resource: 'leads',
+          name: 'Călătorii în țară — București (active)',
+          filters: { city: 'Bucuresti' },
+        });
+      expect(res.status).toBe(201);
+    });
 
     // T-SV-T-01 — per-resource Zod schema for filters not yet implemented; spec
     // decision §6 says arbitrary JSON now + size cap, per-resource in Phase 1.
@@ -268,15 +321,20 @@ describe('SavedViews (e2e)', () => {
       expect(res.body.find((v: { id: string }) => v.id === viewIdRadu)).toBeUndefined();
     });
 
-    it('cross-tenant read of a specific view should return 404 (spec 3.2)', async () => {
-      // Endpoint `GET /api/v1/saved-views/:id` is NOT in controller (only LIST).
-      // Until that endpoint exists, this test asserts via PATCH (which calls findOne)
-      // — same auth path, same 404 leak-prevention guarantee.
+    it('cross-tenant read of a specific view should return 404 via GET /:id (spec 3.2)', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saved-views/${viewIdRadu}`)
+        .set('Authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(404); // NOT 403 — leak prevention per docs/SCALING.md
+      expect(res.body.code ?? res.body?.error?.code).toBe('SAVED_VIEW_NOT_FOUND');
+    });
+
+    it('cross-tenant PATCH also returns 404 (defense in depth, spec 3.2)', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/saved-views/${viewIdRadu}`)
         .set('Authorization', `Bearer ${tokenB}`)
         .send({ name: 'hacked' });
-      expect(res.status).toBe(404); // NOT 403 — leak prevention per docs/SCALING.md
+      expect(res.status).toBe(404);
     });
 
     it('cross-tenant delete returns 404 and leaves the row intact (spec 3.2)', async () => {
@@ -306,7 +364,15 @@ describe('SavedViews (e2e)', () => {
       expect(res.status).toBe(404);
     });
 
-    it.todo('admin role does NOT bypass owner scope — admin GET own-tenant other-user view → 404 (spec 3.2)');
+    it('admin role does NOT bypass owner scope — same-tenant admin GET → 404 (spec 3.2)', async () => {
+      if (!tokenAMaria) {
+        return; // skip when Maria seeding failed; assertion intentionally visible
+      }
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saved-views/${viewIdRadu}`)
+        .set('Authorization', `Bearer ${tokenAMaria}`);
+      expect(res.status).toBe(404);
+    });
 
     it.todo('audit log records CROSS_TENANT_READ_BLOCKED event on denied read (spec 3.2 — [propus])');
 
@@ -316,9 +382,52 @@ describe('SavedViews (e2e)', () => {
   // ──────────────────────────────────────────────────────────────────────
   // Story 3.3 — System default views (FE-only, but listed for completeness)
   // ──────────────────────────────────────────────────────────────────────
-  describe('System default views (spec 3.3 — FE responsibility)', () => {
-    it.todo('default views are NOT returned by GET /saved-views (FE-only constants)');
-    it.todo('attempting DELETE on a synthetic default-view id returns 404 (spec 3.3)');
+  describe('System default views (spec 3.3)', () => {
+    it('exposes 3 deals defaults on GET /system-defaults?resource=deals', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/saved-views/system-defaults?resource=deals')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body).toHaveLength(3);
+      expect(res.body.every((v: { id: string }) => v.id.startsWith('system:'))).toBe(true);
+      expect(res.body.every((v: { nameKey: string }) => v.nameKey.startsWith('savedViews.defaults.deals.'))).toBe(true);
+    });
+
+    it('returns empty array for resources without curated defaults yet', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/saved-views/system-defaults?resource=contacts')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it('rejects unknown resource on system-defaults with 400', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/saved-views/system-defaults?resource=unicorns')
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(400);
+    });
+
+    it('default views are NOT returned by GET /saved-views (FE merges them separately)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/saved-views?resource=deals')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+      // The list endpoint only returns persisted user views — none should
+      // carry the synthetic `system:` prefix.
+      expect(res.body.every((v: { id: string }) => !v.id.startsWith('system:'))).toBe(true);
+    });
+
+    it('attempting DELETE on a synthetic default-view id returns 404 (spec 3.3)', async () => {
+      // Synthetic ids never exist in DB, so the standard owner-scoped findOne
+      // returns null → NotFoundException. No special handling needed.
+      const res = await request(app.getHttpServer())
+        .delete('/api/v1/saved-views/system:deals:all-mine')
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(res.status).toBe(404);
+    });
+
     it.todo('default views are localized via i18n (covered in i18n-locale.e2e.spec.ts)');
   });
 });
