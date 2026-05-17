@@ -58,6 +58,24 @@ model Tenant {
   // Shape: string[] (e.g. ["a întrebat bugetul", "a oferit garanția 12 luni"])
   defaultCallScript     Json?
 
+  // Phase 0 / Migration B — multi-currency base. ISO 4217 code that the
+  // tenant uses as its reporting currency. All `Deal.amountBase` figures
+  // are denominated in this currency. Default 'RON' for the RO/EU SMB
+  // baseline; admin can switch in tenant settings.
+  baseCurrency   String   @default("RON") @map("base_currency")
+
+  // Phase 0 / Migration A — i18n. Fallback locale served when a user has no
+  // `preferredLocale` set. Short code ('ro'|'en') validated by Zod at the
+  // service layer (`packages/shared/src/i18n/locale.schema.ts`). String not
+  // enum to keep ALTER TYPE pain off the table when 'de'/'hu' arrive.
+  defaultLocale  String   @default("ro") @map("default_locale")
+
+  // Phase 0 / Migration A — i18n. Subset of supported locales the tenant
+  // allows. Catalog is shipped as static JSON in `apps/web/src/i18n/`;
+  // this list bounds what the FE language switcher offers. Default ['ro','en']
+  // matches the Phase 0 catalog ship list (`docs/ROADMAP_V2.md:75`).
+  enabledLocales String[] @default(["ro", "en"]) @map("enabled_locales")
+
   // Sec-kill-switch (BLUE2#3): incident response can flip this to false to
   // freeze all access for a compromised tenant without deleting data. Checked
   // by JwtAuthGuard / TenantContextMiddleware on every authed request.
@@ -126,6 +144,12 @@ model User {
   // auto-launching a tour to avoid annoying repeat-visitors. Persisted in DB
   // (not localStorage) so the experience is consistent across devices/browsers.
   completedTours  Json      @default("[]")
+  // Phase 0 / Migration A — i18n. Per-user locale override. Short code
+  // ('ro'|'en'). NOT NULL with default so existing rows backfill atomically
+  // at ALTER TABLE; service-layer Zod whitelists value against
+  // `tenant.enabledLocales` and falls back to `tenant.defaultLocale` if
+  // the user's choice was revoked by an admin.
+  preferredLocale String    @default("ro") @map("preferred_locale")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -616,6 +640,17 @@ model Deal {
   description     String?
   value           Decimal?   @db.Decimal(14, 2)
   currency        String     @default("RON")
+  // Phase 0 / Migration B — multi-currency. Denormalized `value` converted to
+  // tenant's base currency at `fxRateAt`. Server-computed only (DTO `.strict()`
+  // rejects client value, see threat T-FX-T-02). NULL = not yet computed
+  // (e.g. non-RON deal awaiting first ECB load); reports surface the gap as
+  // "+ N deals în alte valute (necalculate)" rather than silently dropping.
+  // Precision aligned with `value` (14,2) to avoid atomic-bump risk.
+  amountBase      Decimal?   @db.Decimal(14, 2) @map("amount_base")
+  // Phase 0 / Migration B — snapshot of the FX date used to compute
+  // `amountBase`. Lets historical reports stay reproducible across rate
+  // updates; recompute job uses `asOf <= deal.updatedAt` guard (T-FX-T-03).
+  fxRateAt        DateTime?  @db.Date @map("fx_rate_at")
   probability     Int? // override of stage.probability (nullable → inherit)
   expectedCloseAt DateTime?
   status          DealStatus @default(OPEN)
@@ -2707,4 +2742,46 @@ model CockpitLayout {
   @@unique([tenantId, userId])
   @@index([tenantId])
   @@map("cockpit_layouts")
+}
+
+// ─── Phase 0 / Migration B — Multi-currency (GLOBAL, NOT tenant-scoped) ──────
+// IMPORTANT: ExchangeRate is GLOBAL by design — ECB EUR/X daily rates are the
+// same for all tenants. Do NOT add it to TENANT_SCOPED_MODELS in
+// apps/api/src/infra/prisma/prisma.service.ts. Doing so would make every
+// query inject a `tenantId` filter that doesn't match any column → Prisma
+// error P2009. Writes are restricted at the DB layer: the migration REVOKEs
+// INSERT/UPDATE/DELETE from `app_user`, so only the BullMQ cron worker
+// (running as the migration owner role) can refresh rates.
+
+/// Source of an FX rate row. ECB is the primary feed (free, daily, EUR-based).
+/// FIXER is a paid fallback for hourly/non-EUR pairs. MANUAL is an admin
+/// override that is logged in the audit trail.
+enum FxRateSource {
+  ECB
+  FIXER
+  MANUAL
+}
+
+/// Daily FX rates fetched from ECB by a BullMQ cron job (06:00 RO every day,
+/// jobId: `fx-daily-${YYYYMMDD}` so retries don't double-insert — T-FX-T-04).
+/// GLOBAL — not tenant-scoped. All tenants read the same rates. Writes
+/// restricted to a system role by REVOKE in the migration; `app_user` has
+/// SELECT only (T-FX-T-02).
+///
+/// Storage shape: one row per (fromCurrency, toCurrency, asOf). For ECB the
+/// base is EUR, so RON→USD = (1 / EUR_RON) * EUR_USD; we materialize both
+/// directions so the lookup query is a single index probe.
+model ExchangeRate {
+  id           String       @id @default(cuid())
+  fromCurrency String       @map("from_currency") @db.VarChar(3)
+  toCurrency   String       @map("to_currency") @db.VarChar(3)
+  rate         Decimal      @db.Decimal(18, 8)
+  asOf         DateTime     @map("as_of") @db.Date
+  source       FxRateSource @default(ECB)
+  fetchedAt    DateTime     @default(now()) @map("fetched_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  @@unique([fromCurrency, toCurrency, asOf], map: "exchange_rates_pair_date_unique")
+  @@index([asOf(sort: Desc)], map: "exchange_rates_as_of_desc_idx")
+  @@map("exchange_rates")
 }
