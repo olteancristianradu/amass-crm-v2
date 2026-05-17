@@ -1,0 +1,28 @@
+{
+  "title": "[TODO-EN] Sincronizare în timp real",
+  "status": {
+    "connecting": "[TODO-EN] Se conectează…",
+    "connected": "[TODO-EN] Conectat",
+    "disconnected": "[TODO-EN] Deconectat",
+    "reconnecting": "[TODO-EN] Se reconectează…"
+  },
+  "presence": {
+    "viewing": "[TODO-EN] {{name}} privește această pagină",
+    "viewing_few": "[TODO-EN] {{count}} persoane privesc această pagină",
+    "viewing_other": "[TODO-EN] {{count}} de persoane privesc această pagină",
+    "editing": "[TODO-EN] {{name}} editează acum"
+  },
+  "conflict": {
+    "title": "[TODO-EN] Conflict de editare",
+    "message": "[TODO-EN] {{name}} a modificat această resursă între timp. Vezi modificările?",
+    "viewChanges": "[TODO-EN] Vezi modificările",
+    "overwrite": "[TODO-EN] Suprascrie",
+    "discard": "[TODO-EN] Renunță"
+  },
+  "offline": {
+    "queued_one": "[TODO-EN] {{count}} acțiune în așteptare",
+    "queued_few": "[TODO-EN] {{count}} acțiuni în așteptare",
+    "queued_other": "[TODO-EN] {{count}} de acțiuni în așteptare",
+    "syncWhenOnline": "[TODO-EN] Se vor sincroniza când reapare conexiunea"
+  }
+}

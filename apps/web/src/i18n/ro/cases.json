@@ -1,0 +1,48 @@
+{
+  "title": "Tichete suport",
+  "list": {
+    "title": "Tichete",
+    "empty": "Niciun tichet",
+    "newCase": "Tichet nou",
+    "columns": {
+      "number": "Număr",
+      "subject": "Subiect",
+      "customer": "Client",
+      "priority": "Prioritate",
+      "status": "Status",
+      "assignee": "Atribuit"
+    }
+  },
+  "status": {
+    "NEW": "Nou",
+    "OPEN": "Deschis",
+    "WAITING_CUSTOMER": "Așteaptă client",
+    "WAITING_INTERNAL": "Așteaptă intern",
+    "RESOLVED": "Rezolvat",
+    "CLOSED": "Închis"
+  },
+  "priority": {
+    "LOW": "Scăzută",
+    "NORMAL": "Normală",
+    "HIGH": "Ridicată",
+    "URGENT": "Urgentă"
+  },
+  "form": {
+    "subject": "Subiect",
+    "customer": "Client",
+    "priority": "Prioritate",
+    "description": "Descriere problemă",
+    "submit": "Creează tichet"
+  },
+  "actions": {
+    "assignToMe": "Atribuie mie",
+    "resolve": "Marchează rezolvat",
+    "reopen": "Redeschide",
+    "addReply": "Răspunde"
+  },
+  "sla": {
+    "responseDue": "Răspuns scadent {{when}}",
+    "resolutionDue": "Rezolvare scadentă {{when}}",
+    "breached": "SLA depășit"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "title": "Teritorii",
+  "list": {
+    "title": "Teritorii de vânzare",
+    "empty": "Niciun teritoriu definit",
+    "newTerritory": "Teritoriu nou",
+    "columns": {
+      "name": "Nume",
+      "manager": "Manager",
+      "accountCount": "Firme",
+      "memberCount": "Membri"
+    }
+  },
+  "form": {
+    "name": "Nume teritoriu",
+    "manager": "Manager",
+    "members": "Membri",
+    "rules": "Reguli atribuire",
+    "byCounty": "Județe",
+    "byPostalCode": "Coduri poștale",
+    "byIndustry": "Industrie",
+    "submit": "Salvează teritoriul"
+  },
+  "rules": {
+    "title": "Reguli automate",
+    "addRule": "Adaugă regulă",
+    "matchOn": "Potrivire pe",
+    "assignTo": "Atribuie către"
+  }
+}

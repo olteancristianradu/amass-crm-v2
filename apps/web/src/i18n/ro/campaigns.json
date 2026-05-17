@@ -1,0 +1,45 @@
+{
+  "title": "Campanii",
+  "list": {
+    "title": "Campanii marketing",
+    "empty": "Nicio campanie",
+    "newCampaign": "Campanie nouă",
+    "columns": {
+      "name": "Nume",
+      "channel": "Canal",
+      "status": "Status",
+      "audience": "Audiență",
+      "sent": "Trimise",
+      "opened": "Deschise",
+      "clicked": "Click-uri"
+    }
+  },
+  "channel": {
+    "EMAIL": "Email",
+    "SMS": "SMS",
+    "WHATSAPP": "WhatsApp",
+    "PUSH": "Push"
+  },
+  "status": {
+    "DRAFT": "Schiță",
+    "SCHEDULED": "Programată",
+    "RUNNING": "În desfășurare",
+    "COMPLETED": "Finalizată",
+    "PAUSED": "Pe pauză"
+  },
+  "form": {
+    "name": "Nume campanie",
+    "channel": "Canal",
+    "audience": "Audiență țintă",
+    "template": "Șablon",
+    "scheduleAt": "Trimite la",
+    "sendNow": "Trimite imediat",
+    "submit": "Salvează"
+  },
+  "stats": {
+    "openRate": "Rată deschidere",
+    "clickRate": "Rată click",
+    "bounceRate": "Rată respingere",
+    "unsubscribeRate": "Dezabonări"
+  }
+}

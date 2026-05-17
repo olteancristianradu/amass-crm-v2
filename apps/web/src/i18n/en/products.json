@@ -1,0 +1,36 @@
+{
+  "title": "[TODO-EN] Produse și servicii",
+  "list": {
+    "title": "[TODO-EN] Catalog",
+    "empty": "[TODO-EN] Niciun produs în catalog",
+    "newProduct": "[TODO-EN] Produs nou",
+    "columns": {
+      "code": "[TODO-EN] Cod",
+      "name": "[TODO-EN] Denumire",
+      "unitPrice": "[TODO-EN] Preț unitar",
+      "vatRate": "[TODO-EN] TVA",
+      "category": "[TODO-EN] Categorie",
+      "stock": "[TODO-EN] Stoc"
+    }
+  },
+  "type": {
+    "GOOD": "[TODO-EN] Produs fizic",
+    "SERVICE": "[TODO-EN] Serviciu",
+    "DIGITAL": "[TODO-EN] Produs digital",
+    "SUBSCRIPTION": "[TODO-EN] Abonament"
+  },
+  "form": {
+    "code": "[TODO-EN] Cod produs",
+    "name": "[TODO-EN] Denumire",
+    "type": "[TODO-EN] Tip",
+    "category": "[TODO-EN] Categorie",
+    "unitPrice": "[TODO-EN] Preț unitar",
+    "vatRate": "[TODO-EN] Cota TVA (%)",
+    "currency": "[TODO-EN] Monedă",
+    "unit": "[TODO-EN] Unitate de măsură",
+    "description": "[TODO-EN] Descriere",
+    "stockTracked": "[TODO-EN] Urmărește stoc",
+    "stockQty": "[TODO-EN] Cantitate stoc",
+    "submit": "[TODO-EN] Salvează produsul"
+  }
+}

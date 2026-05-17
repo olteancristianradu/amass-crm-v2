@@ -1,0 +1,82 @@
+{
+  "title": "Firme",
+  "list": {
+    "title": "Firme",
+    "empty": "Nicio firmă înregistrată",
+    "newCompany": "Firmă nouă",
+    "columns": {
+      "name": "Nume",
+      "cui": "CUI",
+      "industry": "Industrie",
+      "owner": "Responsabil",
+      "createdAt": "Creat la"
+    },
+    "filter": {
+      "all": "Toate",
+      "active": "Active",
+      "archived": "Arhivate"
+    }
+  },
+  "detail": {
+    "title": "Detalii firmă",
+    "overview": "Prezentare",
+    "subsidiariesTab": "Filiale",
+    "contactsTab": "Contacte",
+    "dealsTab": "Deal-uri",
+    "invoicesTab": "Facturi",
+    "notesTab": "Note",
+    "filesTab": "Fișiere",
+    "activityTab": "Activitate",
+    "subsidiariesEmpty": "Nicio filială",
+    "subsidiariesAdd": "Adaugă filială"
+  },
+  "form": {
+    "name": "Denumire",
+    "namePlaceholder": "Nume firmă",
+    "legalName": "Denumire legală",
+    "cui": "CUI",
+    "cuiPlaceholder": "RO12345678",
+    "regCom": "Nr. Reg. Comerțului",
+    "vatPayer": "Plătitor TVA",
+    "industry": "Industrie",
+    "industryPlaceholder": "Selectează industrie",
+    "size": "Mărime",
+    "employees": "Număr angajați",
+    "website": "Site web",
+    "email": "Email",
+    "phone": "Telefon",
+    "address": "Adresă",
+    "city": "Oraș",
+    "county": "Județ",
+    "country": "Țară",
+    "postalCode": "Cod poștal",
+    "owner": "Responsabil",
+    "tags": "Etichete",
+    "notes": "Note interne",
+    "submit": "Salvează firma"
+  },
+  "import": {
+    "title": "Importă firme",
+    "fromGestcom": "Importă din GestCom",
+    "fromCsv": "Importă din CSV",
+    "fromAnaf": "Caută în ANAF după CUI",
+    "fromVies": "Caută în VIES (intra-UE)"
+  },
+  "anaf": {
+    "lookup": "Verifică la ANAF",
+    "lookupHint": "Completează automat datele firmei pe baza CUI",
+    "lookupSuccess": "Date completate din ANAF",
+    "lookupFailed": "Nu am găsit firma în registrul ANAF"
+  },
+  "size": {
+    "MICRO": "Microîntreprindere",
+    "SMALL": "Mică",
+    "MEDIUM": "Mijlocie",
+    "LARGE": "Mare",
+    "ENTERPRISE": "Corporație"
+  },
+  "delete": {
+    "confirmTitle": "Șterge firma",
+    "confirmMessage": "Ștergerea firmei „{{name}}” va arhiva și toate contactele, deal-urile și facturile asociate. Continui?"
+  }
+}

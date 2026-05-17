@@ -1,0 +1,33 @@
+{
+  "title": "[TODO-EN] WhatsApp Business",
+  "connect": {
+    "title": "[TODO-EN] Conectează WhatsApp Business",
+    "subtitle": "[TODO-EN] Trimite mesaje către clienți prin WhatsApp Business API",
+    "submit": "[TODO-EN] Conectează",
+    "connected": "[TODO-EN] Conectat: {{number}}",
+    "disconnect": "[TODO-EN] Deconectează"
+  },
+  "conversations": {
+    "title": "[TODO-EN] Conversații",
+    "empty": "[TODO-EN] Nicio conversație",
+    "newConversation": "[TODO-EN] Conversație nouă"
+  },
+  "compose": {
+    "to": "[TODO-EN] Către",
+    "template": "[TODO-EN] Șablon",
+    "useTemplate": "[TODO-EN] Folosește un șablon aprobat (necesar pentru contacte noi)",
+    "message": "[TODO-EN] Mesaj",
+    "addMedia": "[TODO-EN] Atașează media",
+    "submit": "[TODO-EN] Trimite",
+    "windowExpired": "[TODO-EN] Fereastra de 24h a expirat — folosește un șablon"
+  },
+  "templates": {
+    "title": "[TODO-EN] Șabloane aprobate",
+    "newTemplate": "[TODO-EN] Șablon nou",
+    "status": {
+      "PENDING": "[TODO-EN] În așteptare aprobare",
+      "APPROVED": "[TODO-EN] Aprobat",
+      "REJECTED": "[TODO-EN] Respins"
+    }
+  }
+}

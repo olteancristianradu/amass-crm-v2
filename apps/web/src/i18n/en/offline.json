@@ -1,0 +1,17 @@
+{
+  "banner": {
+    "offline": "[TODO-EN] Ești offline. Modificările vor fi sincronizate când reapare conexiunea.",
+    "reconnected": "[TODO-EN] Conexiunea a fost restabilită. Se sincronizează…",
+    "syncFailed": "[TODO-EN] Sincronizare eșuată. Vezi detalii.",
+    "dismiss": "[TODO-EN] Ascunde"
+  },
+  "queue": {
+    "title": "[TODO-EN] Acțiuni în coadă",
+    "empty": "[TODO-EN] Nicio acțiune în așteptare",
+    "pending_one": "[TODO-EN] {{count}} acțiune pendentă",
+    "pending_few": "[TODO-EN] {{count}} acțiuni pendente",
+    "pending_other": "[TODO-EN] {{count}} de acțiuni pendente",
+    "retryAll": "[TODO-EN] Reîncearcă toate",
+    "discardAll": "[TODO-EN] Renunță la toate"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "title": "Sarcini",
+  "list": {
+    "title": "Sarcinile mele",
+    "empty": "Nicio sarcină",
+    "newTask": "Sarcină nouă",
+    "filter": {
+      "all": "Toate",
+      "today": "Astăzi",
+      "thisWeek": "Săptămâna aceasta",
+      "overdue": "Restante",
+      "done": "Finalizate"
+    },
+    "columns": {
+      "title": "Titlu",
+      "dueDate": "Termen",
+      "priority": "Prioritate",
+      "assignee": "Atribuit",
+      "status": "Status",
+      "linkedTo": "Asociat cu"
+    }
+  },
+  "priority": {
+    "LOW": "Scăzută",
+    "MEDIUM": "Medie",
+    "HIGH": "Ridicată",
+    "URGENT": "Urgentă"
+  },
+  "status": {
+    "TODO": "De făcut",
+    "IN_PROGRESS": "În lucru",
+    "DONE": "Finalizată",
+    "CANCELLED": "Anulată"
+  },
+  "form": {
+    "title": "Titlu sarcină",
+    "description": "Descriere",
+    "dueDate": "Termen",
+    "priority": "Prioritate",
+    "assignee": "Atribuit lui",
+    "linkedTo": "Asociază cu",
+    "submit": "Salvează sarcina"
+  },
+  "actions": {
+    "complete": "Marchează finalizată",
+    "reopen": "Redeschide",
+    "snooze": "Amână"
+  }
+}

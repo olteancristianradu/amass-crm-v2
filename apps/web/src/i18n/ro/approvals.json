@@ -1,0 +1,32 @@
+{
+  "title": "Aprobări",
+  "list": {
+    "title": "Cereri de aprobare",
+    "pending": "În așteptare",
+    "approved": "Aprobate",
+    "rejected": "Respinse",
+    "empty": "Nicio cerere de aprobare"
+  },
+  "status": {
+    "PENDING": "În așteptare",
+    "APPROVED": "Aprobată",
+    "REJECTED": "Respinsă",
+    "WITHDRAWN": "Retrasă"
+  },
+  "actions": {
+    "approve": "Aprobă",
+    "reject": "Respinge",
+    "delegate": "Deleagă",
+    "withdraw": "Retrage cererea",
+    "requestApproval": "Cere aprobare"
+  },
+  "form": {
+    "reason": "Motiv",
+    "approvers": "Aprobatori",
+    "submit": "Trimite spre aprobare"
+  },
+  "rejection": {
+    "reasonRequired": "Motivul respingerii este obligatoriu",
+    "reason": "Motiv respingere"
+  }
+}

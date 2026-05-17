@@ -1,0 +1,47 @@
+{
+  "title": "[TODO-EN] GDPR și protecția datelor",
+  "subjectRequests": {
+    "title": "[TODO-EN] Cereri persoane vizate",
+    "newRequest": "[TODO-EN] Cerere nouă",
+    "type": {
+      "ACCESS": "[TODO-EN] Acces date",
+      "RECTIFICATION": "[TODO-EN] Rectificare",
+      "ERASURE": "[TODO-EN] Ștergere (dreptul de a fi uitat)",
+      "PORTABILITY": "[TODO-EN] Portabilitate date",
+      "RESTRICTION": "[TODO-EN] Restricție prelucrare",
+      "OBJECTION": "[TODO-EN] Opoziție prelucrare"
+    },
+    "status": {
+      "OPEN": "[TODO-EN] În curs",
+      "IN_PROGRESS": "[TODO-EN] În procesare",
+      "COMPLETED": "[TODO-EN] Finalizată",
+      "REJECTED": "[TODO-EN] Respinsă"
+    },
+    "deadline": "[TODO-EN] Termen legal: 30 zile"
+  },
+  "export": {
+    "title": "[TODO-EN] Exportă datele",
+    "selectFormat": "[TODO-EN] Format export",
+    "json": "[TODO-EN] JSON",
+    "csv": "[TODO-EN] CSV",
+    "submit": "[TODO-EN] Generează export"
+  },
+  "erase": {
+    "title": "[TODO-EN] Șterge datele persoanei",
+    "warning": "[TODO-EN] Această acțiune este definitivă și nu poate fi anulată.",
+    "anonymize": "[TODO-EN] Anonimizează în loc de ștergere",
+    "submit": "[TODO-EN] Confirmă ștergerea"
+  },
+  "consent": {
+    "title": "[TODO-EN] Consimțăminte",
+    "marketing": "[TODO-EN] Marketing prin email",
+    "newsletter": "[TODO-EN] Newsletter",
+    "thirdParty": "[TODO-EN] Partajare cu terți",
+    "given": "[TODO-EN] Acordat la {{date}}",
+    "withdrawn": "[TODO-EN] Retras la {{date}}"
+  },
+  "audit": {
+    "title": "[TODO-EN] Jurnal de acces (audit log)",
+    "empty": "[TODO-EN] Niciun acces înregistrat"
+  }
+}

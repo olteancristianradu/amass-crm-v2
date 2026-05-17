@@ -1,0 +1,23 @@
+{
+  "title": "[TODO-EN] Microsoft Outlook",
+  "connect": {
+    "title": "[TODO-EN] Conectează Outlook",
+    "subtitle": "[TODO-EN] Sincronizează emailurile și calendarul cu Microsoft 365",
+    "submit": "[TODO-EN] Conectează cu Microsoft",
+    "connecting": "[TODO-EN] Se conectează…",
+    "connected": "[TODO-EN] Conectat ca {{email}}",
+    "disconnect": "[TODO-EN] Deconectează cont"
+  },
+  "sync": {
+    "lastSync": "[TODO-EN] Ultima sincronizare: {{when}}",
+    "syncNow": "[TODO-EN] Sincronizează acum",
+    "syncing": "[TODO-EN] Se sincronizează…",
+    "syncFailed": "[TODO-EN] Sincronizare eșuată"
+  },
+  "settings": {
+    "syncCalendar": "[TODO-EN] Sincronizează calendarul",
+    "syncEmail": "[TODO-EN] Sincronizează emailurile",
+    "syncContacts": "[TODO-EN] Sincronizează contactele",
+    "twoWay": "[TODO-EN] Sincronizare bidirecțională"
+  }
+}

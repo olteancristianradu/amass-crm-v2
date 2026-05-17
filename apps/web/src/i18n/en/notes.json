@@ -1,0 +1,21 @@
+{
+  "title": "[TODO-EN] Note",
+  "list": {
+    "empty": "[TODO-EN] Nicio notă",
+    "addNote": "[TODO-EN] Adaugă notă"
+  },
+  "form": {
+    "placeholder": "[TODO-EN] Scrie o notă…",
+    "submit": "[TODO-EN] Salvează nota",
+    "pin": "[TODO-EN] Fixează în partea de sus"
+  },
+  "pinned": "[TODO-EN] Fixate",
+  "createdBy": "[TODO-EN] Adăugată de {{user}}, {{when}}",
+  "edited": "[TODO-EN] (editat)",
+  "actions": {
+    "edit": "[TODO-EN] Editează nota",
+    "delete": "[TODO-EN] Șterge nota",
+    "pin": "[TODO-EN] Fixează",
+    "unpin": "[TODO-EN] Anulează fixarea"
+  }
+}

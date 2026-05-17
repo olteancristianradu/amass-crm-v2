@@ -1,0 +1,20 @@
+{
+  "title": "Etichete",
+  "list": {
+    "empty": "Nicio etichetă",
+    "newTag": "Etichetă nouă"
+  },
+  "form": {
+    "name": "Nume etichetă",
+    "color": "Culoare",
+    "submit": "Salvează"
+  },
+  "input": {
+    "placeholder": "Adaugă etichetă…",
+    "create": "Creează „{{name}}”"
+  },
+  "delete": {
+    "confirmTitle": "Șterge eticheta",
+    "confirmMessage": "Eticheta va fi eliminată de pe toate entitățile asociate."
+  }
+}

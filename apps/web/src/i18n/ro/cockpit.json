@@ -1,0 +1,18 @@
+{
+  "title": "Cockpit",
+  "welcome": "Bine ai revenit, {{name}}",
+  "today": "Astăzi",
+  "widgets": {
+    "openDeals": "Deal-uri deschise",
+    "tasksDueToday": "Sarcini scadente azi",
+    "overdueInvoices": "Facturi restante",
+    "monthRevenue": "Venituri luna aceasta",
+    "newLeads": "Lead-uri noi (7 zile)",
+    "callsLast7": "Apeluri ultimele 7 zile",
+    "pipelineValue": "Valoare pâlnie",
+    "upcomingMeetings": "Întâlniri următoare"
+  },
+  "empty": "Nimic urgent. Profită de timpul liber.",
+  "addWidget": "Adaugă widget",
+  "customize": "Personalizează cockpit"
+}

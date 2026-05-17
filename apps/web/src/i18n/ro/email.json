@@ -1,0 +1,39 @@
+{
+  "title": "Email",
+  "inbox": "Inbox",
+  "sent": "Trimise",
+  "drafts": "Schițe",
+  "trash": "Coș",
+  "spam": "Spam",
+  "compose": "Compune",
+  "list": {
+    "empty": "Niciun email",
+    "loadMore": "Încarcă mai multe"
+  },
+  "form": {
+    "to": "Către",
+    "cc": "CC",
+    "bcc": "BCC",
+    "subject": "Subiect",
+    "body": "Mesaj",
+    "attachments": "Atașamente",
+    "addAttachment": "Atașează fișier",
+    "submit": "Trimite",
+    "submitting": "Se trimite…",
+    "saveDraft": "Salvează schiță"
+  },
+  "connect": {
+    "title": "Conectează cont email",
+    "google": "Conectează Gmail",
+    "outlook": "Conectează Outlook",
+    "imap": "Configurare IMAP/SMTP manuală"
+  },
+  "actions": {
+    "reply": "Răspunde",
+    "replyAll": "Răspunde tuturor",
+    "forward": "Redirecționează",
+    "markRead": "Marchează citit",
+    "markUnread": "Marchează necitit",
+    "delete": "Mută în coș"
+  }
+}

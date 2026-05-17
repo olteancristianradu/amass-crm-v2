@@ -1,0 +1,38 @@
+{
+  "title": "Clienți",
+  "list": {
+    "title": "Clienți",
+    "empty": "Niciun client",
+    "newClient": "Client nou",
+    "columns": {
+      "name": "Nume",
+      "type": "Tip",
+      "lifetimeValue": "Valoare totală",
+      "lastActivity": "Ultima activitate",
+      "owner": "Responsabil"
+    }
+  },
+  "type": {
+    "B2B": "Firmă",
+    "B2C": "Persoană fizică"
+  },
+  "detail": {
+    "title": "Detalii client",
+    "convertFromLead": "Convertește din lead",
+    "lifetimeValue": "Valoare totală (LTV)",
+    "openDeals": "Deal-uri deschise",
+    "wonDeals": "Deal-uri câștigate",
+    "totalInvoiced": "Total facturat",
+    "totalPaid": "Total încasat",
+    "outstanding": "Restanță"
+  },
+  "form": {
+    "type": "Tip client",
+    "name": "Nume",
+    "cnp": "CNP",
+    "cui": "CUI",
+    "email": "Email",
+    "phone": "Telefon",
+    "submit": "Salvează client"
+  }
+}

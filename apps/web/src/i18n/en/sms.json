@@ -1,0 +1,27 @@
+{
+  "title": "[TODO-EN] SMS",
+  "list": {
+    "title": "[TODO-EN] Conversații SMS",
+    "empty": "[TODO-EN] Niciun SMS",
+    "newConversation": "[TODO-EN] Conversație nouă"
+  },
+  "compose": {
+    "to": "[TODO-EN] Către",
+    "message": "[TODO-EN] Mesaj",
+    "submit": "[TODO-EN] Trimite SMS",
+    "submitting": "[TODO-EN] Se trimite…",
+    "remaining": "[TODO-EN] {{count}} caractere rămase",
+    "segments": "[TODO-EN] {{count}} segmente"
+  },
+  "status": {
+    "QUEUED": "[TODO-EN] În coadă",
+    "SENT": "[TODO-EN] Trimis",
+    "DELIVERED": "[TODO-EN] Livrat",
+    "FAILED": "[TODO-EN] Eșuat",
+    "UNDELIVERED": "[TODO-EN] Nelivrat"
+  },
+  "settings": {
+    "senderId": "[TODO-EN] ID expeditor",
+    "provider": "[TODO-EN] Furnizor SMS"
+  }
+}

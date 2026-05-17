@@ -1,0 +1,29 @@
+{
+  "title": "Exporturi",
+  "list": {
+    "title": "Istoric exporturi",
+    "empty": "Niciun export încă",
+    "columns": {
+      "type": "Tip",
+      "format": "Format",
+      "rows": "Rânduri",
+      "createdAt": "Generat la",
+      "status": "Status"
+    }
+  },
+  "newExport": "Export nou",
+  "form": {
+    "type": "Ce exportăm",
+    "format": "Format",
+    "filters": "Filtre",
+    "submit": "Generează"
+  },
+  "status": {
+    "QUEUED": "În coadă",
+    "RUNNING": "În procesare",
+    "COMPLETED": "Gata",
+    "FAILED": "Eșuat"
+  },
+  "download": "Descarcă fișier",
+  "expires": "Expiră la {{date}}"
+}

@@ -1,0 +1,45 @@
+{
+  "title": "[TODO-EN] Campanii",
+  "list": {
+    "title": "[TODO-EN] Campanii marketing",
+    "empty": "[TODO-EN] Nicio campanie",
+    "newCampaign": "[TODO-EN] Campanie nouă",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "channel": "[TODO-EN] Canal",
+      "status": "[TODO-EN] Status",
+      "audience": "[TODO-EN] Audiență",
+      "sent": "[TODO-EN] Trimise",
+      "opened": "[TODO-EN] Deschise",
+      "clicked": "[TODO-EN] Click-uri"
+    }
+  },
+  "channel": {
+    "EMAIL": "[TODO-EN] Email",
+    "SMS": "[TODO-EN] SMS",
+    "WHATSAPP": "[TODO-EN] WhatsApp",
+    "PUSH": "[TODO-EN] Push"
+  },
+  "status": {
+    "DRAFT": "[TODO-EN] Schiță",
+    "SCHEDULED": "[TODO-EN] Programată",
+    "RUNNING": "[TODO-EN] În desfășurare",
+    "COMPLETED": "[TODO-EN] Finalizată",
+    "PAUSED": "[TODO-EN] Pe pauză"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume campanie",
+    "channel": "[TODO-EN] Canal",
+    "audience": "[TODO-EN] Audiență țintă",
+    "template": "[TODO-EN] Șablon",
+    "scheduleAt": "[TODO-EN] Trimite la",
+    "sendNow": "[TODO-EN] Trimite imediat",
+    "submit": "[TODO-EN] Salvează"
+  },
+  "stats": {
+    "openRate": "[TODO-EN] Rată deschidere",
+    "clickRate": "[TODO-EN] Rată click",
+    "bounceRate": "[TODO-EN] Rată respingere",
+    "unsubscribeRate": "[TODO-EN] Dezabonări"
+  }
+}

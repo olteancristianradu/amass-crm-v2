@@ -1,0 +1,82 @@
+{
+  "title": "[TODO-EN] Firme",
+  "list": {
+    "title": "[TODO-EN] Firme",
+    "empty": "[TODO-EN] Nicio firmă înregistrată",
+    "newCompany": "[TODO-EN] Firmă nouă",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "cui": "[TODO-EN] CUI",
+      "industry": "[TODO-EN] Industrie",
+      "owner": "[TODO-EN] Responsabil",
+      "createdAt": "[TODO-EN] Creat la"
+    },
+    "filter": {
+      "all": "[TODO-EN] Toate",
+      "active": "[TODO-EN] Active",
+      "archived": "[TODO-EN] Arhivate"
+    }
+  },
+  "detail": {
+    "title": "[TODO-EN] Detalii firmă",
+    "overview": "[TODO-EN] Prezentare",
+    "subsidiariesTab": "[TODO-EN] Filiale",
+    "contactsTab": "[TODO-EN] Contacte",
+    "dealsTab": "[TODO-EN] Deal-uri",
+    "invoicesTab": "[TODO-EN] Facturi",
+    "notesTab": "[TODO-EN] Note",
+    "filesTab": "[TODO-EN] Fișiere",
+    "activityTab": "[TODO-EN] Activitate",
+    "subsidiariesEmpty": "[TODO-EN] Nicio filială",
+    "subsidiariesAdd": "[TODO-EN] Adaugă filială"
+  },
+  "form": {
+    "name": "[TODO-EN] Denumire",
+    "namePlaceholder": "[TODO-EN] Nume firmă",
+    "legalName": "[TODO-EN] Denumire legală",
+    "cui": "[TODO-EN] CUI",
+    "cuiPlaceholder": "[TODO-EN] RO12345678",
+    "regCom": "[TODO-EN] Nr. Reg. Comerțului",
+    "vatPayer": "[TODO-EN] Plătitor TVA",
+    "industry": "[TODO-EN] Industrie",
+    "industryPlaceholder": "[TODO-EN] Selectează industrie",
+    "size": "[TODO-EN] Mărime",
+    "employees": "[TODO-EN] Număr angajați",
+    "website": "[TODO-EN] Site web",
+    "email": "[TODO-EN] Email",
+    "phone": "[TODO-EN] Telefon",
+    "address": "[TODO-EN] Adresă",
+    "city": "[TODO-EN] Oraș",
+    "county": "[TODO-EN] Județ",
+    "country": "[TODO-EN] Țară",
+    "postalCode": "[TODO-EN] Cod poștal",
+    "owner": "[TODO-EN] Responsabil",
+    "tags": "[TODO-EN] Etichete",
+    "notes": "[TODO-EN] Note interne",
+    "submit": "[TODO-EN] Salvează firma"
+  },
+  "import": {
+    "title": "[TODO-EN] Importă firme",
+    "fromGestcom": "[TODO-EN] Importă din GestCom",
+    "fromCsv": "[TODO-EN] Importă din CSV",
+    "fromAnaf": "[TODO-EN] Caută în ANAF după CUI",
+    "fromVies": "[TODO-EN] Caută în VIES (intra-UE)"
+  },
+  "anaf": {
+    "lookup": "[TODO-EN] Verifică la ANAF",
+    "lookupHint": "[TODO-EN] Completează automat datele firmei pe baza CUI",
+    "lookupSuccess": "[TODO-EN] Date completate din ANAF",
+    "lookupFailed": "[TODO-EN] Nu am găsit firma în registrul ANAF"
+  },
+  "size": {
+    "MICRO": "[TODO-EN] Microîntreprindere",
+    "SMALL": "[TODO-EN] Mică",
+    "MEDIUM": "[TODO-EN] Mijlocie",
+    "LARGE": "[TODO-EN] Mare",
+    "ENTERPRISE": "[TODO-EN] Corporație"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Șterge firma",
+    "confirmMessage": "[TODO-EN] Ștergerea firmei „{{name}}” va arhiva și toate contactele, deal-urile și facturile asociate. Continui?"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "title": "[TODO-EN] Cockpit",
+  "welcome": "[TODO-EN] Bine ai revenit, {{name}}",
+  "today": "[TODO-EN] Astăzi",
+  "widgets": {
+    "openDeals": "[TODO-EN] Deal-uri deschise",
+    "tasksDueToday": "[TODO-EN] Sarcini scadente azi",
+    "overdueInvoices": "[TODO-EN] Facturi restante",
+    "monthRevenue": "[TODO-EN] Venituri luna aceasta",
+    "newLeads": "[TODO-EN] Lead-uri noi (7 zile)",
+    "callsLast7": "[TODO-EN] Apeluri ultimele 7 zile",
+    "pipelineValue": "[TODO-EN] Valoare pâlnie",
+    "upcomingMeetings": "[TODO-EN] Întâlniri următoare"
+  },
+  "empty": "[TODO-EN] Nimic urgent. Profită de timpul liber.",
+  "addWidget": "[TODO-EN] Adaugă widget",
+  "customize": "[TODO-EN] Personalizează cockpit"
+}

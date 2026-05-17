@@ -1,0 +1,38 @@
+{
+  "tabs": {
+    "overview": "Prezentare",
+    "activity": "Activitate",
+    "notes": "Note",
+    "files": "Fișiere",
+    "tasks": "Sarcini",
+    "deals": "Deal-uri",
+    "invoices": "Facturi",
+    "calls": "Apeluri",
+    "emails": "Emailuri",
+    "contacts": "Contacte"
+  },
+  "header": {
+    "back": "Înapoi la listă",
+    "edit": "Editează",
+    "delete": "Șterge",
+    "more": "Mai multe acțiuni",
+    "owner": "Responsabil: {{name}}",
+    "createdAt": "Creat {{when}}",
+    "updatedAt": "Actualizat {{when}}"
+  },
+  "inlineEdit": {
+    "save": "Salvează",
+    "cancel": "Anulează",
+    "savingError": "Eroare la salvare"
+  },
+  "activity": {
+    "empty": "Nicio activitate înregistrată",
+    "filter": {
+      "all": "Toate",
+      "notes": "Note",
+      "calls": "Apeluri",
+      "emails": "Emailuri",
+      "changes": "Modificări"
+    }
+  }
+}

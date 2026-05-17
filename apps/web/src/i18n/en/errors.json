@@ -1,0 +1,73 @@
+{
+  "generic": {
+    "unknown": "[TODO-EN] A apărut o eroare neașteptată. Reîncearcă mai târziu.",
+    "network": "[TODO-EN] Nu se poate conecta la server. Verifică conexiunea la internet.",
+    "timeout": "[TODO-EN] Operațiunea a expirat. Reîncearcă.",
+    "serverError": "[TODO-EN] Eroare server. Echipa a fost notificată.",
+    "tryAgain": "[TODO-EN] Încearcă din nou.",
+    "contactSupport": "[TODO-EN] Dacă problema persistă, contactează suportul."
+  },
+  "auth": {
+    "invalidCredentials": "[TODO-EN] Email sau parolă incorectă",
+    "accountLocked": "[TODO-EN] Cont blocat temporar. Reîncearcă peste {{minutes}} minute.",
+    "sessionExpired": "[TODO-EN] Sesiunea a expirat. Conectează-te din nou.",
+    "tokenInvalid": "[TODO-EN] Token de autentificare invalid",
+    "totpRequired": "[TODO-EN] Cod 2FA necesar",
+    "totpInvalid": "[TODO-EN] Cod incorect. Încearcă din nou.",
+    "totpExpired": "[TODO-EN] Codul a expirat. Generează unul nou.",
+    "emailNotVerified": "[TODO-EN] Adresa de email nu a fost verificată",
+    "passwordTooWeak": "[TODO-EN] Parola este prea slabă",
+    "passwordReused": "[TODO-EN] Parolă deja folosită recent. Alege alta.",
+    "unknownGeneric": "[TODO-EN] Eroare necunoscută. Încearcă din nou."
+  },
+  "permissions": {
+    "forbidden": "[TODO-EN] Nu ai permisiunea pentru această acțiune",
+    "tenantMismatch": "[TODO-EN] Resursa aparține altui spațiu de lucru",
+    "roleMissing": "[TODO-EN] Rolul tău nu permite această operațiune"
+  },
+  "validation": {
+    "invalidInput": "[TODO-EN] Date introduse invalide",
+    "missingField": "[TODO-EN] Lipsește câmpul „{{field}}”",
+    "duplicateValue": "[TODO-EN] Valoare deja existentă",
+    "outOfRange": "[TODO-EN] Valoare în afara intervalului permis"
+  },
+  "resource": {
+    "notFound": "[TODO-EN] Resursa nu există sau a fost ștearsă",
+    "conflict": "[TODO-EN] Conflict — resursa a fost modificată între timp",
+    "locked": "[TODO-EN] Resursa este blocată pentru editare",
+    "gone": "[TODO-EN] Resursa nu mai este disponibilă"
+  },
+  "tenant": {
+    "notFound": "[TODO-EN] Spațiul de lucru nu există",
+    "suspended": "[TODO-EN] Spațiul de lucru este suspendat. Contactează administratorul.",
+    "quotaExceeded": "[TODO-EN] Limita planului a fost depășită",
+    "trialExpired": "[TODO-EN] Perioada de probă a expirat"
+  },
+  "billing": {
+    "paymentFailed": "[TODO-EN] Plata a eșuat. Verifică metoda de plată.",
+    "cardDeclined": "[TODO-EN] Cardul a fost refuzat",
+    "subscriptionRequired": "[TODO-EN] Abonament necesar pentru această funcție",
+    "invoiceNotPaid": "[TODO-EN] Factura nu a fost plătită"
+  },
+  "upload": {
+    "fileTooLarge": "[TODO-EN] Fișier prea mare (max {{maxSize}})",
+    "fileTypeNotAllowed": "[TODO-EN] Tip de fișier nepermis",
+    "uploadFailed": "[TODO-EN] Încărcarea a eșuat. Reîncearcă.",
+    "virusDetected": "[TODO-EN] Fișier respins — conține malware suspect"
+  },
+  "rateLimit": {
+    "tooManyRequests": "[TODO-EN] Prea multe cereri. Reîncearcă peste {{seconds}} secunde.",
+    "tooManyAttempts": "[TODO-EN] Prea multe încercări. Așteaptă înainte de a reîncerca."
+  },
+  "anaf": {
+    "unavailable": "[TODO-EN] Serviciul ANAF nu este disponibil în acest moment",
+    "cuiNotFound": "[TODO-EN] CUI-ul introdus nu există în registrul ANAF",
+    "invalidVatId": "[TODO-EN] Cod TVA invalid"
+  },
+  "boundary": {
+    "title": "[TODO-EN] Ceva nu a funcționat",
+    "message": "[TODO-EN] A apărut o eroare neașteptată. Pagina poate fi reîncărcată.",
+    "reload": "[TODO-EN] Reîncarcă pagina",
+    "goHome": "[TODO-EN] Mergi la pagina principală"
+  }
+}

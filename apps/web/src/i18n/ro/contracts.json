@@ -1,0 +1,40 @@
+{
+  "title": "Contracte",
+  "list": {
+    "title": "Contracte",
+    "empty": "Niciun contract",
+    "newContract": "Contract nou",
+    "columns": {
+      "name": "Denumire",
+      "client": "Client",
+      "value": "Valoare",
+      "startDate": "Început",
+      "endDate": "Sfârșit",
+      "status": "Status"
+    }
+  },
+  "status": {
+    "DRAFT": "Schiță",
+    "ACTIVE": "Activ",
+    "EXPIRED": "Expirat",
+    "TERMINATED": "Reziliat",
+    "RENEWED": "Reînnoit"
+  },
+  "form": {
+    "name": "Denumire contract",
+    "client": "Client",
+    "startDate": "Data început",
+    "endDate": "Data sfârșit",
+    "autoRenew": "Reînnoire automată",
+    "noticeDays": "Preaviz (zile)",
+    "value": "Valoare contract",
+    "currency": "Monedă",
+    "documentUpload": "Încarcă document semnat",
+    "submit": "Salvează contract"
+  },
+  "actions": {
+    "renew": "Reînnoiește",
+    "terminate": "Reziliază",
+    "downloadDocument": "Descarcă document"
+  }
+}

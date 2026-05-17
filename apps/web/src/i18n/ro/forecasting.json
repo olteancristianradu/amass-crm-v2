@@ -1,0 +1,28 @@
+{
+  "title": "Prognoză vânzări",
+  "period": {
+    "title": "Perioadă",
+    "thisMonth": "Luna aceasta",
+    "thisQuarter": "Trimestrul acesta",
+    "thisYear": "Anul acesta",
+    "custom": "Personalizat"
+  },
+  "metrics": {
+    "committed": "Confirmat",
+    "bestCase": "Scenariu optimist",
+    "pipeline": "Pâlnie totală",
+    "closed": "Închis",
+    "quota": "Țintă",
+    "attainment": "Realizare {{percent}}%"
+  },
+  "groupBy": {
+    "owner": "După responsabil",
+    "team": "După echipă",
+    "product": "După produs",
+    "region": "După regiune"
+  },
+  "actions": {
+    "exportCsv": "Exportă CSV",
+    "snapshot": "Salvează instantaneu"
+  }
+}

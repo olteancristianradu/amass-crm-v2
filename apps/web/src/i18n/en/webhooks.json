@@ -1,0 +1,38 @@
+{
+  "title": "[TODO-EN] Webhook-uri",
+  "list": {
+    "title": "[TODO-EN] Webhook-uri configurate",
+    "empty": "[TODO-EN] Niciun webhook",
+    "newWebhook": "[TODO-EN] Webhook nou",
+    "columns": {
+      "url": "[TODO-EN] URL",
+      "events": "[TODO-EN] Evenimente",
+      "active": "[TODO-EN] Activ",
+      "lastDelivery": "[TODO-EN] Ultima livrare"
+    }
+  },
+  "form": {
+    "url": "[TODO-EN] URL endpoint",
+    "events": "[TODO-EN] Evenimente la care reacționează",
+    "secret": "[TODO-EN] Secret pentru semnătură",
+    "regenerateSecret": "[TODO-EN] Regenerează secret",
+    "active": "[TODO-EN] Activ",
+    "submit": "[TODO-EN] Salvează webhook"
+  },
+  "delivery": {
+    "title": "[TODO-EN] Istoric livrări",
+    "empty": "[TODO-EN] Nicio livrare încă",
+    "columns": {
+      "event": "[TODO-EN] Eveniment",
+      "status": "[TODO-EN] Status",
+      "attemptedAt": "[TODO-EN] Încercat la",
+      "responseCode": "[TODO-EN] Cod răspuns"
+    },
+    "retry": "[TODO-EN] Reîncearcă"
+  },
+  "test": {
+    "submit": "[TODO-EN] Trimite test",
+    "success": "[TODO-EN] Test livrat cu succes",
+    "failed": "[TODO-EN] Test eșuat: {{error}}"
+  }
+}

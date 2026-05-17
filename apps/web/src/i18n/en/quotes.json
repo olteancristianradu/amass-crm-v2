@@ -1,0 +1,39 @@
+{
+  "title": "[TODO-EN] Oferte",
+  "list": {
+    "title": "[TODO-EN] Oferte",
+    "empty": "[TODO-EN] Nicio ofertă",
+    "newQuote": "[TODO-EN] Ofertă nouă",
+    "columns": {
+      "number": "[TODO-EN] Număr",
+      "client": "[TODO-EN] Client",
+      "total": "[TODO-EN] Total",
+      "status": "[TODO-EN] Status",
+      "validUntil": "[TODO-EN] Valabilă până la",
+      "createdAt": "[TODO-EN] Creată"
+    }
+  },
+  "status": {
+    "DRAFT": "[TODO-EN] Schiță",
+    "SENT": "[TODO-EN] Trimisă",
+    "ACCEPTED": "[TODO-EN] Acceptată",
+    "REJECTED": "[TODO-EN] Respinsă",
+    "EXPIRED": "[TODO-EN] Expirată",
+    "CONVERTED": "[TODO-EN] Convertită în factură"
+  },
+  "form": {
+    "client": "[TODO-EN] Client",
+    "validUntil": "[TODO-EN] Valabilă până la",
+    "currency": "[TODO-EN] Monedă",
+    "lines": "[TODO-EN] Linii",
+    "notes": "[TODO-EN] Note",
+    "submit": "[TODO-EN] Salvează oferta"
+  },
+  "actions": {
+    "send": "[TODO-EN] Trimite oferta",
+    "accept": "[TODO-EN] Marchează acceptată",
+    "reject": "[TODO-EN] Marchează respinsă",
+    "convertToInvoice": "[TODO-EN] Convertește în factură",
+    "downloadPdf": "[TODO-EN] Descarcă PDF"
+  }
+}

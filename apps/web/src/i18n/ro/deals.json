@@ -1,0 +1,65 @@
+{
+  "title": "Deal-uri",
+  "list": {
+    "title": "Deal-uri",
+    "empty": "Niciun deal",
+    "emptyOnCompany": "Niciun deal pentru această firmă",
+    "newDeal": "Deal nou",
+    "count_zero": "Niciun deal",
+    "count_one": "{{count}} deal",
+    "count_few": "{{count}} deal-uri",
+    "count_other": "{{count}} de deal-uri",
+    "columns": {
+      "title": "Titlu",
+      "stage": "Etapă",
+      "value": "Valoare",
+      "currency": "Monedă",
+      "status": "Status",
+      "owner": "Responsabil",
+      "company": "Firmă",
+      "expectedCloseDate": "Închidere așteptată",
+      "probability": "Probabilitate"
+    }
+  },
+  "kanban": {
+    "title": "Pâlnie deal-uri",
+    "pipelineLabel": "Pâlnie",
+    "addCard": "Adaugă deal",
+    "dropHere": "Mută aici",
+    "totalValue": "Total: {{value}} {{currency}}",
+    "weightedValue": "Ponderat: {{value}} {{currency}}"
+  },
+  "detail": {
+    "title": "Detaliu deal",
+    "moveStage": "Mută în altă etapă",
+    "markWon": "Marchează câștigat",
+    "markLost": "Marchează pierdut",
+    "reopen": "Redeschide",
+    "lossReason": "Motiv pierdere",
+    "lossReasonPlaceholder": "De ce s-a pierdut deal-ul?",
+    "tasksTab": "Sarcini",
+    "activityTab": "Activitate",
+    "notesTab": "Note"
+  },
+  "form": {
+    "title": "Titlu deal",
+    "titlePlaceholder": "Ex: Implementare CRM pentru ACME",
+    "company": "Firmă",
+    "contact": "Contact principal",
+    "pipeline": "Pâlnie",
+    "stage": "Etapă",
+    "value": "Valoare",
+    "currency": "Monedă",
+    "probability": "Probabilitate (%)",
+    "expectedCloseDate": "Data estimată de închidere",
+    "owner": "Responsabil",
+    "description": "Descriere",
+    "tags": "Etichete",
+    "submit": "Salvează deal"
+  },
+  "status": {
+    "open": "Deschis",
+    "won": "Câștigat",
+    "lost": "Pierdut"
+  }
+}

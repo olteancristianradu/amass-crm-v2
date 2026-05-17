@@ -1,0 +1,28 @@
+{
+  "title": "[TODO-EN] Integrare ANAF",
+  "connect": "[TODO-EN] Conectează la ANAF",
+  "connected": "[TODO-EN] Conectat cu certificat ANAF",
+  "disconnect": "[TODO-EN] Deconectează",
+  "lookup": {
+    "title": "[TODO-EN] Caută firmă după CUI",
+    "placeholder": "[TODO-EN] Ex: RO12345678",
+    "submit": "[TODO-EN] Caută",
+    "submitting": "[TODO-EN] Se interoghează ANAF…",
+    "notFound": "[TODO-EN] CUI-ul nu există în registrul ANAF",
+    "filled": "[TODO-EN] Date completate automat din ANAF"
+  },
+  "vat": {
+    "payer": "[TODO-EN] Plătitor TVA",
+    "notPayer": "[TODO-EN] Nu este plătitor TVA",
+    "tvaIncasare": "[TODO-EN] TVA la încasare",
+    "registered": "[TODO-EN] Înregistrat în scopuri de TVA",
+    "deregistered": "[TODO-EN] Radiat din scopuri de TVA"
+  },
+  "eInvoice": {
+    "title": "[TODO-EN] e-Factura (RO e-Factura)",
+    "send": "[TODO-EN] Trimite la e-Factura",
+    "checkStatus": "[TODO-EN] Verifică status",
+    "downloadXml": "[TODO-EN] Descarcă XML",
+    "registered": "[TODO-EN] Înregistrată în SPV"
+  }
+}

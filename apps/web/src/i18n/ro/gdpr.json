@@ -1,0 +1,47 @@
+{
+  "title": "GDPR și protecția datelor",
+  "subjectRequests": {
+    "title": "Cereri persoane vizate",
+    "newRequest": "Cerere nouă",
+    "type": {
+      "ACCESS": "Acces date",
+      "RECTIFICATION": "Rectificare",
+      "ERASURE": "Ștergere (dreptul de a fi uitat)",
+      "PORTABILITY": "Portabilitate date",
+      "RESTRICTION": "Restricție prelucrare",
+      "OBJECTION": "Opoziție prelucrare"
+    },
+    "status": {
+      "OPEN": "În curs",
+      "IN_PROGRESS": "În procesare",
+      "COMPLETED": "Finalizată",
+      "REJECTED": "Respinsă"
+    },
+    "deadline": "Termen legal: 30 zile"
+  },
+  "export": {
+    "title": "Exportă datele",
+    "selectFormat": "Format export",
+    "json": "JSON",
+    "csv": "CSV",
+    "submit": "Generează export"
+  },
+  "erase": {
+    "title": "Șterge datele persoanei",
+    "warning": "Această acțiune este definitivă și nu poate fi anulată.",
+    "anonymize": "Anonimizează în loc de ștergere",
+    "submit": "Confirmă ștergerea"
+  },
+  "consent": {
+    "title": "Consimțăminte",
+    "marketing": "Marketing prin email",
+    "newsletter": "Newsletter",
+    "thirdParty": "Partajare cu terți",
+    "given": "Acordat la {{date}}",
+    "withdrawn": "Retras la {{date}}"
+  },
+  "audit": {
+    "title": "Jurnal de acces (audit log)",
+    "empty": "Niciun acces înregistrat"
+  }
+}

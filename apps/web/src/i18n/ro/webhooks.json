@@ -1,0 +1,38 @@
+{
+  "title": "Webhook-uri",
+  "list": {
+    "title": "Webhook-uri configurate",
+    "empty": "Niciun webhook",
+    "newWebhook": "Webhook nou",
+    "columns": {
+      "url": "URL",
+      "events": "Evenimente",
+      "active": "Activ",
+      "lastDelivery": "Ultima livrare"
+    }
+  },
+  "form": {
+    "url": "URL endpoint",
+    "events": "Evenimente la care reacționează",
+    "secret": "Secret pentru semnătură",
+    "regenerateSecret": "Regenerează secret",
+    "active": "Activ",
+    "submit": "Salvează webhook"
+  },
+  "delivery": {
+    "title": "Istoric livrări",
+    "empty": "Nicio livrare încă",
+    "columns": {
+      "event": "Eveniment",
+      "status": "Status",
+      "attemptedAt": "Încercat la",
+      "responseCode": "Cod răspuns"
+    },
+    "retry": "Reîncearcă"
+  },
+  "test": {
+    "submit": "Trimite test",
+    "success": "Test livrat cu succes",
+    "failed": "Test eșuat: {{error}}"
+  }
+}

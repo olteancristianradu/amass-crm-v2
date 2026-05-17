@@ -1,0 +1,73 @@
+{
+  "generic": {
+    "unknown": "A apărut o eroare neașteptată. Reîncearcă mai târziu.",
+    "network": "Nu se poate conecta la server. Verifică conexiunea la internet.",
+    "timeout": "Operațiunea a expirat. Reîncearcă.",
+    "serverError": "Eroare server. Echipa a fost notificată.",
+    "tryAgain": "Încearcă din nou.",
+    "contactSupport": "Dacă problema persistă, contactează suportul."
+  },
+  "auth": {
+    "invalidCredentials": "Email sau parolă incorectă",
+    "accountLocked": "Cont blocat temporar. Reîncearcă peste {{minutes}} minute.",
+    "sessionExpired": "Sesiunea a expirat. Conectează-te din nou.",
+    "tokenInvalid": "Token de autentificare invalid",
+    "totpRequired": "Cod 2FA necesar",
+    "totpInvalid": "Cod incorect. Încearcă din nou.",
+    "totpExpired": "Codul a expirat. Generează unul nou.",
+    "emailNotVerified": "Adresa de email nu a fost verificată",
+    "passwordTooWeak": "Parola este prea slabă",
+    "passwordReused": "Parolă deja folosită recent. Alege alta.",
+    "unknownGeneric": "Eroare necunoscută. Încearcă din nou."
+  },
+  "permissions": {
+    "forbidden": "Nu ai permisiunea pentru această acțiune",
+    "tenantMismatch": "Resursa aparține altui spațiu de lucru",
+    "roleMissing": "Rolul tău nu permite această operațiune"
+  },
+  "validation": {
+    "invalidInput": "Date introduse invalide",
+    "missingField": "Lipsește câmpul „{{field}}”",
+    "duplicateValue": "Valoare deja existentă",
+    "outOfRange": "Valoare în afara intervalului permis"
+  },
+  "resource": {
+    "notFound": "Resursa nu există sau a fost ștearsă",
+    "conflict": "Conflict — resursa a fost modificată între timp",
+    "locked": "Resursa este blocată pentru editare",
+    "gone": "Resursa nu mai este disponibilă"
+  },
+  "tenant": {
+    "notFound": "Spațiul de lucru nu există",
+    "suspended": "Spațiul de lucru este suspendat. Contactează administratorul.",
+    "quotaExceeded": "Limita planului a fost depășită",
+    "trialExpired": "Perioada de probă a expirat"
+  },
+  "billing": {
+    "paymentFailed": "Plata a eșuat. Verifică metoda de plată.",
+    "cardDeclined": "Cardul a fost refuzat",
+    "subscriptionRequired": "Abonament necesar pentru această funcție",
+    "invoiceNotPaid": "Factura nu a fost plătită"
+  },
+  "upload": {
+    "fileTooLarge": "Fișier prea mare (max {{maxSize}})",
+    "fileTypeNotAllowed": "Tip de fișier nepermis",
+    "uploadFailed": "Încărcarea a eșuat. Reîncearcă.",
+    "virusDetected": "Fișier respins — conține malware suspect"
+  },
+  "rateLimit": {
+    "tooManyRequests": "Prea multe cereri. Reîncearcă peste {{seconds}} secunde.",
+    "tooManyAttempts": "Prea multe încercări. Așteaptă înainte de a reîncerca."
+  },
+  "anaf": {
+    "unavailable": "Serviciul ANAF nu este disponibil în acest moment",
+    "cuiNotFound": "CUI-ul introdus nu există în registrul ANAF",
+    "invalidVatId": "Cod TVA invalid"
+  },
+  "boundary": {
+    "title": "Ceva nu a funcționat",
+    "message": "A apărut o eroare neașteptată. Pagina poate fi reîncărcată.",
+    "reload": "Reîncarcă pagina",
+    "goHome": "Mergi la pagina principală"
+  }
+}

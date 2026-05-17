@@ -1,0 +1,17 @@
+{
+  "banner": {
+    "offline": "Ești offline. Modificările vor fi sincronizate când reapare conexiunea.",
+    "reconnected": "Conexiunea a fost restabilită. Se sincronizează…",
+    "syncFailed": "Sincronizare eșuată. Vezi detalii.",
+    "dismiss": "Ascunde"
+  },
+  "queue": {
+    "title": "Acțiuni în coadă",
+    "empty": "Nicio acțiune în așteptare",
+    "pending_one": "{{count}} acțiune pendentă",
+    "pending_few": "{{count}} acțiuni pendente",
+    "pending_other": "{{count}} de acțiuni pendente",
+    "retryAll": "Reîncearcă toate",
+    "discardAll": "Renunță la toate"
+  }
+}

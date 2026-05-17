@@ -1,0 +1,65 @@
+{
+  "title": "[TODO-EN] Deal-uri",
+  "list": {
+    "title": "[TODO-EN] Deal-uri",
+    "empty": "[TODO-EN] Niciun deal",
+    "emptyOnCompany": "[TODO-EN] Niciun deal pentru această firmă",
+    "newDeal": "[TODO-EN] Deal nou",
+    "count_zero": "[TODO-EN] Niciun deal",
+    "count_one": "[TODO-EN] {{count}} deal",
+    "count_few": "[TODO-EN] {{count}} deal-uri",
+    "count_other": "[TODO-EN] {{count}} de deal-uri",
+    "columns": {
+      "title": "[TODO-EN] Titlu",
+      "stage": "[TODO-EN] Etapă",
+      "value": "[TODO-EN] Valoare",
+      "currency": "[TODO-EN] Monedă",
+      "status": "[TODO-EN] Status",
+      "owner": "[TODO-EN] Responsabil",
+      "company": "[TODO-EN] Firmă",
+      "expectedCloseDate": "[TODO-EN] Închidere așteptată",
+      "probability": "[TODO-EN] Probabilitate"
+    }
+  },
+  "kanban": {
+    "title": "[TODO-EN] Pâlnie deal-uri",
+    "pipelineLabel": "[TODO-EN] Pâlnie",
+    "addCard": "[TODO-EN] Adaugă deal",
+    "dropHere": "[TODO-EN] Mută aici",
+    "totalValue": "[TODO-EN] Total: {{value}} {{currency}}",
+    "weightedValue": "[TODO-EN] Ponderat: {{value}} {{currency}}"
+  },
+  "detail": {
+    "title": "[TODO-EN] Detaliu deal",
+    "moveStage": "[TODO-EN] Mută în altă etapă",
+    "markWon": "[TODO-EN] Marchează câștigat",
+    "markLost": "[TODO-EN] Marchează pierdut",
+    "reopen": "[TODO-EN] Redeschide",
+    "lossReason": "[TODO-EN] Motiv pierdere",
+    "lossReasonPlaceholder": "[TODO-EN] De ce s-a pierdut deal-ul?",
+    "tasksTab": "[TODO-EN] Sarcini",
+    "activityTab": "[TODO-EN] Activitate",
+    "notesTab": "[TODO-EN] Note"
+  },
+  "form": {
+    "title": "[TODO-EN] Titlu deal",
+    "titlePlaceholder": "[TODO-EN] Ex: Implementare CRM pentru ACME",
+    "company": "[TODO-EN] Firmă",
+    "contact": "[TODO-EN] Contact principal",
+    "pipeline": "[TODO-EN] Pâlnie",
+    "stage": "[TODO-EN] Etapă",
+    "value": "[TODO-EN] Valoare",
+    "currency": "[TODO-EN] Monedă",
+    "probability": "[TODO-EN] Probabilitate (%)",
+    "expectedCloseDate": "[TODO-EN] Data estimată de închidere",
+    "owner": "[TODO-EN] Responsabil",
+    "description": "[TODO-EN] Descriere",
+    "tags": "[TODO-EN] Etichete",
+    "submit": "[TODO-EN] Salvează deal"
+  },
+  "status": {
+    "open": "[TODO-EN] Deschis",
+    "won": "[TODO-EN] Câștigat",
+    "lost": "[TODO-EN] Pierdut"
+  }
+}

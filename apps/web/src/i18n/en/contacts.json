@@ -1,0 +1,48 @@
+{
+  "title": "[TODO-EN] Contacte",
+  "list": {
+    "title": "[TODO-EN] Contacte",
+    "empty": "[TODO-EN] Niciun contact înregistrat",
+    "newContact": "[TODO-EN] Contact nou",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "email": "[TODO-EN] Email",
+      "phone": "[TODO-EN] Telefon",
+      "company": "[TODO-EN] Firmă",
+      "role": "[TODO-EN] Funcție",
+      "owner": "[TODO-EN] Responsabil"
+    }
+  },
+  "detail": {
+    "title": "[TODO-EN] Detalii contact",
+    "primaryContact": "[TODO-EN] Contact principal",
+    "secondaryContact": "[TODO-EN] Contact secundar",
+    "dealsTab": "[TODO-EN] Deal-uri",
+    "callsTab": "[TODO-EN] Apeluri",
+    "emailsTab": "[TODO-EN] Emailuri",
+    "notesTab": "[TODO-EN] Note"
+  },
+  "form": {
+    "firstName": "[TODO-EN] Prenume",
+    "lastName": "[TODO-EN] Nume",
+    "email": "[TODO-EN] Email",
+    "phone": "[TODO-EN] Telefon",
+    "mobile": "[TODO-EN] Mobil",
+    "role": "[TODO-EN] Funcție",
+    "company": "[TODO-EN] Firmă",
+    "birthday": "[TODO-EN] Zi de naștere",
+    "linkedin": "[TODO-EN] LinkedIn",
+    "address": "[TODO-EN] Adresă",
+    "notes": "[TODO-EN] Note",
+    "submit": "[TODO-EN] Salvează contact"
+  },
+  "merge": {
+    "title": "[TODO-EN] Combină contacte duplicate",
+    "selectMaster": "[TODO-EN] Alege contactul principal",
+    "submit": "[TODO-EN] Combină"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Șterge contact",
+    "confirmMessage": "[TODO-EN] Ștergerea contactului „{{name}}” îl va elimina din toate firmele și deal-urile asociate. Continui?"
+  }
+}

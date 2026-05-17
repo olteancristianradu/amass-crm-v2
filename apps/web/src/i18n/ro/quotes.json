@@ -1,0 +1,39 @@
+{
+  "title": "Oferte",
+  "list": {
+    "title": "Oferte",
+    "empty": "Nicio ofertă",
+    "newQuote": "Ofertă nouă",
+    "columns": {
+      "number": "Număr",
+      "client": "Client",
+      "total": "Total",
+      "status": "Status",
+      "validUntil": "Valabilă până la",
+      "createdAt": "Creată"
+    }
+  },
+  "status": {
+    "DRAFT": "Schiță",
+    "SENT": "Trimisă",
+    "ACCEPTED": "Acceptată",
+    "REJECTED": "Respinsă",
+    "EXPIRED": "Expirată",
+    "CONVERTED": "Convertită în factură"
+  },
+  "form": {
+    "client": "Client",
+    "validUntil": "Valabilă până la",
+    "currency": "Monedă",
+    "lines": "Linii",
+    "notes": "Note",
+    "submit": "Salvează oferta"
+  },
+  "actions": {
+    "send": "Trimite oferta",
+    "accept": "Marchează acceptată",
+    "reject": "Marchează respinsă",
+    "convertToInvoice": "Convertește în factură",
+    "downloadPdf": "Descarcă PDF"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "title": "Pâlnii",
+  "list": {
+    "title": "Pâlnii de vânzări",
+    "empty": "Nicio pâlnie configurată",
+    "newPipeline": "Pâlnie nouă"
+  },
+  "form": {
+    "name": "Nume pâlnie",
+    "isDefault": "Pâlnie implicită",
+    "stages": "Etape",
+    "addStage": "Adaugă etapă",
+    "removeStage": "Elimină etapă",
+    "stageName": "Nume etapă",
+    "stageProbability": "Probabilitate (%)",
+    "stageOrder": "Ordine",
+    "submit": "Salvează pâlnia"
+  },
+  "stage": {
+    "won": "Câștigată",
+    "lost": "Pierdută",
+    "reorder": "Reordonează"
+  },
+  "delete": {
+    "confirmTitle": "Șterge pâlnia",
+    "confirmMessage": "Ștergerea pâlniei „{{name}}” nu se poate face dacă există deal-uri active. Mută-le mai întâi."
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "title": "[TODO-EN] Notificări",
+  "bell": {
+    "aria": "[TODO-EN] Notificări ({{count}} necitite)",
+    "empty": "[TODO-EN] Nicio notificare nouă"
+  },
+  "actions": {
+    "markAllRead": "[TODO-EN] Marchează toate citite",
+    "viewAll": "[TODO-EN] Vezi toate",
+    "settings": "[TODO-EN] Setări notificări"
+  },
+  "type": {
+    "MENTION": "[TODO-EN] Ai fost menționat",
+    "ASSIGNMENT": "[TODO-EN] Ți-a fost atribuit",
+    "REMINDER": "[TODO-EN] Memento",
+    "DEAL_WON": "[TODO-EN] Deal câștigat",
+    "DEAL_LOST": "[TODO-EN] Deal pierdut",
+    "INVOICE_PAID": "[TODO-EN] Factură plătită",
+    "INVOICE_OVERDUE": "[TODO-EN] Factură restantă",
+    "TASK_DUE": "[TODO-EN] Sarcină scadentă",
+    "MESSAGE_NEW": "[TODO-EN] Mesaj nou"
+  },
+  "channels": {
+    "inApp": "[TODO-EN] În aplicație",
+    "email": "[TODO-EN] Email",
+    "push": "[TODO-EN] Push browser",
+    "sms": "[TODO-EN] SMS",
+    "whatsapp": "[TODO-EN] WhatsApp"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "title": "Constructor rapoarte",
+  "list": {
+    "title": "Rapoarte salvate",
+    "empty": "Niciun raport salvat",
+    "newReport": "Raport nou"
+  },
+  "form": {
+    "name": "Nume raport",
+    "dataSource": "Sursă de date",
+    "columns": "Coloane",
+    "filters": "Filtre",
+    "groupBy": "Grupează după",
+    "sortBy": "Sortează după",
+    "limit": "Limită rezultate",
+    "submit": "Salvează raport"
+  },
+  "visualization": {
+    "table": "Tabel",
+    "bar": "Bare",
+    "line": "Linie",
+    "pie": "Plăcintă",
+    "kpi": "KPI"
+  },
+  "actions": {
+    "run": "Rulează",
+    "schedule": "Programează",
+    "share": "Distribuie",
+    "exportCsv": "Exportă CSV",
+    "exportPdf": "Exportă PDF"
+  },
+  "schedule": {
+    "frequency": "Frecvență",
+    "daily": "Zilnic",
+    "weekly": "Săptămânal",
+    "monthly": "Lunar",
+    "recipients": "Destinatari email"
+  }
+}

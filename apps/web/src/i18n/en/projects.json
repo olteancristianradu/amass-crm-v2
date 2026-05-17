@@ -1,0 +1,39 @@
+{
+  "title": "[TODO-EN] Proiecte",
+  "list": {
+    "title": "[TODO-EN] Proiecte",
+    "empty": "[TODO-EN] Niciun proiect",
+    "newProject": "[TODO-EN] Proiect nou",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "client": "[TODO-EN] Client",
+      "manager": "[TODO-EN] Manager",
+      "status": "[TODO-EN] Status",
+      "progress": "[TODO-EN] Progres",
+      "deadline": "[TODO-EN] Termen limită"
+    }
+  },
+  "status": {
+    "PLANNING": "[TODO-EN] Planificare",
+    "IN_PROGRESS": "[TODO-EN] În derulare",
+    "ON_HOLD": "[TODO-EN] Suspendat",
+    "COMPLETED": "[TODO-EN] Finalizat",
+    "CANCELLED": "[TODO-EN] Anulat"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume proiect",
+    "client": "[TODO-EN] Client",
+    "manager": "[TODO-EN] Manager",
+    "team": "[TODO-EN] Echipă",
+    "startDate": "[TODO-EN] Început",
+    "deadline": "[TODO-EN] Termen limită",
+    "budget": "[TODO-EN] Buget",
+    "description": "[TODO-EN] Descriere",
+    "submit": "[TODO-EN] Salvează proiect"
+  },
+  "tasks": {
+    "title": "[TODO-EN] Sarcini proiect",
+    "addTask": "[TODO-EN] Adaugă sarcină",
+    "empty": "[TODO-EN] Niciun task"
+  }
+}

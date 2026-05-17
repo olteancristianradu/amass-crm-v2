@@ -1,0 +1,38 @@
+{
+  "title": "[TODO-EN] Clienți",
+  "list": {
+    "title": "[TODO-EN] Clienți",
+    "empty": "[TODO-EN] Niciun client",
+    "newClient": "[TODO-EN] Client nou",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "type": "[TODO-EN] Tip",
+      "lifetimeValue": "[TODO-EN] Valoare totală",
+      "lastActivity": "[TODO-EN] Ultima activitate",
+      "owner": "[TODO-EN] Responsabil"
+    }
+  },
+  "type": {
+    "B2B": "[TODO-EN] Firmă",
+    "B2C": "[TODO-EN] Persoană fizică"
+  },
+  "detail": {
+    "title": "[TODO-EN] Detalii client",
+    "convertFromLead": "[TODO-EN] Convertește din lead",
+    "lifetimeValue": "[TODO-EN] Valoare totală (LTV)",
+    "openDeals": "[TODO-EN] Deal-uri deschise",
+    "wonDeals": "[TODO-EN] Deal-uri câștigate",
+    "totalInvoiced": "[TODO-EN] Total facturat",
+    "totalPaid": "[TODO-EN] Total încasat",
+    "outstanding": "[TODO-EN] Restanță"
+  },
+  "form": {
+    "type": "[TODO-EN] Tip client",
+    "name": "[TODO-EN] Nume",
+    "cnp": "[TODO-EN] CNP",
+    "cui": "[TODO-EN] CUI",
+    "email": "[TODO-EN] Email",
+    "phone": "[TODO-EN] Telefon",
+    "submit": "[TODO-EN] Salvează client"
+  }
+}

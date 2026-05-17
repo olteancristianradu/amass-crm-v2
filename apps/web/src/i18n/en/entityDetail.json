@@ -1,0 +1,38 @@
+{
+  "tabs": {
+    "overview": "[TODO-EN] Prezentare",
+    "activity": "[TODO-EN] Activitate",
+    "notes": "[TODO-EN] Note",
+    "files": "[TODO-EN] Fișiere",
+    "tasks": "[TODO-EN] Sarcini",
+    "deals": "[TODO-EN] Deal-uri",
+    "invoices": "[TODO-EN] Facturi",
+    "calls": "[TODO-EN] Apeluri",
+    "emails": "[TODO-EN] Emailuri",
+    "contacts": "[TODO-EN] Contacte"
+  },
+  "header": {
+    "back": "[TODO-EN] Înapoi la listă",
+    "edit": "[TODO-EN] Editează",
+    "delete": "[TODO-EN] Șterge",
+    "more": "[TODO-EN] Mai multe acțiuni",
+    "owner": "[TODO-EN] Responsabil: {{name}}",
+    "createdAt": "[TODO-EN] Creat {{when}}",
+    "updatedAt": "[TODO-EN] Actualizat {{when}}"
+  },
+  "inlineEdit": {
+    "save": "[TODO-EN] Salvează",
+    "cancel": "[TODO-EN] Anulează",
+    "savingError": "[TODO-EN] Eroare la salvare"
+  },
+  "activity": {
+    "empty": "[TODO-EN] Nicio activitate înregistrată",
+    "filter": {
+      "all": "[TODO-EN] Toate",
+      "notes": "[TODO-EN] Note",
+      "calls": "[TODO-EN] Apeluri",
+      "emails": "[TODO-EN] Emailuri",
+      "changes": "[TODO-EN] Modificări"
+    }
+  }
+}

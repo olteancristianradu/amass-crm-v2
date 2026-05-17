@@ -1,0 +1,31 @@
+{
+  "title": "Fișiere",
+  "list": {
+    "empty": "Niciun fișier încărcat",
+    "addFile": "Încarcă fișier",
+    "columns": {
+      "name": "Nume",
+      "size": "Dimensiune",
+      "uploadedBy": "Încărcat de",
+      "uploadedAt": "Încărcat la"
+    }
+  },
+  "upload": {
+    "dropHere": "Trage fișierele aici",
+    "orClick": "sau dă click pentru a selecta",
+    "uploading": "Se încarcă… ({{percent}}%)",
+    "success": "Fișier încărcat",
+    "tooLarge": "Fișier prea mare (max {{max}} MB)",
+    "invalidType": "Tip de fișier nepermis"
+  },
+  "actions": {
+    "download": "Descarcă",
+    "preview": "Previzualizează",
+    "delete": "Șterge fișier",
+    "rename": "Redenumește"
+  },
+  "delete": {
+    "confirmTitle": "Șterge fișier",
+    "confirmMessage": "Sigur vrei să ștergi „{{name}}”?"
+  }
+}

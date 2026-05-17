@@ -1,0 +1,100 @@
+{
+  "title": "Facturi",
+  "list": {
+    "title": "Facturi",
+    "empty": "Nicio factură emisă",
+    "emptyOnCompany": "Nicio factură pentru această firmă",
+    "newInvoice": "Factură nouă",
+    "columns": {
+      "number": "Număr",
+      "series": "Serie",
+      "company": "Firmă",
+      "issueDate": "Data emiterii",
+      "dueDate": "Scadență",
+      "total": "Total",
+      "status": "Status",
+      "currency": "Monedă"
+    }
+  },
+  "summary": {
+    "issued": "Emisă {{date}}",
+    "dueOn": "scadentă {{date}}",
+    "overdueBy_one": "Întârziere {{count}} zi",
+    "overdueBy_few": "Întârziere {{count}} zile",
+    "overdueBy_other": "Întârziere {{count}} de zile",
+    "remaining": "Rest de plată: {{amount}} {{currency}}"
+  },
+  "form": {
+    "title": "Factură nouă",
+    "series": "Serie",
+    "number": "Număr",
+    "issueDate": "Data emiterii",
+    "dueDate": "Scadență",
+    "currency": "Monedă",
+    "company": "Firmă",
+    "notes": "Note",
+    "lines": "Linii",
+    "addLine": "+ Linie",
+    "removeLine": "Elimină linia",
+    "lineDescription": "Descriere",
+    "lineQuantity": "Cant.",
+    "lineUnitPrice": "Preț unit.",
+    "lineVatRate": "TVA %",
+    "subtotal": "Subtotal",
+    "vat": "TVA",
+    "total": "Total",
+    "submit": "Salvează schiță",
+    "submitting": "Se salvează…",
+    "lineDescriptionRequired": "Fiecare linie are nevoie de descriere.",
+    "saveError": "Eroare la salvare",
+    "toggleNew": "Factură nouă",
+    "toggleCancel": "Anulează"
+  },
+  "actions": {
+    "issue": "Emite",
+    "issuing": "Se emite…",
+    "recordPayment": "Înregistrează plată",
+    "pdf": "PDF",
+    "downloadPdf": "Descarcă PDF",
+    "sendByEmail": "Trimite pe email",
+    "duplicate": "Duplică",
+    "cancel": "Anulează factura",
+    "markPaid": "Marchează plătită",
+    "sendToAnaf": "Trimite la e-Factura (ANAF)"
+  },
+  "payment": {
+    "title": "Înregistrează plată",
+    "amount": "Sumă ({{currency}})",
+    "paidAt": "Data plății",
+    "method": "Metodă",
+    "reference": "Referință",
+    "referencePlaceholder": "Nr. OP / chitanță",
+    "submit": "Salvează",
+    "submitting": "…",
+    "methods": {
+      "bank": "Transfer bancar",
+      "cash": "Numerar",
+      "card": "Card",
+      "other": "Altă"
+    }
+  },
+  "status": {
+    "draft": "Schiță",
+    "issued": "Emisă",
+    "partiallyPaid": "Parțial",
+    "paid": "Plătită",
+    "overdue": "Restantă",
+    "cancelled": "Anulată"
+  },
+  "anaf": {
+    "submitting": "Se trimite la ANAF…",
+    "submitted": "Trimisă la e-Factura",
+    "validated": "Validată ANAF",
+    "rejected": "Respinsă ANAF",
+    "pending": "În așteptare ANAF"
+  },
+  "delete": {
+    "confirmTitle": "Anulează factura",
+    "confirmMessage": "Anularea unei facturi emise va genera o factură de storno. Continui?"
+  }
+}

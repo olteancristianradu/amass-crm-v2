@@ -1,0 +1,26 @@
+{
+  "title": "Evenimente sistem",
+  "list": {
+    "title": "Jurnal evenimente",
+    "empty": "Niciun eveniment înregistrat",
+    "columns": {
+      "type": "Tip",
+      "actor": "Actor",
+      "subject": "Subiect",
+      "occurredAt": "Când"
+    }
+  },
+  "filter": {
+    "type": "Tip eveniment",
+    "actor": "Actor",
+    "dateRange": "Interval"
+  },
+  "type": {
+    "CREATE": "Creare",
+    "UPDATE": "Modificare",
+    "DELETE": "Ștergere",
+    "LOGIN": "Conectare",
+    "EXPORT": "Export",
+    "PERMISSION_CHANGE": "Schimbare permisiuni"
+  }
+}

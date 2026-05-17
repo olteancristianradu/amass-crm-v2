@@ -1,0 +1,58 @@
+{
+  "title": "[TODO-EN] Apeluri",
+  "list": {
+    "title": "[TODO-EN] Apeluri",
+    "empty": "[TODO-EN] Niciun apel înregistrat",
+    "filter": {
+      "all": "[TODO-EN] Toate",
+      "inbound": "[TODO-EN] Primite",
+      "outbound": "[TODO-EN] Efectuate",
+      "missed": "[TODO-EN] Pierdute"
+    },
+    "columns": {
+      "from": "[TODO-EN] De la",
+      "to": "[TODO-EN] Către",
+      "duration": "[TODO-EN] Durată",
+      "direction": "[TODO-EN] Direcție",
+      "startedAt": "[TODO-EN] Început la",
+      "agent": "[TODO-EN] Agent"
+    }
+  },
+  "direction": {
+    "INBOUND": "[TODO-EN] Primit",
+    "OUTBOUND": "[TODO-EN] Efectuat",
+    "MISSED": "[TODO-EN] Pierdut"
+  },
+  "status": {
+    "RINGING": "[TODO-EN] Sună",
+    "IN_PROGRESS": "[TODO-EN] În desfășurare",
+    "COMPLETED": "[TODO-EN] Încheiat",
+    "FAILED": "[TODO-EN] Eșuat",
+    "VOICEMAIL": "[TODO-EN] Mesagerie vocală"
+  },
+  "detail": {
+    "title": "[TODO-EN] Detalii apel",
+    "recording": "[TODO-EN] Înregistrare",
+    "transcript": "[TODO-EN] Transcript",
+    "summary": "[TODO-EN] Rezumat AI",
+    "redactedPii": "[TODO-EN] PII redactat automat",
+    "speakers": "[TODO-EN] Vorbitori detectați: {{count}}",
+    "noTranscript": "[TODO-EN] Transcriptul nu este disponibil încă",
+    "transcribing": "[TODO-EN] Se transcrie…",
+    "downloadRecording": "[TODO-EN] Descarcă înregistrarea",
+    "playPause": "[TODO-EN] Redă / pauză",
+    "actionItems": "[TODO-EN] Acțiuni de urmărit",
+    "sentiment": "[TODO-EN] Sentiment"
+  },
+  "sentiment": {
+    "positive": "[TODO-EN] Pozitiv",
+    "neutral": "[TODO-EN] Neutru",
+    "negative": "[TODO-EN] Negativ"
+  },
+  "actions": {
+    "newCall": "[TODO-EN] Apel nou",
+    "callBack": "[TODO-EN] Sună înapoi",
+    "addNote": "[TODO-EN] Adaugă notă",
+    "createDeal": "[TODO-EN] Creează deal din apel"
+  }
+}

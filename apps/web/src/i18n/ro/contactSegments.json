@@ -1,0 +1,36 @@
+{
+  "title": "Segmente",
+  "list": {
+    "title": "Segmente de contacte",
+    "empty": "Niciun segment definit",
+    "newSegment": "Segment nou",
+    "memberCount_one": "{{count}} membru",
+    "memberCount_few": "{{count}} membri",
+    "memberCount_other": "{{count}} de membri"
+  },
+  "form": {
+    "name": "Nume segment",
+    "description": "Descriere",
+    "criteria": "Criterii",
+    "addCriterion": "Adaugă criteriu",
+    "submit": "Salvează segment"
+  },
+  "operator": {
+    "equals": "este egal cu",
+    "notEquals": "nu este egal cu",
+    "contains": "conține",
+    "notContains": "nu conține",
+    "startsWith": "începe cu",
+    "endsWith": "se termină cu",
+    "isEmpty": "este gol",
+    "isNotEmpty": "nu este gol",
+    "greaterThan": "mai mare decât",
+    "lessThan": "mai mic decât",
+    "between": "între"
+  },
+  "preview": {
+    "title": "Previzualizare membri",
+    "loading": "Se calculează…",
+    "showSample": "Vezi primele 10 contacte"
+  }
+}

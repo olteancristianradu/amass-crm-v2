@@ -1,0 +1,42 @@
+{
+  "title": "Comenzi",
+  "list": {
+    "title": "Comenzi",
+    "empty": "Nicio comandă",
+    "newOrder": "Comandă nouă",
+    "columns": {
+      "number": "Număr",
+      "client": "Client",
+      "total": "Total",
+      "status": "Status",
+      "deliveryDate": "Livrare",
+      "createdAt": "Creată"
+    }
+  },
+  "status": {
+    "DRAFT": "Schiță",
+    "CONFIRMED": "Confirmată",
+    "PROCESSING": "În procesare",
+    "SHIPPED": "Expediată",
+    "DELIVERED": "Livrată",
+    "CANCELLED": "Anulată",
+    "RETURNED": "Returnată"
+  },
+  "form": {
+    "client": "Client",
+    "items": "Produse",
+    "addItem": "Adaugă produs",
+    "shippingAddress": "Adresă livrare",
+    "billingAddress": "Adresă facturare",
+    "deliveryDate": "Data livrare",
+    "notes": "Note",
+    "submit": "Salvează comanda"
+  },
+  "actions": {
+    "confirm": "Confirmă comanda",
+    "ship": "Marchează expediată",
+    "deliver": "Marchează livrată",
+    "cancel": "Anulează comanda",
+    "convertToInvoice": "Generează factură"
+  }
+}

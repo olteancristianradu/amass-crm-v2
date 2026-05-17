@@ -1,0 +1,38 @@
+{
+  "title": "[TODO-EN] Passkey-uri",
+  "subtitle": "[TODO-EN] Conectare fără parolă cu biometrie sau cheie de securitate",
+  "list": {
+    "empty": "[TODO-EN] Niciun passkey înregistrat",
+    "addPasskey": "[TODO-EN] Adaugă passkey",
+    "columns": {
+      "label": "[TODO-EN] Etichetă",
+      "device": "[TODO-EN] Dispozitiv",
+      "addedAt": "[TODO-EN] Adăugat la",
+      "lastUsed": "[TODO-EN] Ultima utilizare"
+    }
+  },
+  "register": {
+    "title": "[TODO-EN] Înregistrează passkey",
+    "labelHint": "[TODO-EN] Dă un nume descriptiv (ex: „MacBook personal”)",
+    "submit": "[TODO-EN] Continuă",
+    "browserPrompt": "[TODO-EN] Urmează instrucțiunile browserului pentru a salva passkey-ul",
+    "success": "[TODO-EN] Passkey înregistrat cu succes",
+    "failed": "[TODO-EN] Înregistrarea passkey-ului a eșuat"
+  },
+  "login": {
+    "useKey": "[TODO-EN] Conectare cu passkey",
+    "verifying": "[TODO-EN] Se verifică…",
+    "failed": "[TODO-EN] Autentificare cu passkey eșuată"
+  },
+  "backupCodes": {
+    "title": "[TODO-EN] Coduri de rezervă",
+    "subtitle": "[TODO-EN] Folosește un cod de rezervă dacă pierzi accesul la passkey",
+    "generate": "[TODO-EN] Generează coduri noi",
+    "download": "[TODO-EN] Descarcă coduri",
+    "remaining": "[TODO-EN] Coduri rămase: {{count}}"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Șterge passkey",
+    "confirmMessage": "[TODO-EN] Sigur vrei să elimini passkey-ul „{{label}}”?"
+  }
+}

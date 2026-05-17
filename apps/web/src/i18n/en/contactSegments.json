@@ -1,0 +1,36 @@
+{
+  "title": "[TODO-EN] Segmente",
+  "list": {
+    "title": "[TODO-EN] Segmente de contacte",
+    "empty": "[TODO-EN] Niciun segment definit",
+    "newSegment": "[TODO-EN] Segment nou",
+    "memberCount_one": "[TODO-EN] {{count}} membru",
+    "memberCount_few": "[TODO-EN] {{count}} membri",
+    "memberCount_other": "[TODO-EN] {{count}} de membri"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume segment",
+    "description": "[TODO-EN] Descriere",
+    "criteria": "[TODO-EN] Criterii",
+    "addCriterion": "[TODO-EN] Adaugă criteriu",
+    "submit": "[TODO-EN] Salvează segment"
+  },
+  "operator": {
+    "equals": "[TODO-EN] este egal cu",
+    "notEquals": "[TODO-EN] nu este egal cu",
+    "contains": "[TODO-EN] conține",
+    "notContains": "[TODO-EN] nu conține",
+    "startsWith": "[TODO-EN] începe cu",
+    "endsWith": "[TODO-EN] se termină cu",
+    "isEmpty": "[TODO-EN] este gol",
+    "isNotEmpty": "[TODO-EN] nu este gol",
+    "greaterThan": "[TODO-EN] mai mare decât",
+    "lessThan": "[TODO-EN] mai mic decât",
+    "between": "[TODO-EN] între"
+  },
+  "preview": {
+    "title": "[TODO-EN] Previzualizare membri",
+    "loading": "[TODO-EN] Se calculează…",
+    "showSample": "[TODO-EN] Vezi primele 10 contacte"
+  }
+}

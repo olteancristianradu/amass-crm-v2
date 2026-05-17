@@ -1,0 +1,27 @@
+{
+  "title": "SMS",
+  "list": {
+    "title": "Conversații SMS",
+    "empty": "Niciun SMS",
+    "newConversation": "Conversație nouă"
+  },
+  "compose": {
+    "to": "Către",
+    "message": "Mesaj",
+    "submit": "Trimite SMS",
+    "submitting": "Se trimite…",
+    "remaining": "{{count}} caractere rămase",
+    "segments": "{{count}} segmente"
+  },
+  "status": {
+    "QUEUED": "În coadă",
+    "SENT": "Trimis",
+    "DELIVERED": "Livrat",
+    "FAILED": "Eșuat",
+    "UNDELIVERED": "Nelivrat"
+  },
+  "settings": {
+    "senderId": "ID expeditor",
+    "provider": "Furnizor SMS"
+  }
+}

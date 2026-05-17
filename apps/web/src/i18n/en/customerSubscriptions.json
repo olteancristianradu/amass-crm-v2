@@ -1,0 +1,43 @@
+{
+  "title": "[TODO-EN] Abonamente clienți",
+  "list": {
+    "title": "[TODO-EN] Abonamente recurente",
+    "empty": "[TODO-EN] Niciun abonament activ",
+    "newSubscription": "[TODO-EN] Abonament nou",
+    "columns": {
+      "client": "[TODO-EN] Client",
+      "plan": "[TODO-EN] Plan",
+      "value": "[TODO-EN] Valoare",
+      "interval": "[TODO-EN] Frecvență",
+      "nextRenewal": "[TODO-EN] Următoarea reînnoire",
+      "status": "[TODO-EN] Status"
+    }
+  },
+  "interval": {
+    "MONTHLY": "[TODO-EN] Lunar",
+    "QUARTERLY": "[TODO-EN] Trimestrial",
+    "YEARLY": "[TODO-EN] Anual",
+    "CUSTOM": "[TODO-EN] Personalizat"
+  },
+  "status": {
+    "ACTIVE": "[TODO-EN] Activ",
+    "PAUSED": "[TODO-EN] Suspendat",
+    "CANCELLED": "[TODO-EN] Anulat",
+    "EXPIRED": "[TODO-EN] Expirat"
+  },
+  "form": {
+    "client": "[TODO-EN] Client",
+    "plan": "[TODO-EN] Plan / produs",
+    "value": "[TODO-EN] Valoare per ciclu",
+    "interval": "[TODO-EN] Frecvență facturare",
+    "startDate": "[TODO-EN] Data început",
+    "autoInvoice": "[TODO-EN] Generează factură automat",
+    "submit": "[TODO-EN] Salvează abonament"
+  },
+  "actions": {
+    "pause": "[TODO-EN] Suspendă",
+    "resume": "[TODO-EN] Reia",
+    "cancel": "[TODO-EN] Anulează abonament",
+    "generateInvoice": "[TODO-EN] Generează factură acum"
+  }
+}

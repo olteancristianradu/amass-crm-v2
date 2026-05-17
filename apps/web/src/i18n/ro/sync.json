@@ -1,0 +1,28 @@
+{
+  "title": "Sincronizare în timp real",
+  "status": {
+    "connecting": "Se conectează…",
+    "connected": "Conectat",
+    "disconnected": "Deconectat",
+    "reconnecting": "Se reconectează…"
+  },
+  "presence": {
+    "viewing": "{{name}} privește această pagină",
+    "viewing_few": "{{count}} persoane privesc această pagină",
+    "viewing_other": "{{count}} de persoane privesc această pagină",
+    "editing": "{{name}} editează acum"
+  },
+  "conflict": {
+    "title": "Conflict de editare",
+    "message": "{{name}} a modificat această resursă între timp. Vezi modificările?",
+    "viewChanges": "Vezi modificările",
+    "overwrite": "Suprascrie",
+    "discard": "Renunță"
+  },
+  "offline": {
+    "queued_one": "{{count}} acțiune în așteptare",
+    "queued_few": "{{count}} acțiuni în așteptare",
+    "queued_other": "{{count}} de acțiuni în așteptare",
+    "syncWhenOnline": "Se vor sincroniza când reapare conexiunea"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "title": "[TODO-EN] Constructor rapoarte",
+  "list": {
+    "title": "[TODO-EN] Rapoarte salvate",
+    "empty": "[TODO-EN] Niciun raport salvat",
+    "newReport": "[TODO-EN] Raport nou"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume raport",
+    "dataSource": "[TODO-EN] Sursă de date",
+    "columns": "[TODO-EN] Coloane",
+    "filters": "[TODO-EN] Filtre",
+    "groupBy": "[TODO-EN] Grupează după",
+    "sortBy": "[TODO-EN] Sortează după",
+    "limit": "[TODO-EN] Limită rezultate",
+    "submit": "[TODO-EN] Salvează raport"
+  },
+  "visualization": {
+    "table": "[TODO-EN] Tabel",
+    "bar": "[TODO-EN] Bare",
+    "line": "[TODO-EN] Linie",
+    "pie": "[TODO-EN] Plăcintă",
+    "kpi": "[TODO-EN] KPI"
+  },
+  "actions": {
+    "run": "[TODO-EN] Rulează",
+    "schedule": "[TODO-EN] Programează",
+    "share": "[TODO-EN] Distribuie",
+    "exportCsv": "[TODO-EN] Exportă CSV",
+    "exportPdf": "[TODO-EN] Exportă PDF"
+  },
+  "schedule": {
+    "frequency": "[TODO-EN] Frecvență",
+    "daily": "[TODO-EN] Zilnic",
+    "weekly": "[TODO-EN] Săptămânal",
+    "monthly": "[TODO-EN] Lunar",
+    "recipients": "[TODO-EN] Destinatari email"
+  }
+}

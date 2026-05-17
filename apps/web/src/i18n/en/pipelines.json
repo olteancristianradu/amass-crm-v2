@@ -1,0 +1,28 @@
+{
+  "title": "[TODO-EN] Pâlnii",
+  "list": {
+    "title": "[TODO-EN] Pâlnii de vânzări",
+    "empty": "[TODO-EN] Nicio pâlnie configurată",
+    "newPipeline": "[TODO-EN] Pâlnie nouă"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume pâlnie",
+    "isDefault": "[TODO-EN] Pâlnie implicită",
+    "stages": "[TODO-EN] Etape",
+    "addStage": "[TODO-EN] Adaugă etapă",
+    "removeStage": "[TODO-EN] Elimină etapă",
+    "stageName": "[TODO-EN] Nume etapă",
+    "stageProbability": "[TODO-EN] Probabilitate (%)",
+    "stageOrder": "[TODO-EN] Ordine",
+    "submit": "[TODO-EN] Salvează pâlnia"
+  },
+  "stage": {
+    "won": "[TODO-EN] Câștigată",
+    "lost": "[TODO-EN] Pierdută",
+    "reorder": "[TODO-EN] Reordonează"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Șterge pâlnia",
+    "confirmMessage": "[TODO-EN] Ștergerea pâlniei „{{name}}” nu se poate face dacă există deal-uri active. Mută-le mai întâi."
+  }
+}

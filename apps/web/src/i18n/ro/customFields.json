@@ -1,0 +1,47 @@
+{
+  "title": "Câmpuri personalizate",
+  "list": {
+    "title": "Câmpuri personalizate",
+    "empty": "Niciun câmp definit",
+    "newField": "Câmp nou",
+    "columns": {
+      "label": "Etichetă",
+      "key": "Cheie",
+      "type": "Tip",
+      "entity": "Entitate",
+      "required": "Obligatoriu"
+    }
+  },
+  "type": {
+    "TEXT": "Text",
+    "NUMBER": "Număr",
+    "DATE": "Dată",
+    "BOOLEAN": "Da/Nu",
+    "SELECT": "Listă alegere",
+    "MULTI_SELECT": "Selecție multiplă",
+    "URL": "URL",
+    "EMAIL": "Email",
+    "PHONE": "Telefon",
+    "JSON": "Date structurate (JSON)"
+  },
+  "form": {
+    "label": "Etichetă afișată",
+    "key": "Cheie tehnică",
+    "keyHint": "Doar litere mici, cifre și underscore",
+    "type": "Tip câmp",
+    "entity": "Aplică-l la",
+    "required": "Obligatoriu",
+    "options": "Opțiuni",
+    "addOption": "Adaugă opțiune",
+    "defaultValue": "Valoare implicită",
+    "helpText": "Text ajutător",
+    "submit": "Salvează câmpul"
+  },
+  "entity": {
+    "COMPANY": "Firmă",
+    "CONTACT": "Contact",
+    "DEAL": "Deal",
+    "INVOICE": "Factură",
+    "PROJECT": "Proiect"
+  }
+}

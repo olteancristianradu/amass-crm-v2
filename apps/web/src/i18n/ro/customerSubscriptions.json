@@ -1,0 +1,43 @@
+{
+  "title": "Abonamente clienți",
+  "list": {
+    "title": "Abonamente recurente",
+    "empty": "Niciun abonament activ",
+    "newSubscription": "Abonament nou",
+    "columns": {
+      "client": "Client",
+      "plan": "Plan",
+      "value": "Valoare",
+      "interval": "Frecvență",
+      "nextRenewal": "Următoarea reînnoire",
+      "status": "Status"
+    }
+  },
+  "interval": {
+    "MONTHLY": "Lunar",
+    "QUARTERLY": "Trimestrial",
+    "YEARLY": "Anual",
+    "CUSTOM": "Personalizat"
+  },
+  "status": {
+    "ACTIVE": "Activ",
+    "PAUSED": "Suspendat",
+    "CANCELLED": "Anulat",
+    "EXPIRED": "Expirat"
+  },
+  "form": {
+    "client": "Client",
+    "plan": "Plan / produs",
+    "value": "Valoare per ciclu",
+    "interval": "Frecvență facturare",
+    "startDate": "Data început",
+    "autoInvoice": "Generează factură automat",
+    "submit": "Salvează abonament"
+  },
+  "actions": {
+    "pause": "Suspendă",
+    "resume": "Reia",
+    "cancel": "Anulează abonament",
+    "generateInvoice": "Generează factură acum"
+  }
+}

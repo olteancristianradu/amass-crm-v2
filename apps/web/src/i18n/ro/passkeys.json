@@ -1,0 +1,38 @@
+{
+  "title": "Passkey-uri",
+  "subtitle": "Conectare fără parolă cu biometrie sau cheie de securitate",
+  "list": {
+    "empty": "Niciun passkey înregistrat",
+    "addPasskey": "Adaugă passkey",
+    "columns": {
+      "label": "Etichetă",
+      "device": "Dispozitiv",
+      "addedAt": "Adăugat la",
+      "lastUsed": "Ultima utilizare"
+    }
+  },
+  "register": {
+    "title": "Înregistrează passkey",
+    "labelHint": "Dă un nume descriptiv (ex: „MacBook personal”)",
+    "submit": "Continuă",
+    "browserPrompt": "Urmează instrucțiunile browserului pentru a salva passkey-ul",
+    "success": "Passkey înregistrat cu succes",
+    "failed": "Înregistrarea passkey-ului a eșuat"
+  },
+  "login": {
+    "useKey": "Conectare cu passkey",
+    "verifying": "Se verifică…",
+    "failed": "Autentificare cu passkey eșuată"
+  },
+  "backupCodes": {
+    "title": "Coduri de rezervă",
+    "subtitle": "Folosește un cod de rezervă dacă pierzi accesul la passkey",
+    "generate": "Generează coduri noi",
+    "download": "Descarcă coduri",
+    "remaining": "Coduri rămase: {{count}}"
+  },
+  "delete": {
+    "confirmTitle": "Șterge passkey",
+    "confirmMessage": "Sigur vrei să elimini passkey-ul „{{label}}”?"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "title": "Vizualizări salvate",
+  "dropdown": {
+    "label": "Vizualizări",
+    "default": "Vizualizare implicită",
+    "saveCurrent": "Salvează vizualizarea curentă",
+    "manage": "Gestionează vizualizările"
+  },
+  "form": {
+    "name": "Nume vizualizare",
+    "shared": "Partajează cu echipa",
+    "default": "Setează ca implicită",
+    "submit": "Salvează"
+  },
+  "actions": {
+    "rename": "Redenumește",
+    "duplicate": "Duplică",
+    "delete": "Șterge",
+    "setDefault": "Implicită"
+  },
+  "delete": {
+    "confirmTitle": "Șterge vizualizarea",
+    "confirmMessage": "Sigur vrei să ștergi vizualizarea „{{name}}”?"
+  }
+}

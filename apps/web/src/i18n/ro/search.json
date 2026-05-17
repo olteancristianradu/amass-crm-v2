@@ -1,0 +1,22 @@
+{
+  "title": "Căutare",
+  "placeholder": "Caută firme, contacte, deal-uri, facturi…",
+  "shortcut": "Ctrl+K",
+  "noResults": "Niciun rezultat pentru „{{query}}”",
+  "tip": "Sugestie: încearcă termeni mai scurți sau parțiali",
+  "category": {
+    "companies": "Firme",
+    "contacts": "Contacte",
+    "deals": "Deal-uri",
+    "invoices": "Facturi",
+    "calls": "Apeluri",
+    "notes": "Note",
+    "files": "Fișiere",
+    "actions": "Acțiuni"
+  },
+  "palette": {
+    "title": "Comandă",
+    "placeholder": "Tastează o comandă…",
+    "noMatches": "Nicio comandă potrivită"
+  }
+}

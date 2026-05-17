@@ -1,0 +1,31 @@
+{
+  "title": "Duplicate",
+  "list": {
+    "title": "Posibile duplicate",
+    "empty": "Niciun duplicat detectat",
+    "scanning": "Se scanează…",
+    "lastScan": "Ultima scanare: {{when}}"
+  },
+  "match": {
+    "confidence": "Încredere",
+    "high": "Foarte probabil",
+    "medium": "Probabil",
+    "low": "Posibil",
+    "byEmail": "potrivire email",
+    "byPhone": "potrivire telefon",
+    "byCui": "potrivire CUI",
+    "byName": "potrivire nume"
+  },
+  "actions": {
+    "merge": "Combină",
+    "ignore": "Ignoră",
+    "review": "Verifică",
+    "rescan": "Rescanează acum"
+  },
+  "merge": {
+    "title": "Combină înregistrările",
+    "chooseMaster": "Alege înregistrarea principală",
+    "fieldConflict": "Câmpuri în conflict",
+    "submit": "Confirmă combinarea"
+  }
+}

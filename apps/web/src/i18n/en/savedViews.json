@@ -1,0 +1,25 @@
+{
+  "title": "[TODO-EN] Vizualizări salvate",
+  "dropdown": {
+    "label": "[TODO-EN] Vizualizări",
+    "default": "[TODO-EN] Vizualizare implicită",
+    "saveCurrent": "[TODO-EN] Salvează vizualizarea curentă",
+    "manage": "[TODO-EN] Gestionează vizualizările"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume vizualizare",
+    "shared": "[TODO-EN] Partajează cu echipa",
+    "default": "[TODO-EN] Setează ca implicită",
+    "submit": "[TODO-EN] Salvează"
+  },
+  "actions": {
+    "rename": "[TODO-EN] Redenumește",
+    "duplicate": "[TODO-EN] Duplică",
+    "delete": "[TODO-EN] Șterge",
+    "setDefault": "[TODO-EN] Implicită"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Șterge vizualizarea",
+    "confirmMessage": "[TODO-EN] Sigur vrei să ștergi vizualizarea „{{name}}”?"
+  }
+}

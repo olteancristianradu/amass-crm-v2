@@ -1,0 +1,34 @@
+{
+  "title": "Comisioane",
+  "list": {
+    "title": "Comisioane",
+    "empty": "Niciun comision calculat",
+    "columns": {
+      "agent": "Agent",
+      "period": "Perioadă",
+      "salesValue": "Vânzări",
+      "commissionRate": "Procent",
+      "commissionAmount": "Comision",
+      "status": "Status"
+    }
+  },
+  "status": {
+    "PENDING": "În calcul",
+    "APPROVED": "Aprobat",
+    "PAID": "Plătit",
+    "DISPUTED": "În dispută"
+  },
+  "rules": {
+    "title": "Reguli comisionare",
+    "newRule": "Regulă nouă",
+    "tier": "Prag",
+    "rate": "Procent",
+    "appliesTo": "Se aplică la"
+  },
+  "actions": {
+    "recalculate": "Recalculează",
+    "approve": "Aprobă",
+    "markPaid": "Marchează plătit",
+    "dispute": "Contestă"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Note",
+  "list": {
+    "empty": "Nicio notă",
+    "addNote": "Adaugă notă"
+  },
+  "form": {
+    "placeholder": "Scrie o notă…",
+    "submit": "Salvează nota",
+    "pin": "Fixează în partea de sus"
+  },
+  "pinned": "Fixate",
+  "createdBy": "Adăugată de {{user}}, {{when}}",
+  "edited": "(editat)",
+  "actions": {
+    "edit": "Editează nota",
+    "delete": "Șterge nota",
+    "pin": "Fixează",
+    "unpin": "Anulează fixarea"
+  }
+}

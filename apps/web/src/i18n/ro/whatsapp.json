@@ -1,0 +1,33 @@
+{
+  "title": "WhatsApp Business",
+  "connect": {
+    "title": "Conectează WhatsApp Business",
+    "subtitle": "Trimite mesaje către clienți prin WhatsApp Business API",
+    "submit": "Conectează",
+    "connected": "Conectat: {{number}}",
+    "disconnect": "Deconectează"
+  },
+  "conversations": {
+    "title": "Conversații",
+    "empty": "Nicio conversație",
+    "newConversation": "Conversație nouă"
+  },
+  "compose": {
+    "to": "Către",
+    "template": "Șablon",
+    "useTemplate": "Folosește un șablon aprobat (necesar pentru contacte noi)",
+    "message": "Mesaj",
+    "addMedia": "Atașează media",
+    "submit": "Trimite",
+    "windowExpired": "Fereastra de 24h a expirat — folosește un șablon"
+  },
+  "templates": {
+    "title": "Șabloane aprobate",
+    "newTemplate": "Șablon nou",
+    "status": {
+      "PENDING": "În așteptare aprobare",
+      "APPROVED": "Aprobat",
+      "REJECTED": "Respins"
+    }
+  }
+}

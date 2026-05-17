@@ -1,0 +1,49 @@
+{
+  "title": "[TODO-EN] Sarcini",
+  "list": {
+    "title": "[TODO-EN] Sarcinile mele",
+    "empty": "[TODO-EN] Nicio sarcină",
+    "newTask": "[TODO-EN] Sarcină nouă",
+    "filter": {
+      "all": "[TODO-EN] Toate",
+      "today": "[TODO-EN] Astăzi",
+      "thisWeek": "[TODO-EN] Săptămâna aceasta",
+      "overdue": "[TODO-EN] Restante",
+      "done": "[TODO-EN] Finalizate"
+    },
+    "columns": {
+      "title": "[TODO-EN] Titlu",
+      "dueDate": "[TODO-EN] Termen",
+      "priority": "[TODO-EN] Prioritate",
+      "assignee": "[TODO-EN] Atribuit",
+      "status": "[TODO-EN] Status",
+      "linkedTo": "[TODO-EN] Asociat cu"
+    }
+  },
+  "priority": {
+    "LOW": "[TODO-EN] Scăzută",
+    "MEDIUM": "[TODO-EN] Medie",
+    "HIGH": "[TODO-EN] Ridicată",
+    "URGENT": "[TODO-EN] Urgentă"
+  },
+  "status": {
+    "TODO": "[TODO-EN] De făcut",
+    "IN_PROGRESS": "[TODO-EN] În lucru",
+    "DONE": "[TODO-EN] Finalizată",
+    "CANCELLED": "[TODO-EN] Anulată"
+  },
+  "form": {
+    "title": "[TODO-EN] Titlu sarcină",
+    "description": "[TODO-EN] Descriere",
+    "dueDate": "[TODO-EN] Termen",
+    "priority": "[TODO-EN] Prioritate",
+    "assignee": "[TODO-EN] Atribuit lui",
+    "linkedTo": "[TODO-EN] Asociază cu",
+    "submit": "[TODO-EN] Salvează sarcina"
+  },
+  "actions": {
+    "complete": "[TODO-EN] Marchează finalizată",
+    "reopen": "[TODO-EN] Redeschide",
+    "snooze": "[TODO-EN] Amână"
+  }
+}

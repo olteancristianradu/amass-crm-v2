@@ -1,0 +1,36 @@
+{
+  "title": "[TODO-EN] Secvențe email",
+  "list": {
+    "title": "[TODO-EN] Secvențe automate",
+    "empty": "[TODO-EN] Nicio secvență configurată",
+    "newSequence": "[TODO-EN] Secvență nouă"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume secvență",
+    "trigger": "[TODO-EN] Declanșator",
+    "audience": "[TODO-EN] Audiență",
+    "stepCount_one": "[TODO-EN] {{count}} pas",
+    "stepCount_few": "[TODO-EN] {{count}} pași",
+    "stepCount_other": "[TODO-EN] {{count}} de pași",
+    "addStep": "[TODO-EN] Adaugă pas",
+    "stepDelay": "[TODO-EN] Întârziere",
+    "stepTemplate": "[TODO-EN] Șablon email",
+    "submit": "[TODO-EN] Salvează secvența"
+  },
+  "trigger": {
+    "TAG_ADDED": "[TODO-EN] Etichetă adăugată",
+    "DEAL_STAGE": "[TODO-EN] Etapă deal schimbată",
+    "FORM_SUBMIT": "[TODO-EN] Formular trimis",
+    "MANUAL": "[TODO-EN] Pornire manuală"
+  },
+  "status": {
+    "ACTIVE": "[TODO-EN] Activă",
+    "PAUSED": "[TODO-EN] Pe pauză",
+    "COMPLETED": "[TODO-EN] Încheiată"
+  },
+  "actions": {
+    "pause": "[TODO-EN] Suspendă",
+    "resume": "[TODO-EN] Reia",
+    "duplicate": "[TODO-EN] Duplică"
+  }
+}

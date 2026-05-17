@@ -1,0 +1,36 @@
+{
+  "title": "Secvențe email",
+  "list": {
+    "title": "Secvențe automate",
+    "empty": "Nicio secvență configurată",
+    "newSequence": "Secvență nouă"
+  },
+  "form": {
+    "name": "Nume secvență",
+    "trigger": "Declanșator",
+    "audience": "Audiență",
+    "stepCount_one": "{{count}} pas",
+    "stepCount_few": "{{count}} pași",
+    "stepCount_other": "{{count}} de pași",
+    "addStep": "Adaugă pas",
+    "stepDelay": "Întârziere",
+    "stepTemplate": "Șablon email",
+    "submit": "Salvează secvența"
+  },
+  "trigger": {
+    "TAG_ADDED": "Etichetă adăugată",
+    "DEAL_STAGE": "Etapă deal schimbată",
+    "FORM_SUBMIT": "Formular trimis",
+    "MANUAL": "Pornire manuală"
+  },
+  "status": {
+    "ACTIVE": "Activă",
+    "PAUSED": "Pe pauză",
+    "COMPLETED": "Încheiată"
+  },
+  "actions": {
+    "pause": "Suspendă",
+    "resume": "Reia",
+    "duplicate": "Duplică"
+  }
+}

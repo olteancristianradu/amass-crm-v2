@@ -1,0 +1,42 @@
+{
+  "title": "Abonament și plată",
+  "currentPlan": "Plan curent: {{plan}}",
+  "upgrade": "Treci la plan superior",
+  "downgrade": "Treci la plan inferior",
+  "cancel": "Anulează abonamentul",
+  "renewsOn": "Se reînnoiește pe {{date}}",
+  "trial": {
+    "active": "Perioadă de probă: rămân {{days}} zile",
+    "expired": "Perioada de probă a expirat",
+    "upgrade": "Activează un plan plătit"
+  },
+  "plans": {
+    "starter": "Starter",
+    "pro": "Pro",
+    "business": "Business",
+    "enterprise": "Enterprise"
+  },
+  "method": {
+    "title": "Metodă de plată",
+    "add": "Adaugă metodă de plată",
+    "card": "Card terminat în {{last4}}",
+    "remove": "Elimină"
+  },
+  "invoices": {
+    "title": "Facturi abonament",
+    "empty": "Nicio factură emisă",
+    "download": "Descarcă factură"
+  },
+  "usage": {
+    "title": "Utilizare",
+    "seats": "Utilizatori: {{used}} / {{limit}}",
+    "storage": "Stocare: {{used}} / {{limit}}",
+    "callMinutes": "Minute apeluri: {{used}} / {{limit}}",
+    "transcripts": "Transcrieri AI: {{used}} / {{limit}}"
+  },
+  "checkout": {
+    "redirecting": "Se redirecționează către Stripe…",
+    "success": "Plată confirmată. Mulțumim!",
+    "failed": "Plata a eșuat. Reîncearcă."
+  }
+}

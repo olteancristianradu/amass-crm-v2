@@ -1,0 +1,42 @@
+{
+  "title": "[TODO-EN] Comenzi",
+  "list": {
+    "title": "[TODO-EN] Comenzi",
+    "empty": "[TODO-EN] Nicio comandă",
+    "newOrder": "[TODO-EN] Comandă nouă",
+    "columns": {
+      "number": "[TODO-EN] Număr",
+      "client": "[TODO-EN] Client",
+      "total": "[TODO-EN] Total",
+      "status": "[TODO-EN] Status",
+      "deliveryDate": "[TODO-EN] Livrare",
+      "createdAt": "[TODO-EN] Creată"
+    }
+  },
+  "status": {
+    "DRAFT": "[TODO-EN] Schiță",
+    "CONFIRMED": "[TODO-EN] Confirmată",
+    "PROCESSING": "[TODO-EN] În procesare",
+    "SHIPPED": "[TODO-EN] Expediată",
+    "DELIVERED": "[TODO-EN] Livrată",
+    "CANCELLED": "[TODO-EN] Anulată",
+    "RETURNED": "[TODO-EN] Returnată"
+  },
+  "form": {
+    "client": "[TODO-EN] Client",
+    "items": "[TODO-EN] Produse",
+    "addItem": "[TODO-EN] Adaugă produs",
+    "shippingAddress": "[TODO-EN] Adresă livrare",
+    "billingAddress": "[TODO-EN] Adresă facturare",
+    "deliveryDate": "[TODO-EN] Data livrare",
+    "notes": "[TODO-EN] Note",
+    "submit": "[TODO-EN] Salvează comanda"
+  },
+  "actions": {
+    "confirm": "[TODO-EN] Confirmă comanda",
+    "ship": "[TODO-EN] Marchează expediată",
+    "deliver": "[TODO-EN] Marchează livrată",
+    "cancel": "[TODO-EN] Anulează comanda",
+    "convertToInvoice": "[TODO-EN] Generează factură"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Calendar",
+  "view": {
+    "day": "Zi",
+    "week": "Săptămână",
+    "month": "Lună",
+    "agenda": "Agendă"
+  },
+  "newEvent": "Eveniment nou",
+  "today": "Astăzi",
+  "noEvents": "Niciun eveniment în această perioadă",
+  "form": {
+    "title": "Titlu eveniment",
+    "startsAt": "Începe la",
+    "endsAt": "Se termină la",
+    "allDay": "Toată ziua",
+    "location": "Locație",
+    "attendees": "Participanți",
+    "description": "Descriere",
+    "reminder": "Memento",
+    "submit": "Salvează evenimentul"
+  },
+  "reminder": {
+    "none": "Fără memento",
+    "min5": "5 minute înainte",
+    "min15": "15 minute înainte",
+    "min30": "30 minute înainte",
+    "hour1": "1 oră înainte",
+    "day1": "1 zi înainte"
+  }
+}

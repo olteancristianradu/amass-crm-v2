@@ -1,0 +1,26 @@
+{
+  "title": "Memento-uri",
+  "list": {
+    "empty": "Niciun memento",
+    "upcoming": "Următoarele",
+    "overdue": "Restante",
+    "newReminder": "Memento nou"
+  },
+  "form": {
+    "message": "Mesaj",
+    "remindAt": "Reamintește la",
+    "linkedTo": "Asociază cu",
+    "submit": "Salvează"
+  },
+  "actions": {
+    "dismiss": "Respinge",
+    "snooze": "Amână",
+    "complete": "Marchează rezolvat"
+  },
+  "snooze": {
+    "min15": "15 minute",
+    "hour1": "1 oră",
+    "tomorrow": "Mâine",
+    "nextWeek": "Săptămâna viitoare"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "title": "[TODO-EN] Fișiere",
+  "list": {
+    "empty": "[TODO-EN] Niciun fișier încărcat",
+    "addFile": "[TODO-EN] Încarcă fișier",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "size": "[TODO-EN] Dimensiune",
+      "uploadedBy": "[TODO-EN] Încărcat de",
+      "uploadedAt": "[TODO-EN] Încărcat la"
+    }
+  },
+  "upload": {
+    "dropHere": "[TODO-EN] Trage fișierele aici",
+    "orClick": "[TODO-EN] sau dă click pentru a selecta",
+    "uploading": "[TODO-EN] Se încarcă… ({{percent}}%)",
+    "success": "[TODO-EN] Fișier încărcat",
+    "tooLarge": "[TODO-EN] Fișier prea mare (max {{max}} MB)",
+    "invalidType": "[TODO-EN] Tip de fișier nepermis"
+  },
+  "actions": {
+    "download": "[TODO-EN] Descarcă",
+    "preview": "[TODO-EN] Previzualizează",
+    "delete": "[TODO-EN] Șterge fișier",
+    "rename": "[TODO-EN] Redenumește"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Șterge fișier",
+    "confirmMessage": "[TODO-EN] Sigur vrei să ștergi „{{name}}”?"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "title": "Contacte",
+  "list": {
+    "title": "Contacte",
+    "empty": "Niciun contact înregistrat",
+    "newContact": "Contact nou",
+    "columns": {
+      "name": "Nume",
+      "email": "Email",
+      "phone": "Telefon",
+      "company": "Firmă",
+      "role": "Funcție",
+      "owner": "Responsabil"
+    }
+  },
+  "detail": {
+    "title": "Detalii contact",
+    "primaryContact": "Contact principal",
+    "secondaryContact": "Contact secundar",
+    "dealsTab": "Deal-uri",
+    "callsTab": "Apeluri",
+    "emailsTab": "Emailuri",
+    "notesTab": "Note"
+  },
+  "form": {
+    "firstName": "Prenume",
+    "lastName": "Nume",
+    "email": "Email",
+    "phone": "Telefon",
+    "mobile": "Mobil",
+    "role": "Funcție",
+    "company": "Firmă",
+    "birthday": "Zi de naștere",
+    "linkedin": "LinkedIn",
+    "address": "Adresă",
+    "notes": "Note",
+    "submit": "Salvează contact"
+  },
+  "merge": {
+    "title": "Combină contacte duplicate",
+    "selectMaster": "Alege contactul principal",
+    "submit": "Combină"
+  },
+  "delete": {
+    "confirmTitle": "Șterge contact",
+    "confirmMessage": "Ștergerea contactului „{{name}}” îl va elimina din toate firmele și deal-urile asociate. Continui?"
+  }
+}

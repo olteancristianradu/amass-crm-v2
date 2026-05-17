@@ -1,0 +1,39 @@
+{
+  "title": "Proiecte",
+  "list": {
+    "title": "Proiecte",
+    "empty": "Niciun proiect",
+    "newProject": "Proiect nou",
+    "columns": {
+      "name": "Nume",
+      "client": "Client",
+      "manager": "Manager",
+      "status": "Status",
+      "progress": "Progres",
+      "deadline": "Termen limită"
+    }
+  },
+  "status": {
+    "PLANNING": "Planificare",
+    "IN_PROGRESS": "În derulare",
+    "ON_HOLD": "Suspendat",
+    "COMPLETED": "Finalizat",
+    "CANCELLED": "Anulat"
+  },
+  "form": {
+    "name": "Nume proiect",
+    "client": "Client",
+    "manager": "Manager",
+    "team": "Echipă",
+    "startDate": "Început",
+    "deadline": "Termen limită",
+    "budget": "Buget",
+    "description": "Descriere",
+    "submit": "Salvează proiect"
+  },
+  "tasks": {
+    "title": "Sarcini proiect",
+    "addTask": "Adaugă sarcină",
+    "empty": "Niciun task"
+  }
+}

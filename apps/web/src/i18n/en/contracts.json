@@ -1,0 +1,40 @@
+{
+  "title": "[TODO-EN] Contracte",
+  "list": {
+    "title": "[TODO-EN] Contracte",
+    "empty": "[TODO-EN] Niciun contract",
+    "newContract": "[TODO-EN] Contract nou",
+    "columns": {
+      "name": "[TODO-EN] Denumire",
+      "client": "[TODO-EN] Client",
+      "value": "[TODO-EN] Valoare",
+      "startDate": "[TODO-EN] Început",
+      "endDate": "[TODO-EN] Sfârșit",
+      "status": "[TODO-EN] Status"
+    }
+  },
+  "status": {
+    "DRAFT": "[TODO-EN] Schiță",
+    "ACTIVE": "[TODO-EN] Activ",
+    "EXPIRED": "[TODO-EN] Expirat",
+    "TERMINATED": "[TODO-EN] Reziliat",
+    "RENEWED": "[TODO-EN] Reînnoit"
+  },
+  "form": {
+    "name": "[TODO-EN] Denumire contract",
+    "client": "[TODO-EN] Client",
+    "startDate": "[TODO-EN] Data început",
+    "endDate": "[TODO-EN] Data sfârșit",
+    "autoRenew": "[TODO-EN] Reînnoire automată",
+    "noticeDays": "[TODO-EN] Preaviz (zile)",
+    "value": "[TODO-EN] Valoare contract",
+    "currency": "[TODO-EN] Monedă",
+    "documentUpload": "[TODO-EN] Încarcă document semnat",
+    "submit": "[TODO-EN] Salvează contract"
+  },
+  "actions": {
+    "renew": "[TODO-EN] Reînnoiește",
+    "terminate": "[TODO-EN] Reziliază",
+    "downloadDocument": "[TODO-EN] Descarcă document"
+  }
+}

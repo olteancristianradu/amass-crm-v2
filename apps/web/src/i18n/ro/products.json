@@ -1,0 +1,36 @@
+{
+  "title": "Produse și servicii",
+  "list": {
+    "title": "Catalog",
+    "empty": "Niciun produs în catalog",
+    "newProduct": "Produs nou",
+    "columns": {
+      "code": "Cod",
+      "name": "Denumire",
+      "unitPrice": "Preț unitar",
+      "vatRate": "TVA",
+      "category": "Categorie",
+      "stock": "Stoc"
+    }
+  },
+  "type": {
+    "GOOD": "Produs fizic",
+    "SERVICE": "Serviciu",
+    "DIGITAL": "Produs digital",
+    "SUBSCRIPTION": "Abonament"
+  },
+  "form": {
+    "code": "Cod produs",
+    "name": "Denumire",
+    "type": "Tip",
+    "category": "Categorie",
+    "unitPrice": "Preț unitar",
+    "vatRate": "Cota TVA (%)",
+    "currency": "Monedă",
+    "unit": "Unitate de măsură",
+    "description": "Descriere",
+    "stockTracked": "Urmărește stoc",
+    "stockQty": "Cantitate stoc",
+    "submit": "Salvează produsul"
+  }
+}

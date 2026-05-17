@@ -1,0 +1,20 @@
+{
+  "title": "[TODO-EN] Etichete",
+  "list": {
+    "empty": "[TODO-EN] Nicio etichetă",
+    "newTag": "[TODO-EN] Etichetă nouă"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume etichetă",
+    "color": "[TODO-EN] Culoare",
+    "submit": "[TODO-EN] Salvează"
+  },
+  "input": {
+    "placeholder": "[TODO-EN] Adaugă etichetă…",
+    "create": "[TODO-EN] Creează „{{name}}”"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Șterge eticheta",
+    "confirmMessage": "[TODO-EN] Eticheta va fi eliminată de pe toate entitățile asociate."
+  }
+}

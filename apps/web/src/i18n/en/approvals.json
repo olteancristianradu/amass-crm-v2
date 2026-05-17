@@ -1,0 +1,32 @@
+{
+  "title": "[TODO-EN] Aprobări",
+  "list": {
+    "title": "[TODO-EN] Cereri de aprobare",
+    "pending": "[TODO-EN] În așteptare",
+    "approved": "[TODO-EN] Aprobate",
+    "rejected": "[TODO-EN] Respinse",
+    "empty": "[TODO-EN] Nicio cerere de aprobare"
+  },
+  "status": {
+    "PENDING": "[TODO-EN] În așteptare",
+    "APPROVED": "[TODO-EN] Aprobată",
+    "REJECTED": "[TODO-EN] Respinsă",
+    "WITHDRAWN": "[TODO-EN] Retrasă"
+  },
+  "actions": {
+    "approve": "[TODO-EN] Aprobă",
+    "reject": "[TODO-EN] Respinge",
+    "delegate": "[TODO-EN] Deleagă",
+    "withdraw": "[TODO-EN] Retrage cererea",
+    "requestApproval": "[TODO-EN] Cere aprobare"
+  },
+  "form": {
+    "reason": "[TODO-EN] Motiv",
+    "approvers": "[TODO-EN] Aprobatori",
+    "submit": "[TODO-EN] Trimite spre aprobare"
+  },
+  "rejection": {
+    "reasonRequired": "[TODO-EN] Motivul respingerii este obligatoriu",
+    "reason": "[TODO-EN] Motiv respingere"
+  }
+}

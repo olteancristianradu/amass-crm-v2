@@ -1,0 +1,28 @@
+{
+  "title": "[TODO-EN] Prognoză vânzări",
+  "period": {
+    "title": "[TODO-EN] Perioadă",
+    "thisMonth": "[TODO-EN] Luna aceasta",
+    "thisQuarter": "[TODO-EN] Trimestrul acesta",
+    "thisYear": "[TODO-EN] Anul acesta",
+    "custom": "[TODO-EN] Personalizat"
+  },
+  "metrics": {
+    "committed": "[TODO-EN] Confirmat",
+    "bestCase": "[TODO-EN] Scenariu optimist",
+    "pipeline": "[TODO-EN] Pâlnie totală",
+    "closed": "[TODO-EN] Închis",
+    "quota": "[TODO-EN] Țintă",
+    "attainment": "[TODO-EN] Realizare {{percent}}%"
+  },
+  "groupBy": {
+    "owner": "[TODO-EN] După responsabil",
+    "team": "[TODO-EN] După echipă",
+    "product": "[TODO-EN] După produs",
+    "region": "[TODO-EN] După regiune"
+  },
+  "actions": {
+    "exportCsv": "[TODO-EN] Exportă CSV",
+    "snapshot": "[TODO-EN] Salvează instantaneu"
+  }
+}

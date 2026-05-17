@@ -1,0 +1,47 @@
+{
+  "title": "[TODO-EN] Câmpuri personalizate",
+  "list": {
+    "title": "[TODO-EN] Câmpuri personalizate",
+    "empty": "[TODO-EN] Niciun câmp definit",
+    "newField": "[TODO-EN] Câmp nou",
+    "columns": {
+      "label": "[TODO-EN] Etichetă",
+      "key": "[TODO-EN] Cheie",
+      "type": "[TODO-EN] Tip",
+      "entity": "[TODO-EN] Entitate",
+      "required": "[TODO-EN] Obligatoriu"
+    }
+  },
+  "type": {
+    "TEXT": "[TODO-EN] Text",
+    "NUMBER": "[TODO-EN] Număr",
+    "DATE": "[TODO-EN] Dată",
+    "BOOLEAN": "[TODO-EN] Da/Nu",
+    "SELECT": "[TODO-EN] Listă alegere",
+    "MULTI_SELECT": "[TODO-EN] Selecție multiplă",
+    "URL": "[TODO-EN] URL",
+    "EMAIL": "[TODO-EN] Email",
+    "PHONE": "[TODO-EN] Telefon",
+    "JSON": "[TODO-EN] Date structurate (JSON)"
+  },
+  "form": {
+    "label": "[TODO-EN] Etichetă afișată",
+    "key": "[TODO-EN] Cheie tehnică",
+    "keyHint": "[TODO-EN] Doar litere mici, cifre și underscore",
+    "type": "[TODO-EN] Tip câmp",
+    "entity": "[TODO-EN] Aplică-l la",
+    "required": "[TODO-EN] Obligatoriu",
+    "options": "[TODO-EN] Opțiuni",
+    "addOption": "[TODO-EN] Adaugă opțiune",
+    "defaultValue": "[TODO-EN] Valoare implicită",
+    "helpText": "[TODO-EN] Text ajutător",
+    "submit": "[TODO-EN] Salvează câmpul"
+  },
+  "entity": {
+    "COMPANY": "[TODO-EN] Firmă",
+    "CONTACT": "[TODO-EN] Contact",
+    "DEAL": "[TODO-EN] Deal",
+    "INVOICE": "[TODO-EN] Factură",
+    "PROJECT": "[TODO-EN] Proiect"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "title": "Notificări",
+  "bell": {
+    "aria": "Notificări ({{count}} necitite)",
+    "empty": "Nicio notificare nouă"
+  },
+  "actions": {
+    "markAllRead": "Marchează toate citite",
+    "viewAll": "Vezi toate",
+    "settings": "Setări notificări"
+  },
+  "type": {
+    "MENTION": "Ai fost menționat",
+    "ASSIGNMENT": "Ți-a fost atribuit",
+    "REMINDER": "Memento",
+    "DEAL_WON": "Deal câștigat",
+    "DEAL_LOST": "Deal pierdut",
+    "INVOICE_PAID": "Factură plătită",
+    "INVOICE_OVERDUE": "Factură restantă",
+    "TASK_DUE": "Sarcină scadentă",
+    "MESSAGE_NEW": "Mesaj nou"
+  },
+  "channels": {
+    "inApp": "În aplicație",
+    "email": "Email",
+    "push": "Push browser",
+    "sms": "SMS",
+    "whatsapp": "WhatsApp"
+  }
+}

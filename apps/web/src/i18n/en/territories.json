@@ -1,0 +1,30 @@
+{
+  "title": "[TODO-EN] Teritorii",
+  "list": {
+    "title": "[TODO-EN] Teritorii de vânzare",
+    "empty": "[TODO-EN] Niciun teritoriu definit",
+    "newTerritory": "[TODO-EN] Teritoriu nou",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "manager": "[TODO-EN] Manager",
+      "accountCount": "[TODO-EN] Firme",
+      "memberCount": "[TODO-EN] Membri"
+    }
+  },
+  "form": {
+    "name": "[TODO-EN] Nume teritoriu",
+    "manager": "[TODO-EN] Manager",
+    "members": "[TODO-EN] Membri",
+    "rules": "[TODO-EN] Reguli atribuire",
+    "byCounty": "[TODO-EN] Județe",
+    "byPostalCode": "[TODO-EN] Coduri poștale",
+    "byIndustry": "[TODO-EN] Industrie",
+    "submit": "[TODO-EN] Salvează teritoriul"
+  },
+  "rules": {
+    "title": "[TODO-EN] Reguli automate",
+    "addRule": "[TODO-EN] Adaugă regulă",
+    "matchOn": "[TODO-EN] Potrivire pe",
+    "assignTo": "[TODO-EN] Atribuie către"
+  }
+}

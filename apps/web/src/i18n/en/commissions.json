@@ -1,0 +1,34 @@
+{
+  "title": "[TODO-EN] Comisioane",
+  "list": {
+    "title": "[TODO-EN] Comisioane",
+    "empty": "[TODO-EN] Niciun comision calculat",
+    "columns": {
+      "agent": "[TODO-EN] Agent",
+      "period": "[TODO-EN] Perioadă",
+      "salesValue": "[TODO-EN] Vânzări",
+      "commissionRate": "[TODO-EN] Procent",
+      "commissionAmount": "[TODO-EN] Comision",
+      "status": "[TODO-EN] Status"
+    }
+  },
+  "status": {
+    "PENDING": "[TODO-EN] În calcul",
+    "APPROVED": "[TODO-EN] Aprobat",
+    "PAID": "[TODO-EN] Plătit",
+    "DISPUTED": "[TODO-EN] În dispută"
+  },
+  "rules": {
+    "title": "[TODO-EN] Reguli comisionare",
+    "newRule": "[TODO-EN] Regulă nouă",
+    "tier": "[TODO-EN] Prag",
+    "rate": "[TODO-EN] Procent",
+    "appliesTo": "[TODO-EN] Se aplică la"
+  },
+  "actions": {
+    "recalculate": "[TODO-EN] Recalculează",
+    "approve": "[TODO-EN] Aprobă",
+    "markPaid": "[TODO-EN] Marchează plătit",
+    "dispute": "[TODO-EN] Contestă"
+  }
+}

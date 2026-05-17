@@ -1,0 +1,39 @@
+{
+  "title": "[TODO-EN] Email",
+  "inbox": "[TODO-EN] Inbox",
+  "sent": "[TODO-EN] Trimise",
+  "drafts": "[TODO-EN] Schițe",
+  "trash": "[TODO-EN] Coș",
+  "spam": "[TODO-EN] Spam",
+  "compose": "[TODO-EN] Compune",
+  "list": {
+    "empty": "[TODO-EN] Niciun email",
+    "loadMore": "[TODO-EN] Încarcă mai multe"
+  },
+  "form": {
+    "to": "[TODO-EN] Către",
+    "cc": "[TODO-EN] CC",
+    "bcc": "[TODO-EN] BCC",
+    "subject": "[TODO-EN] Subiect",
+    "body": "[TODO-EN] Mesaj",
+    "attachments": "[TODO-EN] Atașamente",
+    "addAttachment": "[TODO-EN] Atașează fișier",
+    "submit": "[TODO-EN] Trimite",
+    "submitting": "[TODO-EN] Se trimite…",
+    "saveDraft": "[TODO-EN] Salvează schiță"
+  },
+  "connect": {
+    "title": "[TODO-EN] Conectează cont email",
+    "google": "[TODO-EN] Conectează Gmail",
+    "outlook": "[TODO-EN] Conectează Outlook",
+    "imap": "[TODO-EN] Configurare IMAP/SMTP manuală"
+  },
+  "actions": {
+    "reply": "[TODO-EN] Răspunde",
+    "replyAll": "[TODO-EN] Răspunde tuturor",
+    "forward": "[TODO-EN] Redirecționează",
+    "markRead": "[TODO-EN] Marchează citit",
+    "markUnread": "[TODO-EN] Marchează necitit",
+    "delete": "[TODO-EN] Mută în coș"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "title": "[TODO-EN] Duplicate",
+  "list": {
+    "title": "[TODO-EN] Posibile duplicate",
+    "empty": "[TODO-EN] Niciun duplicat detectat",
+    "scanning": "[TODO-EN] Se scanează…",
+    "lastScan": "[TODO-EN] Ultima scanare: {{when}}"
+  },
+  "match": {
+    "confidence": "[TODO-EN] Încredere",
+    "high": "[TODO-EN] Foarte probabil",
+    "medium": "[TODO-EN] Probabil",
+    "low": "[TODO-EN] Posibil",
+    "byEmail": "[TODO-EN] potrivire email",
+    "byPhone": "[TODO-EN] potrivire telefon",
+    "byCui": "[TODO-EN] potrivire CUI",
+    "byName": "[TODO-EN] potrivire nume"
+  },
+  "actions": {
+    "merge": "[TODO-EN] Combină",
+    "ignore": "[TODO-EN] Ignoră",
+    "review": "[TODO-EN] Verifică",
+    "rescan": "[TODO-EN] Rescanează acum"
+  },
+  "merge": {
+    "title": "[TODO-EN] Combină înregistrările",
+    "chooseMaster": "[TODO-EN] Alege înregistrarea principală",
+    "fieldConflict": "[TODO-EN] Câmpuri în conflict",
+    "submit": "[TODO-EN] Confirmă combinarea"
+  }
+}

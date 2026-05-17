@@ -1,0 +1,42 @@
+{
+  "title": "[TODO-EN] Abonament și plată",
+  "currentPlan": "[TODO-EN] Plan curent: {{plan}}",
+  "upgrade": "[TODO-EN] Treci la plan superior",
+  "downgrade": "[TODO-EN] Treci la plan inferior",
+  "cancel": "[TODO-EN] Anulează abonamentul",
+  "renewsOn": "[TODO-EN] Se reînnoiește pe {{date}}",
+  "trial": {
+    "active": "[TODO-EN] Perioadă de probă: rămân {{days}} zile",
+    "expired": "[TODO-EN] Perioada de probă a expirat",
+    "upgrade": "[TODO-EN] Activează un plan plătit"
+  },
+  "plans": {
+    "starter": "[TODO-EN] Starter",
+    "pro": "[TODO-EN] Pro",
+    "business": "[TODO-EN] Business",
+    "enterprise": "[TODO-EN] Enterprise"
+  },
+  "method": {
+    "title": "[TODO-EN] Metodă de plată",
+    "add": "[TODO-EN] Adaugă metodă de plată",
+    "card": "[TODO-EN] Card terminat în {{last4}}",
+    "remove": "[TODO-EN] Elimină"
+  },
+  "invoices": {
+    "title": "[TODO-EN] Facturi abonament",
+    "empty": "[TODO-EN] Nicio factură emisă",
+    "download": "[TODO-EN] Descarcă factură"
+  },
+  "usage": {
+    "title": "[TODO-EN] Utilizare",
+    "seats": "[TODO-EN] Utilizatori: {{used}} / {{limit}}",
+    "storage": "[TODO-EN] Stocare: {{used}} / {{limit}}",
+    "callMinutes": "[TODO-EN] Minute apeluri: {{used}} / {{limit}}",
+    "transcripts": "[TODO-EN] Transcrieri AI: {{used}} / {{limit}}"
+  },
+  "checkout": {
+    "redirecting": "[TODO-EN] Se redirecționează către Stripe…",
+    "success": "[TODO-EN] Plată confirmată. Mulțumim!",
+    "failed": "[TODO-EN] Plata a eșuat. Reîncearcă."
+  }
+}

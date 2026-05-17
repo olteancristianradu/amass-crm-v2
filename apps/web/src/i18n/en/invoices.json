@@ -1,0 +1,100 @@
+{
+  "title": "[TODO-EN] Facturi",
+  "list": {
+    "title": "[TODO-EN] Facturi",
+    "empty": "[TODO-EN] Nicio factură emisă",
+    "emptyOnCompany": "[TODO-EN] Nicio factură pentru această firmă",
+    "newInvoice": "[TODO-EN] Factură nouă",
+    "columns": {
+      "number": "[TODO-EN] Număr",
+      "series": "[TODO-EN] Serie",
+      "company": "[TODO-EN] Firmă",
+      "issueDate": "[TODO-EN] Data emiterii",
+      "dueDate": "[TODO-EN] Scadență",
+      "total": "[TODO-EN] Total",
+      "status": "[TODO-EN] Status",
+      "currency": "[TODO-EN] Monedă"
+    }
+  },
+  "summary": {
+    "issued": "[TODO-EN] Emisă {{date}}",
+    "dueOn": "[TODO-EN] scadentă {{date}}",
+    "overdueBy_one": "[TODO-EN] Întârziere {{count}} zi",
+    "overdueBy_few": "[TODO-EN] Întârziere {{count}} zile",
+    "overdueBy_other": "[TODO-EN] Întârziere {{count}} de zile",
+    "remaining": "[TODO-EN] Rest de plată: {{amount}} {{currency}}"
+  },
+  "form": {
+    "title": "[TODO-EN] Factură nouă",
+    "series": "[TODO-EN] Serie",
+    "number": "[TODO-EN] Număr",
+    "issueDate": "[TODO-EN] Data emiterii",
+    "dueDate": "[TODO-EN] Scadență",
+    "currency": "[TODO-EN] Monedă",
+    "company": "[TODO-EN] Firmă",
+    "notes": "[TODO-EN] Note",
+    "lines": "[TODO-EN] Linii",
+    "addLine": "[TODO-EN] + Linie",
+    "removeLine": "[TODO-EN] Elimină linia",
+    "lineDescription": "[TODO-EN] Descriere",
+    "lineQuantity": "[TODO-EN] Cant.",
+    "lineUnitPrice": "[TODO-EN] Preț unit.",
+    "lineVatRate": "[TODO-EN] TVA %",
+    "subtotal": "[TODO-EN] Subtotal",
+    "vat": "[TODO-EN] TVA",
+    "total": "[TODO-EN] Total",
+    "submit": "[TODO-EN] Salvează schiță",
+    "submitting": "[TODO-EN] Se salvează…",
+    "lineDescriptionRequired": "[TODO-EN] Fiecare linie are nevoie de descriere.",
+    "saveError": "[TODO-EN] Eroare la salvare",
+    "toggleNew": "[TODO-EN] Factură nouă",
+    "toggleCancel": "[TODO-EN] Anulează"
+  },
+  "actions": {
+    "issue": "[TODO-EN] Emite",
+    "issuing": "[TODO-EN] Se emite…",
+    "recordPayment": "[TODO-EN] Înregistrează plată",
+    "pdf": "[TODO-EN] PDF",
+    "downloadPdf": "[TODO-EN] Descarcă PDF",
+    "sendByEmail": "[TODO-EN] Trimite pe email",
+    "duplicate": "[TODO-EN] Duplică",
+    "cancel": "[TODO-EN] Anulează factura",
+    "markPaid": "[TODO-EN] Marchează plătită",
+    "sendToAnaf": "[TODO-EN] Trimite la e-Factura (ANAF)"
+  },
+  "payment": {
+    "title": "[TODO-EN] Înregistrează plată",
+    "amount": "[TODO-EN] Sumă ({{currency}})",
+    "paidAt": "[TODO-EN] Data plății",
+    "method": "[TODO-EN] Metodă",
+    "reference": "[TODO-EN] Referință",
+    "referencePlaceholder": "[TODO-EN] Nr. OP / chitanță",
+    "submit": "[TODO-EN] Salvează",
+    "submitting": "[TODO-EN] …",
+    "methods": {
+      "bank": "[TODO-EN] Transfer bancar",
+      "cash": "[TODO-EN] Numerar",
+      "card": "[TODO-EN] Card",
+      "other": "[TODO-EN] Altă"
+    }
+  },
+  "status": {
+    "draft": "[TODO-EN] Schiță",
+    "issued": "[TODO-EN] Emisă",
+    "partiallyPaid": "[TODO-EN] Parțial",
+    "paid": "[TODO-EN] Plătită",
+    "overdue": "[TODO-EN] Restantă",
+    "cancelled": "[TODO-EN] Anulată"
+  },
+  "anaf": {
+    "submitting": "[TODO-EN] Se trimite la ANAF…",
+    "submitted": "[TODO-EN] Trimisă la e-Factura",
+    "validated": "[TODO-EN] Validată ANAF",
+    "rejected": "[TODO-EN] Respinsă ANAF",
+    "pending": "[TODO-EN] În așteptare ANAF"
+  },
+  "delete": {
+    "confirmTitle": "[TODO-EN] Anulează factura",
+    "confirmMessage": "[TODO-EN] Anularea unei facturi emise va genera o factură de storno. Continui?"
+  }
+}

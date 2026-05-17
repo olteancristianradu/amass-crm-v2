@@ -1,0 +1,48 @@
+{
+  "title": "[TODO-EN] Tichete suport",
+  "list": {
+    "title": "[TODO-EN] Tichete",
+    "empty": "[TODO-EN] Niciun tichet",
+    "newCase": "[TODO-EN] Tichet nou",
+    "columns": {
+      "number": "[TODO-EN] Număr",
+      "subject": "[TODO-EN] Subiect",
+      "customer": "[TODO-EN] Client",
+      "priority": "[TODO-EN] Prioritate",
+      "status": "[TODO-EN] Status",
+      "assignee": "[TODO-EN] Atribuit"
+    }
+  },
+  "status": {
+    "NEW": "[TODO-EN] Nou",
+    "OPEN": "[TODO-EN] Deschis",
+    "WAITING_CUSTOMER": "[TODO-EN] Așteaptă client",
+    "WAITING_INTERNAL": "[TODO-EN] Așteaptă intern",
+    "RESOLVED": "[TODO-EN] Rezolvat",
+    "CLOSED": "[TODO-EN] Închis"
+  },
+  "priority": {
+    "LOW": "[TODO-EN] Scăzută",
+    "NORMAL": "[TODO-EN] Normală",
+    "HIGH": "[TODO-EN] Ridicată",
+    "URGENT": "[TODO-EN] Urgentă"
+  },
+  "form": {
+    "subject": "[TODO-EN] Subiect",
+    "customer": "[TODO-EN] Client",
+    "priority": "[TODO-EN] Prioritate",
+    "description": "[TODO-EN] Descriere problemă",
+    "submit": "[TODO-EN] Creează tichet"
+  },
+  "actions": {
+    "assignToMe": "[TODO-EN] Atribuie mie",
+    "resolve": "[TODO-EN] Marchează rezolvat",
+    "reopen": "[TODO-EN] Redeschide",
+    "addReply": "[TODO-EN] Răspunde"
+  },
+  "sla": {
+    "responseDue": "[TODO-EN] Răspuns scadent {{when}}",
+    "resolutionDue": "[TODO-EN] Rezolvare scadentă {{when}}",
+    "breached": "[TODO-EN] SLA depășit"
+  }
+}

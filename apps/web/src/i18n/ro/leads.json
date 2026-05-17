@@ -1,0 +1,55 @@
+{
+  "title": "Lead-uri",
+  "list": {
+    "title": "Lead-uri",
+    "empty": "Niciun lead",
+    "newLead": "Lead nou",
+    "columns": {
+      "name": "Nume",
+      "source": "Sursă",
+      "status": "Status",
+      "score": "Scor",
+      "owner": "Responsabil",
+      "createdAt": "Creat"
+    }
+  },
+  "status": {
+    "NEW": "Nou",
+    "CONTACTED": "Contactat",
+    "QUALIFIED": "Calificat",
+    "UNQUALIFIED": "Necalificat",
+    "CONVERTED": "Convertit",
+    "LOST": "Pierdut"
+  },
+  "source": {
+    "WEBSITE": "Site web",
+    "REFERRAL": "Recomandare",
+    "ADS": "Publicitate",
+    "EVENT": "Eveniment",
+    "COLD_CALL": "Apel rece",
+    "EMAIL_CAMPAIGN": "Campanie email",
+    "OTHER": "Altă sursă"
+  },
+  "actions": {
+    "qualify": "Calificare",
+    "disqualify": "Descalificare",
+    "convert": "Convertește în client",
+    "assign": "Atribuie"
+  },
+  "form": {
+    "name": "Nume",
+    "email": "Email",
+    "phone": "Telefon",
+    "company": "Firmă",
+    "source": "Sursă",
+    "notes": "Note",
+    "submit": "Salvează lead"
+  },
+  "convert": {
+    "title": "Convertește lead în client",
+    "createCompany": "Creează firmă nouă",
+    "useExistingCompany": "Folosește firmă existentă",
+    "createDeal": "Creează și un deal",
+    "submit": "Convertește"
+  }
+}

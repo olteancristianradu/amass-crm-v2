@@ -1,0 +1,31 @@
+{
+  "title": "[TODO-EN] Calendar",
+  "view": {
+    "day": "[TODO-EN] Zi",
+    "week": "[TODO-EN] Săptămână",
+    "month": "[TODO-EN] Lună",
+    "agenda": "[TODO-EN] Agendă"
+  },
+  "newEvent": "[TODO-EN] Eveniment nou",
+  "today": "[TODO-EN] Astăzi",
+  "noEvents": "[TODO-EN] Niciun eveniment în această perioadă",
+  "form": {
+    "title": "[TODO-EN] Titlu eveniment",
+    "startsAt": "[TODO-EN] Începe la",
+    "endsAt": "[TODO-EN] Se termină la",
+    "allDay": "[TODO-EN] Toată ziua",
+    "location": "[TODO-EN] Locație",
+    "attendees": "[TODO-EN] Participanți",
+    "description": "[TODO-EN] Descriere",
+    "reminder": "[TODO-EN] Memento",
+    "submit": "[TODO-EN] Salvează evenimentul"
+  },
+  "reminder": {
+    "none": "[TODO-EN] Fără memento",
+    "min5": "[TODO-EN] 5 minute înainte",
+    "min15": "[TODO-EN] 15 minute înainte",
+    "min30": "[TODO-EN] 30 minute înainte",
+    "hour1": "[TODO-EN] 1 oră înainte",
+    "day1": "[TODO-EN] 1 zi înainte"
+  }
+}

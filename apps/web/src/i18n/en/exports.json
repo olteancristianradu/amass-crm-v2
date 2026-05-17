@@ -1,0 +1,29 @@
+{
+  "title": "[TODO-EN] Exporturi",
+  "list": {
+    "title": "[TODO-EN] Istoric exporturi",
+    "empty": "[TODO-EN] Niciun export încă",
+    "columns": {
+      "type": "[TODO-EN] Tip",
+      "format": "[TODO-EN] Format",
+      "rows": "[TODO-EN] Rânduri",
+      "createdAt": "[TODO-EN] Generat la",
+      "status": "[TODO-EN] Status"
+    }
+  },
+  "newExport": "[TODO-EN] Export nou",
+  "form": {
+    "type": "[TODO-EN] Ce exportăm",
+    "format": "[TODO-EN] Format",
+    "filters": "[TODO-EN] Filtre",
+    "submit": "[TODO-EN] Generează"
+  },
+  "status": {
+    "QUEUED": "[TODO-EN] În coadă",
+    "RUNNING": "[TODO-EN] În procesare",
+    "COMPLETED": "[TODO-EN] Gata",
+    "FAILED": "[TODO-EN] Eșuat"
+  },
+  "download": "[TODO-EN] Descarcă fișier",
+  "expires": "[TODO-EN] Expiră la {{date}}"
+}

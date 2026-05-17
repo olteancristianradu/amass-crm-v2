@@ -1,0 +1,55 @@
+{
+  "title": "[TODO-EN] Lead-uri",
+  "list": {
+    "title": "[TODO-EN] Lead-uri",
+    "empty": "[TODO-EN] Niciun lead",
+    "newLead": "[TODO-EN] Lead nou",
+    "columns": {
+      "name": "[TODO-EN] Nume",
+      "source": "[TODO-EN] Sursă",
+      "status": "[TODO-EN] Status",
+      "score": "[TODO-EN] Scor",
+      "owner": "[TODO-EN] Responsabil",
+      "createdAt": "[TODO-EN] Creat"
+    }
+  },
+  "status": {
+    "NEW": "[TODO-EN] Nou",
+    "CONTACTED": "[TODO-EN] Contactat",
+    "QUALIFIED": "[TODO-EN] Calificat",
+    "UNQUALIFIED": "[TODO-EN] Necalificat",
+    "CONVERTED": "[TODO-EN] Convertit",
+    "LOST": "[TODO-EN] Pierdut"
+  },
+  "source": {
+    "WEBSITE": "[TODO-EN] Site web",
+    "REFERRAL": "[TODO-EN] Recomandare",
+    "ADS": "[TODO-EN] Publicitate",
+    "EVENT": "[TODO-EN] Eveniment",
+    "COLD_CALL": "[TODO-EN] Apel rece",
+    "EMAIL_CAMPAIGN": "[TODO-EN] Campanie email",
+    "OTHER": "[TODO-EN] Altă sursă"
+  },
+  "actions": {
+    "qualify": "[TODO-EN] Calificare",
+    "disqualify": "[TODO-EN] Descalificare",
+    "convert": "[TODO-EN] Convertește în client",
+    "assign": "[TODO-EN] Atribuie"
+  },
+  "form": {
+    "name": "[TODO-EN] Nume",
+    "email": "[TODO-EN] Email",
+    "phone": "[TODO-EN] Telefon",
+    "company": "[TODO-EN] Firmă",
+    "source": "[TODO-EN] Sursă",
+    "notes": "[TODO-EN] Note",
+    "submit": "[TODO-EN] Salvează lead"
+  },
+  "convert": {
+    "title": "[TODO-EN] Convertește lead în client",
+    "createCompany": "[TODO-EN] Creează firmă nouă",
+    "useExistingCompany": "[TODO-EN] Folosește firmă existentă",
+    "createDeal": "[TODO-EN] Creează și un deal",
+    "submit": "[TODO-EN] Convertește"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "title": "[TODO-EN] Căutare",
+  "placeholder": "[TODO-EN] Caută firme, contacte, deal-uri, facturi…",
+  "shortcut": "[TODO-EN] Ctrl+K",
+  "noResults": "[TODO-EN] Niciun rezultat pentru „{{query}}”",
+  "tip": "[TODO-EN] Sugestie: încearcă termeni mai scurți sau parțiali",
+  "category": {
+    "companies": "[TODO-EN] Firme",
+    "contacts": "[TODO-EN] Contacte",
+    "deals": "[TODO-EN] Deal-uri",
+    "invoices": "[TODO-EN] Facturi",
+    "calls": "[TODO-EN] Apeluri",
+    "notes": "[TODO-EN] Note",
+    "files": "[TODO-EN] Fișiere",
+    "actions": "[TODO-EN] Acțiuni"
+  },
+  "palette": {
+    "title": "[TODO-EN] Comandă",
+    "placeholder": "[TODO-EN] Tastează o comandă…",
+    "noMatches": "[TODO-EN] Nicio comandă potrivită"
+  }
+}

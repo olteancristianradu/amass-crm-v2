@@ -1,0 +1,26 @@
+{
+  "title": "[TODO-EN] Memento-uri",
+  "list": {
+    "empty": "[TODO-EN] Niciun memento",
+    "upcoming": "[TODO-EN] Următoarele",
+    "overdue": "[TODO-EN] Restante",
+    "newReminder": "[TODO-EN] Memento nou"
+  },
+  "form": {
+    "message": "[TODO-EN] Mesaj",
+    "remindAt": "[TODO-EN] Reamintește la",
+    "linkedTo": "[TODO-EN] Asociază cu",
+    "submit": "[TODO-EN] Salvează"
+  },
+  "actions": {
+    "dismiss": "[TODO-EN] Respinge",
+    "snooze": "[TODO-EN] Amână",
+    "complete": "[TODO-EN] Marchează rezolvat"
+  },
+  "snooze": {
+    "min15": "[TODO-EN] 15 minute",
+    "hour1": "[TODO-EN] 1 oră",
+    "tomorrow": "[TODO-EN] Mâine",
+    "nextWeek": "[TODO-EN] Săptămâna viitoare"
+  }
+}

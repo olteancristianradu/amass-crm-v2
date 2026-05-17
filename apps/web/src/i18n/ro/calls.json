@@ -1,0 +1,58 @@
+{
+  "title": "Apeluri",
+  "list": {
+    "title": "Apeluri",
+    "empty": "Niciun apel înregistrat",
+    "filter": {
+      "all": "Toate",
+      "inbound": "Primite",
+      "outbound": "Efectuate",
+      "missed": "Pierdute"
+    },
+    "columns": {
+      "from": "De la",
+      "to": "Către",
+      "duration": "Durată",
+      "direction": "Direcție",
+      "startedAt": "Început la",
+      "agent": "Agent"
+    }
+  },
+  "direction": {
+    "INBOUND": "Primit",
+    "OUTBOUND": "Efectuat",
+    "MISSED": "Pierdut"
+  },
+  "status": {
+    "RINGING": "Sună",
+    "IN_PROGRESS": "În desfășurare",
+    "COMPLETED": "Încheiat",
+    "FAILED": "Eșuat",
+    "VOICEMAIL": "Mesagerie vocală"
+  },
+  "detail": {
+    "title": "Detalii apel",
+    "recording": "Înregistrare",
+    "transcript": "Transcript",
+    "summary": "Rezumat AI",
+    "redactedPii": "PII redactat automat",
+    "speakers": "Vorbitori detectați: {{count}}",
+    "noTranscript": "Transcriptul nu este disponibil încă",
+    "transcribing": "Se transcrie…",
+    "downloadRecording": "Descarcă înregistrarea",
+    "playPause": "Redă / pauză",
+    "actionItems": "Acțiuni de urmărit",
+    "sentiment": "Sentiment"
+  },
+  "sentiment": {
+    "positive": "Pozitiv",
+    "neutral": "Neutru",
+    "negative": "Negativ"
+  },
+  "actions": {
+    "newCall": "Apel nou",
+    "callBack": "Sună înapoi",
+    "addNote": "Adaugă notă",
+    "createDeal": "Creează deal din apel"
+  }
+}

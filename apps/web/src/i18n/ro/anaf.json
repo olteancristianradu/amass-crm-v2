@@ -1,0 +1,28 @@
+{
+  "title": "Integrare ANAF",
+  "connect": "Conectează la ANAF",
+  "connected": "Conectat cu certificat ANAF",
+  "disconnect": "Deconectează",
+  "lookup": {
+    "title": "Caută firmă după CUI",
+    "placeholder": "Ex: RO12345678",
+    "submit": "Caută",
+    "submitting": "Se interoghează ANAF…",
+    "notFound": "CUI-ul nu există în registrul ANAF",
+    "filled": "Date completate automat din ANAF"
+  },
+  "vat": {
+    "payer": "Plătitor TVA",
+    "notPayer": "Nu este plătitor TVA",
+    "tvaIncasare": "TVA la încasare",
+    "registered": "Înregistrat în scopuri de TVA",
+    "deregistered": "Radiat din scopuri de TVA"
+  },
+  "eInvoice": {
+    "title": "e-Factura (RO e-Factura)",
+    "send": "Trimite la e-Factura",
+    "checkStatus": "Verifică status",
+    "downloadXml": "Descarcă XML",
+    "registered": "Înregistrată în SPV"
+  }
+}

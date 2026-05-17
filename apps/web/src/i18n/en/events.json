@@ -1,0 +1,26 @@
+{
+  "title": "[TODO-EN] Evenimente sistem",
+  "list": {
+    "title": "[TODO-EN] Jurnal evenimente",
+    "empty": "[TODO-EN] Niciun eveniment înregistrat",
+    "columns": {
+      "type": "[TODO-EN] Tip",
+      "actor": "[TODO-EN] Actor",
+      "subject": "[TODO-EN] Subiect",
+      "occurredAt": "[TODO-EN] Când"
+    }
+  },
+  "filter": {
+    "type": "[TODO-EN] Tip eveniment",
+    "actor": "[TODO-EN] Actor",
+    "dateRange": "[TODO-EN] Interval"
+  },
+  "type": {
+    "CREATE": "[TODO-EN] Creare",
+    "UPDATE": "[TODO-EN] Modificare",
+    "DELETE": "[TODO-EN] Ștergere",
+    "LOGIN": "[TODO-EN] Conectare",
+    "EXPORT": "[TODO-EN] Export",
+    "PERMISSION_CHANGE": "[TODO-EN] Schimbare permisiuni"
+  }
+}
