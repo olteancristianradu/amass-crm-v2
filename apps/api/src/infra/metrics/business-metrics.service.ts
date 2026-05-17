@@ -37,7 +37,28 @@ export class BusinessMetricsService {
     @Optional()
     @InjectMetric('totp_backup_code_consumed_total')
     private readonly backupCodeConsumed?: Counter<string>,
+    // Phase 0 / Feature 2 — multi-currency. @Optional() so legacy specs
+    // that hand-build BusinessMetricsService without these providers (a lot
+    // of existing fixtures) keep working.
+    @Optional()
+    @InjectMetric('fx_rates_fetched_total')
+    private readonly fxRatesFetched?: Counter<string>,
+    @Optional()
+    @InjectMetric('fx_rates_sanity_bound_violation_total')
+    private readonly fxRatesSanityViolation?: Counter<string>,
+    @Optional()
+    @InjectMetric('i18n_locale_switched_total')
+    private readonly i18nLocaleSwitched?: Counter<string>,
   ) {}
+
+  /**
+   * Record a user-initiated locale switch. `from`/`to` are short locale
+   * codes (`ro`,`en`) — both already validated against LocaleSchema so the
+   * label cardinality is bounded by the whitelist (2 today).
+   */
+  recordLocaleSwitch(tenantId: string, from: string, to: string): void {
+    this.i18nLocaleSwitched?.labels(tenantId, from, to).inc();
+  }
 
   /**
    * Observe a finished HTTP request. Called by HttpMetricsInterceptor on
@@ -94,5 +115,25 @@ export class BusinessMetricsService {
    */
   recordBackupCodeConsumed(tenantId: string): void {
     this.backupCodeConsumed?.labels(tenantId).inc();
+  }
+
+  /**
+   * Phase 0 / Feature 2 — record outcome of an ECB fetch + upsert run.
+   * `delta` lets the caller increment by the number of rows touched in one
+   * shot (a successful run typically posts +N pairs at once). Sentry +
+   * alert wiring keys off the `status=error` rate, not the success count.
+   */
+  recordFxRatesFetched(source: string, status: 'success' | 'error', delta = 1): void {
+    this.fxRatesFetched?.labels(source, status).inc(delta);
+  }
+
+  /**
+   * T-FX-S-01 — increment when a day-over-day rate move exceeds ±15% for a
+   * given pair. We still insert the row (silently substituting yesterday's
+   * rate would mask a real currency event), but operators must be alerted
+   * so they can sanity-check against a second source.
+   */
+  recordFxRatesSanityViolation(fromCurrency: string, toCurrency: string): void {
+    this.fxRatesSanityViolation?.labels(fromCurrency, toCurrency).inc();
   }
 }

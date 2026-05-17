@@ -72,6 +72,33 @@ const metricProviders = [
     help: 'Count of TOTP backup codes consumed at login, by tenant.',
     labelNames: ['tenant'],
   }),
+  // Phase 0 / Feature 2 — multi-currency. ECB fetch outcomes; alerts wire on
+  // `status="error"` rate > 1/h to catch ECB outages early (spec 2.1).
+  // `source` is fixed at "ECB" for now; FIXER fallback (Phase 1) will add a
+  // second label value.
+  makeCounterProvider({
+    name: 'fx_rates_fetched_total',
+    help: 'Count of FX rate rows upserted by the daily ECB cron, by source and status.',
+    labelNames: ['source', 'status'],
+  }),
+  // T-FX-S-01 — fired when a daily rate moves >15% vs the previous day's
+  // rate for the same (from, to). We DO insert the row (the alternative —
+  // silently using yesterday's rate — would mask a real currency event), but
+  // we want a metric so operators can investigate manually.
+  makeCounterProvider({
+    name: 'fx_rates_sanity_bound_violation_total',
+    help: 'Count of FX rate sanity-bound (>15% day-over-day) violations, by pair.',
+    labelNames: ['from_currency', 'to_currency'],
+  }),
+  // Phase 0 / Feature 1 — i18n locale switch. Labels intentionally bounded
+  // by the LocaleSchema whitelist (`ro`, `en` today). Dashboards alert on
+  // a surge of failed validations from a single tenant — typically an IdP
+  // misconfiguration writing a non-standard locale onto the user record.
+  makeCounterProvider({
+    name: 'i18n_locale_switched_total',
+    help: 'Count of user-locale changes via PATCH /users/me/locale, by tenant and from/to.',
+    labelNames: ['tenant', 'from', 'to'],
+  }),
 ];
 
 @Global()

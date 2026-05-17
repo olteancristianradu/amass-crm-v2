@@ -41,6 +41,7 @@ import { PipelinesModule } from './modules/pipelines/pipelines.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { UsersModule } from './modules/users/users.module';
+import { TenantModule } from './modules/tenant/tenant.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProjectsModule } from './modules/projects/projects.module';
@@ -86,6 +87,7 @@ import { ConditionalAccessMiddleware } from './modules/access-control/conditiona
 import { SyncModule } from './modules/sync/sync.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { OutlookEmailModule } from './modules/outlook-email/outlook-email.module';
+import { FxRatesModule } from './modules/fx-rates/fx-rates.module';
 import { WsModule } from './infra/ws/ws.module';
 import { resolveLogLevel } from './config/logging';
 
@@ -205,6 +207,7 @@ import { resolveLogLevel } from './config/logging';
     AuditModule,
     AuthModule,
     UsersModule,
+    TenantModule,
     CompaniesModule,
     ContactsModule,
     ConsentsModule,
@@ -265,6 +268,12 @@ import { resolveLogLevel } from './config/logging';
     SavedViewsModule,
     TagsModule,
     OutlookEmailModule,
+    // Phase 0 / Feature 2 — multi-currency. @Global() so DealsService can
+    // inject FxRatesService without re-importing here. Imported BEFORE
+    // DealsModule above is intentional only because module-order doesn't
+    // matter for @Global modules — placed here next to other globals for
+    // readability.
+    FxRatesModule,
     WorkflowsModule,
     ReportsModule,
     GdprModule,

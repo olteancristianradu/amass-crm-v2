@@ -12,6 +12,7 @@ import { BusinessMetricsService } from '../../infra/metrics/business-metrics.ser
 import { SyncPublisherService } from '../../infra/ws/sync-publisher.service';
 import { ActivitiesService } from '../activities/activities.service';
 import { AuditService } from '../audit/audit.service';
+import { FxRatesService } from '../fx-rates/fx-rates.service';
 import { PipelinesService } from '../pipelines/pipelines.service';
 import { ProjectsService } from '../projects/projects.service';
 import { WorkflowsService } from '../workflows/workflows.service';
@@ -54,7 +55,41 @@ export class DealsService {
     private readonly projects: ProjectsService,
     private readonly metrics: BusinessMetricsService,
     private readonly sync: SyncPublisherService,
+    private readonly fx: FxRatesService,
   ) {}
+
+  /**
+   * Phase 0 / Feature 2 — compute (amountBase, fxRateAt) for a deal given
+   * its `value` + `currency`. Returns NULLs when the deal has no value
+   * (status-only kanban card) so the column stays NULL in the DB.
+   *
+   * When `currency == tenant.baseCurrency` we skip the FX lookup entirely
+   * — `amountBase = value`, `fxRateAt = null` (the migration backfilled
+   * existing RON rows the same way; see migration.sql:62-67).
+   *
+   * Tenant lookup goes through the unscoped PrismaClient — `Tenant` is
+   * not in TENANT_SCOPED_MODELS, so tenantExtension is a no-op anyway.
+   * `findUnique({ id })` is one indexed read and we don't cache because
+   * the per-tenant base currency is stable (changes via admin only).
+   *
+   * Throws when no FX rate is available for the requested pair — the
+   * caller (create/update controller) lets the NotFoundException bubble,
+   * mapped to 503 by the global filter. Better than silently storing NULL
+   * which would skew reports.
+   */
+  private async computeAmountBase(
+    tenantId: string,
+    value: Prisma.Decimal | null,
+    currency: string,
+  ): Promise<{ amountBase: Prisma.Decimal | null; fxRateAt: Date | null }> {
+    if (value === null) return { amountBase: null, fxRateAt: null };
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { baseCurrency: true },
+    });
+    const baseCurrency = tenant?.baseCurrency ?? 'RON';
+    return this.fx.convert(value, currency, baseCurrency);
+  }
 
   /**
    * B1-PR2 — Fire-and-forget WS broadcast. Wrap every call in try/catch so a
@@ -77,6 +112,16 @@ export class DealsService {
     const stage = await this.pipelines.findStage(dto.pipelineId, dto.stageId);
     const orderInStage = await this.nextOrderInStage(dto.pipelineId, dto.stageId);
 
+    // Phase 0 / Feature 2 — compute amountBase + fxRateAt up front so the
+    // row is consistent on first write (T-FX-T-03: historic immutability —
+    // future rate moves never recompute this).
+    const valueDecimal = dto.value !== undefined ? new Prisma.Decimal(dto.value) : null;
+    const { amountBase, fxRateAt } = await this.computeAmountBase(
+      ctx.tenantId,
+      valueDecimal,
+      dto.currency,
+    );
+
     const deal = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.deal.create({
         data: {
@@ -85,8 +130,10 @@ export class DealsService {
           stageId: dto.stageId,
           title: dto.title,
           description: dto.description ?? null,
-          value: dto.value !== undefined ? new Prisma.Decimal(dto.value) : null,
+          value: valueDecimal,
           currency: dto.currency,
+          amountBase,
+          fxRateAt,
           probability: dto.probability ?? null,
           expectedCloseAt: dto.expectedCloseAt ?? null,
           companyId: dto.companyId ?? null,
@@ -190,12 +237,16 @@ export class DealsService {
     // Translate nullable string value → Decimal | null explicitly so Prisma
     // stores the right thing. Without this, passing value: "0" as a string
     // would throw a runtime mismatch error.
+    const newValue =
+      dto.value !== undefined
+        ? dto.value === null
+          ? null
+          : new Prisma.Decimal(dto.value)
+        : undefined;
     const data: Prisma.DealUpdateInput = {
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
-      ...(dto.value !== undefined
-        ? { value: dto.value === null ? null : new Prisma.Decimal(dto.value) }
-        : {}),
+      ...(newValue !== undefined ? { value: newValue } : {}),
       ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
       ...(dto.probability !== undefined ? { probability: dto.probability } : {}),
       ...(dto.expectedCloseAt !== undefined ? { expectedCloseAt: dto.expectedCloseAt } : {}),
@@ -204,6 +255,28 @@ export class DealsService {
       ...(dto.ownerId !== undefined ? { ownerId: dto.ownerId } : {}),
       ...(dto.lostReason !== undefined ? { lostReason: dto.lostReason } : {}),
     };
+
+    // Phase 0 / Feature 2 — recompute amountBase + fxRateAt when EITHER
+    // `value` OR `currency` changed (or both). Skipping the recompute on a
+    // currency-only patch would leave amountBase pinned to the old amount
+    // in the old currency — silently wrong on reports.
+    //
+    // We deliberately DO refresh fxRateAt to "today" here: the user
+    // chose to change the deal's money attributes, so the rate snapshot
+    // should reflect that decision. Past-deal recompute on rate moves
+    // (without a value/currency change) is OUT of scope — T-FX-T-03
+    // immutability stays intact for closed deals.
+    if (newValue !== undefined || dto.currency !== undefined) {
+      const effectiveValue = newValue !== undefined ? newValue : existing.value;
+      const effectiveCurrency = dto.currency ?? existing.currency;
+      const { amountBase, fxRateAt } = await this.computeAmountBase(
+        ctx.tenantId,
+        effectiveValue,
+        effectiveCurrency,
+      );
+      data.amountBase = amountBase;
+      data.fxRateAt = fxRateAt;
+    }
 
     const updated = await this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.deal.update({ where: { id }, data }),

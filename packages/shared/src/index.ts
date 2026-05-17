@@ -46,3 +46,5 @@ export * from './schemas/events';
 export * from './schemas/saved-view';
 export * from './schemas/email-draft';
 export * from './schemas/tag';
+export * from './schemas/fx-rates';
+export * from './locale';

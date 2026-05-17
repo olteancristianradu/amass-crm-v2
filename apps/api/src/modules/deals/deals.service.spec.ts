@@ -62,6 +62,13 @@ function build() {
   };
   const prisma = {
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
+    // Phase 0 / Feature 2: DealsService now reads tenant.baseCurrency from
+    // the unscoped client to compute amountBase on create/update. Default
+    // mock returns 'RON' so the existing RON test fixtures take the
+    // same-currency fast path (skip FX lookup, amountBase = value).
+    tenant: {
+      findUnique: vi.fn().mockResolvedValue({ baseCurrency: 'RON' }),
+    },
   } as unknown as ConstructorParameters<typeof DealsService>[0];
   const audit = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof DealsService>[1];
   const activities = { log: vi.fn().mockResolvedValue(undefined) } as unknown as ConstructorParameters<typeof DealsService>[2];
@@ -80,8 +87,19 @@ function build() {
   const sync = {
     publish: vi.fn(),
   } as unknown as ConstructorParameters<typeof DealsService>[7];
-  const svc = new DealsService(prisma, audit, activities, pipelines, workflows, projects, metrics, sync);
-  return { svc, prisma, tx, audit, activities, pipelines, workflows, projects, metrics, sync };
+  // Phase 0 / Feature 2 — FxRatesService.convert. Default impl mirrors the
+  // RON-same-currency no-op (value back unchanged, fxRateAt null) so the
+  // pre-existing RON-only test fixtures keep passing without per-test
+  // setup. Individual specs override .convert.mockResolvedValueOnce(...)
+  // when they need a non-trivial conversion.
+  const fx = {
+    convert: vi.fn(async (amount: Prisma.Decimal, from: string, to: string) => {
+      if (from === to) return { amountBase: amount, fxRateAt: null };
+      return { amountBase: amount, fxRateAt: new Date('2026-05-17T00:00:00Z') };
+    }),
+  } as unknown as ConstructorParameters<typeof DealsService>[8];
+  const svc = new DealsService(prisma, audit, activities, pipelines, workflows, projects, metrics, sync, fx);
+  return { svc, prisma, tx, audit, activities, pipelines, workflows, projects, metrics, sync, fx };
 }
 
 describe('DealsService.create', () => {

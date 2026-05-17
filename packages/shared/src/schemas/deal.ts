@@ -48,6 +48,10 @@ export const UpdateDealSchema = z
     ownerId: z.string().min(1).max(64).nullable(),
     lostReason: z.string().trim().max(500).nullable(),
   })
+  .strict() // T-FX-T-02: reject PATCH that tries to write `amountBase` /
+  // `fxRateAt` directly. Those are server-computed (DealsService runs the
+  // FX conversion on every value/currency change) and a client-supplied
+  // `amountBase: 999999999` would silently inflate forecast reports.
   .partial();
 export type UpdateDealDto = z.infer<typeof UpdateDealSchema>;
 
