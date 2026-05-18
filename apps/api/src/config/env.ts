@@ -18,6 +18,19 @@ const envSchema = z.object({
     z.string().url().optional(),
   ),
 
+  // Phase 2 — connection string for the `app_worker` Postgres role
+  // (created in migration 20260518174000). Used by cron jobs that need to
+  // scan across tenants (`contracts:signing-expire`, `approvals:request-expire`,
+  // `contracts:audit-chain-verify`) — `app_worker` has additive SELECT-only
+  // policies on a fixed allow-list of tables. Optional in dev/test
+  // (workers fall back to a per-tenant loop under `app_user`); recommended
+  // in production once those crons are wired (separate PR per schema review
+  // §13 — runAsWorker() helper not yet implemented).
+  DATABASE_URL_WORKER: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().optional(),
+  ),
+
   // Optional PgBouncer (transaction-pooling) DSN. Use this as DATABASE_URL in
   // prod for short-lived web requests; Prisma migrations must still hit the
   // direct Postgres URL via `DIRECT_URL` in schema.prisma.

@@ -1594,56 +1594,116 @@ model CustomFieldValue {
 
 enum ApprovalStatus {
   PENDING
+  IN_PROGRESS // Phase 2 — at least one step approved, more pending
   APPROVED
   REJECTED
   CANCELLED
+  EXPIRED // Phase 2 — SLA deadline passed without final decision
 }
 
 enum ApprovalPolicyTrigger {
   QUOTE_ABOVE_VALUE
   DISCOUNT_ABOVE_PCT
+  CONTRACT_VALUE_ABOVE // Phase 2
+  EXPENSE_ABOVE_VALUE // Phase 2
+  DEAL_DISCOUNT_ABOVE_PCT // Phase 2
+  MANUAL // Phase 2 — user-triggered, no auto rule
+}
+
+// Phase 2 — polymorphic subject enum (replaces quote-only requests).
+// Backfill in migration 20260518172100 maps existing rows to QUOTE.
+enum ApprovalSubjectType {
+  QUOTE
+  CONTRACT
+  DEAL
+  INVOICE
+  EXPENSE
+}
+
+enum ApprovalStepStatus {
+  PENDING
+  ACTIVE // current step awaiting decision
+  APPROVED
+  REJECTED
+  SKIPPED // policy mutated mid-flight or bypassed by admin
 }
 
 // Defines when approval is required. Multiple policies can be active per tenant.
 model ApprovalPolicy {
-  id         String                @id @default(cuid())
-  tenantId   String                @map("tenant_id")
-  name       String
-  trigger    ApprovalPolicyTrigger
+  id          String                @id @default(cuid())
+  tenantId    String                @map("tenant_id")
+  name        String
+  trigger     ApprovalPolicyTrigger
   // QUOTE_ABOVE_VALUE: { threshold: number, currency: string }
   // DISCOUNT_ABOVE_PCT: { pct: number }
-  config     Json                  @default("{}")
-  // null = any manager can approve; else specific user
-  approverId String?               @map("approver_id")
-  isActive   Boolean               @default(true) @map("is_active")
-  createdAt  DateTime              @default(now()) @map("created_at")
-  updatedAt  DateTime              @updatedAt @map("updated_at")
-  deletedAt  DateTime?             @map("deleted_at")
+  // CONTRACT_VALUE_ABOVE: { threshold: number, currency: string }
+  // EXPENSE_ABOVE_VALUE: { threshold: number, currency: string }
+  // DEAL_DISCOUNT_ABOVE_PCT: { pct: number }
+  // MANUAL: {}
+  config      Json                  @default("{}")
+  // null = any manager can approve; else specific user (legacy single-step
+  // fallback when stepsConfig is empty — still consulted by ApprovalEngine).
+  approverId  String?               @map("approver_id")
+  // Phase 2 — which subject type this policy gates. Defaults to QUOTE for
+  // backward compat with existing rows (backfilled in 20260518172100).
+  subjectType ApprovalSubjectType   @default(QUOTE) @map("subject_type")
+  // Phase 2 — JSON array of step definitions:
+  //   [{ "order": 0, "approverId": "u_123", "slaHours": 48 },
+  //    { "order": 1, "approverRole": "manager", "slaHours": 24 }]
+  // Empty array = single-step legacy policy (falls back to approverId).
+  stepsConfig Json                  @default("[]") @map("steps_config")
+  isActive    Boolean               @default(true) @map("is_active")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  deletedAt   DateTime?             @map("deleted_at")
 
   requests ApprovalRequest[]
 
   @@index([tenantId, isActive])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, subjectType, isActive], map: "approval_policies_tenant_subject_active_idx")
   @@map("approval_policies")
 }
 
 model ApprovalRequest {
-  id          String         @id @default(cuid())
-  tenantId    String         @map("tenant_id")
-  policyId    String         @map("policy_id")
-  // Only quotes for now; extend via subjectType later
-  quoteId     String         @map("quote_id")
-  requestedBy String         @map("requested_by")
-  status      ApprovalStatus @default(PENDING)
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
+  id            String               @id @default(cuid())
+  tenantId      String               @map("tenant_id")
+  policyId      String               @map("policy_id")
+  // Phase 2 — `quoteId` stays NULLABLE for the 30-day backfill grace
+  // window (BLOCKER 5 in schema review). DROP in a separate migration ≥30d
+  // post-deploy after verifying zero reads via pg_stat_user_tables + Sentry.
+  // For QUOTE requests: subjectType=QUOTE, subjectId=quoteId, AND quoteId set
+  // (dual-write). For non-quote requests: quoteId NULL.
+  quoteId       String?              @map("quote_id")
+  // Phase 2 — polymorphic subject. NULL only for orphan rows (defensive
+  // backfill in 20260518172100 marks those as CANCELLED).
+  subjectType   ApprovalSubjectType? @map("subject_type")
+  subjectId     String?              @map("subject_id")
+  requestedBy   String               @map("requested_by")
+  status        ApprovalStatus       @default(PENDING)
+  // Phase 2 — current step in execution. NULL when status is APPROVED,
+  // REJECTED, CANCELLED, or EXPIRED.
+  currentStepId String?              @map("current_step_id")
+  // Phase 2 — SLA hard deadline. `approvals:request-expire` cron flips
+  // status to EXPIRED past this.
+  expiresAt     DateTime?            @map("expires_at")
+  completedAt   DateTime?            @map("completed_at")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
 
-  policy    ApprovalPolicy     @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  decisions ApprovalDecision[]
-  quote     Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  policy      ApprovalPolicy     @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  decisions   ApprovalDecision[]
+  // `onDelete: Cascade` carried over from Phase 1 — Quote delete still
+  // cascades to its requests (legacy contract preserved during the
+  // 2-phase rollout). Phase 2.6 will switch to Restrict + manual unwire.
+  quote       Quote?             @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  steps       ApprovalStep[]
+  currentStep ApprovalStep?      @relation("CurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, quoteId])
   @@index([tenantId, status])
+  @@index([tenantId, subjectType, subjectId], map: "approval_requests_tenant_subject_idx")
+  @@index([tenantId, status, expiresAt], map: "approval_requests_tenant_status_expires_idx")
   @@map("approval_requests")
 }
 
@@ -1651,15 +1711,54 @@ model ApprovalDecision {
   id        String         @id @default(cuid())
   tenantId  String         @map("tenant_id")
   requestId String         @map("request_id")
+  // Phase 2 — which step in the workflow this decision resolved. NULL for
+  // legacy single-step decisions (no step row existed).
+  stepId    String?        @map("step_id")
   deciderId String         @map("decider_id")
   status    ApprovalStatus
   comment   String?
   decidedAt DateTime       @default(now()) @map("decided_at")
 
   request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  step    ApprovalStep?   @relation(fields: [stepId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, requestId])
+  @@index([tenantId, stepId], map: "approval_decisions_tenant_step_idx")
   @@map("approval_decisions")
+}
+
+// Phase 2 — per-step state for multi-step approval workflows. See
+// schema review §E / §6. The CHECK constraint
+// (approval_steps_approver_exclusive_chk) is enforced at the DB layer in
+// migration 20260518173000.
+model ApprovalStep {
+  id           String             @id @default(cuid())
+  tenantId     String             @map("tenant_id")
+  requestId    String             @map("request_id")
+  // 0-indexed. Multiple steps with the same `order` = parallel approval
+  // (all approvers in that order must approve before advancing).
+  order        Int
+  // Exactly ONE of approverId / approverRole set (CHECK in migration), OR
+  // both NULL for an unassigned slot the policy admin will fill later.
+  approverId   String?            @map("approver_id")
+  approverRole String?            @map("approver_role") @db.VarChar(64)
+  // Per-step SLA override (hours). NULL = inherit from policy default.
+  slaHours     Int?               @map("sla_hours")
+  status       ApprovalStepStatus @default(PENDING)
+  startedAt    DateTime?          @map("started_at")
+  completedAt  DateTime?          @map("completed_at")
+  // started_at + sla_hours, computed by app layer at activation.
+  expiresAt    DateTime?          @map("expires_at")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  request           ApprovalRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  decisions         ApprovalDecision[]
+  currentForRequest ApprovalRequest[]  @relation("CurrentStep")
+
+  @@index([tenantId, requestId, order], map: "approval_steps_tenant_request_order_idx")
+  @@index([tenantId, approverId, status], map: "approval_steps_tenant_approver_status_idx")
+  @@index([tenantId, approverRole, status], map: "approval_steps_tenant_role_status_idx")
+  @@map("approval_steps")
 }
 
 // ─── S40 SSO / SAML ──────────────────────────────────────────────────────────
@@ -2240,10 +2339,65 @@ model Lead {
 
 enum ContractStatus {
   DRAFT
+  PENDING_SIGNATURE // Phase 2 — ceremony issued, awaiting signers
   ACTIVE
   EXPIRED
   TERMINATED
   RENEWED
+  DECLINED // Phase 2 — at least one signer refused or ceremony expired
+}
+
+// Phase 2 — per-signer ceremony state machine (schema review §A).
+enum ContractSignatureStatus {
+  PENDING
+  SENT
+  VIEWED
+  SIGNED
+  DECLINED
+  EXPIRED
+  VOIDED // owner cancelled the ceremony before signing
+}
+
+// Phase 2 — eIDAS-style signer role taxonomy.
+enum ContractSignerRole {
+  TENANT_OWNER // party that created the contract (internal)
+  COUNTERPARTY // external client
+  WITNESS // optional witness for eIDAS QES jurisdictions
+}
+
+// Phase 2 — reusable template lifecycle (schema review §B).
+enum ContractTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Phase 2 — typed event enum for the append-only audit chain (schema review §C).
+enum ContractAuditEventType {
+  TEMPLATE_USED
+  CONTRACT_CREATED
+  CONTRACT_UPDATED
+  PDF_RENDERED
+  CEREMONY_CREATED
+  SIGNATURE_REQUESTED
+  SIGNATURE_LINK_OPENED
+  SIGNATURE_DRAWN
+  SIGNATURE_SUBMITTED
+  SIGNATURE_DECLINED
+  SIGNATURE_EXPIRED
+  CONTRACT_COMPLETED
+  CONTRACT_VOIDED
+  PDF_DOWNLOADED
+  REMINDER_SENT
+  TOKEN_REISSUED
+}
+
+// Phase 2 — taxonomy of who triggered the audit event.
+enum ContractAuditActorType {
+  TENANT_USER // internal app user
+  SIGNER // external counterparty (ContractSignature.id)
+  SYSTEM // cron / scheduled job (runs as app_worker)
+  WEBHOOK // external callback
 }
 
 model Contract {
@@ -2266,13 +2420,159 @@ model Contract {
   updatedAt   DateTime       @updatedAt @map("updated_at")
   deletedAt   DateTime?      @map("deleted_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  // Phase 2 — e-sign ceremony fields. All NULLABLE: legacy contracts
+  // (status=ACTIVE, paper-signed) keep these columns NULL forever.
+  templateId       String?   @map("template_id")
+  // MinIO object key for the rendered, finalised PDF.
+  pdfStorageKey    String?   @map("pdf_storage_key")
+  // SHA-256 hex of the sealed PDF, for tamper-evidence.
+  pdfHash          String?   @map("pdf_hash") @db.VarChar(64)
+  // Deadline for the ceremony — `contracts:signing-expire` worker reads this.
+  signingExpiresAt DateTime? @map("signing_expires_at")
+  // 'PARALLEL' or 'SEQUENTIAL' — enforced by CHECK in migration.
+  signingMode      String?   @default("PARALLEL") @map("signing_mode") @db.VarChar(16)
+
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  template     ContractTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  signatures   ContractSignature[]
+  auditEntries ContractAuditEntry[]
 
   @@index([tenantId, companyId])
   @@index([tenantId, status])
   @@index([tenantId, endDate])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, signingExpiresAt], map: "contracts_tenant_signing_expires_idx")
   @@map("contracts")
+}
+
+// Phase 2 — reusable, versioned contract templates per tenant (schema review §B).
+model ContractTemplate {
+  id          String                 @id @default(cuid())
+  tenantId    String                 @map("tenant_id")
+  name        String                 @db.VarChar(255)
+  description String?                @db.VarChar(2048)
+  // Markdown / Handlebars source. 1 MiB cap is a soft UX ceiling — templates
+  // approaching the cap signal a need to migrate to MinIO + bodyStorageKey
+  // (see schema review Concern 1).
+  bodyMd      String                 @map("body_md") @db.VarChar(1048576)
+  // Variable schema: [{ "key": "company.name", "type": "string", "required": true }]
+  // Renderer validates payload against this allow-list (template-injection defense).
+  variables   Json                   @default("[]")
+  status      ContractTemplateStatus @default(DRAFT)
+  // Manually bumped at publish; pinned by Contract.templateId for audit.
+  version     Int                    @default(1)
+  createdById String?                @map("created_by_id")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  deletedAt   DateTime?              @map("deleted_at")
+
+  contracts Contract[]
+
+  @@unique([tenantId, name, version], map: "contract_templates_tenant_name_version_uniq")
+  @@index([tenantId, status], map: "contract_templates_tenant_status_idx")
+  @@map("contract_templates")
+}
+
+// Phase 2 — per-signer ceremony state with HMAC token (schema review §A).
+model ContractSignature {
+  id                  String                  @id @default(cuid())
+  tenantId            String                  @map("tenant_id")
+  contractId          String                  @map("contract_id")
+  signerEmail         String                  @map("signer_email") @db.VarChar(320) // RFC 5321 max
+  signerName          String                  @map("signer_name") @db.VarChar(255)
+  signerRole          ContractSignerRole      @default(COUNTERPARTY) @map("signer_role")
+  // Ignored in PARALLEL mode; respected in SEQUENTIAL (0-indexed).
+  signingOrder        Int                     @default(0) @map("signing_order")
+  /// 256-bit HMAC token (64 hex). PRIVATE — never logged.
+  ceremonyToken       String                  @unique @map("ceremony_token") @db.VarChar(64)
+  /// HMAC key version (`v1`, `v2`) pinned at issue time for verification post-rotation.
+  ceremonyTokenKid    String                  @default("v1") @map("ceremony_token_kid") @db.VarChar(8)
+  status              ContractSignatureStatus @default(PENDING)
+  /// MinIO key for the canvas-drawn signature PNG (~50KB). NULL for DECLINED/EXPIRED.
+  signatureStorageKey String?                 @map("signature_storage_key")
+  /// SHA-256 of the PNG for tamper-evidence.
+  signatureHash       String?                 @map("signature_hash") @db.VarChar(64)
+  /// Canvas gesture trace (x/y/t triples) — eIDAS AES proof material.
+  signatureProof      Json?                   @map("signature_proof")
+  declineReason       String?                 @map("decline_reason") @db.VarChar(2048)
+  sentAt              DateTime?               @map("sent_at")
+  firstViewedAt       DateTime?               @map("first_viewed_at")
+  signedAt            DateTime?               @map("signed_at")
+  declinedAt          DateTime?               @map("declined_at")
+  expiresAt           DateTime                @map("expires_at")
+  /// Network forensics captured at signing — retained 7y per Cod Fiscal RO art. 25(1)(e).
+  ipAddress           String?                 @map("ip_address") @db.VarChar(64)
+  userAgent           String?                 @map("user_agent") @db.VarChar(512)
+  /// City/country coarse-grained geo from IP; NULL if VPN/no-resolve.
+  signerGeoCity       String?                 @map("signer_geo_city") @db.VarChar(128)
+  signerGeoCountry    String?                 @map("signer_geo_country") @db.VarChar(2)
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+
+  contract Contract                 @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  events   ContractSignatureEvent[]
+  audit    ContractAuditEntry[]
+
+  @@unique([contractId, signerEmail], map: "contract_signatures_contract_email_uniq")
+  @@index([tenantId, contractId, signingOrder], map: "contract_signatures_tenant_contract_order_idx")
+  @@index([tenantId, status, expiresAt], map: "contract_signatures_tenant_status_expires_idx")
+  @@map("contract_signatures")
+}
+
+// Phase 2 — high-cardinality per-signer lifecycle event log
+// (complement to the hash-chained audit table — see schema review §A).
+model ContractSignatureEvent {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  signatureId String   @map("signature_id")
+  /// "SENT" | "VIEWED" | "SIGNED" | "DECLINED" | "REMINDER_SENT" | "DOWNLOADED" | "TOKEN_REISSUED" | ...
+  /// VARCHAR (not enum) so new event kinds don't require ALTER TYPE migrations.
+  eventType   String   @map("event_type") @db.VarChar(32)
+  ipAddress   String?  @map("ip_address") @db.VarChar(64)
+  userAgent   String?  @map("user_agent") @db.VarChar(512)
+  /// Free-form metadata: { httpStatus, smtpResponse, errorCode, ... }
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  signature ContractSignature @relation(fields: [signatureId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, signatureId, createdAt], map: "contract_signature_events_tenant_sig_created_idx")
+  @@map("contract_signature_events")
+}
+
+// Phase 2 — hash-chained, tamper-evident, APPEND-ONLY audit trail for the
+// e-sign ceremony (schema review §C). 7y retention per Cod Fiscal RO art.
+// 25(1)(e) [trebuie validat cu avocat]. UPDATE/DELETE blocked by both
+// REVOKE on app_user AND the prevent_contract_audit_mutation trigger
+// (defense in depth). entry_hash computed app-side BEFORE INSERT — see
+// audit-chain.service.ts.
+model ContractAuditEntry {
+  id            String                 @id @default(cuid())
+  tenantId      String                 @map("tenant_id")
+  contractId    String                 @map("contract_id")
+  /// NULL for contract-level events (TEMPLATE_USED, CONTRACT_CREATED, etc).
+  signatureId   String?                @map("signature_id")
+  eventType     ContractAuditEventType @map("event_type")
+  actorType     ContractAuditActorType @map("actor_type")
+  /// User.id or ContractSignature.id depending on actorType; NULL for SYSTEM/anon.
+  actorId       String?                @map("actor_id")
+  actorEmail    String?                @map("actor_email") @db.VarChar(320)
+  actorIp       String?                @map("actor_ip") @db.VarChar(64)
+  /// Event-specific structured data: { pdfHash, signatureHash, ceremonyTokenKid, declineReason, ... }
+  payload       Json                   @default("{}")
+  /// SHA-256(prev.entry_hash || event_type || actor_id || created_at_iso || canonical(payload))
+  entryHash     String                 @map("entry_hash") @db.VarChar(64)
+  /// NULL for genesis entry per contract; otherwise prior entry's entryHash.
+  prevEntryHash String?                @map("prev_entry_hash") @db.VarChar(64)
+  createdAt     DateTime               @default(now()) @map("created_at")
+
+  // RESTRICT: audit survives contract delete (legal hold).
+  contract  Contract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  signature ContractSignature? @relation(fields: [signatureId], references: [id], onDelete: SetNull)
+
+  @@unique([contractId, entryHash], map: "contract_audit_contract_entry_uniq")
+  @@index([tenantId, contractId, createdAt], map: "contract_audit_tenant_contract_created_idx")
+  @@map("contract_audit_entries")
 }
 
 // ─── S55 Forecasting ──────────────────────────────────────────────────────────

@@ -17,6 +17,9 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   'ApprovalDecision',
   'ApprovalPolicy',
   'ApprovalRequest',
+  // Phase 2 — per-step state for multi-step approval workflows
+  // (migration 20260518173000).
+  'ApprovalStep',
   'Attachment',
   'AuditLog',
   'BillingSubscription',
@@ -38,6 +41,18 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   'Contact',
   'ContactSegment',
   'Contract',
+  // Phase 2 — hash-chained, append-only audit trail for e-sign
+  // (migration 20260518171000). 7y retention per Cod Fiscal RO art. 25(1)(e).
+  'ContractAuditEntry',
+  // Phase 2 — per-signer ceremony state with HMAC token
+  // (migration 20260518170100).
+  'ContractSignature',
+  // Phase 2 — high-cardinality per-signer lifecycle event log
+  // (migration 20260518170100).
+  'ContractSignatureEvent',
+  // Phase 2 — reusable, versioned contract templates per tenant
+  // (migration 20260518170500).
+  'ContractTemplate',
   'CustomFieldDef',
   'CustomFieldValue',
   'CustomerSubscription',

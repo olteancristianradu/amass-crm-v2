@@ -158,15 +158,20 @@ export class ApprovalsService {
       });
       await tx.approvalRequest.update({ where: { id: requestId }, data: { status: newStatus } });
 
-      // Update quote status based on decision
-      const allRequests = await tx.approvalRequest.findMany({ where: { quoteId: request.quoteId, tenantId } });
-      const allApproved = allRequests.every((r) => r.id === requestId ? newStatus === 'APPROVED' : r.status === 'APPROVED');
-      const anyRejected = allRequests.some((r) => r.id === requestId ? newStatus === 'REJECTED' : r.status === 'REJECTED');
+      // Phase 2: quote-status side-effect runs only when request is bound to a quote.
+      // After polymorphic migration, quoteId can be null (subjectType=DEAL/CONTRACT/INVOICE/EXPENSE).
+      // Other subject-type handlers will plug in here in Phase 2 feature work.
+      const quoteId = request.quoteId;
+      if (quoteId !== null) {
+        const allRequests = await tx.approvalRequest.findMany({ where: { quoteId, tenantId } });
+        const allApproved = allRequests.every((r) => r.id === requestId ? newStatus === 'APPROVED' : r.status === 'APPROVED');
+        const anyRejected = allRequests.some((r) => r.id === requestId ? newStatus === 'REJECTED' : r.status === 'REJECTED');
 
-      if (anyRejected) {
-        await tx.quote.update({ where: { id: request.quoteId }, data: { status: 'DRAFT' as QuoteStatus } });
-      } else if (allApproved) {
-        await tx.quote.update({ where: { id: request.quoteId }, data: { status: 'SENT' as QuoteStatus } });
+        if (anyRejected) {
+          await tx.quote.update({ where: { id: quoteId }, data: { status: 'DRAFT' as QuoteStatus } });
+        } else if (allApproved) {
+          await tx.quote.update({ where: { id: quoteId }, data: { status: 'SENT' as QuoteStatus } });
+        }
       }
     });
 
