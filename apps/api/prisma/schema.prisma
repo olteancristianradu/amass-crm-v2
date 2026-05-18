@@ -2125,6 +2125,11 @@ enum WebhookEvent {
   EMAIL_BOUNCED
   EMAIL_UNSUBSCRIBED
   EMAIL_SPAM_REPORTED
+  // Phase 2 F1 — contract e-sign ceremony events (additive, no rename).
+  CONTRACT_SENT_FOR_SIGNATURE
+  CONTRACT_SIGNED
+  CONTRACT_DECLINED
+  CONTRACT_EXPIRED
 }
 
 model WebhookEndpoint {

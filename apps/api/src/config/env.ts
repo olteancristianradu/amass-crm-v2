@@ -354,6 +354,45 @@ const envSchema = z.object({
   // decrypting. Bump this string (e.g. 'kek-2026-05') when you rotate the KEK
   // value; old rows keep their old kid until they themselves rotate.
   WEBHOOK_SECRET_KEK_KID: z.string().min(1).default('kek-default'),
+
+  // Phase 2 F1 — e-sign feature flag. Default OFF until the lawyer signs off
+  // on the in-house ceremony flow (eIDAS AES gate, NOT QES). When false,
+  // every `/contracts/:id/send-for-signature` AND `/p/sign/*` endpoint
+  // returns 503 — the controller-level EsignEnabledGuard rejects the
+  // request before any service code runs.
+  CONTRACT_ESIGN_ENABLED: z
+    .preprocess((v) => (v === '' ? undefined : v), z.coerce.boolean().default(false)),
+
+  // Phase 2 F1 — production hard gate. When CONTRACT_ESIGN_ENABLED=true in
+  // a NODE_ENV=production environment, this MUST also be true OR boot fails
+  // (per CHANGELOG eIDAS legal-sign-off requirement). Prevents accidentally
+  // enabling the legal-binding flow in prod without the lawyer's review.
+  ESIGN_LEGAL_APPROVED: z
+    .preprocess((v) => (v === '' ? undefined : v), z.coerce.boolean().default(false)),
+
+  // Phase 2 F1 — HMAC key for ceremony tokens. The token persisted on
+  // ContractSignature.ceremonyToken is `hex(hmac(key, signatureId || nonce))`
+  // so an attacker who lifts the DB cannot mint new tokens (preimage
+  // resistance) and a stolen token from one ContractSignature.id cannot
+  // match another. Generate with:
+  //   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+  // Falls back to JWT_SECRET in dev/test so unit tests don't need extra env
+  // wiring; prod env validation rejects that fallback below.
+  CONTRACT_HMAC_KEY: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().min(32, 'CONTRACT_HMAC_KEY must be ≥32 chars').optional()),
+
+  // Phase 2 F1 — TTL on the per-signer reminder cadence. Daily cron at 09:00
+  // Europe/Bucharest enqueues a reminder when (now - sentAt) hits one of
+  // these day offsets. Spec D9 default = T+3 / T+7 / T+12.
+  CONTRACT_REMINDER_OFFSETS_DAYS: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().default('3,7,12')),
+
+  // Phase 2 F1 — base URL for public ceremony links (sent in signer
+  // notification emails). Defaults to PUBLIC_API_BASE_URL so dev "just works",
+  // but operators usually point this at the FE host so the URL renders the
+  // signing widget (e.g. https://app.example.com/sign/<token>).
+  CONTRACT_CEREMONY_BASE_URL: z
+    .preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
 });
 
 /**
@@ -449,6 +488,24 @@ const prodOnlyChecks = (data: z.infer<typeof envSchema>): string[] => {
   }
   if (data.WEBAUTHN_RP_NAME === 'Amass CRM (dev)') {
     errors.push('WEBAUTHN_RP_NAME must be set to a production-appropriate value');
+  }
+
+  // Phase 2 F1 — eIDAS legal gate. The CHANGELOG records a hard requirement
+  // that production e-sign requires a lawyer's review before flipping the
+  // flag (the ceremony is AES-quality, not QES — counterparty disputes are
+  // resolved by the hash-chained audit). Refusing to boot here is cheaper
+  // than a wrongful-binding dispute.
+  if (data.CONTRACT_ESIGN_ENABLED && !data.ESIGN_LEGAL_APPROVED) {
+    errors.push(
+      'CONTRACT_ESIGN_ENABLED=true requires ESIGN_LEGAL_APPROVED=true in production (lawyer sign-off gate)',
+    );
+  }
+
+  // Phase 2 F1 — HMAC key required in prod when e-sign is on. Same rationale
+  // as CAMPAIGN_HMAC_KEY: the dev fallback to JWT_SECRET is fine for tests
+  // but loses the rotation isolation property in prod.
+  if (data.CONTRACT_ESIGN_ENABLED && !data.CONTRACT_HMAC_KEY) {
+    errors.push('CONTRACT_HMAC_KEY must be set in production when CONTRACT_ESIGN_ENABLED=true');
   }
 
   return errors;

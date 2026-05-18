@@ -56,3 +56,22 @@ export const QUEUE_EMAIL_TRACKS_PII = 'email-tracks-pii';
  * already EXPIRED is a no-op.
  */
 export const QUEUE_APPROVAL_SLA = 'approval-sla';
+
+/**
+ * Phase 2 F1 — contract e-sign reminder cron. Daily at 09:00 Europe/Bucharest
+ * a single 'reminder-sweep' job fans out per-signer reminder emails for any
+ * ContractSignature still PENDING/SENT/VIEWED that crosses one of the
+ * configured offsets (default 3/7/12 days). JobId is deterministic per day
+ * (`contract-reminder-YYYYMMDD`) so two cron fires on the same day collapse.
+ * Concurrency 1 — sweep iterates tenants serially under app_user.
+ */
+export const QUEUE_CONTRACT_REMINDER = 'contract-reminder';
+
+/**
+ * Phase 2 F1 — contract ceremony expiry. Hourly cron walks ContractSignature
+ * rows whose `expires_at < NOW()` AND status IN ('PENDING','SENT','VIEWED'),
+ * flips them to EXPIRED, and (if ALL signers EXPIRED) cascades the parent
+ * Contract to status DECLINED. Idempotent: re-running on already-EXPIRED
+ * rows is a no-op (the WHERE clause filters them out).
+ */
+export const QUEUE_CONTRACT_EXPIRE = 'contract-expire';

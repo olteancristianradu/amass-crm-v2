@@ -68,6 +68,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
+import { ContractTemplatesModule } from './modules/contract-templates/contract-templates.module';
+import { ContractSignersModule } from './modules/contract-signers/contract-signers.module';
 import { ForecastingModule } from './modules/forecasting/forecasting.module';
 import { CasesModule } from './modules/cases/cases.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -261,6 +263,8 @@ import { resolveLogLevel } from './config/logging';
     BillingModule,
     LeadsModule,
     ContractsModule,
+    ContractTemplatesModule,
+    ContractSignersModule,
     ForecastingModule,
     CasesModule,
     OrdersModule,
