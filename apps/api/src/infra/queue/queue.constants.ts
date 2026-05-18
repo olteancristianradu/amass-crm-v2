@@ -45,3 +45,14 @@ export const QUEUE_WEBHOOK_DELIVERY = 'webhook-delivery';
  * pii_hashed_at. Mitigates T-MAIL-I-01 (long-term PII retention).
  */
 export const QUEUE_EMAIL_TRACKS_PII = 'email-tracks-pii';
+
+/**
+ * Phase 2 F2 — multi-step approval SLA expiry sweep. A single repeat job
+ * ('sla-sweep') ticks every 15min and walks PENDING/IN_PROGRESS requests
+ * whose `expiresAt < now()`, flipping them to EXPIRED and notifying the
+ * requester. Concurrency is 1 so two pods can never race the same request
+ * (the UPDATE ... WHERE status IN ('PENDING','IN_PROGRESS') AND expiresAt
+ * predicate is the dedup boundary). Idempotent: re-running on a row that
+ * already EXPIRED is a no-op.
+ */
+export const QUEUE_APPROVAL_SLA = 'approval-sla';

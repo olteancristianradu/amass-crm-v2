@@ -1,9 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { ApprovalSubjectType, UserRole } from '@prisma/client';
 import {
   CreateApprovalPolicySchema, CreateApprovalPolicyDto,
   UpdateApprovalPolicySchema, UpdateApprovalPolicyDto,
   MakeApprovalDecisionSchema, MakeApprovalDecisionDto,
+  CreateApprovalRequestSchema, CreateApprovalRequestDto,
+  WithdrawApprovalRequestSchema, WithdrawApprovalRequestDto,
+  ListApprovalRequestsSchema, ListApprovalRequestsDto,
 } from '@amass/shared';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CedarGuard } from '../access-control/cedar.guard';
@@ -22,7 +25,9 @@ export class ApprovalsController {
 
   @Get('policies')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
-  listPolicies() { return this.svc.listPolicies(); }
+  listPolicies(@Query('subjectType') subjectType?: ApprovalSubjectType) {
+    return this.svc.listPolicies(subjectType);
+  }
 
   @Post('policies')
   @Roles(UserRole.OWNER, UserRole.ADMIN)
@@ -54,9 +59,29 @@ export class ApprovalsController {
   // ─── Requests ──────────────────────────────────────────────────────────────
 
   @Get('requests')
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER)
-  listRequests(@Query('quoteId') quoteId?: string) {
-    return this.svc.listRequests(quoteId);
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  listRequests(@Query(new ZodValidationPipe(ListApprovalRequestsSchema)) filter: ListApprovalRequestsDto) {
+    return this.svc.listRequests(filter);
+  }
+
+  @Get('requests/my-inbox')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  myInbox() {
+    return this.svc.listMyInbox();
+  }
+
+  @Get('requests/:id')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  getRequest(@Param('id') id: string) {
+    return this.svc.getRequest(id);
+  }
+
+  @Post('requests')
+  @HttpCode(201)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({ action: 'approval-request::create', resource: 'ApprovalRequest::*' })
+  createRequest(@Body(new ZodValidationPipe(CreateApprovalRequestSchema)) dto: CreateApprovalRequestDto) {
+    return this.svc.createRequest(dto);
   }
 
   @Post('requests/:id/decide')
@@ -70,4 +95,16 @@ export class ApprovalsController {
     @Param('id') id: string,
     @Body(new ZodValidationPipe(MakeApprovalDecisionSchema)) dto: MakeApprovalDecisionDto,
   ) { return this.svc.decide(id, dto); }
+
+  @Post('requests/:id/withdraw')
+  @HttpCode(200)
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT)
+  @RequireCedar({
+    action: 'approval-request::withdraw',
+    resource: (req) => `ApprovalRequest::${(req as { params: { id: string } }).params.id}`,
+  })
+  withdraw(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(WithdrawApprovalRequestSchema)) dto: WithdrawApprovalRequestDto,
+  ) { return this.svc.withdraw(id, dto); }
 }
