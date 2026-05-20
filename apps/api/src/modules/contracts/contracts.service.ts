@@ -76,18 +76,18 @@ export class ContractsService {
   async update(id: string, dto: UpdateContractDto): Promise<Contract> {
     await this.findOne(id);
     const ctx = requireTenantContext();
+    // CRIT-3 / HIGH-6 — status / signedAt / storageKey are intentionally NOT
+    // updatable here; they are owned by the e-sign ceremony lifecycle. See
+    // UpdateContractSchema in packages/shared for the rationale.
     const data: Prisma.ContractUpdateInput = {
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
       ...(dto.value !== undefined ? { value: dto.value ? new Prisma.Decimal(dto.value) : null } : {}),
       ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
-      ...(dto.status !== undefined ? { status: dto.status } : {}),
-      ...(dto.signedAt !== undefined ? { signedAt: dto.signedAt } : {}),
       ...(dto.startDate !== undefined ? { startDate: dto.startDate } : {}),
       ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
       ...(dto.renewalDate !== undefined ? { renewalDate: dto.renewalDate } : {}),
       ...(dto.autoRenew !== undefined ? { autoRenew: dto.autoRenew } : {}),
-      ...(dto.storageKey !== undefined ? { storageKey: dto.storageKey } : {}),
     };
     return this.prisma.runWithTenant(ctx.tenantId, (tx) =>
       tx.contract.update({ where: { id }, data }),

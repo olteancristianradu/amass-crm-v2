@@ -41,20 +41,28 @@ export const CreateContractSchema = z.object({
 });
 export type CreateContractDto = z.infer<typeof CreateContractSchema>;
 
+/**
+ * CRIT-3 / HIGH-6 — the generic PATCH /contracts/:id endpoint deliberately
+ * does NOT accept `status`, `signedAt`, `storageKey` (or `pdfHash`). Those
+ * fields are owned exclusively by the e-sign ceremony lifecycle
+ * (signing.service / ceremony.service). Allowing them here let a
+ * MANAGER/ADMIN/OWNER rewrite a signed ACTIVE contract back to DRAFT, forge
+ * `signedAt`, or re-point `storageKey` at an attacker-controlled MinIO
+ * object post-signing. `.strict()` makes any such field a 400, not a silent
+ * no-op, so callers get a clear signal.
+ */
 export const UpdateContractSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
     description: z.string().trim().max(4000).nullable(),
     value: decimalString.nullable(),
     currency: z.string().trim().length(3).toUpperCase(),
-    status: ContractStatusSchema,
-    signedAt: z.coerce.date().nullable(),
     startDate: z.coerce.date().nullable(),
     endDate: z.coerce.date().nullable(),
     renewalDate: z.coerce.date().nullable(),
     autoRenew: z.boolean(),
-    storageKey: z.string().trim().max(500).nullable(),
   })
+  .strict()
   .partial();
 export type UpdateContractDto = z.infer<typeof UpdateContractSchema>;
 

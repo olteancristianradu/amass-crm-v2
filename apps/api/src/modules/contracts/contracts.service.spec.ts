@@ -108,15 +108,33 @@ describe('ContractsService.findOne', () => {
 describe('ContractsService.update + remove', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('skips fields that are not in the patch', async () => {
+  it('applies patched metadata fields and skips fields not in the patch', async () => {
     const h = build();
     h.tx.contract.findFirst.mockResolvedValueOnce({ id: 'k-1' });
     h.tx.contract.update.mockResolvedValueOnce({ id: 'k-1' });
-    await h.svc.update('k-1', { status: 'ACTIVE' } as never);
+    await h.svc.update('k-1', { title: 'Renamed' } as never);
     const data = h.tx.contract.update.mock.calls[0][0].data;
-    expect(data.status).toBe('ACTIVE');
-    expect('title' in data).toBe(false);
+    expect(data.title).toBe('Renamed');
     expect('value' in data).toBe(false);
+  });
+
+  // CRIT-3 / HIGH-6 — update() must NOT apply signing-owned fields even if a
+  // caller manages to pass them; they belong to the e-sign ceremony only.
+  it('CRIT-3/HIGH-6: never applies status / signedAt / storageKey from a PATCH', async () => {
+    const h = build();
+    h.tx.contract.findFirst.mockResolvedValueOnce({ id: 'k-1' });
+    h.tx.contract.update.mockResolvedValueOnce({ id: 'k-1' });
+    await h.svc.update('k-1', {
+      title: 'Renamed',
+      status: 'DRAFT',
+      signedAt: new Date(),
+      storageKey: 'attacker/key.pdf',
+    } as never);
+    const data = h.tx.contract.update.mock.calls[0][0].data;
+    expect('status' in data).toBe(false);
+    expect('signedAt' in data).toBe(false);
+    expect('storageKey' in data).toBe(false);
+    expect(data.title).toBe('Renamed');
   });
 
   it('coerces value="0" to a Prisma.Decimal but null to null', async () => {
