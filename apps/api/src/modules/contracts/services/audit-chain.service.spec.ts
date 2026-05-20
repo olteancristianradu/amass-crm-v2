@@ -12,6 +12,8 @@ function build() {
       create: vi.fn(),
       findMany: vi.fn(),
     },
+    // CRIT-5 — append() acquires a per-contract advisory lock via $queryRaw.
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
   const prisma = {
     runWithTenant: vi.fn(async (_id: string, fn: (t: typeof tx) => unknown) => fn(tx)),
@@ -110,6 +112,34 @@ describe('AuditChainService.append', () => {
     const data = h.tx.contractAuditEntry.create.mock.calls[0][0].data;
     expect(data.prevEntryHash).toBe('prev123');
     expect(data.entryHash).not.toBe('prev123');
+  });
+
+  // CRIT-5 / B-4 / B-5 — the advisory lock must be acquired BEFORE the
+  // find-prev + insert pair, so concurrent appends for one contract cannot
+  // fork the hash chain.
+  it('CRIT-5: takes a per-contract advisory lock before reading and inserting', async () => {
+    const h = build();
+    const order: string[] = [];
+    h.tx.$queryRaw.mockImplementation(async () => {
+      order.push('lock');
+      return [];
+    });
+    h.tx.contractAuditEntry.findFirst.mockImplementation(async () => {
+      order.push('findFirst');
+      return null;
+    });
+    h.tx.contractAuditEntry.create.mockImplementation(async () => {
+      order.push('create');
+      return { id: 'a1' };
+    });
+    await h.svc.append(h.tx as never, {
+      contractId: 'c1',
+      eventType: 'CONTRACT_CREATED',
+      actorType: 'TENANT_USER',
+      actorId: 'user-1',
+    });
+    expect(order).toEqual(['lock', 'findFirst', 'create']);
+    expect(h.tx.$queryRaw).toHaveBeenCalledTimes(1);
   });
 });
 

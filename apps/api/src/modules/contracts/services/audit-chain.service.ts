@@ -57,6 +57,21 @@ export class AuditChainService {
   ): Promise<ContractAuditEntry> {
     const { tenantId } = requireTenantContext();
 
+    // CRIT-5 / B-4 / B-5 — serialize concurrent appends for the SAME
+    // contract. Without this lock, two appends read the same latest entry,
+    // compute the same prevEntryHash, and both insert → the hash chain
+    // forks and the nightly verifier can no longer prove tamper-evidence.
+    // A transaction-scoped advisory lock keyed on the contract makes the
+    // find-prev + insert pair atomic per contract; it auto-releases when
+    // the caller's transaction commits or rolls back. The lock is namespaced
+    // by a constant class key so it cannot collide with other advisory-lock
+    // users.
+    await tx.$queryRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtext('contract_audit_chain'), hashtext(${input.contractId})
+      )
+    `;
+
     // Locate the prior entry's hash. We could keep a denormalised "latest
     // hash per contract" on the Contract row to avoid the lookup, but the
     // index is tight (tenant_id, contract_id, created_at) and contracts
