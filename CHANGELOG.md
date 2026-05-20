@@ -4,6 +4,31 @@ All notable changes to AMASS CRM are documented here. Format roughly follows [Ke
 
 ## [Unreleased]
 
+### Phase 2 (closing the deal: contract e-signature + multi-step approvals) — in progress
+
+Phase 2 of ROADMAP_V2 adds in-house contract e-signature (F1) and polymorphic multi-step approval workflows (F2). Backend shipped across commits `d62371d` (schema), `f19c2e8` (F2), `5d91c0d` (F1). E-sign ships behind `CONTRACT_ESIGN_ENABLED=false` plus the `ESIGN_LEGAL_APPROVED` production gate — it stays disabled until the Phase 2.1 remediation below is complete and a lawyer has reviewed the flow.
+
+#### Added — Phase 2
+
+- **Contract e-signature in-house (F1)** — `ContractTemplate` CRUD with a field allow-list, pdfkit PDF generation + MinIO storage, `ContractSigner` ceremony with HMAC-token public sign endpoints, append-only hash-chained `ContractAuditEntry` trail, reminder + expiration crons, and integration with the F2 approval gate.
+- **Multi-step approval workflows (F2)** — polymorphic `ApprovalRequest` over QUOTE/CONTRACT/DEAL/INVOICE/EXPENSE, `ApprovalStep` snapshot chain, per-step SLA with cron-driven EXPIRED transitions, self-approval skip, and approver notifications. New `app_worker` Postgres role + append-only DB trigger on `contract_audit_entries`.
+
+#### Fixed — Phase 2.1 patch sprint (post-review remediation, 2026-05-20)
+
+Closes findings raised by `code-reviewer` (BLOCK_MERGE) and `security-red-team` (CRITICAL) — see [`docs/specs/phase-2-review-findings.md`](docs/specs/phase-2-review-findings.md).
+
+- **CRIT-3 / HIGH-6** — `PATCH /contracts/:id` no longer accepts `status`/`signedAt`/`storageKey`; `UpdateContractSchema` is now `.strict()` so they are rejected with 400. Those fields are owned solely by the e-sign ceremony lifecycle — previously a MANAGER/ADMIN/OWNER could rewrite a signed ACTIVE contract back to DRAFT or re-point its MinIO key.
+- **CRIT-4** — `ApprovalsService.decide()` authorized role-based steps (`approverId` null) for any authenticated user. It now checks the decider's tenant role against `approverRole` and fails closed on a misconfigured step.
+- **CRIT-5 / B-4 / B-5** — `AuditChainService.append()` takes a per-contract `pg_advisory_xact_lock` so concurrent appends cannot fork the hash chain.
+- **B-1 / MED-1** — the approval gate recognises an APPROVED request as satisfying its policy — no more infinite-409 retry loop or duplicate requests on subject re-send.
+- **B-2 / B-3** — `decide()` defers next-step activation to `advanceUntilHumanStep`, so the next approver is notified and a self-approval next step no longer stalls the chain.
+
+#### Still open before Phase 2 close (tracked in `docs/specs/phase-2-review-findings.md`)
+
+- **CRIT-1** — the signed PDF artifact is still the DRAFT-watermarked preview; needs a final re-render with embedded signature images and a distinct `signed/` storage key.
+- **CRIT-2** — the ceremony has no OTP / identity verification of the signer; the ceremony URL alone authenticates.
+- Plus the HIGH / MEDIUM / LOW items from the consolidated review.
+
 ## [1.0.0-rc.3] — 2026-05-17 — Phase 1 (engagement: campaign builder + email tracking + outbound webhooks)
 
 Phase 1 of ROADMAP_V2 closes 3 engagement features (drag-drop email campaign builder, email open/click tracking with HMAC-protected pixel + GDPR PII purge cron, outbound webhooks v2 with outbox pattern + envelope-encrypted secrets + DNS-rebinding defense). Plus Phase 1.1 patch sprint that closed 2 CRITICAL + 3 BLOCKER + 6 HIGH findings raised by `code-reviewer` and `security-red-team`. Final review verdicts: `code-reviewer` PASS_WITH_NITS, `security-red-team` GO (1 MED + 2 LOW, all deferred to Phase 1.1.1). Test count: **1665/1665 unit tests passing** (+173 since Phase 0 close at 1492).
