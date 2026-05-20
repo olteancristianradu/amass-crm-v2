@@ -22,11 +22,12 @@ Closes findings raised by `code-reviewer` (BLOCK_MERGE) and `security-red-team` 
 - **CRIT-5 / B-4 / B-5** — `AuditChainService.append()` takes a per-contract `pg_advisory_xact_lock` so concurrent appends cannot fork the hash chain.
 - **B-1 / MED-1** — the approval gate recognises an APPROVED request as satisfying its policy — no more infinite-409 retry loop or duplicate requests on subject re-send.
 - **B-2 / B-3** — `decide()` defers next-step activation to `advanceUntilHumanStep`, so the next approver is notified and a self-approval next step no longer stalls the chain.
+- **CRIT-1** — the contract sent for signature is now rendered without the DRAFT watermark, and on completion a standalone Signature Certificate PDF (embedded signer images + signer roster + executed-document SHA-256) is stored under a distinct `signed/<contractId>/certificate.pdf` MinIO key, recorded in the append-only audit chain.
+- **B-6 / B-7** — added the 6 Phase 2 environment variables to `.env.example`; wrote this CHANGELOG entry.
 
 #### Still open before Phase 2 close (tracked in `docs/specs/phase-2-review-findings.md`)
 
-- **CRIT-1** — the signed PDF artifact is still the DRAFT-watermarked preview; needs a final re-render with embedded signature images and a distinct `signed/` storage key.
-- **CRIT-2** — the ceremony has no OTP / identity verification of the signer; the ceremony URL alone authenticates.
+- **CRIT-2** — the ceremony has no OTP / identity verification of the signer; the ceremony URL alone authenticates. The correct fix needs a delivery-channel decision: an email OTP is weak against the very threat CRIT-2 names (mail-forwarding / BEC), while an SMS OTP needs an external provider credential. Deferred pending that decision.
 - Plus the HIGH / MEDIUM / LOW items from the consolidated review.
 
 ## [1.0.0-rc.3] — 2026-05-17 — Phase 1 (engagement: campaign builder + email tracking + outbound webhooks)
