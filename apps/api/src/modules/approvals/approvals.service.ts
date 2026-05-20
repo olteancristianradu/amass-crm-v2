@@ -222,9 +222,14 @@ export class ApprovalsService {
     const matched = policies.filter((p) => this.matchesTrigger(p.trigger, p.config, subjectAttrs));
     if (matched.length === 0) return false;
 
+    // B-1 / MED-1 — the gate MUST recognise an already-APPROVED request as
+    // satisfying its policy. Without that, every retry of the subject
+    // transition (e.g. ContractsService.sendForSignature) is blocked forever
+    // even after approval, and may spawn a duplicate request each time. We
+    // block the transition only while at least one matched policy is not yet
+    // satisfied.
+    let allSatisfied = true;
     for (const policy of matched) {
-      // One request per (policy, subject) — skipping if there is already an
-      // active one prevents duplicate workflows on a quote re-send.
       const existing = await this.prisma.runWithTenant(tenantId, (tx) =>
         tx.approvalRequest.findFirst({
           where: {
@@ -232,12 +237,23 @@ export class ApprovalsService {
             policyId: policy.id,
             subjectType,
             subjectId,
-            status: { in: ['PENDING', 'IN_PROGRESS'] },
+            status: { in: ['PENDING', 'IN_PROGRESS', 'APPROVED'] },
           },
+          orderBy: { createdAt: 'desc' },
         }),
       );
-      if (existing) continue;
-
+      if (existing?.status === 'APPROVED') {
+        // Policy satisfied by a completed approval — let the transition pass.
+        continue;
+      }
+      if (existing) {
+        // PENDING/IN_PROGRESS — workflow in flight: block, but do not open a
+        // duplicate request.
+        allSatisfied = false;
+        continue;
+      }
+      // No live request (none, or a prior REJECTED/EXPIRED/CANCELLED which
+      // does not satisfy the gate) — open a fresh one and block.
       await this.openRequest(tenantId, {
         policyId: policy.id,
         subjectType,
@@ -246,8 +262,9 @@ export class ApprovalsService {
         quoteId: extra.quoteId,
         slaDays: undefined,
       });
+      allSatisfied = false;
     }
-    return true;
+    return !allSatisfied;
   }
 
   /**
@@ -344,7 +361,7 @@ export class ApprovalsService {
   // ─── Decision / withdraw / lookups ─────────────────────────────────────────
 
   async decide(requestId: string, dto: MakeApprovalDecisionDto) {
-    const { tenantId, userId } = requireTenantContext();
+    const { tenantId, userId, role } = requireTenantContext();
     const newStatus = dto.status as ApprovalStatus;
 
     // Transaction with SELECT FOR UPDATE on request + current step.
@@ -397,15 +414,35 @@ export class ApprovalsService {
         });
       }
 
-      // T-APPR-T-03 — must be the assigned approver. (Role-based steps
-      // resolve at notification time — here we accept any user whose
-      // userId matches; role-based approval requires an additional roles
-      // lookup which we keep narrow for the MVP and defer until the
-      // notifier exposes the role-resolved set.)
-      if (currentStep.approverId && currentStep.approverId !== userId) {
+      // T-APPR-T-03 / CRIT-4 — authorize the decider against the step's
+      // assignment. A step is either:
+      //   (a) user-assigned  — `approverId` set → decider.userId must match.
+      //   (b) role-assigned  — `approverId` null + `approverRole` set → the
+      //       decider's tenant role must equal `approverRole`.
+      // A step with neither is a misconfiguration → fail closed (deny). The
+      // previous guard only checked branch (a): when `approverId` was null it
+      // short-circuited and let ANY authenticated user decide a role-based
+      // step (privilege escalation — a MANAGER could decide an OWNER step).
+      if (currentStep.approverId) {
+        if (currentStep.approverId !== userId) {
+          throw new ForbiddenException({
+            code: 'NOT_CURRENT_STEP_APPROVER',
+            message: 'You are not the assigned approver for the current step',
+          });
+        }
+      } else if (currentStep.approverRole) {
+        if (!role || role !== currentStep.approverRole) {
+          throw new ForbiddenException({
+            code: 'NOT_CURRENT_STEP_APPROVER',
+            message: `This step must be decided by a user with role ${currentStep.approverRole}`,
+          });
+        }
+      } else {
+        // Step synthesis always sets approverId or approverRole; reaching
+        // here means a corrupted snapshot — deny rather than allow anyone.
         throw new ForbiddenException({
-          code: 'NOT_CURRENT_STEP_APPROVER',
-          message: 'You are not the assigned approver for the current step',
+          code: 'STEP_MISCONFIGURED',
+          message: 'Approval step has no assigned approver or role',
         });
       }
 
@@ -441,7 +478,7 @@ export class ApprovalsService {
         };
       }
 
-      // APPROVED — try to advance to next step.
+      // APPROVED — is there a further step in the chain?
       const nextStep = await tx.approvalStep.findFirst({
         where: { tenantId, requestId, order: { gt: currentStep.order }, status: 'PENDING' },
         orderBy: { order: 'asc' },
@@ -456,25 +493,21 @@ export class ApprovalsService {
         return { terminal: true as const, status: 'APPROVED' as ApprovalStatus, request };
       }
 
-      // Activate the next step. We don't notify here — advanceUntilHumanStep
-      // runs after the transaction commits to handle self-approval skips
-      // and emit notifications outside the lock window.
-      await tx.approvalStep.update({
-        where: { id: nextStep.id },
-        data: {
-          status: 'ACTIVE',
-          startedAt: new Date(),
-          expiresAt: nextStep.slaHours
-            ? new Date(Date.now() + nextStep.slaHours * 60 * 60 * 1000)
-            : null,
-        },
-      });
+      // B-2 / B-3 — do NOT activate the next step inside this transaction.
+      // advanceUntilHumanStep (post-commit) owns activation: it auto-skips
+      // self-approval steps and notifies the resolved approver. Activating
+      // the step here would make advanceUntilHumanStep see status ACTIVE and
+      // early-return as "waiting" — the next approver would never be notified
+      // (B-2), and a self-approval next step would stall the chain forever
+      // since the requester is forbidden from deciding their own step (B-3).
+      // We clear currentStepId so advanceUntilHumanStep re-resolves from the
+      // first remaining PENDING step.
       await tx.approvalRequest.update({
         where: { id: requestId },
-        data: { status: 'IN_PROGRESS', currentStepId: nextStep.id },
+        data: { status: 'IN_PROGRESS', currentStepId: null },
       });
 
-      return { terminal: false as const, status: 'IN_PROGRESS' as ApprovalStatus, request, nextStep };
+      return { terminal: false as const, status: 'IN_PROGRESS' as ApprovalStatus, request };
     });
 
     // Post-commit side effects: quote status flip + notifications.

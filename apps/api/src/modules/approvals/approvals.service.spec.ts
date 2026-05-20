@@ -525,3 +525,109 @@ describe('ApprovalsService — expireOverdueForTenant', () => {
     expect(out).toBe(0);
   });
 });
+
+describe('ApprovalsService — Phase 2.1 regression (CRIT-4, B-1, B-2/B-3)', () => {
+  let svc: ApprovalsService;
+  let tx: ReturnType<typeof buildFakePrisma>['tx'];
+  let notifier: ApprovalsNotifierService;
+
+  beforeEach(() => {
+    const fakes = buildFakePrisma();
+    tx = fakes.tx;
+    notifier = buildFakeNotifier();
+    svc = new ApprovalsService(fakes.prisma, notifier);
+  });
+
+  // CRIT-4 — a role-based step (approverId null + approverRole set) must NOT
+  // be decidable by any authenticated user. Before the fix the guard
+  // short-circuited on `approverId &&` and let anyone through.
+  it('CRIT-4: rejects decision on a role-based step when decider role does not match', async () => {
+    tx.$queryRaw.mockResolvedValueOnce([{ id: 'req-1' }]);
+    tx.approvalRequest.findFirst.mockResolvedValueOnce({
+      id: 'req-1',
+      status: 'PENDING',
+      requestedBy: 'u2',
+      currentStepId: 'step-1',
+      currentStep: { id: 'step-1', status: 'ACTIVE', approverId: null, approverRole: 'OWNER', order: 0 },
+      policy: {},
+    });
+    // Mocked context role is undefined → fail closed.
+    await expect(svc.decide('req-1', { status: 'APPROVED' })).rejects.toThrow(ForbiddenException);
+    expect(tx.approvalDecision.create).not.toHaveBeenCalled();
+  });
+
+  // B-1 / MED-1 — the gate must treat an existing APPROVED request as
+  // satisfying the policy: do not block, do not duplicate.
+  it('B-1: gate returns false and opens no new request when an APPROVED request exists', async () => {
+    tx.approvalPolicy.findMany.mockResolvedValueOnce([
+      { id: 'p1', trigger: 'QUOTE_ABOVE_VALUE', config: { threshold: 50 }, subjectType: 'QUOTE' },
+    ]);
+    tx.approvalRequest.findFirst.mockResolvedValueOnce({ id: 'r1', status: 'APPROVED' });
+
+    const blocked = await svc.checkAndRequestApproval('quote-1', makeDecimal(100), 'RON');
+    expect(blocked).toBe(false);
+    expect(tx.approvalRequest.create).not.toHaveBeenCalled();
+  });
+
+  // B-1 — an in-flight PENDING request blocks the transition but is not duplicated.
+  it('B-1: gate blocks but does not duplicate when a PENDING request exists', async () => {
+    tx.approvalPolicy.findMany.mockResolvedValueOnce([
+      { id: 'p1', trigger: 'QUOTE_ABOVE_VALUE', config: { threshold: 50 }, subjectType: 'QUOTE' },
+    ]);
+    tx.approvalRequest.findFirst.mockResolvedValueOnce({ id: 'r1', status: 'PENDING' });
+
+    const blocked = await svc.checkAndRequestApproval('quote-1', makeDecimal(100), 'RON');
+    expect(blocked).toBe(true);
+    expect(tx.approvalRequest.create).not.toHaveBeenCalled();
+  });
+
+  // B-2 / B-3 — decide() must NOT activate the next step in-transaction. It
+  // clears currentStepId so advanceUntilHumanStep activates + notifies the
+  // next approver post-commit.
+  it('B-2/B-3: approving a non-final step clears currentStepId and notifies the next approver', async () => {
+    tx.$queryRaw.mockResolvedValueOnce([{ id: 'req-1' }]);
+    tx.approvalRequest.findFirst
+      .mockResolvedValueOnce({
+        id: 'req-1',
+        status: 'IN_PROGRESS',
+        requestedBy: 'u2',
+        currentStepId: 'step-1',
+        currentStep: { id: 'step-1', status: 'ACTIVE', approverId: 'user-1', order: 0 },
+        policy: {},
+      })
+      .mockResolvedValueOnce({
+        id: 'req-1',
+        status: 'IN_PROGRESS',
+        subjectType: 'CONTRACT',
+        subjectId: 'c-1',
+        quoteId: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'req-1',
+        status: 'IN_PROGRESS',
+        currentStepId: null,
+        currentStep: null,
+      });
+    tx.approvalStep.findFirst
+      .mockResolvedValueOnce({ id: 'step-2', order: 1, slaHours: null })
+      .mockResolvedValueOnce({
+        id: 'step-2',
+        order: 1,
+        approverId: 'next-approver',
+        approverRole: null,
+        slaHours: null,
+      });
+    tx.approvalDecision.create.mockResolvedValue({});
+    tx.approvalStep.update.mockResolvedValue({});
+    tx.approvalRequest.update.mockResolvedValue({});
+
+    const out = await svc.decide('req-1', { status: 'APPROVED' });
+
+    expect(out.status).toBe('IN_PROGRESS');
+    expect(tx.approvalRequest.update).toHaveBeenCalledWith({
+      where: { id: 'req-1' },
+      data: { status: 'IN_PROGRESS', currentStepId: null },
+    });
+    expect(notifier.notifyApproverAssigned).toHaveBeenCalledWith('tenant-1', 'req-1', 'step-2');
+  });
+});
