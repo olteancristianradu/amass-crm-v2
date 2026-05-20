@@ -16,6 +16,10 @@ import { StorageService } from '../../infra/storage/storage.service';
 import { OutboxService } from '../../infra/outbox/outbox.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditChainService } from '../contracts/services/audit-chain.service';
+import {
+  PdfGeneratorService,
+  SignatureCertificateSigner,
+} from '../contracts/services/pdf-generator.service';
 import { CeremonyService } from './ceremony.service';
 
 /**
@@ -49,6 +53,7 @@ export class SigningService {
     private readonly audit: AuditService,
     private readonly auditChain: AuditChainService,
     private readonly ceremony: CeremonyService,
+    private readonly pdfGenerator: PdfGeneratorService,
   ) {}
 
   // ───────────────────────────────────────────────────────────────────
@@ -255,6 +260,20 @@ export class SigningService {
       userAgent: ctx.userAgent ?? undefined,
     });
 
+    // CRIT-1 — on completion, produce the standalone signature-certificate
+    // PDF under the `signed/` prefix. Best-effort post-commit: a failure
+    // logs but does not roll back the completed signature.
+    if (result.contractCompleted) {
+      await this.generateSignatureCertificate(tenantId, contractId, contract.pdfHash, now).catch(
+        (err) =>
+          this.logger.error(
+            `signature certificate generation failed for contract ${contractId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          ),
+      );
+    }
+
     // If sequential and contract not complete, notify the next signer (fire-and-forget).
     if (!result.contractCompleted && contract.signingMode === 'SEQUENTIAL') {
       await this.notifyNextSequentialSigner(tenantId, contractId).catch((err) =>
@@ -426,6 +445,87 @@ export class SigningService {
       });
     }
     return buf;
+  }
+
+  /**
+   * CRIT-1 — post-completion evidentiary artifact. Builds a standalone
+   * Signature Certificate PDF (signer roster + embedded signature images +
+   * the executed-document hash) and stores it under the distinct `signed/`
+   * prefix. The executed contract PDF at Contract.pdfStorageKey is left
+   * untouched — the certificate is additive, never a silent re-render of
+   * signed content. Runs post-commit because MinIO + PDF rendering are slow
+   * and non-transactional.
+   */
+  private async generateSignatureCertificate(
+    tenantId: string,
+    contractId: string,
+    signedPdfHash: string,
+    completedAt: Date,
+  ): Promise<void> {
+    const contract = await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.contract.findFirst({
+        where: { id: contractId, tenantId },
+        select: { id: true, title: true, company: { select: { name: true } } },
+      }),
+    );
+    if (!contract) return;
+
+    const signers = await this.prisma.runWithTenant(tenantId, (tx) =>
+      tx.contractSignature.findMany({
+        where: { tenantId, contractId, status: 'SIGNED' },
+        orderBy: { signingOrder: 'asc' },
+        select: {
+          signerName: true,
+          signerEmail: true,
+          signerRole: true,
+          signedAt: true,
+          ipAddress: true,
+          signatureStorageKey: true,
+        },
+      }),
+    );
+
+    const certSigners: SignatureCertificateSigner[] = [];
+    for (const s of signers) {
+      if (!s.signatureStorageKey || !s.signedAt) continue;
+      const png = await this.storage.getObjectAsBuffer(s.signatureStorageKey);
+      certSigners.push({
+        name: s.signerName,
+        email: s.signerEmail,
+        role: String(s.signerRole),
+        signedAt: s.signedAt,
+        ipAddress: s.ipAddress,
+        signatureImagePng: png,
+      });
+    }
+
+    const cert = await this.pdfGenerator.renderSignatureCertificate({
+      contract: { id: contract.id, title: contract.title, companyName: contract.company.name },
+      signedPdfHash,
+      signers: certSigners,
+      completedAt,
+    });
+
+    const certificateStorageKey = `tenants/${tenantId}/contracts/${contractId}/signed/certificate.pdf`;
+    await this.storage.putObject(certificateStorageKey, cert.buffer, 'application/pdf');
+
+    await this.prisma.runWithTenant(tenantId, (tx) =>
+      this.auditChain.append(tx, {
+        contractId,
+        eventType: 'PDF_RENDERED',
+        actorType: 'SYSTEM',
+        payload: {
+          artifact: 'signature_certificate',
+          certificateStorageKey,
+          certificateHash: cert.sha256,
+          signedPdfHash,
+        },
+      }),
+    );
+
+    this.logger.log(
+      `signature certificate stored for contract ${contractId} key=${certificateStorageKey}`,
+    );
   }
 
   private async isContractComplete(tenantId: string, contractId: string): Promise<boolean> {

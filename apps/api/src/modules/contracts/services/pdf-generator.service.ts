@@ -48,6 +48,24 @@ export interface PdfRenderOutput {
   byteLength: number;
 }
 
+export interface SignatureCertificateSigner {
+  name: string;
+  email: string;
+  role: string;
+  signedAt: Date;
+  ipAddress: string | null;
+  /** Raw PNG bytes of the drawn signature (already validated upstream). */
+  signatureImagePng: Buffer;
+}
+
+export interface SignatureCertificateInput {
+  contract: { id: string; title: string; companyName: string };
+  /** SHA-256 hex of the executed contract PDF the signatures attest to. */
+  signedPdfHash: string;
+  signers: SignatureCertificateSigner[];
+  completedAt: Date;
+}
+
 @Injectable()
 export class PdfGeneratorService {
   async renderContract(input: PdfRenderInput): Promise<PdfRenderOutput> {
@@ -67,6 +85,91 @@ export class PdfGeneratorService {
 
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     return { buffer, sha256, byteLength: buffer.length };
+  }
+
+  /**
+   * CRIT-1 — build a standalone Signature Certificate PDF: the signer
+   * roster (name, email, role, signed timestamp, IP) with each drawn
+   * signature image embedded, plus the SHA-256 of the executed contract
+   * PDF the signatures attest to. Stored under the `signed/` prefix as an
+   * additive evidentiary artifact — it is never a re-render of the signed
+   * content, so it cannot diverge from what the parties executed.
+   */
+  async renderSignatureCertificate(input: SignatureCertificateInput): Promise<PdfRenderOutput> {
+    const buffer = await this.drawCertificate(input);
+    if (buffer.length > MAX_PDF_BYTES) {
+      throw new Error(
+        `Signature certificate exceeds ${MAX_PDF_BYTES} bytes (got ${buffer.length})`,
+      );
+    }
+    const sha256 = createHash('sha256').update(buffer).digest('hex');
+    return { buffer, sha256, byteLength: buffer.length };
+  }
+
+  private async drawCertificate(input: SignatureCertificateInput): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({
+          size: 'A4',
+          margins: { top: 72, bottom: 72, left: 72, right: 72 },
+          info: {
+            Title: `Signature Certificate — ${input.contract.title}`,
+            Subject: `Contract ${input.contract.id}`,
+            Creator: 'amass-crm',
+            CreationDate: input.completedAt,
+          },
+        });
+
+        const chunks: Buffer[] = [];
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', (err: Error) => reject(err));
+
+        doc.fontSize(18).text('Signature Certificate', { align: 'center' });
+        doc.moveDown(0.5);
+        doc
+          .fontSize(10)
+          .fillColor('#555')
+          .text(input.contract.title, { align: 'center' })
+          .text(`${input.contract.companyName} · Contract ID: ${input.contract.id}`, {
+            align: 'center',
+          })
+          .text(`Completed: ${input.completedAt.toISOString()}`, { align: 'center' });
+        doc.moveDown(1);
+        doc
+          .fontSize(9)
+          .fillColor('#000')
+          .text(`Executed document SHA-256: ${input.signedPdfHash}`);
+        doc.moveDown(1);
+
+        doc.fontSize(13).fillColor('#000').text(`Signers (${input.signers.length})`);
+        doc.moveDown(0.5);
+
+        input.signers.forEach((s, idx) => {
+          doc.fontSize(11).fillColor('#000').text(`${idx + 1}. ${s.name} <${s.email}>`);
+          doc
+            .fontSize(9)
+            .fillColor('#555')
+            .text(
+              `Role: ${s.role} · Signed: ${s.signedAt.toISOString()} · IP: ${s.ipAddress ?? 'unknown'}`,
+            );
+          doc.fillColor('#000');
+          try {
+            doc.image(s.signatureImagePng, { fit: [220, 90] });
+          } catch {
+            // A corrupt PNG must not abort the whole certificate — the
+            // signature bytes + hash are still recorded in the audit chain.
+            doc.fontSize(9).fillColor('#aa0000').text('[signature image unavailable]');
+            doc.fillColor('#000');
+          }
+          doc.moveDown(1);
+        });
+
+        doc.end();
+      } catch (err) {
+        reject(err);
+      }
+    });
   }
 
   /**

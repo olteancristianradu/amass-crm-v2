@@ -77,3 +77,52 @@ describe('PdfGeneratorService.renderContract', () => {
     expect(a.sha256).not.toBe(b.sha256);
   });
 });
+
+describe('PdfGeneratorService.renderSignatureCertificate', () => {
+  const svc = new PdfGeneratorService();
+  // Real 1x1 transparent PNG — decodable by pdfkit's image embedder.
+  const realPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64',
+  );
+
+  it('CRIT-1: renders a certificate PDF with an embedded signature + deterministic hash', async () => {
+    const r = await svc.renderSignatureCertificate({
+      contract: { id: 'c-1', title: 'Test Contract', companyName: 'Acme' },
+      signedPdfHash: 'a'.repeat(64),
+      completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      signers: [
+        {
+          name: 'Jane Doe',
+          email: 'jane@acme.test',
+          role: 'COUNTERPARTY',
+          signedAt: new Date('2026-01-01T00:00:00.000Z'),
+          ipAddress: '1.2.3.4',
+          signatureImagePng: realPng,
+        },
+      ],
+    });
+    expect(r.buffer.subarray(0, 4).toString('ascii')).toBe('%PDF');
+    expect(r.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(r.byteLength).toBe(r.buffer.length);
+  });
+
+  it('tolerates a corrupt signature image without aborting the render', async () => {
+    const r = await svc.renderSignatureCertificate({
+      contract: { id: 'c-2', title: 'T', companyName: 'Acme' },
+      signedPdfHash: 'b'.repeat(64),
+      completedAt: new Date('2026-01-01T00:00:00.000Z'),
+      signers: [
+        {
+          name: 'Bad Png',
+          email: 'bad@acme.test',
+          role: 'COUNTERPARTY',
+          signedAt: new Date('2026-01-01T00:00:00.000Z'),
+          ipAddress: null,
+          signatureImagePng: Buffer.from('not a real png'),
+        },
+      ],
+    });
+    expect(r.buffer.subarray(0, 4).toString('ascii')).toBe('%PDF');
+  });
+});

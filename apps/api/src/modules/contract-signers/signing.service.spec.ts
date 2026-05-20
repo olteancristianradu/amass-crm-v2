@@ -28,6 +28,7 @@ function build() {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
   return { svc };
 }
@@ -113,6 +114,7 @@ describe('SigningService.sign idempotency', () => {
       {} as never,
       {} as never,
       ceremony as never,
+      {} as never,
     );
     const result = await svc.sign(
       '0'.repeat(64),
@@ -143,6 +145,7 @@ describe('SigningService.sign idempotency', () => {
       {} as never,
       {} as never,
       ceremony as never,
+      {} as never,
     );
     await expect(
       svc.sign(

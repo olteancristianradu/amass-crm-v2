@@ -143,9 +143,14 @@ export class CeremonyService {
       });
     }
 
-    // ── Render + hash the PDF (still DRAFT watermark — ceremony PDF is the
-    // "to-be-signed" copy; the final sealed PDF is regenerated at completion
-    // time in SigningService).
+    // ── Render + hash the PDF. CRIT-1: the ceremony PDF IS the agreement
+    // the signers legally execute, so it is rendered WITHOUT the "DRAFT"
+    // watermark (isFinal: true). The watermark belongs only on the
+    // pre-send internal preview — previously the ceremony rendered
+    // isFinal:false, so the signed artifact carried a "DRAFT" stamp,
+    // breaking its evidentiary value. The completion step in SigningService
+    // additionally produces a separate signature-certificate PDF under the
+    // `signed/` prefix, with the embedded signer images.
     const rendered = await this.pdf.renderContract({
       template,
       contract: {
@@ -155,7 +160,7 @@ export class CeremonyService {
         createdAt: contract.createdAt,
       },
       fieldValues: dto.fieldValues,
-      isFinal: false,
+      isFinal: true,
     });
 
     // ── Upload PDF to MinIO. Storage key follows the multi-tenant prefix
